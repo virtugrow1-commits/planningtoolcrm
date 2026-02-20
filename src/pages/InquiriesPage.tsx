@@ -1,5 +1,5 @@
-import { useState, useCallback, DragEvent } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useState, useCallback, useEffect, DragEvent } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { format } from 'date-fns';
 import { nl } from 'date-fns/locale';
 import { mockInquiries } from '@/data/mockData';
@@ -17,12 +17,12 @@ import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { cn } from '@/lib/utils';
 
-const PIPELINE_COLUMNS: { key: Inquiry['status']; label: string; colorClass: string }[] = [
-  { key: 'new', label: 'Nieuw', colorClass: 'border-t-info bg-info/5' },
-  { key: 'contacted', label: 'Gecontacteerd', colorClass: 'border-t-warning bg-warning/5' },
-  { key: 'quoted', label: 'Offerte Verstuurd', colorClass: 'border-t-accent bg-accent/5' },
-  { key: 'converted', label: 'Geconverteerd', colorClass: 'border-t-success bg-success/5' },
-  { key: 'lost', label: 'Verloren', colorClass: 'border-t-muted-foreground bg-muted/30' },
+const PIPELINE_COLUMNS: { key: Inquiry['status']; label: string; colorClass: string; badgeClass: string }[] = [
+  { key: 'new', label: 'Nieuw', colorClass: 'border-t-info bg-info/5', badgeClass: 'status-new' },
+  { key: 'contacted', label: 'Gecontacteerd', colorClass: 'border-t-warning bg-warning/5', badgeClass: 'status-contacted' },
+  { key: 'quoted', label: 'Offerte Verstuurd', colorClass: 'border-t-primary bg-primary/5', badgeClass: 'status-quoted' },
+  { key: 'converted', label: 'Geconverteerd', colorClass: 'border-t-success bg-success/5', badgeClass: 'status-converted' },
+  { key: 'lost', label: 'Verloren', colorClass: 'border-t-muted-foreground bg-muted/30', badgeClass: 'status-lost' },
 ];
 
 const HOURS = [...Array.from({ length: 17 }, (_, i) => i + 7), 0, 1];
@@ -71,6 +71,33 @@ export default function InquiriesPage() {
   const { toast } = useToast();
   const { addBookings } = useBookings();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  // Handle incoming inquiry from CRM
+  useEffect(() => {
+    const newInquiryParam = searchParams.get('newInquiry');
+    if (newInquiryParam) {
+      const params = new URLSearchParams(decodeURIComponent(newInquiryParam));
+      const inq: Inquiry = {
+        id: `inq-${Date.now()}`,
+        contactId: params.get('contactId') || '',
+        contactName: params.get('contactName') || '',
+        eventType: params.get('eventType') || '',
+        preferredDate: params.get('preferredDate') || '',
+        roomPreference: params.get('roomPreference') || undefined,
+        guestCount: Number(params.get('guestCount')) || 0,
+        budget: Number(params.get('budget')) || undefined,
+        message: params.get('message') || '',
+        status: 'new',
+        createdAt: new Date().toISOString().split('T')[0],
+        source: 'CRM',
+      };
+      setInquiries((prev) => [inq, ...prev]);
+      toast({ title: '✅ Aanvraag ontvangen vanuit CRM', description: `${inq.eventType} — ${inq.contactName}` });
+      // Clear the param
+      setSearchParams({}, { replace: true });
+    }
+  }, []);
 
   const openDetailDialog = (inq: Inquiry) => {
     setEditInquiry({ ...inq });
@@ -340,7 +367,7 @@ export default function InquiriesPage() {
                   <td className="px-4 py-2.5 text-muted-foreground hidden md:table-cell">{inq.guestCount}</td>
                   <td className="px-4 py-2.5 text-muted-foreground hidden lg:table-cell">{inq.budget ? `€${inq.budget.toLocaleString('nl-NL')}` : '—'}</td>
                   <td className="px-4 py-2.5">
-                    <span className={cn('inline-block rounded-full px-2 py-0.5 text-[11px] font-medium', col?.colorClass)}>{col?.label}</span>
+                    <span className={cn('inline-block rounded-full px-2.5 py-0.5 text-[11px] font-semibold', col?.badgeClass)}>{col?.label}</span>
                   </td>
                   <td className="px-4 py-2.5 text-muted-foreground hidden lg:table-cell">{inq.source}</td>
                   <td className="px-4 py-2.5 text-right">
@@ -458,14 +485,33 @@ export default function InquiriesPage() {
 
                     {/* Status */}
                     <div className="grid gap-1.5">
-                      <Label className="text-xs">Status</Label>
-                      <Select value={opt.status} onValueChange={(v: 'confirmed' | 'option') => updateDateOption(opt.id, { status: v })}>
-                        <SelectTrigger className="text-sm"><SelectValue /></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="option">In Optie</SelectItem>
-                          <SelectItem value="confirmed">Bevestigd</SelectItem>
-                        </SelectContent>
-                      </Select>
+                      <Label className="text-xs">Boekingsstatus</Label>
+                      <div className="flex gap-2">
+                        <button
+                          type="button"
+                          onClick={() => updateDateOption(opt.id, { status: 'option' })}
+                          className={cn(
+                            'flex-1 rounded-lg border-2 px-3 py-2 text-xs font-semibold transition-all',
+                            opt.status === 'option'
+                              ? 'border-warning bg-warning/15 text-warning'
+                              : 'border-border bg-card text-muted-foreground hover:border-warning/50'
+                          )}
+                        >
+                          ○ In Optie
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => updateDateOption(opt.id, { status: 'confirmed' })}
+                          className={cn(
+                            'flex-1 rounded-lg border-2 px-3 py-2 text-xs font-semibold transition-all',
+                            opt.status === 'confirmed'
+                              ? 'border-success bg-success/15 text-success'
+                              : 'border-border bg-card text-muted-foreground hover:border-success/50'
+                          )}
+                        >
+                          ✓ Bevestigd
+                        </button>
+                      </div>
                     </div>
                   </div>
                 ))}
