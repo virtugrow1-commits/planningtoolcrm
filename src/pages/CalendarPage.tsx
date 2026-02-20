@@ -1,4 +1,5 @@
-import { useState, useMemo, useCallback, DragEvent } from 'react';
+import { useState, useMemo, useCallback, DragEvent, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { ROOMS, Booking, RoomName } from '@/types/crm';
 import { ChevronLeft, ChevronRight, Plus, GripVertical } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -15,7 +16,15 @@ function formatDate(date: Date) {
 }
 
 export default function CalendarPage() {
-  const [currentDate, setCurrentDate] = useState(new Date());
+  const [searchParams] = useSearchParams();
+  const [currentDate, setCurrentDate] = useState(() => {
+    const dateParam = searchParams.get('date');
+    if (dateParam) {
+      const parsed = new Date(dateParam + 'T12:00:00');
+      if (!isNaN(parsed.getTime())) return parsed;
+    }
+    return new Date();
+  });
   const { bookings, addBooking, updateBooking, deleteBooking } = useBookings();
   const [newDialogOpen, setNewDialogOpen] = useState(false);
   const [newBooking, setNewBooking] = useState({ room: '' as RoomName, startHour: 9, endHour: 12, title: '', contactName: '', status: 'confirmed' as 'confirmed' | 'option' });

@@ -1,4 +1,5 @@
 import { useState, useCallback, DragEvent } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { format } from 'date-fns';
 import { nl } from 'date-fns/locale';
 import { mockInquiries } from '@/data/mockData';
@@ -69,6 +70,7 @@ export default function InquiriesPage() {
   const [newForm, setNewForm] = useState({ contactName: '', eventType: '', preferredDate: '', guestCount: '', budget: '', message: '', source: 'Handmatig', roomPreference: '', status: 'new' as Inquiry['status'] });
   const { toast } = useToast();
   const { addBookings } = useBookings();
+  const navigate = useNavigate();
 
   const openDetailDialog = (inq: Inquiry) => {
     setEditInquiry({ ...inq });
@@ -211,6 +213,12 @@ export default function InquiriesPage() {
       description: descriptions.join(' | '),
     });
     setScheduleOpen(false);
+
+    // Navigate to calendar with the first booked date
+    const firstDate = validOptions[0]?.date;
+    if (firstDate) {
+      navigate(`/calendar?date=${firstDate.toISOString().split('T')[0]}`);
+    }
   };
 
   return (
