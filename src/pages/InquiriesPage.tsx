@@ -144,7 +144,7 @@ export default function InquiriesPage() {
     }
 
     // Create actual bookings from date options
-    const newBookings: Booking[] = [];
+    const newBookings: Omit<Booking, 'id'>[] = [];
     const recCount = recurrence !== 'none' ? Number(repeatCount) || 1 : 1;
 
     for (const opt of validOptions) {
@@ -158,14 +158,12 @@ export default function InquiriesPage() {
         else if (recurrence === 'quarterly') bookingDate.setMonth(bookingDate.getMonth() + i * 3);
 
         newBookings.push({
-          id: `b-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
           roomName: opt.room as RoomName,
           date: bookingDate.toISOString().split('T')[0],
           startHour: opt.startHour,
           endHour: opt.endHour,
           title: selectedInquiry.eventType,
           contactName: selectedInquiry.contactName,
-          contactId: selectedInquiry.contactId,
           status: opt.status,
         });
       }
