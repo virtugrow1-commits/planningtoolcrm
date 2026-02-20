@@ -9,6 +9,7 @@ import CalendarPage from "@/pages/CalendarPage";
 import CrmPage from "@/pages/CrmPage";
 import InquiriesPage from "@/pages/InquiriesPage";
 import QuotationsPage from "@/pages/QuotationsPage";
+import SettingsPage from "@/pages/SettingsPage";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -26,6 +27,7 @@ const App = () => (
             <Route path="/inquiries" element={<InquiriesPage />} />
             <Route path="/quotations" element={<QuotationsPage />} />
             <Route path="/calendar" element={<CalendarPage />} />
+            <Route path="/settings" element={<SettingsPage />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </AppLayout>
