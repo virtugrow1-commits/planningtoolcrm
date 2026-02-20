@@ -6,32 +6,32 @@
 
 @layer base {
   :root {
-    --background: 28 90% 91%;
-    --foreground: 15 46% 20%;
+    --background: 0 0% 97%;
+    --foreground: 15 30% 18%;
 
     --card: 0 0% 100%;
-    --card-foreground: 15 46% 20%;
+    --card-foreground: 15 30% 18%;
 
     --popover: 0 0% 100%;
-    --popover-foreground: 15 46% 20%;
+    --popover-foreground: 15 30% 18%;
 
     --primary: 15 46% 42%;
     --primary-foreground: 0 0% 100%;
 
-    --secondary: 28 60% 85%;
-    --secondary-foreground: 15 46% 25%;
+    --secondary: 28 50% 92%;
+    --secondary-foreground: 15 46% 30%;
 
-    --muted: 28 40% 88%;
-    --muted-foreground: 15 20% 45%;
+    --muted: 28 30% 93%;
+    --muted-foreground: 15 15% 45%;
 
     --accent: 37 68% 69%;
-    --accent-foreground: 15 46% 20%;
+    --accent-foreground: 15 46% 18%;
 
     --destructive: 0 72% 51%;
     --destructive-foreground: 0 0% 98%;
 
-    --border: 28 40% 84%;
-    --input: 28 40% 84%;
+    --border: 28 20% 88%;
+    --input: 28 20% 88%;
     --ring: 15 46% 42%;
 
     --radius: 0.625rem;
@@ -42,21 +42,21 @@
     --sidebar-active: 37 68% 69%;
     --sidebar-hover: 15 46% 36%;
 
-    --success: 152 60% 42%;
+    --success: 152 60% 38%;
     --success-foreground: 0 0% 100%;
-    --warning: 37 68% 69%;
-    --warning-foreground: 15 46% 20%;
-    --info: 210 80% 55%;
+    --warning: 37 80% 55%;
+    --warning-foreground: 15 46% 18%;
+    --info: 210 80% 52%;
     --info-foreground: 0 0% 100%;
 
-    --booking-confirmed: 152 60% 42%;
-    --booking-option: 37 68% 69%;
+    --booking-confirmed: 152 60% 38%;
+    --booking-option: 37 80% 55%;
     --booking-conflict: 0 72% 51%;
 
     --sidebar-background: 15 46% 42%;
     --sidebar-foreground: 0 0% 100%;
     --sidebar-primary: 37 68% 69%;
-    --sidebar-primary-foreground: 15 46% 20%;
+    --sidebar-primary-foreground: 15 46% 18%;
     --sidebar-accent: 15 46% 36%;
     --sidebar-accent-foreground: 0 0% 100%;
     --sidebar-border: 15 46% 34%;
@@ -111,28 +111,55 @@
   }
 
   .card-shadow {
-    box-shadow: 0 1px 3px 0 hsl(220 60% 12% / 0.06), 0 1px 2px -1px hsl(220 60% 12% / 0.06);
+    box-shadow: 0 1px 3px 0 hsl(15 30% 18% / 0.06), 0 1px 2px -1px hsl(15 30% 18% / 0.06);
   }
 
   .card-shadow-hover {
-    box-shadow: 0 4px 12px 0 hsl(220 60% 12% / 0.08), 0 2px 4px -1px hsl(220 60% 12% / 0.06);
+    box-shadow: 0 4px 12px 0 hsl(15 30% 18% / 0.1), 0 2px 4px -1px hsl(15 30% 18% / 0.06);
   }
 
   .booking-confirmed {
     background-color: hsl(var(--booking-confirmed) / 0.15);
-    border-left: 3px solid hsl(var(--booking-confirmed));
-    color: hsl(152 60% 30%);
+    border-left: 4px solid hsl(var(--booking-confirmed));
+    color: hsl(152 60% 25%);
   }
 
   .booking-option {
     background-color: hsl(var(--booking-option) / 0.15);
-    border-left: 3px solid hsl(var(--booking-option));
-    color: hsl(38 80% 30%);
+    border-left: 4px solid hsl(var(--booking-option));
+    color: hsl(37 80% 30%);
   }
 
   .booking-conflict {
     background-color: hsl(var(--booking-conflict) / 0.1);
     border: 2px dashed hsl(var(--booking-conflict));
     color: hsl(0 72% 40%);
+  }
+
+  /* Pipeline status badges */
+  .status-new {
+    background-color: hsl(var(--info) / 0.12);
+    color: hsl(210 80% 42%);
+    border: 1px solid hsl(var(--info) / 0.25);
+  }
+  .status-contacted {
+    background-color: hsl(var(--warning) / 0.12);
+    color: hsl(37 80% 35%);
+    border: 1px solid hsl(var(--warning) / 0.25);
+  }
+  .status-quoted {
+    background-color: hsl(var(--primary) / 0.12);
+    color: hsl(var(--primary));
+    border: 1px solid hsl(var(--primary) / 0.25);
+  }
+  .status-converted {
+    background-color: hsl(var(--success) / 0.12);
+    color: hsl(152 60% 28%);
+    border: 1px solid hsl(var(--success) / 0.25);
+  }
+  .status-lost {
+    background-color: hsl(var(--muted));
+    color: hsl(var(--muted-foreground));
+    border: 1px solid hsl(var(--border));
   }
 }
