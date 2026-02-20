@@ -37,10 +37,10 @@
     --radius: 0.625rem;
 
     /* CRM-specific tokens */
-    --sidebar-bg: 220 60% 12%;
-    --sidebar-fg: 220 20% 80%;
-    --sidebar-active: 38 92% 50%;
-    --sidebar-hover: 220 50% 18%;
+    --sidebar-bg: 15 46% 42%;
+    --sidebar-fg: 0 0% 100%;
+    --sidebar-active: 0 0% 100%;
+    --sidebar-hover: 15 46% 36%;
 
     --success: 152 60% 42%;
     --success-foreground: 0 0% 100%;
@@ -107,7 +107,7 @@
 
 @layer utilities {
   .sidebar-gradient {
-    background: linear-gradient(180deg, hsl(220 60% 14%) 0%, hsl(220 60% 10%) 100%);
+    background: linear-gradient(180deg, hsl(15 46% 44%) 0%, hsl(15 46% 38%) 100%);
   }
 
   .card-shadow {
