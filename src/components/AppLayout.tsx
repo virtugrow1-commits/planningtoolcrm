@@ -35,11 +35,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       >
         {/* Logo */}
         <div className="flex h-16 items-center justify-between px-4">
-          {!collapsed && (
-            <span className="text-lg font-bold text-primary-foreground animate-fade-in">
-              Agenda
-            </span>
-          )}
+          {!collapsed && <span />}
           <button
             onClick={() => setCollapsed(!collapsed)}
             className="rounded-md p-1.5 text-sidebar-foreground hover:bg-sidebar-accent transition-colors"
