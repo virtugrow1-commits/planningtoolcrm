@@ -177,6 +177,7 @@ export type Database = {
       room_settings: {
         Row: {
           created_at: string
+          display_name: string | null
           id: string
           max_guests: number
           room_name: string
@@ -185,6 +186,7 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          display_name?: string | null
           id?: string
           max_guests?: number
           room_name: string
@@ -193,6 +195,7 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          display_name?: string | null
           id?: string
           max_guests?: number
           room_name?: string

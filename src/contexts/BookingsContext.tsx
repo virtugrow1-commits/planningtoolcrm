@@ -58,6 +58,7 @@ export function BookingsProvider({ children }: { children: ReactNode }) {
       end_hour: booking.endHour,
       title: booking.title,
       contact_name: booking.contactName,
+      contact_id: booking.contactId || null,
       status: booking.status,
       notes: booking.notes || null,
     });
@@ -74,6 +75,7 @@ export function BookingsProvider({ children }: { children: ReactNode }) {
       end_hour: b.endHour,
       title: b.title,
       contact_name: b.contactName,
+      contact_id: b.contactId || null,
       status: b.status,
       notes: b.notes || null,
     }));

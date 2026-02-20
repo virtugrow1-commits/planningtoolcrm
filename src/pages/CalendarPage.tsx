@@ -1,15 +1,17 @@
 import { useState, useMemo, useCallback, DragEvent } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { ROOMS, Booking, RoomName } from '@/types/crm';
-import { ChevronLeft, ChevronRight, Plus, GripVertical, Settings, Users } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Plus, GripVertical, Settings, Users, CalendarPlus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { useBookings } from '@/contexts/BookingsContext';
 import BookingDetailDialog from '@/components/calendar/BookingDetailDialog';
 import NewBookingDialog from '@/components/calendar/NewBookingDialog';
+import NewReservationDialog, { NewReservationForm } from '@/components/calendar/NewReservationDialog';
 import RoomSettingsDialog from '@/components/calendar/RoomSettingsDialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useRoomSettings } from '@/hooks/useRoomSettings';
+import { useContacts } from '@/hooks/useContacts';
 
 // 07:00 to 01:00 (next day) = hours 7,8,...,23,0,1
 const HOURS = [...Array.from({ length: 17 }, (_, i) => i + 7), 0, 1];
@@ -28,7 +30,7 @@ export default function CalendarPage() {
     }
     return new Date();
   });
-  const { bookings, addBooking, updateBooking, deleteBooking } = useBookings();
+  const { bookings, addBooking, addBookings, updateBooking, deleteBooking } = useBookings();
   const [newDialogOpen, setNewDialogOpen] = useState(false);
   const [newBooking, setNewBooking] = useState({ room: '' as RoomName, startHour: 9, endHour: 12, title: '', contactName: '', status: 'confirmed' as 'confirmed' | 'option' });
   const [conflictAlert, setConflictAlert] = useState<string | null>(null);
@@ -37,8 +39,11 @@ export default function CalendarPage() {
   const [dragBookingId, setDragBookingId] = useState<string | null>(null);
   const [dragOverCell, setDragOverCell] = useState<{ room: RoomName; hour: number } | null>(null);
   const [roomSettingsOpen, setRoomSettingsOpen] = useState(false);
+  const [reservationDialogOpen, setReservationDialogOpen] = useState(false);
+  const [reservationConflict, setReservationConflict] = useState<string | null>(null);
   const { toast } = useToast();
-  const { settings: roomSettings, updateMaxGuests, getMaxGuests } = useRoomSettings();
+  const { settings: roomSettings, displayNames, updateRoomSettings, getMaxGuests, getDisplayName } = useRoomSettings();
+  const { contacts, loading: contactsLoading } = useContacts();
 
   const dateStr = formatDate(currentDate);
   const todayBookings = useMemo(() => bookings.filter((b) => b.date === dateStr), [bookings, dateStr]);
@@ -60,9 +65,8 @@ export default function CalendarPage() {
   const handleCellClick = (room: RoomName, hour: number) => {
     const existing = getBookingForCell(room, hour);
     if (existing) return;
-    setNewBooking({ room, startHour: hour, endHour: Math.min(hour + 2, 22), title: '', contactName: '', status: 'confirmed' });
-    setConflictAlert(null);
-    setNewDialogOpen(true);
+    setReservationConflict(null);
+    setReservationDialogOpen(true);
   };
 
   const handleBookingClick = (booking: Booking) => {
@@ -170,6 +174,48 @@ export default function CalendarPage() {
     toast({ title: 'Boeking verplaatst', description: `${booking.title} → ${targetRoom} ${newStart}:00–${newEnd}:00` });
   }, [bookings, toast]);
 
+  const handleNewReservation = async (form: NewReservationForm) => {
+    const allDates: string[] = [form.date];
+    if (form.repeat && form.repeatWeeks > 0) {
+      for (let w = 1; w <= form.repeatWeeks; w++) {
+        const d = new Date(form.date + 'T12:00:00');
+        d.setDate(d.getDate() + w * 7);
+        allDates.push(d.toISOString().split('T')[0]);
+      }
+    }
+
+    // Check conflicts across all dates
+    for (const date of allDates) {
+      const dayBookings = bookings.filter((b) => b.date === date);
+      const conflict = dayBookings.find((b) => b.roomName === form.room && form.startHour < b.endHour && form.endHour > b.startHour);
+      if (conflict) {
+        setReservationConflict(`Conflict op ${date}: "${conflict.title}" van ${conflict.startHour}:00 tot ${conflict.endHour}:00`);
+        return;
+      }
+    }
+
+    const newBookings = allDates.map((date) => ({
+      roomName: form.room,
+      date,
+      startHour: form.startHour,
+      endHour: form.endHour,
+      title: form.title,
+      contactName: form.contactName,
+      contactId: form.contactId,
+      status: form.status,
+    }));
+
+    if (newBookings.length === 1) {
+      await addBooking(newBookings[0]);
+    } else {
+      await addBookings(newBookings);
+    }
+
+    setReservationDialogOpen(false);
+    setReservationConflict(null);
+    toast({ title: 'Reservering toegevoegd', description: `${form.title} — ${allDates.length} boeking(en)` });
+  };
+
   const prevDay = () => setCurrentDate((d) => { const n = new Date(d); n.setDate(n.getDate() - 1); return n; });
   const nextDay = () => setCurrentDate((d) => { const n = new Date(d); n.setDate(n.getDate() + 1); return n; });
   const goToday = () => setCurrentDate(new Date());
@@ -252,9 +298,14 @@ export default function CalendarPage() {
           <span className="flex items-center gap-1.5"><span className="inline-block h-3 w-3 rounded-sm bg-warning" /> In Optie</span>
           <span className="flex items-center gap-1.5"><span className="inline-block h-3 w-3 rounded-sm bg-muted" /> Beschikbaar</span>
         </div>
-        <Button variant="outline" size="sm" className="gap-1.5 text-xs" onClick={() => setRoomSettingsOpen(true)}>
-          <Settings size={14} /> Ruimte-instellingen
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button size="sm" className="gap-1.5 text-xs" onClick={() => { setReservationConflict(null); setReservationDialogOpen(true); }}>
+            <CalendarPlus size={14} /> Nieuwe Reservering
+          </Button>
+          <Button variant="outline" size="sm" className="gap-1.5 text-xs" onClick={() => setRoomSettingsOpen(true)}>
+            <Settings size={14} /> Ruimte-instellingen
+          </Button>
+        </div>
       </div>
 
       {/* Grid */}
@@ -267,7 +318,7 @@ export default function CalendarPage() {
                 const max = getMaxGuests(room);
                 return (
                   <th key={room} className="border-b border-r bg-muted px-2 py-2.5 text-center last:border-r-0 whitespace-nowrap">
-                    <div className="text-[11px] font-semibold text-muted-foreground">{room}</div>
+                    <div className="text-[11px] font-semibold text-muted-foreground">{getDisplayName(room)}</div>
                     {max !== undefined && max > 0 && (
                       <div className="flex items-center justify-center gap-0.5 mt-0.5 text-[9px] text-muted-foreground/70">
                         <Users size={9} /> max {max}
@@ -376,7 +427,17 @@ export default function CalendarPage() {
         open={roomSettingsOpen}
         onOpenChange={setRoomSettingsOpen}
         settings={roomSettings}
-        onSave={updateMaxGuests}
+        displayNames={displayNames}
+        onSave={updateRoomSettings}
+      />
+      <NewReservationDialog
+        open={reservationDialogOpen}
+        onOpenChange={setReservationDialogOpen}
+        onSubmit={handleNewReservation}
+        contacts={contacts}
+        contactsLoading={contactsLoading}
+        conflictAlert={reservationConflict}
+        getRoomDisplayName={getDisplayName}
       />
     </div>
   );
