@@ -3,7 +3,7 @@ import { format } from 'date-fns';
 import { nl } from 'date-fns/locale';
 import { mockInquiries } from '@/data/mockData';
 import { Inquiry, Booking, ROOMS, RoomName } from '@/types/crm';
-import { Calendar as CalendarIcon, Users, Euro, GripVertical, Repeat, Plus, X, Check, LayoutGrid, List } from 'lucide-react';
+import { Calendar as CalendarIcon, Users, Euro, GripVertical, Repeat, Plus, X, Check, LayoutGrid, List, Trash2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useBookings } from '@/contexts/BookingsContext';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
@@ -64,9 +64,34 @@ export default function InquiriesPage() {
   const [repeatCount, setRepeatCount] = useState('4');
   const [newOpen, setNewOpen] = useState(false);
   const [viewMode, setViewMode] = useState<'cards' | 'list'>('cards');
+  const [detailOpen, setDetailOpen] = useState(false);
+  const [editInquiry, setEditInquiry] = useState<Inquiry | null>(null);
   const [newForm, setNewForm] = useState({ contactName: '', eventType: '', preferredDate: '', guestCount: '', budget: '', message: '', source: 'Handmatig', roomPreference: '', status: 'new' as Inquiry['status'] });
   const { toast } = useToast();
   const { addBookings } = useBookings();
+
+  const openDetailDialog = (inq: Inquiry) => {
+    setEditInquiry({ ...inq });
+    setDetailOpen(true);
+  };
+
+  const handleSaveEdit = () => {
+    if (!editInquiry) return;
+    if (!editInquiry.contactName || !editInquiry.eventType) {
+      toast({ title: 'Vul minimaal naam en type in', variant: 'destructive' });
+      return;
+    }
+    setInquiries((prev) => prev.map((inq) => inq.id === editInquiry.id ? editInquiry : inq));
+    setDetailOpen(false);
+    toast({ title: 'Aanvraag bijgewerkt' });
+  };
+
+  const handleDeleteInquiry = () => {
+    if (!editInquiry) return;
+    setInquiries((prev) => prev.filter((inq) => inq.id !== editInquiry.id));
+    setDetailOpen(false);
+    toast({ title: 'Aanvraag verwijderd', description: editInquiry.eventType });
+  };
 
   const handleAddInquiry = () => {
     if (!newForm.contactName || !newForm.eventType) {
@@ -241,10 +266,11 @@ export default function InquiriesPage() {
                     key={inq.id}
                     draggable
                     onDragStart={(e) => handleDragStart(e, inq.id)}
-                    className={`cursor-grab rounded-lg border bg-card p-3 card-shadow hover:card-shadow-hover transition-all active:cursor-grabbing ${dragId === inq.id ? 'opacity-50 scale-95' : ''}`}
+                    onClick={() => openDetailDialog(inq)}
+                    className={`cursor-pointer rounded-lg border bg-card p-3 card-shadow hover:card-shadow-hover transition-all active:cursor-grabbing ${dragId === inq.id ? 'opacity-50 scale-95' : ''}`}
                   >
                     <div className="flex items-start gap-2">
-                      <GripVertical size={14} className="mt-0.5 shrink-0 text-muted-foreground/40" />
+                      <GripVertical size={14} className="mt-0.5 shrink-0 text-muted-foreground/40 cursor-grab" />
                       <div className="flex-1 min-w-0">
                         <h4 className="text-sm font-medium text-card-foreground truncate">{inq.eventType}</h4>
                         <p className="text-xs text-muted-foreground">{inq.contactName}</p>
@@ -299,7 +325,7 @@ export default function InquiriesPage() {
             {inquiries.map((inq) => {
               const col = PIPELINE_COLUMNS.find((c) => c.key === inq.status);
               return (
-                <tr key={inq.id} className="border-b border-border last:border-0 hover:bg-muted/20 transition-colors">
+                <tr key={inq.id} onClick={() => openDetailDialog(inq)} className="border-b border-border last:border-0 hover:bg-muted/20 transition-colors cursor-pointer">
                   <td className="px-4 py-2.5 font-medium text-card-foreground">{inq.eventType}</td>
                   <td className="px-4 py-2.5 text-muted-foreground">{inq.contactName}</td>
                   <td className="px-4 py-2.5 text-muted-foreground hidden md:table-cell">{inq.preferredDate || '—'}</td>
@@ -314,7 +340,7 @@ export default function InquiriesPage() {
                       variant="ghost"
                       size="sm"
                       className="h-7 px-2 text-xs"
-                      onClick={() => openScheduleDialog(inq)}
+                      onClick={(e) => { e.stopPropagation(); openScheduleDialog(inq); }}
                     >
                       <CalendarIcon size={12} className="mr-1" /> Inplannen
                     </Button>
@@ -539,6 +565,89 @@ export default function InquiriesPage() {
           <DialogFooter>
             <Button variant="outline" onClick={() => setNewOpen(false)}>Annuleren</Button>
             <Button onClick={handleAddInquiry}>Toevoegen</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Detail / Edit Dialog */}
+      <Dialog open={detailOpen} onOpenChange={setDetailOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Aanvraag Bewerken</DialogTitle>
+          </DialogHeader>
+          {editInquiry && (
+            <div className="grid gap-4 py-2">
+              <div className="grid gap-1.5">
+                <Label>Contactpersoon *</Label>
+                <Input value={editInquiry.contactName} onChange={(e) => setEditInquiry({ ...editInquiry, contactName: e.target.value })} />
+              </div>
+              <div className="grid gap-1.5">
+                <Label>Type evenement *</Label>
+                <Input value={editInquiry.eventType} onChange={(e) => setEditInquiry({ ...editInquiry, eventType: e.target.value })} />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="grid gap-1.5">
+                  <Label>Voorkeursdatum</Label>
+                  <Input type="date" value={editInquiry.preferredDate || ''} onChange={(e) => setEditInquiry({ ...editInquiry, preferredDate: e.target.value })} />
+                </div>
+                <div className="grid gap-1.5">
+                  <Label>Aantal gasten</Label>
+                  <Input type="number" min="1" value={editInquiry.guestCount} onChange={(e) => setEditInquiry({ ...editInquiry, guestCount: Number(e.target.value) || 0 })} />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="grid gap-1.5">
+                  <Label>Ruimte voorkeur</Label>
+                  <Select value={editInquiry.roomPreference || ''} onValueChange={(v) => setEditInquiry({ ...editInquiry, roomPreference: v || undefined })}>
+                    <SelectTrigger className="text-sm"><SelectValue placeholder="Optioneel" /></SelectTrigger>
+                    <SelectContent>
+                      {ROOMS.map((r) => <SelectItem key={r} value={r}>{r}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="grid gap-1.5">
+                  <Label>Budget (€)</Label>
+                  <Input type="number" min="0" value={editInquiry.budget || ''} onChange={(e) => setEditInquiry({ ...editInquiry, budget: Number(e.target.value) || undefined })} />
+                </div>
+              </div>
+              <div className="grid gap-1.5">
+                <Label>Status</Label>
+                <Select value={editInquiry.status} onValueChange={(v: Inquiry['status']) => setEditInquiry({ ...editInquiry, status: v })}>
+                  <SelectTrigger className="text-sm"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {PIPELINE_COLUMNS.map((col) => (
+                      <SelectItem key={col.key} value={col.key}>{col.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="grid gap-1.5">
+                <Label>Bron</Label>
+                <Select value={editInquiry.source} onValueChange={(v) => setEditInquiry({ ...editInquiry, source: v })}>
+                  <SelectTrigger className="text-sm"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Handmatig">Handmatig</SelectItem>
+                    <SelectItem value="Website">Website</SelectItem>
+                    <SelectItem value="Telefoon">Telefoon</SelectItem>
+                    <SelectItem value="Email">Email</SelectItem>
+                    <SelectItem value="GHL">GHL</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="grid gap-1.5">
+                <Label>Bericht / Notities</Label>
+                <Textarea value={editInquiry.message || ''} onChange={(e) => setEditInquiry({ ...editInquiry, message: e.target.value })} />
+              </div>
+            </div>
+          )}
+          <DialogFooter className="flex !justify-between">
+            <Button variant="destructive" size="sm" onClick={handleDeleteInquiry}>
+              <Trash2 size={14} className="mr-1" /> Verwijderen
+            </Button>
+            <div className="flex gap-2">
+              <Button variant="outline" onClick={() => setDetailOpen(false)}>Annuleren</Button>
+              <Button onClick={handleSaveEdit}>Opslaan</Button>
+            </div>
           </DialogFooter>
         </DialogContent>
       </Dialog>
