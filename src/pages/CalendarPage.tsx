@@ -1,15 +1,13 @@
 import { useState, useMemo, useCallback, DragEvent } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { ROOMS, Booking, RoomName } from '@/types/crm';
-import { ChevronLeft, ChevronRight, Plus, GripVertical, CalendarIcon } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Plus, GripVertical } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { useBookings } from '@/contexts/BookingsContext';
 import BookingDetailDialog from '@/components/calendar/BookingDetailDialog';
 import NewBookingDialog from '@/components/calendar/NewBookingDialog';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { Calendar } from '@/components/ui/calendar';
-import { cn } from '@/lib/utils';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 // 07:00 to 01:00 (next day) = hours 7,8,...,23,0,1
 const HOURS = [...Array.from({ length: 17 }, (_, i) => i + 7), 0, 1];
@@ -34,7 +32,6 @@ export default function CalendarPage() {
   const [conflictAlert, setConflictAlert] = useState<string | null>(null);
   const [detailBooking, setDetailBooking] = useState<Booking | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
-  const [datePickerOpen, setDatePickerOpen] = useState(false);
   const [dragBookingId, setDragBookingId] = useState<string | null>(null);
   const [dragOverCell, setDragOverCell] = useState<{ room: RoomName; hour: number } | null>(null);
   const { toast } = useToast();
@@ -181,77 +178,67 @@ export default function CalendarPage() {
           <h1 className="text-2xl font-bold text-foreground">Kalender</h1>
           <p className="text-sm text-muted-foreground">Dagweergave — {ROOMS.length} ruimtes · Sleep boekingen om te verplaatsen</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           <Button variant="outline" size="sm" onClick={prevDay}><ChevronLeft size={16} /></Button>
           <Button variant="outline" size="sm" onClick={goToday}>Vandaag</Button>
           <Button variant="outline" size="sm" onClick={nextDay}><ChevronRight size={16} /></Button>
-          <Popover open={datePickerOpen} onOpenChange={setDatePickerOpen}>
-            <PopoverTrigger asChild>
-              <Button
-                variant="outline"
-                size="sm"
-                className={cn("ml-2 gap-1.5 text-sm font-semibold")}
-              >
-                <CalendarIcon size={14} />
-                {currentDate.toLocaleDateString('nl-NL', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent className="w-auto p-0" align="end">
-              <div className="flex">
-                {/* Quick shortcuts */}
-                <div className="flex flex-col gap-1 border-r p-3 min-w-[130px]">
-                  <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide mb-1">Snel navigeren</p>
-                  {[
-                    { label: 'Vandaag', offset: 0 },
-                    { label: 'Morgen', offset: 1 },
-                    { label: 'Overmorgen', offset: 2 },
-                  ].map(({ label, offset }) => {
-                    const d = new Date(); d.setDate(d.getDate() + offset);
-                    const isSelected = formatDate(d) === dateStr;
-                    return (
-                      <Button
-                        key={label}
-                        variant={isSelected ? 'default' : 'ghost'}
-                        size="sm"
-                        className="justify-start text-xs h-8"
-                        onClick={() => { setCurrentDate(d); setDatePickerOpen(false); }}
-                      >
-                        {label}
-                      </Button>
-                    );
-                  })}
-                  <div className="my-1 border-t" />
-                  <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide mb-1">Deze week</p>
-                  {Array.from({ length: 7 }, (_, i) => {
-                    const monday = new Date();
-                    monday.setDate(monday.getDate() - ((monday.getDay() + 6) % 7) + i);
-                    const isSelected = formatDate(monday) === dateStr;
-                    return (
-                      <Button
-                        key={i}
-                        variant={isSelected ? 'default' : 'ghost'}
-                        size="sm"
-                        className="justify-start text-xs h-7"
-                        onClick={() => { setCurrentDate(new Date(monday)); setDatePickerOpen(false); }}
-                      >
-                        {monday.toLocaleDateString('nl-NL', { weekday: 'short', day: 'numeric', month: 'short' })}
-                      </Button>
-                    );
-                  })}
-                </div>
-                {/* Full calendar */}
-                <Calendar
-                  mode="single"
-                  selected={currentDate}
-                  onSelect={(date) => {
-                    if (date) { setCurrentDate(date); setDatePickerOpen(false); }
-                  }}
-                  initialFocus
-                  className="p-3 pointer-events-auto"
-                />
-              </div>
-            </PopoverContent>
-          </Popover>
+
+          {/* Day select */}
+          <Select
+            value={String(currentDate.getDate())}
+            onValueChange={(v) => {
+              const d = new Date(currentDate);
+              d.setDate(Number(v));
+              setCurrentDate(d);
+            }}
+          >
+            <SelectTrigger className="h-8 w-16 text-sm font-semibold">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {Array.from({ length: new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0).getDate() }, (_, i) => (
+                <SelectItem key={i + 1} value={String(i + 1)}>{i + 1}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          {/* Month select */}
+          <Select
+            value={String(currentDate.getMonth())}
+            onValueChange={(v) => {
+              const d = new Date(currentDate);
+              d.setMonth(Number(v));
+              setCurrentDate(d);
+            }}
+          >
+            <SelectTrigger className="h-8 w-32 text-sm font-semibold">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {['Januari','Februari','Maart','April','Mei','Juni','Juli','Augustus','September','Oktober','November','December'].map((m, i) => (
+                <SelectItem key={i} value={String(i)}>{m}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          {/* Year select */}
+          <Select
+            value={String(currentDate.getFullYear())}
+            onValueChange={(v) => {
+              const d = new Date(currentDate);
+              d.setFullYear(Number(v));
+              setCurrentDate(d);
+            }}
+          >
+            <SelectTrigger className="h-8 w-24 text-sm font-semibold">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - 1 + i).map((y) => (
+                <SelectItem key={y} value={String(y)}>{y}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
       </div>
 
