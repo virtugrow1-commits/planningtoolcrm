@@ -2,9 +2,10 @@ import { useState, useCallback, DragEvent } from 'react';
 import { format } from 'date-fns';
 import { nl } from 'date-fns/locale';
 import { mockInquiries } from '@/data/mockData';
-import { Inquiry, ROOMS, RoomName } from '@/types/crm';
-import { Calendar as CalendarIcon, Users, Euro, GripVertical, Repeat, Plus, X } from 'lucide-react';
+import { Inquiry, Booking, ROOMS, RoomName } from '@/types/crm';
+import { Calendar as CalendarIcon, Users, Euro, GripVertical, Repeat, Plus, X, Check } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { useBookings } from '@/contexts/BookingsContext';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
@@ -64,6 +65,7 @@ export default function InquiriesPage() {
   const [newOpen, setNewOpen] = useState(false);
   const [newForm, setNewForm] = useState({ contactName: '', eventType: '', preferredDate: '', guestCount: '', budget: '', message: '', source: 'Handmatig', roomPreference: '', status: 'new' as Inquiry['status'] });
   const { toast } = useToast();
+  const { addBookings } = useBookings();
 
   const handleAddInquiry = () => {
     if (!newForm.contactName || !newForm.eventType) {
@@ -140,15 +142,49 @@ export default function InquiriesPage() {
       toast({ title: 'Selecteer minimaal één datum en ruimte', variant: 'destructive' });
       return;
     }
+
+    // Create actual bookings from date options
+    const newBookings: Booking[] = [];
+    const recCount = recurrence !== 'none' ? Number(repeatCount) || 1 : 1;
+
+    for (const opt of validOptions) {
+      if (!opt.date || !opt.room) continue;
+
+      for (let i = 0; i < recCount; i++) {
+        const bookingDate = new Date(opt.date);
+        if (recurrence === 'weekly') bookingDate.setDate(bookingDate.getDate() + i * 7);
+        else if (recurrence === 'biweekly') bookingDate.setDate(bookingDate.getDate() + i * 14);
+        else if (recurrence === 'monthly') bookingDate.setMonth(bookingDate.getMonth() + i);
+        else if (recurrence === 'quarterly') bookingDate.setMonth(bookingDate.getMonth() + i * 3);
+
+        newBookings.push({
+          id: `b-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+          roomName: opt.room as RoomName,
+          date: bookingDate.toISOString().split('T')[0],
+          startHour: opt.startHour,
+          endHour: opt.endHour,
+          title: selectedInquiry.eventType,
+          contactName: selectedInquiry.contactName,
+          contactId: selectedInquiry.contactId,
+          status: opt.status,
+        });
+      }
+    }
+
+    addBookings(newBookings);
+
+    // Update inquiry status to converted
+    setInquiries((prev) => prev.map((inq) =>
+      inq.id === selectedInquiry.id ? { ...inq, status: 'converted' as Inquiry['status'] } : inq
+    ));
+
     const descriptions = validOptions.map((o) => {
       const dateStr = o.date ? format(o.date, 'd MMM', { locale: nl }) : '';
-      const statusLabel = o.status === 'confirmed' ? 'Bevestigd' : 'In Optie';
-      return `${dateStr} ${hourLabel(o.startHour)}–${hourLabel(o.endHour)} · ${o.room} (${statusLabel})`;
+      return `${dateStr} · ${o.room}`;
     });
-    const recLabel = RECURRENCE_OPTIONS.find((r) => r.value === recurrence)?.label || '';
     toast({
-      title: `${validOptions.length} datum(s) ingepland`,
-      description: descriptions.join(' | ') + (recurrence !== 'none' ? ` · ${recLabel} (${repeatCount}x)` : ''),
+      title: `✅ ${newBookings.length} boeking(en) aangemaakt`,
+      description: descriptions.join(' | '),
     });
     setScheduleOpen(false);
   };

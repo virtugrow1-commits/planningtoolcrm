@@ -1,9 +1,9 @@
 import { useState, useMemo, useCallback, DragEvent } from 'react';
 import { ROOMS, Booking, RoomName } from '@/types/crm';
-import { mockBookings } from '@/data/mockData';
 import { ChevronLeft, ChevronRight, Plus, GripVertical } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
+import { useBookings } from '@/contexts/BookingsContext';
 import BookingDetailDialog from '@/components/calendar/BookingDetailDialog';
 import NewBookingDialog from '@/components/calendar/NewBookingDialog';
 
@@ -16,7 +16,7 @@ function formatDate(date: Date) {
 
 export default function CalendarPage() {
   const [currentDate, setCurrentDate] = useState(new Date());
-  const [bookings, setBookings] = useState<Booking[]>(mockBookings);
+  const { bookings, addBooking, updateBooking, deleteBooking, setBookings } = useBookings();
   const [newDialogOpen, setNewDialogOpen] = useState(false);
   const [newBooking, setNewBooking] = useState({ room: '' as RoomName, startHour: 9, endHour: 12, title: '', contactName: '', status: 'confirmed' as 'confirmed' | 'option' });
   const [conflictAlert, setConflictAlert] = useState<string | null>(null);
@@ -73,19 +73,19 @@ export default function CalendarPage() {
       contactName: newBooking.contactName || 'Onbekend',
       status: newBooking.status,
     };
-    setBookings((prev) => [...prev, booking]);
+    addBooking(booking);
     setNewDialogOpen(false);
     toast({ title: 'Boeking toegevoegd', description: `${booking.roomName} — ${booking.startHour}:00 tot ${booking.endHour}:00` });
   };
 
   const handleUpdateBooking = (updated: Booking) => {
-    setBookings((prev) => prev.map((b) => b.id === updated.id ? updated : b));
+    updateBooking(updated);
     setDetailBooking(updated);
     toast({ title: 'Boeking bijgewerkt' });
   };
 
   const handleDeleteBooking = (bookingId: string) => {
-    setBookings((prev) => prev.filter((b) => b.id !== bookingId));
+    deleteBooking(bookingId);
     setDetailOpen(false);
     toast({ title: 'Boeking verwijderd' });
   };
@@ -153,9 +153,7 @@ export default function CalendarPage() {
       return;
     }
 
-    setBookings((prev) => prev.map((b) =>
-      b.id === bookingId ? { ...b, roomName: targetRoom, startHour: newStart, endHour: newEnd } : b
-    ));
+    updateBooking({ ...booking, roomName: targetRoom, startHour: newStart, endHour: newEnd });
     setDragBookingId(null);
     toast({ title: 'Boeking verplaatst', description: `${booking.title} → ${targetRoom} ${newStart}:00–${newEnd}:00` });
   }, [bookings, toast]);
