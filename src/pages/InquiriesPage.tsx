@@ -3,7 +3,7 @@ import { format } from 'date-fns';
 import { nl } from 'date-fns/locale';
 import { mockInquiries } from '@/data/mockData';
 import { Inquiry, Booking, ROOMS, RoomName } from '@/types/crm';
-import { Calendar as CalendarIcon, Users, Euro, GripVertical, Repeat, Plus, X, Check } from 'lucide-react';
+import { Calendar as CalendarIcon, Users, Euro, GripVertical, Repeat, Plus, X, Check, LayoutGrid, List } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useBookings } from '@/contexts/BookingsContext';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
@@ -63,6 +63,7 @@ export default function InquiriesPage() {
   const [recurrence, setRecurrence] = useState('none');
   const [repeatCount, setRepeatCount] = useState('4');
   const [newOpen, setNewOpen] = useState(false);
+  const [viewMode, setViewMode] = useState<'cards' | 'list'>('cards');
   const [newForm, setNewForm] = useState({ contactName: '', eventType: '', preferredDate: '', guestCount: '', budget: '', message: '', source: 'Handmatig', roomPreference: '', status: 'new' as Inquiry['status'] });
   const { toast } = useToast();
   const { addBookings } = useBookings();
@@ -194,9 +195,32 @@ export default function InquiriesPage() {
           <h1 className="text-2xl font-bold text-foreground">Aanvragen Pipeline</h1>
           <p className="text-sm text-muted-foreground">{inquiries.length} aanvragen · Sleep kaarten om de status te wijzigen</p>
         </div>
-        <Button onClick={() => setNewOpen(true)} size="sm"><Plus size={14} className="mr-1" /> Nieuwe Aanvraag</Button>
+        <div className="flex items-center gap-2">
+          <div className="flex rounded-lg border border-border overflow-hidden">
+            <button
+              onClick={() => setViewMode('cards')}
+              className={cn(
+                'flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium transition-colors',
+                viewMode === 'cards' ? 'bg-primary text-primary-foreground' : 'bg-background text-muted-foreground hover:text-foreground'
+              )}
+            >
+              <LayoutGrid size={14} /> Cards
+            </button>
+            <button
+              onClick={() => setViewMode('list')}
+              className={cn(
+                'flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium transition-colors',
+                viewMode === 'list' ? 'bg-primary text-primary-foreground' : 'bg-background text-muted-foreground hover:text-foreground'
+              )}
+            >
+              <List size={14} /> Lijst
+            </button>
+          </div>
+          <Button onClick={() => setNewOpen(true)} size="sm"><Plus size={14} className="mr-1" /> Nieuwe Aanvraag</Button>
+        </div>
       </div>
 
+      {viewMode === 'cards' ? (
       <div className="flex gap-4 overflow-x-auto pb-4">
         {PIPELINE_COLUMNS.map((col) => {
           const items = inquiries.filter((inq) => inq.status === col.key);
@@ -255,6 +279,56 @@ export default function InquiriesPage() {
           );
         })}
       </div>
+      ) : (
+      /* List view */
+      <div className="rounded-xl border border-border bg-card overflow-hidden">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="border-b border-border bg-muted/30">
+              <th className="px-4 py-2.5 text-left font-medium text-muted-foreground">Type</th>
+              <th className="px-4 py-2.5 text-left font-medium text-muted-foreground">Contact</th>
+              <th className="px-4 py-2.5 text-left font-medium text-muted-foreground hidden md:table-cell">Datum</th>
+              <th className="px-4 py-2.5 text-left font-medium text-muted-foreground hidden md:table-cell">Gasten</th>
+              <th className="px-4 py-2.5 text-left font-medium text-muted-foreground hidden lg:table-cell">Budget</th>
+              <th className="px-4 py-2.5 text-left font-medium text-muted-foreground">Status</th>
+              <th className="px-4 py-2.5 text-left font-medium text-muted-foreground hidden lg:table-cell">Bron</th>
+              <th className="px-4 py-2.5 text-right font-medium text-muted-foreground"></th>
+            </tr>
+          </thead>
+          <tbody>
+            {inquiries.map((inq) => {
+              const col = PIPELINE_COLUMNS.find((c) => c.key === inq.status);
+              return (
+                <tr key={inq.id} className="border-b border-border last:border-0 hover:bg-muted/20 transition-colors">
+                  <td className="px-4 py-2.5 font-medium text-card-foreground">{inq.eventType}</td>
+                  <td className="px-4 py-2.5 text-muted-foreground">{inq.contactName}</td>
+                  <td className="px-4 py-2.5 text-muted-foreground hidden md:table-cell">{inq.preferredDate || '—'}</td>
+                  <td className="px-4 py-2.5 text-muted-foreground hidden md:table-cell">{inq.guestCount}</td>
+                  <td className="px-4 py-2.5 text-muted-foreground hidden lg:table-cell">{inq.budget ? `€${inq.budget.toLocaleString('nl-NL')}` : '—'}</td>
+                  <td className="px-4 py-2.5">
+                    <span className={cn('inline-block rounded-full px-2 py-0.5 text-[11px] font-medium', col?.colorClass)}>{col?.label}</span>
+                  </td>
+                  <td className="px-4 py-2.5 text-muted-foreground hidden lg:table-cell">{inq.source}</td>
+                  <td className="px-4 py-2.5 text-right">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-7 px-2 text-xs"
+                      onClick={() => openScheduleDialog(inq)}
+                    >
+                      <CalendarIcon size={12} className="mr-1" /> Inplannen
+                    </Button>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+        {inquiries.length === 0 && (
+          <div className="p-8 text-center text-sm text-muted-foreground">Geen aanvragen gevonden</div>
+        )}
+      </div>
+      )}
 
       {/* Schedule Dialog */}
       <Dialog open={scheduleOpen} onOpenChange={setScheduleOpen}>
