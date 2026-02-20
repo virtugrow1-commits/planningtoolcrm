@@ -9,7 +9,8 @@ import { AlertTriangle, Search } from 'lucide-react';
 import { ContactOption } from '@/hooks/useContacts';
 import { ScrollArea } from '@/components/ui/scroll-area';
 
-const HOURS = [...Array.from({ length: 17 }, (_, i) => i + 7), 0, 1];
+const START_HOURS = [...Array.from({ length: 17 }, (_, i) => i + 7), 0]; // 7-23, 0
+const END_HOURS = [...Array.from({ length: 16 }, (_, i) => i + 9), 0, 1]; // 9-24(0), 1
 
 export interface NewReservationForm {
   contactId: string;
@@ -167,14 +168,14 @@ export default function NewReservationDialog({
               <Label>Van</Label>
               <Select value={String(form.startHour)} onValueChange={(v) => setForm({ ...form, startHour: Number(v) })}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>{HOURS.map((h) => <SelectItem key={h} value={String(h)}>{String(h).padStart(2, '0')}:00</SelectItem>)}</SelectContent>
+                <SelectContent>{START_HOURS.map((h) => <SelectItem key={h} value={String(h)}>{String(h).padStart(2, '0')}:00</SelectItem>)}</SelectContent>
               </Select>
             </div>
             <div className="grid gap-1.5">
               <Label>Tot</Label>
               <Select value={String(form.endHour)} onValueChange={(v) => setForm({ ...form, endHour: Number(v) })}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>{HOURS.filter((h) => h > form.startHour).map((h) => <SelectItem key={h} value={String(h)}>{String(h).padStart(2, '0')}:00</SelectItem>)}</SelectContent>
+                <SelectContent>{END_HOURS.filter((h) => h > form.startHour || h <= 1).map((h) => <SelectItem key={h} value={String(h)}>{String(h).padStart(2, '0')}:00</SelectItem>)}</SelectContent>
               </Select>
             </div>
           </div>
