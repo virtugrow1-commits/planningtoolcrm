@@ -62,7 +62,7 @@ export default function InquiriesPage() {
   const [recurrence, setRecurrence] = useState('none');
   const [repeatCount, setRepeatCount] = useState('4');
   const [newOpen, setNewOpen] = useState(false);
-  const [newForm, setNewForm] = useState({ contactName: '', eventType: '', preferredDate: '', guestCount: '', budget: '', message: '', source: 'Handmatig', roomPreference: '' });
+  const [newForm, setNewForm] = useState({ contactName: '', eventType: '', preferredDate: '', guestCount: '', budget: '', message: '', source: 'Handmatig', roomPreference: '', status: 'new' as Inquiry['status'] });
   const { toast } = useToast();
 
   const handleAddInquiry = () => {
@@ -80,13 +80,13 @@ export default function InquiriesPage() {
       guestCount: Number(newForm.guestCount) || 0,
       budget: Number(newForm.budget) || undefined,
       message: newForm.message,
-      status: 'new',
+      status: newForm.status,
       createdAt: new Date().toISOString().split('T')[0],
       source: newForm.source || 'Handmatig',
     };
     setInquiries((prev) => [inq, ...prev]);
     setNewOpen(false);
-    setNewForm({ contactName: '', eventType: '', preferredDate: '', guestCount: '', budget: '', message: '', source: 'Handmatig', roomPreference: '' });
+    setNewForm({ contactName: '', eventType: '', preferredDate: '', guestCount: '', budget: '', message: '', source: 'Handmatig', roomPreference: '', status: 'new' });
     toast({ title: 'Aanvraag aangemaakt', description: `${inq.eventType} — ${inq.contactName}` });
   };
 
@@ -409,6 +409,17 @@ export default function InquiriesPage() {
                   <SelectItem value="Telefoon">Telefoon</SelectItem>
                   <SelectItem value="Email">Email</SelectItem>
                   <SelectItem value="GHL">GHL</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid gap-1.5">
+              <Label>Stadium</Label>
+              <Select value={newForm.status} onValueChange={(v: Inquiry['status']) => setNewForm({ ...newForm, status: v })}>
+                <SelectTrigger className="text-sm"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {PIPELINE_COLUMNS.map((col) => (
+                    <SelectItem key={col.key} value={col.key}>{col.label}</SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
