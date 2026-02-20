@@ -1,6 +1,6 @@
 import { mockContacts } from '@/data/mockData';
 import { Badge } from '@/components/ui/badge';
-import { Search, Plus, InboxIcon } from 'lucide-react';
+import { Search, Plus, InboxIcon, Pencil } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { useState } from 'react';
@@ -10,6 +10,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ROOMS } from '@/types/crm';
+import { Contact } from '@/types/crm';
 import { useToast } from '@/hooks/use-toast';
 
 const statusColors: Record<string, string> = {
@@ -27,18 +28,47 @@ const statusLabels: Record<string, string> = {
 };
 
 export default function CrmPage() {
+  const [contacts, setContacts] = useState(mockContacts);
   const [search, setSearch] = useState('');
   const [inquiryOpen, setInquiryOpen] = useState(false);
   const [selectedContact, setSelectedContact] = useState<{ id: string; name: string } | null>(null);
   const [form, setForm] = useState({ eventType: '', preferredDate: '', guestCount: '', budget: '', message: '', roomPreference: '' });
+  
+  // Edit contact state
+  const [editOpen, setEditOpen] = useState(false);
+  const [editContact, setEditContact] = useState<Contact | null>(null);
+  
   const navigate = useNavigate();
   const { toast } = useToast();
 
-  const filtered = mockContacts.filter((c) =>
+  const filtered = contacts.filter((c) =>
     `${c.firstName} ${c.lastName} ${c.email} ${c.company || ''}`.toLowerCase().includes(search.toLowerCase())
   );
 
-  const openInquiryForContact = (contact: typeof mockContacts[0]) => {
+  const openEditDialog = (contact: Contact) => {
+    setEditContact({ ...contact });
+    setEditOpen(true);
+  };
+
+  const handleSaveContact = () => {
+    if (!editContact) return;
+    if (!editContact.firstName || !editContact.lastName) {
+      toast({ title: 'Vul minimaal voor- en achternaam in', variant: 'destructive' });
+      return;
+    }
+    setContacts((prev) => prev.map((c) => c.id === editContact.id ? editContact : c));
+    setEditOpen(false);
+    toast({ title: 'Contact bijgewerkt' });
+  };
+
+  const handleDeleteContact = () => {
+    if (!editContact) return;
+    setContacts((prev) => prev.filter((c) => c.id !== editContact.id));
+    setEditOpen(false);
+    toast({ title: 'Contact verwijderd', description: `${editContact.firstName} ${editContact.lastName}` });
+  };
+
+  const openInquiryForContact = (contact: Contact) => {
     setSelectedContact({ id: contact.id, name: `${contact.firstName} ${contact.lastName}` });
     setForm({ eventType: '', preferredDate: '', guestCount: '', budget: '', message: '', roomPreference: '' });
     setInquiryOpen(true);
@@ -49,7 +79,6 @@ export default function CrmPage() {
       toast({ title: 'Vul minimaal een type evenement in', variant: 'destructive' });
       return;
     }
-    // Navigate to inquiries with pre-filled data via query params
     const params = new URLSearchParams({
       contactId: selectedContact.id,
       contactName: selectedContact.name,
@@ -69,7 +98,7 @@ export default function CrmPage() {
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-foreground">CRM / Contacten</h1>
-          <p className="text-sm text-muted-foreground">{mockContacts.length} contacten</p>
+          <p className="text-sm text-muted-foreground">{contacts.length} contacten · Klik op een rij om te bewerken</p>
         </div>
         <div className="relative w-64">
           <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
@@ -91,7 +120,7 @@ export default function CrmPage() {
           </thead>
           <tbody>
             {filtered.map((c) => (
-              <tr key={c.id} className="border-b last:border-0 transition-colors hover:bg-muted/30">
+              <tr key={c.id} onClick={() => openEditDialog(c)} className="border-b last:border-0 transition-colors hover:bg-muted/30 cursor-pointer">
                 <td className="px-4 py-3 font-medium text-foreground">{c.firstName} {c.lastName}</td>
                 <td className="px-4 py-3 text-muted-foreground">{c.email}</td>
                 <td className="px-4 py-3 text-muted-foreground hidden md:table-cell">{c.phone}</td>
@@ -106,7 +135,7 @@ export default function CrmPage() {
                     variant="outline"
                     size="sm"
                     className="h-7 px-2.5 text-xs"
-                    onClick={() => openInquiryForContact(c)}
+                    onClick={(e) => { e.stopPropagation(); openInquiryForContact(c); }}
                   >
                     <InboxIcon size={12} className="mr-1" /> Aanvraag
                   </Button>
@@ -116,6 +145,66 @@ export default function CrmPage() {
           </tbody>
         </table>
       </div>
+
+      {/* Edit Contact Dialog */}
+      <Dialog open={editOpen} onOpenChange={setEditOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Contact Bewerken</DialogTitle>
+          </DialogHeader>
+          {editContact && (
+            <div className="grid gap-4 py-2">
+              <div className="grid grid-cols-2 gap-3">
+                <div className="grid gap-1.5">
+                  <Label>Voornaam *</Label>
+                  <Input value={editContact.firstName} onChange={(e) => setEditContact({ ...editContact, firstName: e.target.value })} />
+                </div>
+                <div className="grid gap-1.5">
+                  <Label>Achternaam *</Label>
+                  <Input value={editContact.lastName} onChange={(e) => setEditContact({ ...editContact, lastName: e.target.value })} />
+                </div>
+              </div>
+              <div className="grid gap-1.5">
+                <Label>Email</Label>
+                <Input type="email" value={editContact.email} onChange={(e) => setEditContact({ ...editContact, email: e.target.value })} />
+              </div>
+              <div className="grid gap-1.5">
+                <Label>Telefoon</Label>
+                <Input value={editContact.phone} onChange={(e) => setEditContact({ ...editContact, phone: e.target.value })} />
+              </div>
+              <div className="grid gap-1.5">
+                <Label>Bedrijf</Label>
+                <Input value={editContact.company || ''} onChange={(e) => setEditContact({ ...editContact, company: e.target.value || undefined })} />
+              </div>
+              <div className="grid gap-1.5">
+                <Label>Status</Label>
+                <Select value={editContact.status} onValueChange={(v: Contact['status']) => setEditContact({ ...editContact, status: v })}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="lead">Lead</SelectItem>
+                    <SelectItem value="prospect">Prospect</SelectItem>
+                    <SelectItem value="client">Klant</SelectItem>
+                    <SelectItem value="inactive">Inactief</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="grid gap-1.5">
+                <Label>Notities</Label>
+                <Textarea value={editContact.notes || ''} onChange={(e) => setEditContact({ ...editContact, notes: e.target.value || undefined })} placeholder="Eventuele notities..." />
+              </div>
+            </div>
+          )}
+          <DialogFooter className="flex !justify-between">
+            <Button variant="destructive" size="sm" onClick={handleDeleteContact}>
+              Verwijderen
+            </Button>
+            <div className="flex gap-2">
+              <Button variant="outline" onClick={() => setEditOpen(false)}>Annuleren</Button>
+              <Button onClick={handleSaveContact}>Opslaan</Button>
+            </div>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* New Inquiry from Contact Dialog */}
       <Dialog open={inquiryOpen} onOpenChange={setInquiryOpen}>
