@@ -5,7 +5,6 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Checkbox } from '@/components/ui/checkbox';
 import { AlertTriangle, Search } from 'lucide-react';
 import { ContactOption } from '@/hooks/useContacts';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -21,8 +20,8 @@ export interface NewReservationForm {
   endHour: number;
   title: string;
   status: 'confirmed' | 'option';
-  repeat: boolean;
-  repeatWeeks: number;
+  repeatType: 'eenmalig' | 'week' | '2weken' | 'maand' | 'kwartaal';
+  repeatCount: number;
 }
 
 interface NewReservationDialogProps {
@@ -48,8 +47,8 @@ export default function NewReservationDialog({
     endHour: 12,
     title: '',
     status: 'confirmed',
-    repeat: false,
-    repeatWeeks: 1,
+    repeatType: 'eenmalig',
+    repeatCount: 1,
   });
   const [contactSearch, setContactSearch] = useState('');
 
@@ -193,29 +192,32 @@ export default function NewReservationDialog({
           </div>
 
           {/* Repeat */}
-          <div className="space-y-2">
-            <div className="flex items-center gap-2">
-              <Checkbox
-                id="repeat"
-                checked={form.repeat}
-                onCheckedChange={(checked) => setForm({ ...form, repeat: !!checked })}
-              />
-              <Label htmlFor="repeat" className="cursor-pointer">Herhalen</Label>
-            </div>
-            {form.repeat && (
-              <div className="grid gap-1.5 pl-6">
-                <Label>Aantal weken herhalen</Label>
-                <Input
-                  type="number"
-                  min={1}
-                  max={52}
-                  value={form.repeatWeeks}
-                  onChange={(e) => setForm({ ...form, repeatWeeks: Math.max(1, Math.min(52, Number(e.target.value))) })}
-                  className="w-24"
-                />
-              </div>
-            )}
+          <div className="grid gap-1.5">
+            <Label>Herhaling</Label>
+            <Select value={form.repeatType} onValueChange={(v: NewReservationForm['repeatType']) => setForm({ ...form, repeatType: v })}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="eenmalig">Eenmalig</SelectItem>
+                <SelectItem value="week">Elke week</SelectItem>
+                <SelectItem value="2weken">Om de 2 weken</SelectItem>
+                <SelectItem value="maand">Elke maand</SelectItem>
+                <SelectItem value="kwartaal">Elk kwartaal</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
+          {form.repeatType !== 'eenmalig' && (
+            <div className="grid gap-1.5">
+              <Label>Aantal herhalingen</Label>
+              <Input
+                type="number"
+                min={1}
+                max={52}
+                value={form.repeatCount}
+                onChange={(e) => setForm({ ...form, repeatCount: Math.max(1, Math.min(52, Number(e.target.value))) })}
+                className="w-24"
+              />
+            </div>
+          )}
         </div>
 
         <DialogFooter>
