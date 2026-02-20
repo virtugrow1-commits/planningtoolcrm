@@ -1,7 +1,7 @@
 import { useState, useMemo, useCallback, DragEvent } from 'react';
 import { ROOMS, Booking, RoomName } from '@/types/crm';
 import { mockBookings } from '@/data/mockData';
-import { ChevronLeft, ChevronRight, Plus } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Plus, GripVertical } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import BookingDetailDialog from '@/components/calendar/BookingDetailDialog';
@@ -23,6 +23,7 @@ export default function CalendarPage() {
   const [detailBooking, setDetailBooking] = useState<Booking | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
   const [dragBookingId, setDragBookingId] = useState<string | null>(null);
+  const [dragOverCell, setDragOverCell] = useState<{ room: RoomName; hour: number } | null>(null);
   const { toast } = useToast();
 
   const dateStr = formatDate(currentDate);
@@ -90,19 +91,51 @@ export default function CalendarPage() {
   };
 
   // Drag & Drop handlers
+  const isDragging = dragBookingId !== null;
+  const draggedBooking = isDragging ? bookings.find((b) => b.id === dragBookingId) : null;
+  const dragDuration = draggedBooking ? draggedBooking.endHour - draggedBooking.startHour : 0;
+
+  const getDropPreview = useCallback((room: RoomName, hour: number): 'valid' | 'conflict' | null => {
+    if (!dragBookingId || !draggedBooking) return null;
+    if (dragOverCell?.room !== room || dragOverCell?.hour !== hour) return null;
+    const newEnd = Math.min(hour + dragDuration, 25);
+    const conflict = checkConflict(room, hour, newEnd, dragBookingId);
+    return conflict ? 'conflict' : 'valid';
+  }, [dragBookingId, draggedBooking, dragOverCell, dragDuration]);
+
   const handleDragStart = useCallback((e: DragEvent, bookingId: string) => {
     setDragBookingId(bookingId);
     e.dataTransfer.effectAllowed = 'move';
     e.dataTransfer.setData('text/plain', bookingId);
+    // Create a subtle drag image
+    const el = e.currentTarget as HTMLElement;
+    if (el) {
+      e.dataTransfer.setDragImage(el, el.offsetWidth / 2, 16);
+    }
   }, []);
 
-  const handleDragOver = useCallback((e: DragEvent) => {
+  const handleDragOver = useCallback((e: DragEvent, room: RoomName, hour: number) => {
     e.preventDefault();
     e.dataTransfer.dropEffect = 'move';
+    setDragOverCell((prev) => {
+      if (prev?.room === room && prev?.hour === hour) return prev;
+      return { room, hour };
+    });
+  }, []);
+
+  const handleDragLeave = useCallback(() => {
+    // Small delay to prevent flickering between cells
+    setTimeout(() => setDragOverCell(null), 50);
+  }, []);
+
+  const handleDragEnd = useCallback(() => {
+    setDragBookingId(null);
+    setDragOverCell(null);
   }, []);
 
   const handleDrop = useCallback((e: DragEvent, targetRoom: RoomName, targetHour: number) => {
     e.preventDefault();
+    setDragOverCell(null);
     const bookingId = e.dataTransfer.getData('text/plain');
     if (!bookingId) return;
 
@@ -110,7 +143,7 @@ export default function CalendarPage() {
     if (!booking) return;
 
     const duration = booking.endHour - booking.startHour;
-    const newEnd = Math.min(targetHour + duration, 22);
+    const newEnd = Math.min(targetHour + duration, 25);
     const newStart = targetHour;
 
     const conflict = checkConflict(targetRoom, newStart, newEnd, bookingId);
@@ -183,32 +216,60 @@ export default function CalendarPage() {
                   if (booking && !isStart) return null;
 
                   if (booking && isStart) {
+                    const isBeingDragged = dragBookingId === booking.id;
                     return (
                       <td
                         key={room}
                         rowSpan={span}
-                        className={`border-b border-r px-1.5 py-1 last:border-r-0 cursor-grab active:cursor-grabbing ${booking.status === 'confirmed' ? 'booking-confirmed' : 'booking-option'}`}
+                        className={`border-b border-r px-1.5 py-1 last:border-r-0 cursor-grab active:cursor-grabbing transition-all duration-200 ${
+                          booking.status === 'confirmed' ? 'booking-confirmed' : 'booking-option'
+                        } ${isBeingDragged ? 'opacity-30 scale-95' : ''}`}
                         draggable
                         onDragStart={(e) => handleDragStart(e, booking.id)}
-                        onClick={() => handleBookingClick(booking)}
+                        onDragEnd={handleDragEnd}
+                        onClick={() => !isDragging && handleBookingClick(booking)}
                       >
-                        <div className="text-xs font-medium leading-tight">{booking.title}</div>
-                        <div className="mt-0.5 text-[10px] opacity-70">{booking.contactName}</div>
-                        <div className="mt-0.5 text-[10px] opacity-60">{String(booking.startHour).padStart(2,'0')}:00–{String(booking.endHour).padStart(2,'0')}:00</div>
+                        <div className="flex items-start gap-1">
+                          <GripVertical size={12} className="mt-0.5 shrink-0 text-current opacity-40" />
+                          <div className="min-w-0 flex-1">
+                            <div className="text-xs font-medium leading-tight truncate">{booking.title}</div>
+                            <div className="mt-0.5 text-[10px] opacity-70">{booking.contactName}</div>
+                            <div className="mt-0.5 text-[10px] opacity-60">{String(booking.startHour).padStart(2,'0')}:00–{String(booking.endHour).padStart(2,'0')}:00</div>
+                          </div>
+                        </div>
                       </td>
                     );
                   }
 
+                  const dropPreview = getDropPreview(room, hour);
+
                   return (
                     <td
                       key={room}
-                      className="border-b border-r px-1 py-1 last:border-r-0 cursor-pointer transition-colors hover:bg-accent/5"
-                      onClick={() => handleCellClick(room, hour)}
-                      onDragOver={handleDragOver}
+                      className={`border-b border-r px-1 py-1 last:border-r-0 transition-all duration-150 ${
+                        dropPreview === 'valid'
+                          ? 'bg-success/15 ring-2 ring-inset ring-success/40'
+                          : dropPreview === 'conflict'
+                          ? 'bg-destructive/10 ring-2 ring-inset ring-destructive/40'
+                          : isDragging
+                          ? 'cursor-copy hover:bg-success/10'
+                          : 'cursor-pointer hover:bg-accent/5'
+                      }`}
+                      onClick={() => !isDragging && handleCellClick(room, hour)}
+                      onDragOver={(e) => handleDragOver(e, room, hour)}
+                      onDragLeave={handleDragLeave}
                       onDrop={(e) => handleDrop(e, room, hour)}
                     >
                       <div className="flex h-8 items-center justify-center">
-                        <Plus size={12} className="text-muted-foreground/30 group-hover:text-muted-foreground/60 transition-colors" />
+                        {dropPreview === 'valid' ? (
+                          <span className="text-[10px] font-medium text-success animate-fade-in">Drop hier</span>
+                        ) : dropPreview === 'conflict' ? (
+                          <span className="text-[10px] font-medium text-destructive animate-fade-in">Bezet</span>
+                        ) : (
+                          <Plus size={12} className={`transition-colors duration-150 ${
+                            isDragging ? 'text-muted-foreground/20' : 'text-muted-foreground/30 group-hover:text-muted-foreground/60'
+                          }`} />
+                        )}
                       </div>
                     </td>
                   );
