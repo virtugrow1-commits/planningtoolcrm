@@ -41,6 +41,7 @@ export default function CalendarPage() {
   const [roomSettingsOpen, setRoomSettingsOpen] = useState(false);
   const [reservationDialogOpen, setReservationDialogOpen] = useState(false);
   const [reservationConflict, setReservationConflict] = useState<string | null>(null);
+  const [reservationInitial, setReservationInitial] = useState<{ hour?: number; room?: RoomName; date?: string }>({});
   const { toast } = useToast();
   const { settings: roomSettings, displayNames, updateRoomSettings, getMaxGuests, getDisplayName } = useRoomSettings();
   const { contacts, loading: contactsLoading } = useContacts();
@@ -66,6 +67,7 @@ export default function CalendarPage() {
     const existing = getBookingForCell(room, hour);
     if (existing) return;
     setReservationConflict(null);
+    setReservationInitial({ hour, room, date: dateStr });
     setReservationDialogOpen(true);
   };
 
@@ -306,7 +308,7 @@ export default function CalendarPage() {
           <span className="flex items-center gap-1.5"><span className="inline-block h-3 w-3 rounded-sm bg-muted" /> Beschikbaar</span>
         </div>
         <div className="flex items-center gap-2">
-          <Button size="sm" className="gap-1.5 text-xs" onClick={() => { setReservationConflict(null); setReservationDialogOpen(true); }}>
+          <Button size="sm" className="gap-1.5 text-xs" onClick={() => { setReservationConflict(null); setReservationInitial({ date: dateStr }); setReservationDialogOpen(true); }}>
             <CalendarPlus size={14} /> Nieuwe Reservering
           </Button>
           <Button variant="outline" size="sm" className="gap-1.5 text-xs" onClick={() => setRoomSettingsOpen(true)}>
@@ -445,6 +447,9 @@ export default function CalendarPage() {
         contactsLoading={contactsLoading}
         conflictAlert={reservationConflict}
         getRoomDisplayName={getDisplayName}
+        initialStartHour={reservationInitial.hour}
+        initialRoom={reservationInitial.room}
+        initialDate={reservationInitial.date}
       />
     </div>
   );

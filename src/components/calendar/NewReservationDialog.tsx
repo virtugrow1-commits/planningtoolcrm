@@ -1,16 +1,14 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { ROOMS, RoomName } from '@/types/crm';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Textarea } from '@/components/ui/textarea';
 import { AlertTriangle, Search } from 'lucide-react';
 import { ContactOption } from '@/hooks/useContacts';
 import { ScrollArea } from '@/components/ui/scroll-area';
-
-const START_HOURS = [...Array.from({ length: 17 }, (_, i) => i + 7), 0]; // 7-23, 0
-const END_HOURS = [...Array.from({ length: 16 }, (_, i) => i + 9), 0, 1]; // 9-24(0), 1
 
 export interface NewReservationForm {
   contactId: string;
@@ -18,11 +16,16 @@ export interface NewReservationForm {
   room: RoomName;
   date: string;
   startHour: number;
+  startMinute: number;
   endHour: number;
+  endMinute: number;
   title: string;
   status: 'confirmed' | 'option';
   repeatType: 'eenmalig' | 'week' | '2weken' | 'maand' | 'kwartaal';
   repeatCount: number;
+  guestCount: number;
+  roomSetup: string;
+  notes: string;
 }
 
 interface NewReservationDialogProps {
@@ -33,25 +36,69 @@ interface NewReservationDialogProps {
   contactsLoading: boolean;
   conflictAlert: string | null;
   getRoomDisplayName: (room: string) => string;
+  initialStartHour?: number;
+  initialRoom?: RoomName;
+  initialDate?: string;
 }
 
+const ROOM_SETUPS = [
+  'Theateropstelling',
+  'U-vorm',
+  'Boardroom',
+  'Cabaret',
+  'Schoolopstelling',
+  'Receptie / staand',
+  'Diner',
+  'Anders',
+];
+
 export default function NewReservationDialog({
-  open, onOpenChange, onSubmit, contacts, contactsLoading, conflictAlert, getRoomDisplayName
+  open, onOpenChange, onSubmit, contacts, contactsLoading, conflictAlert, getRoomDisplayName,
+  initialStartHour, initialRoom, initialDate
 }: NewReservationDialogProps) {
   const today = new Date().toISOString().split('T')[0];
   const [form, setForm] = useState<NewReservationForm>({
     contactId: '',
     contactName: '',
-    room: ROOMS[0],
-    date: today,
-    startHour: 9,
-    endHour: 12,
+    room: initialRoom || ROOMS[0],
+    date: initialDate || today,
+    startHour: initialStartHour ?? 9,
+    startMinute: 0,
+    endHour: (initialStartHour ?? 9) + 3,
+    endMinute: 0,
     title: '',
     status: 'confirmed',
     repeatType: 'eenmalig',
     repeatCount: 1,
+    guestCount: 0,
+    roomSetup: '',
+    notes: '',
   });
   const [contactSearch, setContactSearch] = useState('');
+
+  // Reset form when dialog opens with new initial values
+  useEffect(() => {
+    if (open) {
+      setForm({
+        contactId: '',
+        contactName: '',
+        room: initialRoom || ROOMS[0],
+        date: initialDate || today,
+        startHour: initialStartHour ?? 9,
+        startMinute: 0,
+        endHour: Math.min((initialStartHour ?? 9) + 3, 25),
+        endMinute: 0,
+        title: '',
+        status: 'confirmed',
+        repeatType: 'eenmalig',
+        repeatCount: 1,
+        guestCount: 0,
+        roomSetup: '',
+        notes: '',
+      });
+      setContactSearch('');
+    }
+  }, [open, initialStartHour, initialRoom, initialDate]);
 
   const filteredContacts = contacts.filter((c) =>
     `${c.firstName} ${c.lastName} ${c.email || ''} ${c.company || ''}`.toLowerCase().includes(contactSearch.toLowerCase())
@@ -71,6 +118,9 @@ export default function NewReservationDialog({
   const handleSubmit = () => {
     onSubmit(form);
   };
+
+  const formatTimeValue = (h: number, m: number) =>
+    `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
 
   const isValid = form.contactId && form.room && form.date && form.title;
 
@@ -162,20 +212,57 @@ export default function NewReservationDialog({
             <Input type="date" value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} />
           </div>
 
-          {/* Times */}
+          {/* Times - manual input */}
           <div className="grid grid-cols-2 gap-3">
             <div className="grid gap-1.5">
               <Label>Van</Label>
-              <Select value={String(form.startHour)} onValueChange={(v) => setForm({ ...form, startHour: Number(v) })}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>{START_HOURS.map((h) => <SelectItem key={h} value={String(h)}>{String(h).padStart(2, '0')}:00</SelectItem>)}</SelectContent>
-              </Select>
+              <Input
+                type="time"
+                value={formatTimeValue(form.startHour, form.startMinute)}
+                onChange={(e) => {
+                  const [h, m] = e.target.value.split(':').map(Number);
+                  if (!isNaN(h) && !isNaN(m)) {
+                    setForm({ ...form, startHour: h, startMinute: m });
+                  }
+                }}
+              />
             </div>
             <div className="grid gap-1.5">
               <Label>Tot</Label>
-              <Select value={String(form.endHour)} onValueChange={(v) => setForm({ ...form, endHour: Number(v) })}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>{END_HOURS.filter((h) => h > form.startHour || h <= 1).map((h) => <SelectItem key={h} value={String(h)}>{String(h).padStart(2, '0')}:00</SelectItem>)}</SelectContent>
+              <Input
+                type="time"
+                value={formatTimeValue(form.endHour, form.endMinute)}
+                onChange={(e) => {
+                  const [h, m] = e.target.value.split(':').map(Number);
+                  if (!isNaN(h) && !isNaN(m)) {
+                    setForm({ ...form, endHour: h, endMinute: m });
+                  }
+                }}
+              />
+            </div>
+          </div>
+
+          {/* Guest count & Room setup */}
+          <div className="grid grid-cols-2 gap-3">
+            <div className="grid gap-1.5">
+              <Label>Aantal personen</Label>
+              <Input
+                type="number"
+                min={0}
+                placeholder="0"
+                value={form.guestCount || ''}
+                onChange={(e) => setForm({ ...form, guestCount: Math.max(0, Number(e.target.value)) })}
+              />
+            </div>
+            <div className="grid gap-1.5">
+              <Label>Zaalopstelling</Label>
+              <Select value={form.roomSetup} onValueChange={(v) => setForm({ ...form, roomSetup: v })}>
+                <SelectTrigger><SelectValue placeholder="Kies opstelling" /></SelectTrigger>
+                <SelectContent>
+                  {ROOM_SETUPS.map((s) => (
+                    <SelectItem key={s} value={s}>{s}</SelectItem>
+                  ))}
+                </SelectContent>
               </Select>
             </div>
           </div>
@@ -219,6 +306,17 @@ export default function NewReservationDialog({
               />
             </div>
           )}
+
+          {/* Notes */}
+          <div className="grid gap-1.5">
+            <Label>Toelichting</Label>
+            <Textarea
+              placeholder="Eventuele opmerkingen..."
+              value={form.notes}
+              onChange={(e) => setForm({ ...form, notes: e.target.value })}
+              rows={3}
+            />
+          </div>
         </div>
 
         <DialogFooter>
