@@ -8,12 +8,22 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Webhook, Key, ArrowRightLeft, CheckCircle2, AlertCircle } from 'lucide-react';
 
 const GHL_WEBHOOKS = [
+  // Inbound — GHL → CRM
   { id: 'contact_created', label: 'Contact aangemaakt', description: 'Sync nieuwe contacten van GHL → CRM', direction: 'inbound' },
   { id: 'contact_updated', label: 'Contact gewijzigd', description: 'Houd contactgegevens gesynchroniseerd', direction: 'inbound' },
   { id: 'opportunity_status', label: 'Opportunity Status', description: 'Sync pipeline stadia met aanvragen', direction: 'inbound' },
+  { id: 'form_submission', label: 'Formulier Ingezonden', description: 'Nieuwe aanvragen vanuit website formulier', direction: 'inbound' },
+  { id: 'appointment_booked', label: 'Afspraak Geboekt', description: 'GHL kalender afspraken sync naar CRM', direction: 'inbound' },
+  { id: 'task_completed', label: 'Taak Voltooid', description: 'GHL taken status updates ontvangen', direction: 'inbound' },
+  { id: 'note_added', label: 'Notitie Toegevoegd', description: 'GHL contact notities synchroniseren', direction: 'inbound' },
+  { id: 'payment_received', label: 'Betaling Ontvangen', description: 'Stripe/GHL betalingen registreren', direction: 'inbound' },
+  // Outbound — CRM → GHL
   { id: 'booking_created', label: 'Boeking aangemaakt', description: 'Stuur nieuwe boekingen naar GHL', direction: 'outbound' },
+  { id: 'booking_updated', label: 'Boeking gewijzigd', description: 'Sync wijzigingen in boekingen naar GHL', direction: 'outbound' },
   { id: 'inquiry_status', label: 'Aanvraag status gewijzigd', description: 'Update GHL opportunity bij status wijziging', direction: 'outbound' },
   { id: 'quotation_sent', label: 'Offerte verstuurd', description: 'Trigger GHL workflow bij offerte', direction: 'outbound' },
+  { id: 'quotation_accepted', label: 'Offerte geaccepteerd', description: 'Markeer GHL opportunity als gewonnen', direction: 'outbound' },
+  { id: 'recurring_created', label: 'Herhaling aangemaakt', description: 'Sync terugkerende boekingen naar GHL', direction: 'outbound' },
 ];
 
 export default function SettingsPage() {

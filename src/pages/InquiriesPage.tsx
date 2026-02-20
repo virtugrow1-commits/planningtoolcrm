@@ -1,8 +1,13 @@
 import { useState, useCallback, DragEvent } from 'react';
 import { mockInquiries } from '@/data/mockData';
 import { Inquiry } from '@/types/crm';
-import { Calendar, Users, Euro, GripVertical } from 'lucide-react';
+import { Calendar, Users, Euro, GripVertical, Repeat, ChevronDown } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Button } from '@/components/ui/button';
+import { Label } from '@/components/ui/label';
+import { Input } from '@/components/ui/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 const PIPELINE_COLUMNS: { key: Inquiry['status']; label: string; colorClass: string }[] = [
   { key: 'new', label: 'Nieuw', colorClass: 'border-t-info bg-info/5' },
@@ -12,9 +17,21 @@ const PIPELINE_COLUMNS: { key: Inquiry['status']; label: string; colorClass: str
   { key: 'lost', label: 'Verloren', colorClass: 'border-t-muted-foreground bg-muted/30' },
 ];
 
+const RECURRENCE_OPTIONS = [
+  { value: 'none', label: 'Eenmalig' },
+  { value: 'weekly', label: 'Elke week' },
+  { value: 'biweekly', label: 'Om de 2 weken' },
+  { value: 'monthly', label: 'Elke maand' },
+  { value: 'quarterly', label: 'Elk kwartaal' },
+];
+
 export default function InquiriesPage() {
   const [inquiries, setInquiries] = useState<Inquiry[]>(mockInquiries);
   const [dragId, setDragId] = useState<string | null>(null);
+  const [scheduleOpen, setScheduleOpen] = useState(false);
+  const [selectedInquiry, setSelectedInquiry] = useState<Inquiry | null>(null);
+  const [recurrence, setRecurrence] = useState('none');
+  const [repeatCount, setRepeatCount] = useState('4');
   const { toast } = useToast();
 
   const handleDragStart = useCallback((e: DragEvent, id: string) => {
@@ -41,6 +58,23 @@ export default function InquiriesPage() {
     const col = PIPELINE_COLUMNS.find((c) => c.key === newStatus);
     toast({ title: 'Status gewijzigd', description: `Verplaatst naar "${col?.label}"` });
   }, [toast]);
+
+  const openScheduleDialog = (inq: Inquiry) => {
+    setSelectedInquiry(inq);
+    setRecurrence('none');
+    setRepeatCount('4');
+    setScheduleOpen(true);
+  };
+
+  const handleSchedule = () => {
+    if (!selectedInquiry) return;
+    const label = RECURRENCE_OPTIONS.find(r => r.value === recurrence)?.label || 'Eenmalig';
+    toast({
+      title: 'Ingepland',
+      description: `${selectedInquiry.eventType} — ${label}${recurrence !== 'none' ? ` (${repeatCount}x)` : ''}`,
+    });
+    setScheduleOpen(false);
+  };
 
   return (
     <div className="p-6 lg:p-8 space-y-4">
@@ -83,7 +117,17 @@ export default function InquiriesPage() {
                           <span className="flex items-center gap-1"><Users size={10} /> {inq.guestCount}</span>
                           {inq.budget && <span className="flex items-center gap-1"><Euro size={10} /> €{inq.budget.toLocaleString('nl-NL')}</span>}
                         </div>
-                        <div className="mt-1 text-[10px] text-muted-foreground/50">Bron: {inq.source}</div>
+                        <div className="mt-1.5 flex items-center justify-between">
+                          <span className="text-[10px] text-muted-foreground/50">Bron: {inq.source}</span>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-6 px-2 text-[10px]"
+                            onClick={(e) => { e.stopPropagation(); openScheduleDialog(inq); }}
+                          >
+                            <Repeat size={10} className="mr-1" /> Inplannen
+                          </Button>
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -98,6 +142,47 @@ export default function InquiriesPage() {
           );
         })}
       </div>
+
+      {/* Schedule / Recurring Dialog */}
+      <Dialog open={scheduleOpen} onOpenChange={setScheduleOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Aanvraag Inplannen</DialogTitle>
+          </DialogHeader>
+          {selectedInquiry && (
+            <div className="space-y-4 py-2">
+              <div className="rounded-lg border p-3 text-sm">
+                <p className="font-medium">{selectedInquiry.eventType}</p>
+                <p className="text-xs text-muted-foreground">{selectedInquiry.contactName} · {selectedInquiry.guestCount} gasten</p>
+              </div>
+              <div className="grid gap-1.5">
+                <Label>Herhaling</Label>
+                <Select value={recurrence} onValueChange={setRecurrence}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {RECURRENCE_OPTIONS.map((opt) => (
+                      <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              {recurrence !== 'none' && (
+                <div className="grid gap-1.5">
+                  <Label>Aantal herhalingen</Label>
+                  <Input type="number" min="1" max="52" value={repeatCount} onChange={(e) => setRepeatCount(e.target.value)} />
+                  <p className="text-xs text-muted-foreground">
+                    Er worden {repeatCount} boekingen aangemaakt op basis van de gekozen frequentie
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setScheduleOpen(false)}>Annuleren</Button>
+            <Button onClick={handleSchedule}>Inplannen</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
