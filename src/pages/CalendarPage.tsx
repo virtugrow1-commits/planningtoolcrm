@@ -16,7 +16,7 @@ function formatDate(date: Date) {
 
 export default function CalendarPage() {
   const [currentDate, setCurrentDate] = useState(new Date());
-  const { bookings, addBooking, updateBooking, deleteBooking, setBookings } = useBookings();
+  const { bookings, addBooking, updateBooking, deleteBooking } = useBookings();
   const [newDialogOpen, setNewDialogOpen] = useState(false);
   const [newBooking, setNewBooking] = useState({ room: '' as RoomName, startHour: 9, endHour: 12, title: '', contactName: '', status: 'confirmed' as 'confirmed' | 'option' });
   const [conflictAlert, setConflictAlert] = useState<string | null>(null);
@@ -63,8 +63,7 @@ export default function CalendarPage() {
       toast({ title: '⚠️ Boeking Conflict', description: `${newBooking.room} is al bezet in dit tijdslot.`, variant: 'destructive' });
       return;
     }
-    const booking: Booking = {
-      id: `b-${Date.now()}`,
+    addBooking({
       roomName: newBooking.room,
       date: dateStr,
       startHour: newBooking.startHour,
@@ -72,10 +71,9 @@ export default function CalendarPage() {
       title: newBooking.title || 'Nieuwe boeking',
       contactName: newBooking.contactName || 'Onbekend',
       status: newBooking.status,
-    };
-    addBooking(booking);
+    });
     setNewDialogOpen(false);
-    toast({ title: 'Boeking toegevoegd', description: `${booking.roomName} — ${booking.startHour}:00 tot ${booking.endHour}:00` });
+    toast({ title: 'Boeking toegevoegd', description: `${newBooking.room} — ${newBooking.startHour}:00 tot ${newBooking.endHour}:00` });
   };
 
   const handleUpdateBooking = (updated: Booking) => {

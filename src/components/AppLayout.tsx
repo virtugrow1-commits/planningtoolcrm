@@ -8,9 +8,11 @@ import {
   Settings,
   ChevronLeft,
   Menu,
+  LogOut,
 } from 'lucide-react';
 import { useState } from 'react';
 import { cn } from '@/lib/utils';
+import { useAuth } from '@/contexts/AuthContext';
 
 const navItems = [
   { to: '/', icon: LayoutDashboard, label: 'Dashboard' },
@@ -23,6 +25,7 @@ const navItems = [
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const [collapsed, setCollapsed] = useState(false);
   const location = useLocation();
+  const { signOut, user } = useAuth();
 
   return (
     <div className="flex h-screen overflow-hidden">
@@ -67,7 +70,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         </nav>
 
         {/* Footer */}
-        <div className="border-t border-sidebar-border p-2">
+        <div className="border-t border-sidebar-border p-2 space-y-1">
           <NavLink
             to="/settings"
             className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-sidebar-foreground hover:bg-sidebar-accent transition-colors"
@@ -75,6 +78,16 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             <Settings size={18} className="shrink-0" />
             {!collapsed && <span>Instellingen</span>}
           </NavLink>
+          <button
+            onClick={signOut}
+            className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-sidebar-foreground hover:bg-sidebar-accent transition-colors"
+          >
+            <LogOut size={18} className="shrink-0" />
+            {!collapsed && <span>Uitloggen</span>}
+          </button>
+          {!collapsed && user && (
+            <p className="px-3 py-1 text-[10px] text-sidebar-foreground/50 truncate">{user.email}</p>
+          )}
         </div>
       </aside>
 
