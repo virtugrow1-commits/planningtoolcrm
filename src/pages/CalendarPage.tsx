@@ -176,10 +176,17 @@ export default function CalendarPage() {
 
   const handleNewReservation = async (form: NewReservationForm) => {
     const allDates: string[] = [form.date];
-    if (form.repeat && form.repeatWeeks > 0) {
-      for (let w = 1; w <= form.repeatWeeks; w++) {
+    if (form.repeatType !== 'eenmalig' && form.repeatCount > 0) {
+      const intervalDays = { week: 7, '2weken': 14, maand: 0, kwartaal: 0 }[form.repeatType];
+      for (let i = 1; i <= form.repeatCount; i++) {
         const d = new Date(form.date + 'T12:00:00');
-        d.setDate(d.getDate() + w * 7);
+        if (form.repeatType === 'maand') {
+          d.setMonth(d.getMonth() + i);
+        } else if (form.repeatType === 'kwartaal') {
+          d.setMonth(d.getMonth() + i * 3);
+        } else {
+          d.setDate(d.getDate() + i * intervalDays);
+        }
         allDates.push(d.toISOString().split('T')[0]);
       }
     }
