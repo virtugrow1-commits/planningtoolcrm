@@ -1,13 +1,18 @@
 import { useState, useCallback, DragEvent } from 'react';
+import { format } from 'date-fns';
+import { nl } from 'date-fns/locale';
 import { mockInquiries } from '@/data/mockData';
-import { Inquiry } from '@/types/crm';
-import { Calendar, Users, Euro, GripVertical, Repeat, ChevronDown } from 'lucide-react';
+import { Inquiry, ROOMS, RoomName } from '@/types/crm';
+import { Calendar as CalendarIcon, Users, Euro, GripVertical, Repeat, Plus, X } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Calendar } from '@/components/ui/calendar';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { cn } from '@/lib/utils';
 
 const PIPELINE_COLUMNS: { key: Inquiry['status']; label: string; colorClass: string }[] = [
   { key: 'new', label: 'Nieuw', colorClass: 'border-t-info bg-info/5' },
@@ -17,6 +22,8 @@ const PIPELINE_COLUMNS: { key: Inquiry['status']; label: string; colorClass: str
   { key: 'lost', label: 'Verloren', colorClass: 'border-t-muted-foreground bg-muted/30' },
 ];
 
+const HOURS = [...Array.from({ length: 17 }, (_, i) => i + 7), 0, 1];
+
 const RECURRENCE_OPTIONS = [
   { value: 'none', label: 'Eenmalig' },
   { value: 'weekly', label: 'Elke week' },
@@ -25,11 +32,32 @@ const RECURRENCE_OPTIONS = [
   { value: 'quarterly', label: 'Elk kwartaal' },
 ];
 
+const hourLabel = (h: number) => `${String(h).padStart(2, '0')}:00`;
+
+interface DateOption {
+  id: string;
+  date: Date | undefined;
+  startHour: number;
+  endHour: number;
+  room: RoomName | '';
+  status: 'confirmed' | 'option';
+}
+
+const createDateOption = (): DateOption => ({
+  id: `opt-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+  date: undefined,
+  startHour: 9,
+  endHour: 17,
+  room: '',
+  status: 'option',
+});
+
 export default function InquiriesPage() {
   const [inquiries, setInquiries] = useState<Inquiry[]>(mockInquiries);
   const [dragId, setDragId] = useState<string | null>(null);
   const [scheduleOpen, setScheduleOpen] = useState(false);
   const [selectedInquiry, setSelectedInquiry] = useState<Inquiry | null>(null);
+  const [dateOptions, setDateOptions] = useState<DateOption[]>([]);
   const [recurrence, setRecurrence] = useState('none');
   const [repeatCount, setRepeatCount] = useState('4');
   const { toast } = useToast();
@@ -49,29 +77,50 @@ export default function InquiriesPage() {
     e.preventDefault();
     const id = e.dataTransfer.getData('text/plain');
     if (!id) return;
-
-    setInquiries((prev) =>
-      prev.map((inq) => (inq.id === id ? { ...inq, status: newStatus } : inq))
-    );
+    setInquiries((prev) => prev.map((inq) => (inq.id === id ? { ...inq, status: newStatus } : inq)));
     setDragId(null);
-
     const col = PIPELINE_COLUMNS.find((c) => c.key === newStatus);
     toast({ title: 'Status gewijzigd', description: `Verplaatst naar "${col?.label}"` });
   }, [toast]);
 
   const openScheduleDialog = (inq: Inquiry) => {
     setSelectedInquiry(inq);
+    setDateOptions([createDateOption()]);
     setRecurrence('none');
     setRepeatCount('4');
     setScheduleOpen(true);
   };
 
+  const addDateOption = () => {
+    if (dateOptions.length >= 3) return;
+    setDateOptions((prev) => [...prev, createDateOption()]);
+  };
+
+  const removeDateOption = (id: string) => {
+    if (dateOptions.length <= 1) return;
+    setDateOptions((prev) => prev.filter((o) => o.id !== id));
+  };
+
+  const updateDateOption = (id: string, updates: Partial<DateOption>) => {
+    setDateOptions((prev) => prev.map((o) => o.id === id ? { ...o, ...updates } : o));
+  };
+
   const handleSchedule = () => {
     if (!selectedInquiry) return;
-    const label = RECURRENCE_OPTIONS.find(r => r.value === recurrence)?.label || 'Eenmalig';
+    const validOptions = dateOptions.filter((o) => o.date && o.room);
+    if (validOptions.length === 0) {
+      toast({ title: 'Selecteer minimaal één datum en ruimte', variant: 'destructive' });
+      return;
+    }
+    const descriptions = validOptions.map((o) => {
+      const dateStr = o.date ? format(o.date, 'd MMM', { locale: nl }) : '';
+      const statusLabel = o.status === 'confirmed' ? 'Bevestigd' : 'In Optie';
+      return `${dateStr} ${hourLabel(o.startHour)}–${hourLabel(o.endHour)} · ${o.room} (${statusLabel})`;
+    });
+    const recLabel = RECURRENCE_OPTIONS.find((r) => r.value === recurrence)?.label || '';
     toast({
-      title: 'Ingepland',
-      description: `${selectedInquiry.eventType} — ${label}${recurrence !== 'none' ? ` (${repeatCount}x)` : ''}`,
+      title: `${validOptions.length} datum(s) ingepland`,
+      description: descriptions.join(' | ') + (recurrence !== 'none' ? ` · ${recLabel} (${repeatCount}x)` : ''),
     });
     setScheduleOpen(false);
   };
@@ -97,7 +146,6 @@ export default function InquiriesPage() {
                 <h3 className="text-sm font-semibold text-foreground">{col.label}</h3>
                 <span className="rounded-full bg-background px-2 py-0.5 text-xs font-medium text-muted-foreground">{items.length}</span>
               </div>
-
               <div className="space-y-2">
                 {items.map((inq) => (
                   <div
@@ -113,7 +161,7 @@ export default function InquiriesPage() {
                         <p className="text-xs text-muted-foreground">{inq.contactName}</p>
                         <p className="mt-1.5 text-xs text-muted-foreground line-clamp-2">{inq.message}</p>
                         <div className="mt-2 flex flex-wrap gap-2 text-[11px] text-muted-foreground">
-                          <span className="flex items-center gap-1"><Calendar size={10} /> {inq.preferredDate}</span>
+                          <span className="flex items-center gap-1"><CalendarIcon size={10} /> {inq.preferredDate}</span>
                           <span className="flex items-center gap-1"><Users size={10} /> {inq.guestCount}</span>
                           {inq.budget && <span className="flex items-center gap-1"><Euro size={10} /> €{inq.budget.toLocaleString('nl-NL')}</span>}
                         </div>
@@ -125,7 +173,7 @@ export default function InquiriesPage() {
                             className="h-6 px-2 text-[10px]"
                             onClick={(e) => { e.stopPropagation(); openScheduleDialog(inq); }}
                           >
-                            <Repeat size={10} className="mr-1" /> Inplannen
+                            <CalendarIcon size={10} className="mr-1" /> Inplannen
                           </Button>
                         </div>
                       </div>
@@ -143,22 +191,118 @@ export default function InquiriesPage() {
         })}
       </div>
 
-      {/* Schedule / Recurring Dialog */}
+      {/* Schedule Dialog */}
       <Dialog open={scheduleOpen} onOpenChange={setScheduleOpen}>
-        <DialogContent>
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Aanvraag Inplannen</DialogTitle>
           </DialogHeader>
           {selectedInquiry && (
             <div className="space-y-4 py-2">
+              {/* Inquiry summary */}
               <div className="rounded-lg border p-3 text-sm">
                 <p className="font-medium">{selectedInquiry.eventType}</p>
                 <p className="text-xs text-muted-foreground">{selectedInquiry.contactName} · {selectedInquiry.guestCount} gasten</p>
               </div>
+
+              {/* Date options */}
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <Label className="text-sm font-semibold">Datum opties</Label>
+                  {dateOptions.length < 3 && (
+                    <Button variant="outline" size="sm" className="h-7 text-xs" onClick={addDateOption}>
+                      <Plus size={12} className="mr-1" /> Datum toevoegen
+                    </Button>
+                  )}
+                </div>
+
+                {dateOptions.map((opt, idx) => (
+                  <div key={opt.id} className="rounded-lg border p-3 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-semibold text-muted-foreground">Optie {idx + 1}</span>
+                      {dateOptions.length > 1 && (
+                        <Button variant="ghost" size="sm" className="h-6 w-6 p-0" onClick={() => removeDateOption(opt.id)}>
+                          <X size={12} />
+                        </Button>
+                      )}
+                    </div>
+
+                    {/* Date picker */}
+                    <div className="grid gap-1.5">
+                      <Label className="text-xs">Datum</Label>
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <Button
+                            variant="outline"
+                            className={cn("w-full justify-start text-left font-normal text-sm", !opt.date && "text-muted-foreground")}
+                          >
+                            <CalendarIcon size={14} className="mr-2" />
+                            {opt.date ? format(opt.date, 'd MMMM yyyy', { locale: nl }) : 'Kies datum'}
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0" align="start">
+                          <Calendar
+                            mode="single"
+                            selected={opt.date}
+                            onSelect={(d) => updateDateOption(opt.id, { date: d })}
+                            initialFocus
+                            className={cn("p-3 pointer-events-auto")}
+                          />
+                        </PopoverContent>
+                      </Popover>
+                    </div>
+
+                    {/* Room */}
+                    <div className="grid gap-1.5">
+                      <Label className="text-xs">Ruimte</Label>
+                      <Select value={opt.room} onValueChange={(v) => updateDateOption(opt.id, { room: v as RoomName })}>
+                        <SelectTrigger className="text-sm"><SelectValue placeholder="Selecteer ruimte" /></SelectTrigger>
+                        <SelectContent>
+                          {ROOMS.map((room) => (
+                            <SelectItem key={room} value={room}>{room}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    {/* Times */}
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="grid gap-1.5">
+                        <Label className="text-xs">Van</Label>
+                        <Select value={String(opt.startHour)} onValueChange={(v) => updateDateOption(opt.id, { startHour: Number(v) })}>
+                          <SelectTrigger className="text-sm"><SelectValue /></SelectTrigger>
+                          <SelectContent>{HOURS.map((h) => <SelectItem key={h} value={String(h)}>{hourLabel(h)}</SelectItem>)}</SelectContent>
+                        </Select>
+                      </div>
+                      <div className="grid gap-1.5">
+                        <Label className="text-xs">Tot</Label>
+                        <Select value={String(opt.endHour)} onValueChange={(v) => updateDateOption(opt.id, { endHour: Number(v) })}>
+                          <SelectTrigger className="text-sm"><SelectValue /></SelectTrigger>
+                          <SelectContent>{HOURS.filter((h) => h > opt.startHour).map((h) => <SelectItem key={h} value={String(h)}>{hourLabel(h)}</SelectItem>)}</SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+
+                    {/* Status */}
+                    <div className="grid gap-1.5">
+                      <Label className="text-xs">Status</Label>
+                      <Select value={opt.status} onValueChange={(v: 'confirmed' | 'option') => updateDateOption(opt.id, { status: v })}>
+                        <SelectTrigger className="text-sm"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="option">In Optie</SelectItem>
+                          <SelectItem value="confirmed">Bevestigd</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Recurrence */}
               <div className="grid gap-1.5">
-                <Label>Herhaling</Label>
+                <Label className="flex items-center gap-1.5"><Repeat size={12} /> Herhaling</Label>
                 <Select value={recurrence} onValueChange={setRecurrence}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectTrigger className="text-sm"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     {RECURRENCE_OPTIONS.map((opt) => (
                       <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
@@ -168,10 +312,10 @@ export default function InquiriesPage() {
               </div>
               {recurrence !== 'none' && (
                 <div className="grid gap-1.5">
-                  <Label>Aantal herhalingen</Label>
-                  <Input type="number" min="1" max="52" value={repeatCount} onChange={(e) => setRepeatCount(e.target.value)} />
+                  <Label className="text-xs">Aantal herhalingen</Label>
+                  <Input type="number" min="1" max="52" value={repeatCount} onChange={(e) => setRepeatCount(e.target.value)} className="text-sm" />
                   <p className="text-xs text-muted-foreground">
-                    Er worden {repeatCount} boekingen aangemaakt op basis van de gekozen frequentie
+                    Elke datum-optie wordt {repeatCount}x herhaald
                   </p>
                 </div>
               )}
