@@ -1,13 +1,15 @@
 import { useState, useMemo, useCallback, DragEvent } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { ROOMS, Booking, RoomName } from '@/types/crm';
-import { ChevronLeft, ChevronRight, Plus, GripVertical } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Plus, GripVertical, Settings, Users } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { useBookings } from '@/contexts/BookingsContext';
 import BookingDetailDialog from '@/components/calendar/BookingDetailDialog';
 import NewBookingDialog from '@/components/calendar/NewBookingDialog';
+import RoomSettingsDialog from '@/components/calendar/RoomSettingsDialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { useRoomSettings } from '@/hooks/useRoomSettings';
 
 // 07:00 to 01:00 (next day) = hours 7,8,...,23,0,1
 const HOURS = [...Array.from({ length: 17 }, (_, i) => i + 7), 0, 1];
@@ -34,7 +36,9 @@ export default function CalendarPage() {
   const [detailOpen, setDetailOpen] = useState(false);
   const [dragBookingId, setDragBookingId] = useState<string | null>(null);
   const [dragOverCell, setDragOverCell] = useState<{ room: RoomName; hour: number } | null>(null);
+  const [roomSettingsOpen, setRoomSettingsOpen] = useState(false);
   const { toast } = useToast();
+  const { settings: roomSettings, updateMaxGuests, getMaxGuests } = useRoomSettings();
 
   const dateStr = formatDate(currentDate);
   const todayBookings = useMemo(() => bookings.filter((b) => b.date === dateStr), [bookings, dateStr]);
@@ -242,11 +246,15 @@ export default function CalendarPage() {
         </div>
       </div>
 
-      {/* Legend */}
-      <div className="flex items-center gap-4 text-xs">
-        <span className="flex items-center gap-1.5"><span className="inline-block h-3 w-3 rounded-sm bg-success" /> Bevestigd</span>
-        <span className="flex items-center gap-1.5"><span className="inline-block h-3 w-3 rounded-sm bg-warning" /> In Optie</span>
-        <span className="flex items-center gap-1.5"><span className="inline-block h-3 w-3 rounded-sm bg-muted" /> Beschikbaar</span>
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-4 text-xs">
+          <span className="flex items-center gap-1.5"><span className="inline-block h-3 w-3 rounded-sm bg-success" /> Bevestigd</span>
+          <span className="flex items-center gap-1.5"><span className="inline-block h-3 w-3 rounded-sm bg-warning" /> In Optie</span>
+          <span className="flex items-center gap-1.5"><span className="inline-block h-3 w-3 rounded-sm bg-muted" /> Beschikbaar</span>
+        </div>
+        <Button variant="outline" size="sm" className="gap-1.5 text-xs" onClick={() => setRoomSettingsOpen(true)}>
+          <Settings size={14} /> Ruimte-instellingen
+        </Button>
       </div>
 
       {/* Grid */}
@@ -255,11 +263,19 @@ export default function CalendarPage() {
           <thead>
             <tr>
               <th className="sticky left-0 z-10 w-20 border-b border-r bg-muted px-3 py-2.5 text-left text-xs font-semibold text-muted-foreground">Tijd</th>
-              {ROOMS.map((room) => (
-                <th key={room} className="border-b border-r bg-muted px-2 py-2.5 text-center text-[11px] font-semibold text-muted-foreground last:border-r-0 whitespace-nowrap">
-                  {room}
-                </th>
-              ))}
+              {ROOMS.map((room) => {
+                const max = getMaxGuests(room);
+                return (
+                  <th key={room} className="border-b border-r bg-muted px-2 py-2.5 text-center last:border-r-0 whitespace-nowrap">
+                    <div className="text-[11px] font-semibold text-muted-foreground">{room}</div>
+                    {max !== undefined && max > 0 && (
+                      <div className="flex items-center justify-center gap-0.5 mt-0.5 text-[9px] text-muted-foreground/70">
+                        <Users size={9} /> max {max}
+                      </div>
+                    )}
+                  </th>
+                );
+              })}
             </tr>
           </thead>
           <tbody>
@@ -355,6 +371,12 @@ export default function CalendarPage() {
         onOpenChange={setDetailOpen}
         onUpdate={handleUpdateBooking}
         onDelete={handleDeleteBooking}
+      />
+      <RoomSettingsDialog
+        open={roomSettingsOpen}
+        onOpenChange={setRoomSettingsOpen}
+        settings={roomSettings}
+        onSave={updateMaxGuests}
       />
     </div>
   );
