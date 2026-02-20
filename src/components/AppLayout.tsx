@@ -37,7 +37,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         <div className="flex h-16 items-center justify-between px-4">
           {!collapsed && (
             <span className="text-lg font-bold text-primary-foreground animate-fade-in">
-              Venue<span className="text-accent">CRM</span>
+              Agenda
             </span>
           )}
           <button
