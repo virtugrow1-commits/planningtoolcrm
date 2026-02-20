@@ -9,6 +9,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
@@ -60,7 +61,34 @@ export default function InquiriesPage() {
   const [dateOptions, setDateOptions] = useState<DateOption[]>([]);
   const [recurrence, setRecurrence] = useState('none');
   const [repeatCount, setRepeatCount] = useState('4');
+  const [newOpen, setNewOpen] = useState(false);
+  const [newForm, setNewForm] = useState({ contactName: '', eventType: '', preferredDate: '', guestCount: '', budget: '', message: '', source: 'Handmatig', roomPreference: '' });
   const { toast } = useToast();
+
+  const handleAddInquiry = () => {
+    if (!newForm.contactName || !newForm.eventType) {
+      toast({ title: 'Vul minimaal naam en type in', variant: 'destructive' });
+      return;
+    }
+    const inq: Inquiry = {
+      id: `inq-${Date.now()}`,
+      contactId: '',
+      contactName: newForm.contactName,
+      eventType: newForm.eventType,
+      preferredDate: newForm.preferredDate,
+      roomPreference: newForm.roomPreference || undefined,
+      guestCount: Number(newForm.guestCount) || 0,
+      budget: Number(newForm.budget) || undefined,
+      message: newForm.message,
+      status: 'new',
+      createdAt: new Date().toISOString().split('T')[0],
+      source: newForm.source || 'Handmatig',
+    };
+    setInquiries((prev) => [inq, ...prev]);
+    setNewOpen(false);
+    setNewForm({ contactName: '', eventType: '', preferredDate: '', guestCount: '', budget: '', message: '', source: 'Handmatig', roomPreference: '' });
+    toast({ title: 'Aanvraag aangemaakt', description: `${inq.eventType} — ${inq.contactName}` });
+  };
 
   const handleDragStart = useCallback((e: DragEvent, id: string) => {
     setDragId(id);
@@ -127,9 +155,12 @@ export default function InquiriesPage() {
 
   return (
     <div className="p-6 lg:p-8 space-y-4">
-      <div>
-        <h1 className="text-2xl font-bold text-foreground">Aanvragen Pipeline</h1>
-        <p className="text-sm text-muted-foreground">{inquiries.length} aanvragen · Sleep kaarten om de status te wijzigen</p>
+      <div className="flex flex-wrap items-center justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-foreground">Aanvragen Pipeline</h1>
+          <p className="text-sm text-muted-foreground">{inquiries.length} aanvragen · Sleep kaarten om de status te wijzigen</p>
+        </div>
+        <Button onClick={() => setNewOpen(true)} size="sm"><Plus size={14} className="mr-1" /> Nieuwe Aanvraag</Button>
       </div>
 
       <div className="flex gap-4 overflow-x-auto pb-4">
@@ -324,6 +355,71 @@ export default function InquiriesPage() {
           <DialogFooter>
             <Button variant="outline" onClick={() => setScheduleOpen(false)}>Annuleren</Button>
             <Button onClick={handleSchedule}>Inplannen</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* New Inquiry Dialog */}
+      <Dialog open={newOpen} onOpenChange={setNewOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Nieuwe Aanvraag</DialogTitle>
+          </DialogHeader>
+          <div className="grid gap-4 py-2">
+            <div className="grid gap-1.5">
+              <Label>Contactpersoon *</Label>
+              <Input placeholder="Naam" value={newForm.contactName} onChange={(e) => setNewForm({ ...newForm, contactName: e.target.value })} />
+            </div>
+            <div className="grid gap-1.5">
+              <Label>Type evenement *</Label>
+              <Input placeholder="Bijv. Vergadering, Bruiloft, Workshop" value={newForm.eventType} onChange={(e) => setNewForm({ ...newForm, eventType: e.target.value })} />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="grid gap-1.5">
+                <Label>Voorkeursdatum</Label>
+                <Input type="date" value={newForm.preferredDate} onChange={(e) => setNewForm({ ...newForm, preferredDate: e.target.value })} />
+              </div>
+              <div className="grid gap-1.5">
+                <Label>Aantal gasten</Label>
+                <Input type="number" min="1" placeholder="0" value={newForm.guestCount} onChange={(e) => setNewForm({ ...newForm, guestCount: e.target.value })} />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="grid gap-1.5">
+                <Label>Ruimte voorkeur</Label>
+                <Select value={newForm.roomPreference} onValueChange={(v) => setNewForm({ ...newForm, roomPreference: v })}>
+                  <SelectTrigger className="text-sm"><SelectValue placeholder="Optioneel" /></SelectTrigger>
+                  <SelectContent>
+                    {ROOMS.map((r) => <SelectItem key={r} value={r}>{r}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="grid gap-1.5">
+                <Label>Budget (€)</Label>
+                <Input type="number" min="0" placeholder="0" value={newForm.budget} onChange={(e) => setNewForm({ ...newForm, budget: e.target.value })} />
+              </div>
+            </div>
+            <div className="grid gap-1.5">
+              <Label>Bron</Label>
+              <Select value={newForm.source} onValueChange={(v) => setNewForm({ ...newForm, source: v })}>
+                <SelectTrigger className="text-sm"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Handmatig">Handmatig</SelectItem>
+                  <SelectItem value="Website">Website</SelectItem>
+                  <SelectItem value="Telefoon">Telefoon</SelectItem>
+                  <SelectItem value="Email">Email</SelectItem>
+                  <SelectItem value="GHL">GHL</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid gap-1.5">
+              <Label>Bericht / Notities</Label>
+              <Textarea placeholder="Omschrijving van de aanvraag..." value={newForm.message} onChange={(e) => setNewForm({ ...newForm, message: e.target.value })} />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setNewOpen(false)}>Annuleren</Button>
+            <Button onClick={handleAddInquiry}>Toevoegen</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
