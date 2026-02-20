@@ -197,18 +197,59 @@ export default function CalendarPage() {
               </Button>
             </PopoverTrigger>
             <PopoverContent className="w-auto p-0" align="end">
-              <Calendar
-                mode="single"
-                selected={currentDate}
-                onSelect={(date) => {
-                  if (date) {
-                    setCurrentDate(date);
-                    setDatePickerOpen(false);
-                  }
-                }}
-                initialFocus
-                className="p-3 pointer-events-auto"
-              />
+              <div className="flex">
+                {/* Quick shortcuts */}
+                <div className="flex flex-col gap-1 border-r p-3 min-w-[130px]">
+                  <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide mb-1">Snel navigeren</p>
+                  {[
+                    { label: 'Vandaag', offset: 0 },
+                    { label: 'Morgen', offset: 1 },
+                    { label: 'Overmorgen', offset: 2 },
+                  ].map(({ label, offset }) => {
+                    const d = new Date(); d.setDate(d.getDate() + offset);
+                    const isSelected = formatDate(d) === dateStr;
+                    return (
+                      <Button
+                        key={label}
+                        variant={isSelected ? 'default' : 'ghost'}
+                        size="sm"
+                        className="justify-start text-xs h-8"
+                        onClick={() => { setCurrentDate(d); setDatePickerOpen(false); }}
+                      >
+                        {label}
+                      </Button>
+                    );
+                  })}
+                  <div className="my-1 border-t" />
+                  <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide mb-1">Deze week</p>
+                  {Array.from({ length: 7 }, (_, i) => {
+                    const monday = new Date();
+                    monday.setDate(monday.getDate() - ((monday.getDay() + 6) % 7) + i);
+                    const isSelected = formatDate(monday) === dateStr;
+                    return (
+                      <Button
+                        key={i}
+                        variant={isSelected ? 'default' : 'ghost'}
+                        size="sm"
+                        className="justify-start text-xs h-7"
+                        onClick={() => { setCurrentDate(new Date(monday)); setDatePickerOpen(false); }}
+                      >
+                        {monday.toLocaleDateString('nl-NL', { weekday: 'short', day: 'numeric', month: 'short' })}
+                      </Button>
+                    );
+                  })}
+                </div>
+                {/* Full calendar */}
+                <Calendar
+                  mode="single"
+                  selected={currentDate}
+                  onSelect={(date) => {
+                    if (date) { setCurrentDate(date); setDatePickerOpen(false); }
+                  }}
+                  initialFocus
+                  className="p-3 pointer-events-auto"
+                />
+              </div>
             </PopoverContent>
           </Popover>
         </div>
