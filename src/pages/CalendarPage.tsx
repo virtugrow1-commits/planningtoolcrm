@@ -1,12 +1,15 @@
-import { useState, useMemo, useCallback, DragEvent, useEffect } from 'react';
+import { useState, useMemo, useCallback, DragEvent } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { ROOMS, Booking, RoomName } from '@/types/crm';
-import { ChevronLeft, ChevronRight, Plus, GripVertical } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Plus, GripVertical, CalendarIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { useBookings } from '@/contexts/BookingsContext';
 import BookingDetailDialog from '@/components/calendar/BookingDetailDialog';
 import NewBookingDialog from '@/components/calendar/NewBookingDialog';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Calendar } from '@/components/ui/calendar';
+import { cn } from '@/lib/utils';
 
 // 07:00 to 01:00 (next day) = hours 7,8,...,23,0,1
 const HOURS = [...Array.from({ length: 17 }, (_, i) => i + 7), 0, 1];
@@ -31,6 +34,7 @@ export default function CalendarPage() {
   const [conflictAlert, setConflictAlert] = useState<string | null>(null);
   const [detailBooking, setDetailBooking] = useState<Booking | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
+  const [datePickerOpen, setDatePickerOpen] = useState(false);
   const [dragBookingId, setDragBookingId] = useState<string | null>(null);
   const [dragOverCell, setDragOverCell] = useState<{ room: RoomName; hour: number } | null>(null);
   const { toast } = useToast();
@@ -181,9 +185,32 @@ export default function CalendarPage() {
           <Button variant="outline" size="sm" onClick={prevDay}><ChevronLeft size={16} /></Button>
           <Button variant="outline" size="sm" onClick={goToday}>Vandaag</Button>
           <Button variant="outline" size="sm" onClick={nextDay}><ChevronRight size={16} /></Button>
-          <span className="ml-2 text-sm font-semibold text-foreground">
-            {currentDate.toLocaleDateString('nl-NL', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
-          </span>
+          <Popover open={datePickerOpen} onOpenChange={setDatePickerOpen}>
+            <PopoverTrigger asChild>
+              <Button
+                variant="outline"
+                size="sm"
+                className={cn("ml-2 gap-1.5 text-sm font-semibold")}
+              >
+                <CalendarIcon size={14} />
+                {currentDate.toLocaleDateString('nl-NL', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-0" align="end">
+              <Calendar
+                mode="single"
+                selected={currentDate}
+                onSelect={(date) => {
+                  if (date) {
+                    setCurrentDate(date);
+                    setDatePickerOpen(false);
+                  }
+                }}
+                initialFocus
+                className="p-3 pointer-events-auto"
+              />
+            </PopoverContent>
+          </Popover>
         </div>
       </div>
 
