@@ -7,7 +7,8 @@ import { useToast } from '@/hooks/use-toast';
 import BookingDetailDialog from '@/components/calendar/BookingDetailDialog';
 import NewBookingDialog from '@/components/calendar/NewBookingDialog';
 
-const HOURS = Array.from({ length: 15 }, (_, i) => i + 8);
+// 07:00 to 01:00 (next day) = hours 7,8,...,23,0,1
+const HOURS = [...Array.from({ length: 17 }, (_, i) => i + 7), 0, 1];
 
 function formatDate(date: Date) {
   return date.toISOString().split('T')[0];
@@ -76,10 +77,10 @@ export default function CalendarPage() {
     toast({ title: 'Boeking toegevoegd', description: `${booking.roomName} — ${booking.startHour}:00 tot ${booking.endHour}:00` });
   };
 
-  const handleStatusChange = (bookingId: string, status: 'confirmed' | 'option') => {
-    setBookings((prev) => prev.map((b) => b.id === bookingId ? { ...b, status } : b));
-    setDetailBooking((prev) => prev && prev.id === bookingId ? { ...prev, status } : prev);
-    toast({ title: 'Status gewijzigd', description: status === 'confirmed' ? 'Bevestigd' : 'In Optie' });
+  const handleUpdateBooking = (updated: Booking) => {
+    setBookings((prev) => prev.map((b) => b.id === updated.id ? updated : b));
+    setDetailBooking(updated);
+    toast({ title: 'Boeking bijgewerkt' });
   };
 
   const handleDeleteBooking = (bookingId: string) => {
@@ -172,7 +173,7 @@ export default function CalendarPage() {
             {HOURS.map((hour) => (
               <tr key={hour} className="group">
                 <td className="sticky left-0 z-10 border-b border-r bg-card px-3 py-0 text-xs font-medium text-muted-foreground">
-                  {hour}:00
+                  {String(hour).padStart(2, '0')}:00
                 </td>
                 {ROOMS.map((room) => {
                   const booking = getBookingForCell(room, hour);
@@ -193,7 +194,7 @@ export default function CalendarPage() {
                       >
                         <div className="text-xs font-medium leading-tight">{booking.title}</div>
                         <div className="mt-0.5 text-[10px] opacity-70">{booking.contactName}</div>
-                        <div className="mt-0.5 text-[10px] opacity-60">{booking.startHour}:00–{booking.endHour}:00</div>
+                        <div className="mt-0.5 text-[10px] opacity-60">{String(booking.startHour).padStart(2,'0')}:00–{String(booking.endHour).padStart(2,'0')}:00</div>
                       </td>
                     );
                   }
@@ -231,7 +232,7 @@ export default function CalendarPage() {
         booking={detailBooking}
         open={detailOpen}
         onOpenChange={setDetailOpen}
-        onStatusChange={handleStatusChange}
+        onUpdate={handleUpdateBooking}
         onDelete={handleDeleteBooking}
       />
     </div>
