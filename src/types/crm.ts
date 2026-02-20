@@ -47,15 +47,14 @@ export interface QuotationItem {
 }
 
 export const ROOMS = [
-  'Grote Zaal',
-  'Kleine Zaal',
-  'Tuinkamer',
-  'Boardroom',
-  'Atelier',
-  'Salon',
-  'Terras',
-  'Kelder',
-  'Penthouse',
+  'Vergaderzaal 100',
+  'Vergaderzaal 1.03',
+  'Vergaderzaal 1.04',
+  'Vergaderzaal 1.03+1.04',
+  'Coachingruimte 2.05',
+  'Keuken / Kookstudio',
+  'Petit Café / Horeca',
+  'BBQ- en Borrelterras',
 ] as const;
 
 export type RoomName = typeof ROOMS[number];
