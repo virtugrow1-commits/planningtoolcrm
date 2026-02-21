@@ -1,4 +1,4 @@
-import { Search, Plus, Filter, X } from 'lucide-react';
+import { Search, Plus, Filter, X, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { useState } from 'react';
@@ -21,12 +21,16 @@ const STATUS_LABELS: Record<string, string> = {
 
 type FilterKey = 'status' | 'company';
 
+const PAGE_SIZES = [20, 50, 100] as const;
+
 export default function CrmPage() {
   const { contacts, loading, addContact } = useContactsContext();
   const [search, setSearch] = useState('');
   const [newOpen, setNewOpen] = useState(false);
   const [newContact, setNewContact] = useState<Omit<Contact, 'id' | 'createdAt'>>({ firstName: '', lastName: '', email: '', phone: '', status: 'lead' });
   const [filters, setFilters] = useState<Record<FilterKey, string>>({ status: '', company: '' });
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState<number>(20);
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -43,7 +47,14 @@ export default function CrmPage() {
     return matchesSearch && matchesStatus && matchesCompany;
   });
 
-  const clearFilters = () => setFilters({ status: '', company: '' });
+  const clearFilters = () => { setFilters({ status: '', company: '' }); setPage(1); };
+
+  // Reset page on search/filter change
+  const handleSearch = (v: string) => { setSearch(v); setPage(1); };
+  const handleFilter = (f: Record<FilterKey, string>) => { setFilters(f); setPage(1); };
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
+  const paginated = filtered.slice((page - 1) * pageSize, page * pageSize);
 
   const handleAddContact = async () => {
     if (!newContact.firstName || !newContact.lastName) {
@@ -74,7 +85,7 @@ export default function CrmPage() {
         <div className="flex items-center gap-2">
           <div className="relative w-64">
             <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-            <Input placeholder="Zoeken..." className="pl-9" value={search} onChange={(e) => setSearch(e.target.value)} />
+            <Input placeholder="Zoeken..." className="pl-9" value={search} onChange={(e) => handleSearch(e.target.value)} />
           </div>
 
           <Popover>
@@ -98,10 +109,10 @@ export default function CrmPage() {
 
               <div className="grid gap-1.5">
                 <Label className="text-xs">Status</Label>
-                <Select value={filters.status} onValueChange={(v) => setFilters({ ...filters, status: v === '_all' ? '' : v })}>
-                  <SelectTrigger className="h-8 text-xs">
-                    <SelectValue placeholder="Alle statussen" />
-                  </SelectTrigger>
+                 <Select value={filters.status} onValueChange={(v) => handleFilter({ ...filters, status: v === '_all' ? '' : v })}>
+                    <SelectTrigger className="h-8 text-xs">
+                      <SelectValue placeholder="Alle statussen" />
+                    </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="_all">Alle statussen</SelectItem>
                     {uniqueStatuses.map((s) => (
@@ -113,10 +124,10 @@ export default function CrmPage() {
 
               <div className="grid gap-1.5">
                 <Label className="text-xs">Bedrijf</Label>
-                <Select value={filters.company} onValueChange={(v) => setFilters({ ...filters, company: v === '_all' ? '' : v })}>
-                  <SelectTrigger className="h-8 text-xs">
-                    <SelectValue placeholder="Alle bedrijven" />
-                  </SelectTrigger>
+                 <Select value={filters.company} onValueChange={(v) => handleFilter({ ...filters, company: v === '_all' ? '' : v })}>
+                    <SelectTrigger className="h-8 text-xs">
+                      <SelectValue placeholder="Alle bedrijven" />
+                    </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="_all">Alle bedrijven</SelectItem>
                     {uniqueCompanies.map((c) => (
@@ -138,12 +149,12 @@ export default function CrmPage() {
       {activeFilterCount > 0 && (
         <div className="flex flex-wrap gap-2">
           {filters.status && (
-            <Badge variant="secondary" className="gap-1 cursor-pointer" onClick={() => setFilters({ ...filters, status: '' })}>
+            <Badge variant="secondary" className="gap-1 cursor-pointer" onClick={() => handleFilter({ ...filters, status: '' })}>
               Status: {STATUS_LABELS[filters.status] || filters.status} <X size={12} />
             </Badge>
           )}
           {filters.company && (
-            <Badge variant="secondary" className="gap-1 cursor-pointer" onClick={() => setFilters({ ...filters, company: '' })}>
+            <Badge variant="secondary" className="gap-1 cursor-pointer" onClick={() => handleFilter({ ...filters, company: '' })}>
               Bedrijf: {filters.company} <X size={12} />
             </Badge>
           )}
@@ -162,12 +173,12 @@ export default function CrmPage() {
             </tr>
           </thead>
           <tbody>
-            {filtered.length === 0 && (
+            {paginated.length === 0 && (
               <tr>
                 <td colSpan={5} className="px-4 py-8 text-center text-muted-foreground">Geen contacten gevonden</td>
               </tr>
             )}
-            {filtered.map((c) => (
+            {paginated.map((c) => (
               <tr key={c.id} onClick={() => navigate(`/crm/${c.id}`)} className="border-b last:border-0 transition-colors hover:bg-muted/30 cursor-pointer">
                 <td className="px-4 py-3 font-medium text-foreground">{c.firstName} {c.lastName}</td>
                 <td className="px-4 py-3 text-muted-foreground">{c.email || '—'}</td>
@@ -180,6 +191,31 @@ export default function CrmPage() {
             ))}
           </tbody>
         </table>
+      </div>
+
+      {/* Pagination */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+          <span>Tonen:</span>
+          <Select value={String(pageSize)} onValueChange={(v) => { setPageSize(Number(v)); setPage(1); }}>
+            <SelectTrigger className="h-8 w-20 text-xs">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {PAGE_SIZES.map((s) => <SelectItem key={s} value={String(s)}>{s}</SelectItem>)}
+            </SelectContent>
+          </Select>
+          <span>van {filtered.length}</span>
+        </div>
+        <div className="flex items-center gap-1">
+          <Button variant="outline" size="icon" className="h-8 w-8" disabled={page <= 1} onClick={() => setPage(page - 1)}>
+            <ChevronLeft size={14} />
+          </Button>
+          <span className="px-2 text-sm text-muted-foreground">{page} / {totalPages}</span>
+          <Button variant="outline" size="icon" className="h-8 w-8" disabled={page >= totalPages} onClick={() => setPage(page + 1)}>
+            <ChevronRight size={14} />
+          </Button>
+        </div>
       </div>
 
       {/* New Contact Dialog */}
