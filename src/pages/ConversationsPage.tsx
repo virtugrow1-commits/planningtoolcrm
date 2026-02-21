@@ -116,7 +116,7 @@ export default function ConversationsPage() {
           conversationId: selectedConv.id,
           contactId: selectedConv.contactId,
           message: replyText.trim(),
-          type: selectedConv.type || 'SMS',
+          type: 'Email',
         },
       });
       if (error) throw error;
@@ -349,26 +349,32 @@ export default function ConversationsPage() {
               )}
             </ScrollArea>
 
-            {/* Reply input */}
+            {/* Reply input - only for email conversations */}
             <div className="p-3 border-t bg-card">
-              <div className="flex items-center gap-2 max-w-2xl mx-auto">
-                <Input
-                  ref={inputRef}
-                  placeholder="Typ een bericht..."
-                  value={replyText}
-                  onChange={(e) => setReplyText(e.target.value)}
-                  onKeyDown={handleKeyDown}
-                  disabled={sending}
-                  className="flex-1"
-                />
-                <Button
-                  size="icon"
-                  onClick={handleSendMessage}
-                  disabled={!replyText.trim() || sending}
-                >
-                  <Send size={16} />
-                </Button>
-              </div>
+              {selectedConv.type?.toLowerCase().includes('email') || selectedConv.type === 'TYPE_EMAIL' ? (
+                <div className="flex items-center gap-2 max-w-2xl mx-auto">
+                  <Input
+                    ref={inputRef}
+                    placeholder="Typ een e-mail antwoord..."
+                    value={replyText}
+                    onChange={(e) => setReplyText(e.target.value)}
+                    onKeyDown={handleKeyDown}
+                    disabled={sending}
+                    className="flex-1"
+                  />
+                  <Button
+                    size="icon"
+                    onClick={handleSendMessage}
+                    disabled={!replyText.trim() || sending}
+                  >
+                    <Send size={16} />
+                  </Button>
+                </div>
+              ) : (
+                <p className="text-xs text-center text-muted-foreground">
+                  Beantwoorden is momenteel alleen mogelijk via e-mail
+                </p>
+              )}
             </div>
           </>
         ) : (
