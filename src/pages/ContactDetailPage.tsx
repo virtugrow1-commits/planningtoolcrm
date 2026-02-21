@@ -1,6 +1,7 @@
 import { useParams, useNavigate } from 'react-router-dom';
 import { useContactsContext } from '@/contexts/ContactsContext';
 import { useInquiriesContext } from '@/contexts/InquiriesContext';
+import { useBookings } from '@/contexts/BookingsContext';
 import { useState } from 'react';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -17,6 +18,7 @@ export default function ContactDetailPage() {
   const navigate = useNavigate();
   const { contacts, updateContact, deleteContact } = useContactsContext();
   const { inquiries } = useInquiriesContext();
+  const { bookings } = useBookings();
   const { toast } = useToast();
 
   const contact = contacts.find((c) => c.id === id);
@@ -41,6 +43,7 @@ export default function ContactDetailPage() {
   }
 
   const contactInquiries = inquiries.filter((i) => i.contactId === contact.id);
+  const contactBookings = bookings.filter((b) => b.contactId === contact.id);
 
   const startEdit = () => {
     setForm({ ...contact });
@@ -215,7 +218,28 @@ export default function ContactDetailPage() {
 
           {/* Reserveringen */}
           <SectionCard title="Reserveringen" linkLabel="Bekijk agenda" onLink={() => navigate('/calendar')}>
-            <p className="text-xs text-muted-foreground">Geen reserveringen</p>
+            {contactBookings.length === 0 ? (
+              <p className="text-xs text-muted-foreground">Geen reserveringen</p>
+            ) : (
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="text-muted-foreground">
+                    <th className="text-left pb-2 font-medium">Datum</th>
+                    <th className="text-left pb-2 font-medium">Ruimte</th>
+                    <th className="text-left pb-2 font-medium">Tijd</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {contactBookings.slice(0, 5).map((b) => (
+                    <tr key={b.id} className="border-t border-border/50">
+                      <td className="py-1.5">{b.date}</td>
+                      <td className="py-1.5">{b.roomName}</td>
+                      <td className="py-1.5">{b.startHour}:00 - {b.endHour}:00</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
           </SectionCard>
 
           {/* Offertes */}
