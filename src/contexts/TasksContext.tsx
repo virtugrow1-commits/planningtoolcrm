@@ -3,6 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { pushToGHL } from '@/lib/ghlSync';
 import { Task } from '@/types/task';
+import { useToast } from '@/hooks/use-toast';
 
 interface TasksContextType {
   tasks: Task[];
@@ -20,6 +21,7 @@ export function TasksProvider({ children }: { children: ReactNode }) {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
   const { user } = useAuth();
+  const { toast } = useToast();
 
   const fetchTasks = useCallback(async () => {
     if (!user) return;
@@ -28,7 +30,12 @@ export function TasksProvider({ children }: { children: ReactNode }) {
       .select('*')
       .order('created_at', { ascending: false });
 
-    if (!error && data) {
+    if (error) {
+      toast({ title: 'Fout bij laden taken', description: error.message, variant: 'destructive' });
+      setLoading(false);
+      return;
+    }
+    if (data) {
       setTasks(data.map((t: any) => ({
         id: t.id,
         title: t.title,
@@ -46,13 +53,12 @@ export function TasksProvider({ children }: { children: ReactNode }) {
       })));
     }
     setLoading(false);
-  }, [user]);
+  }, [user, toast]);
 
   useEffect(() => {
     fetchTasks();
   }, [fetchTasks]);
 
-  // Realtime subscription
   useEffect(() => {
     if (!user) return;
     const channel = supabase
@@ -61,13 +67,12 @@ export function TasksProvider({ children }: { children: ReactNode }) {
         fetchTasks();
       })
       .subscribe();
-
     return () => { supabase.removeChannel(channel); };
   }, [user, fetchTasks]);
 
   const addTask = useCallback(async (task: Omit<Task, 'id' | 'createdAt'>) => {
     if (!user) return;
-    const { data } = await (supabase as any).from('tasks').insert({
+    const { data, error } = await (supabase as any).from('tasks').insert({
       user_id: user.id,
       title: task.title,
       description: task.description || null,
@@ -81,13 +86,17 @@ export function TasksProvider({ children }: { children: ReactNode }) {
       ghl_task_id: task.ghlTaskId || null,
       completed_at: task.status === 'completed' ? new Date().toISOString() : null,
     }).select().single();
+    if (error) {
+      toast({ title: 'Fout bij aanmaken taak', description: error.message, variant: 'destructive' });
+      return;
+    }
     if (data) {
       pushToGHL('push-task', { task: data });
     }
-  }, [user]);
+  }, [user, toast]);
 
   const updateTask = useCallback(async (task: Task) => {
-    const { data } = await (supabase as any).from('tasks').update({
+    const { data, error } = await (supabase as any).from('tasks').update({
       title: task.title,
       description: task.description || null,
       status: task.status,
@@ -100,18 +109,26 @@ export function TasksProvider({ children }: { children: ReactNode }) {
       ghl_task_id: task.ghlTaskId || null,
       completed_at: task.status === 'completed' ? new Date().toISOString() : null,
     }).eq('id', task.id).select().single();
+    if (error) {
+      toast({ title: 'Fout bij bijwerken taak', description: error.message, variant: 'destructive' });
+      return;
+    }
     if (data) {
       pushToGHL('push-task', { task: data });
     }
-  }, []);
+  }, [toast]);
 
   const deleteTask = useCallback(async (id: string) => {
     const { data: existing } = await (supabase as any).from('tasks').select('ghl_task_id').eq('id', id).single();
-    await (supabase as any).from('tasks').delete().eq('id', id);
+    const { error } = await (supabase as any).from('tasks').delete().eq('id', id);
+    if (error) {
+      toast({ title: 'Fout bij verwijderen taak', description: error.message, variant: 'destructive' });
+      return;
+    }
     if (existing?.ghl_task_id) {
       pushToGHL('delete-task', { ghl_task_id: existing.ghl_task_id });
     }
-  }, []);
+  }, [toast]);
 
   const deleteTasks = useCallback(async (ids: string[]) => {
     for (const id of ids) {

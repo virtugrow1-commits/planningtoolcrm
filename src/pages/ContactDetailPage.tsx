@@ -2,6 +2,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useContactsContext } from '@/contexts/ContactsContext';
 import { useInquiriesContext } from '@/contexts/InquiriesContext';
 import { useBookings } from '@/contexts/BookingsContext';
+import { useCompaniesContext } from '@/contexts/CompaniesContext';
 import { useState } from 'react';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -18,6 +19,7 @@ export default function ContactDetailPage() {
   const navigate = useNavigate();
   const { contacts, updateContact, deleteContact } = useContactsContext();
   const { inquiries } = useInquiriesContext();
+  const { companies } = useCompaniesContext();
   const { bookings } = useBookings();
   const { toast } = useToast();
 
@@ -61,7 +63,16 @@ export default function ContactDetailPage() {
       toast({ title: 'Vul minimaal voor- en achternaam in', variant: 'destructive' });
       return;
     }
-    await updateContact(form);
+    // Auto-link company_id if company name matches
+    let companyId = form.companyId;
+    if (form.company) {
+      const match = companies.find((c) => c.name.toLowerCase() === form.company!.toLowerCase());
+      if (match) companyId = match.id;
+      else companyId = undefined;
+    } else {
+      companyId = undefined;
+    }
+    await updateContact({ ...form, companyId });
     setEditing(false);
     setForm(null);
     toast({ title: 'Contact bijgewerkt' });

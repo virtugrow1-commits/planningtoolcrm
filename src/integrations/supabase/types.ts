@@ -124,6 +124,7 @@ export type Database = {
       contacts: {
         Row: {
           company: string | null
+          company_id: string | null
           created_at: string
           email: string | null
           first_name: string
@@ -138,6 +139,7 @@ export type Database = {
         }
         Insert: {
           company?: string | null
+          company_id?: string | null
           created_at?: string
           email?: string | null
           first_name: string
@@ -152,6 +154,7 @@ export type Database = {
         }
         Update: {
           company?: string | null
+          company_id?: string | null
           created_at?: string
           email?: string | null
           first_name?: string
@@ -164,7 +167,15 @@ export type Database = {
           updated_at?: string
           user_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "contacts_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       inquiries: {
         Row: {

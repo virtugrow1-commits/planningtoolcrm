@@ -42,9 +42,9 @@ export default function CompanyDetailPage() {
     );
   }
 
-  // Find contacts whose company field matches this company name (case-insensitive)
+  // Find contacts linked via company_id FK, fallback to name match
   const companyContacts = contacts.filter(
-    (c) => c.company && c.company.toLowerCase() === company.name.toLowerCase()
+    (c) => c.companyId === company.id || (!c.companyId && c.company && c.company.toLowerCase() === company.name.toLowerCase())
   );
 
   const contactIds = new Set(companyContacts.map((c) => c.id));

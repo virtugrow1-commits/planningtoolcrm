@@ -11,6 +11,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Contact } from '@/types/crm';
 import { useToast } from '@/hooks/use-toast';
 import { useContactsContext } from '@/contexts/ContactsContext';
+import { useCompaniesContext } from '@/contexts/CompaniesContext';
 
 const STATUS_LABELS: Record<string, string> = {
   lead: 'Lead',
@@ -25,6 +26,7 @@ const PAGE_SIZES = [20, 50, 100] as const;
 
 export default function CrmPage() {
   const { contacts, loading, addContact } = useContactsContext();
+  const { companies } = useCompaniesContext();
   const [search, setSearch] = useState('');
   const [newOpen, setNewOpen] = useState(false);
   const [newContact, setNewContact] = useState<Omit<Contact, 'id' | 'createdAt'>>({ firstName: '', lastName: '', email: '', phone: '', status: 'lead' });
@@ -61,7 +63,13 @@ export default function CrmPage() {
       toast({ title: 'Vul minimaal voor- en achternaam in', variant: 'destructive' });
       return;
     }
-    await addContact(newContact);
+    // Auto-link company_id if company name matches an existing company
+    let companyId: string | undefined;
+    if (newContact.company) {
+      const match = companies.find((c) => c.name.toLowerCase() === newContact.company!.toLowerCase());
+      if (match) companyId = match.id;
+    }
+    await addContact({ ...newContact, companyId });
     setNewOpen(false);
     setNewContact({ firstName: '', lastName: '', email: '', phone: '', status: 'lead' });
     toast({ title: 'Contact aangemaakt' });
