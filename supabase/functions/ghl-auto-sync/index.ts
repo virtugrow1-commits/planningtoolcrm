@@ -49,20 +49,25 @@ serve(async (req) => {
       const now = new Date();
       const startDate = new Date(now); startDate.setDate(startDate.getDate() - 365);
       const endDate = new Date(now); endDate.setDate(endDate.getDate() + 365);
+      const startEpoch = startDate.getTime();
+      const endEpoch = endDate.getTime();
 
       let allEvents: any[] = [];
       for (const cal of calendars) {
         try {
-          const eventsUrl = `${GHL_API_BASE}/calendars/events?locationId=${GHL_LOCATION_ID}&calendarId=${cal.id}&startTime=${encodeURIComponent(startDate.toISOString())}&endTime=${encodeURIComponent(endDate.toISOString())}`;
+          // Try epoch ms format
+          const eventsUrl = `${GHL_API_BASE}/calendars/events?locationId=${GHL_LOCATION_ID}&calendarId=${cal.id}&startTime=${startEpoch}&endTime=${endEpoch}`;
+          console.log(`Fetching events URL: ${eventsUrl}`);
           const eventsRes = await fetch(eventsUrl, { headers: ghlHeaders });
           
           if (eventsRes.ok) {
             const eventsData = await eventsRes.json();
-            const events = eventsData.events || [];
-            console.log(`Calendar "${cal.name}": ${events.length} events`);
+            const events = eventsData.events || eventsData.data?.events || [];
+            console.log(`Calendar "${cal.name}": ${events.length} events, raw keys:`, Object.keys(eventsData));
             allEvents = allEvents.concat(events.map((e: any) => ({ ...e, calendarName: cal.name, calendarId: cal.id })));
           } else {
-            console.error(`Calendar "${cal.name}" error: ${eventsRes.status} ${await eventsRes.text()}`);
+            const errBody = await eventsRes.text();
+            console.error(`Calendar "${cal.name}" error: ${eventsRes.status} ${errBody}`);
           }
         } catch (e) { console.error(`Calendar "${cal.name}" fetch error:`, e); }
       }
@@ -109,14 +114,20 @@ serve(async (req) => {
       const defaultCalendarId = calendars[0]?.id;
       if (defaultCalendarId) {
         for (const userId of userIds) {
-          const { data: localBookings } = await supabase.from('bookings').select('*').eq('user_id', userId).is('ghl_event_id', null);
+          const { data: localBookings } = await supabase.from('bookings').select('*, contacts!bookings_contact_id_fkey(ghl_contact_id)').eq('user_id', userId).is('ghl_event_id', null);
           for (const booking of localBookings || []) {
             try {
+              // Need a GHL contact to create appointment
+              const ghlContactId = (booking as any).contacts?.ghl_contact_id || null;
+              if (!ghlContactId) {
+                console.log(`Skip push booking ${booking.id}: no GHL contact linked`);
+                continue;
+              }
               const startTime = `${booking.date}T${String(booking.start_hour).padStart(2, '0')}:00:00`;
               const endTime = `${booking.date}T${String(booking.end_hour).padStart(2, '0')}:00:00`;
               const res = await fetch(`${GHL_API_BASE}/calendars/events/appointments`, {
                 method: 'POST', headers: ghlHeaders,
-                body: JSON.stringify({ calendarId: defaultCalendarId, locationId: GHL_LOCATION_ID, title: booking.title || 'CRM Boeking', startTime, endTime, appointmentStatus: booking.status === 'confirmed' ? 'confirmed' : 'new' }),
+                body: JSON.stringify({ calendarId: defaultCalendarId, locationId: GHL_LOCATION_ID, contactId: ghlContactId, title: booking.title || 'CRM Boeking', startTime, endTime, appointmentStatus: booking.status === 'confirmed' ? 'confirmed' : 'new' }),
               });
               if (res.ok) {
                 const created = await res.json();
