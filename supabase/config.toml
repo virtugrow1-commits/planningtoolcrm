@@ -1,1 +1,4 @@
 project_id = "homqvnnphotphxemurwp"
+
+[functions.ghl-webhook]
+verify_jwt = false
