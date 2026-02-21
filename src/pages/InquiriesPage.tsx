@@ -3,7 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { format } from 'date-fns';
 import { nl } from 'date-fns/locale';
 import { Inquiry, Booking, ROOMS, RoomName } from '@/types/crm';
-import { Calendar as CalendarIcon, Users, Euro, GripVertical, Repeat, Plus, X, Check, LayoutGrid, List, Trash2 } from 'lucide-react';
+import { Calendar as CalendarIcon, Users, Euro, GripVertical, Repeat, Plus, X, Check, LayoutGrid, List, Trash2, ArrowRight } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useBookings } from '@/contexts/BookingsContext';
 import { useInquiriesContext } from '@/contexts/InquiriesContext';
@@ -15,6 +15,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Checkbox } from '@/components/ui/checkbox';
 import { cn } from '@/lib/utils';
 
 const PIPELINE_COLUMNS: { key: Inquiry['status']; label: string; colorClass: string; badgeClass: string }[] = [
@@ -74,12 +75,49 @@ export default function InquiriesPage() {
   const [detailOpen, setDetailOpen] = useState(false);
   const [editInquiry, setEditInquiry] = useState<Inquiry | null>(null);
   const [newForm, setNewForm] = useState({ contactName: '', eventType: '', preferredDate: '', guestCount: '', budget: '', message: '', source: 'Handmatig', roomPreference: '', status: 'new' as Inquiry['status'] });
+  const [selected, setSelected] = useState<Set<string>>(new Set());
   const { toast } = useToast();
   const { addBookings } = useBookings();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
 
-  // Handle incoming inquiry from CRM
+  const toggleSelect = (id: string) => {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleSelectAll = () => {
+    if (selected.size === inquiries.length) {
+      setSelected(new Set());
+    } else {
+      setSelected(new Set(inquiries.map((i) => i.id)));
+    }
+  };
+
+  const handleBulkDelete = async () => {
+    const count = selected.size;
+    for (const id of selected) {
+      await deleteInquiryCtx(id);
+    }
+    setSelected(new Set());
+    toast({ title: `${count} aanvra${count === 1 ? 'ag' : 'gen'} verwijderd` });
+  };
+
+  const handleBulkMove = async (newStatus: Inquiry['status']) => {
+    const count = selected.size;
+    for (const id of selected) {
+      const inq = inquiries.find((i) => i.id === id);
+      if (inq) await updateInquiry({ ...inq, status: newStatus });
+    }
+    setSelected(new Set());
+    const col = PIPELINE_COLUMNS.find((c) => c.key === newStatus);
+    toast({ title: `${count} aanvra${count === 1 ? 'ag' : 'gen'} verplaatst`, description: `Naar "${col?.label}"` });
+  };
+
+
   useEffect(() => {
     const newInquiryParam = searchParams.get('newInquiry');
     if (newInquiryParam) {
@@ -282,6 +320,41 @@ export default function InquiriesPage() {
         </div>
       </div>
 
+      {/* Bulk action bar */}
+      {selected.size > 0 && (
+        <div className="flex items-center gap-3 rounded-lg border bg-card p-3 card-shadow">
+          <span className="text-sm font-medium text-foreground">{selected.size} geselecteerd</span>
+          <div className="flex items-center gap-2 ml-auto">
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="outline" size="sm">
+                  <ArrowRight size={14} className="mr-1" /> Verplaatsen
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-56 p-2" align="end">
+                <div className="space-y-0.5">
+                  {PIPELINE_COLUMNS.map((col) => (
+                    <button
+                      key={col.key}
+                      onClick={() => handleBulkMove(col.key)}
+                      className="w-full rounded-md px-3 py-1.5 text-left text-sm hover:bg-muted transition-colors"
+                    >
+                      {col.label}
+                    </button>
+                  ))}
+                </div>
+              </PopoverContent>
+            </Popover>
+            <Button variant="destructive" size="sm" onClick={handleBulkDelete}>
+              <Trash2 size={14} className="mr-1" /> Verwijderen
+            </Button>
+            <Button variant="ghost" size="sm" onClick={() => setSelected(new Set())}>
+              <X size={14} />
+            </Button>
+          </div>
+        </div>
+      )}
+
       {viewMode === 'cards' ? (
       <div className="flex gap-4 overflow-x-auto pb-4">
         {PIPELINE_COLUMNS.map((col) => {
@@ -304,10 +377,15 @@ export default function InquiriesPage() {
                     draggable
                     onDragStart={(e) => handleDragStart(e, inq.id)}
                     onClick={() => openDetailDialog(inq)}
-                    className={`cursor-pointer rounded-lg border bg-card p-3 card-shadow hover:card-shadow-hover transition-all active:cursor-grabbing ${dragId === inq.id ? 'opacity-50 scale-95' : ''}`}
+                    className={`cursor-pointer rounded-lg border bg-card p-3 card-shadow hover:card-shadow-hover transition-all active:cursor-grabbing ${dragId === inq.id ? 'opacity-50 scale-95' : ''} ${selected.has(inq.id) ? 'ring-2 ring-primary' : ''}`}
                   >
                     <div className="flex items-start gap-2">
-                      <GripVertical size={14} className="mt-0.5 shrink-0 text-muted-foreground/40 cursor-grab" />
+                      <Checkbox
+                        checked={selected.has(inq.id)}
+                        onCheckedChange={() => toggleSelect(inq.id)}
+                        onClick={(e) => e.stopPropagation()}
+                        className="mt-0.5 shrink-0"
+                      />
                       <div className="flex-1 min-w-0">
                         <h4 className="text-sm font-medium text-card-foreground truncate">{inq.eventType}</h4>
                         <p className="text-xs text-muted-foreground">{inq.contactName}</p>
@@ -348,6 +426,12 @@ export default function InquiriesPage() {
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-border bg-muted/30">
+              <th className="px-4 py-2.5 w-10">
+                <Checkbox
+                  checked={inquiries.length > 0 && selected.size === inquiries.length}
+                  onCheckedChange={toggleSelectAll}
+                />
+              </th>
               <th className="px-4 py-2.5 text-left font-medium text-muted-foreground">Type</th>
               <th className="px-4 py-2.5 text-left font-medium text-muted-foreground">Contact</th>
               <th className="px-4 py-2.5 text-left font-medium text-muted-foreground hidden md:table-cell">Datum</th>
@@ -362,7 +446,10 @@ export default function InquiriesPage() {
             {inquiries.map((inq) => {
               const col = PIPELINE_COLUMNS.find((c) => c.key === inq.status);
               return (
-                <tr key={inq.id} onClick={() => openDetailDialog(inq)} className="border-b border-border last:border-0 hover:bg-muted/20 transition-colors cursor-pointer">
+                <tr key={inq.id} onClick={() => openDetailDialog(inq)} className={cn("border-b border-border last:border-0 hover:bg-muted/20 transition-colors cursor-pointer", selected.has(inq.id) && "bg-primary/5")}>
+                  <td className="px-4 py-2.5" onClick={(e) => e.stopPropagation()}>
+                    <Checkbox checked={selected.has(inq.id)} onCheckedChange={() => toggleSelect(inq.id)} />
+                  </td>
                   <td className="px-4 py-2.5 font-medium text-card-foreground">{inq.eventType}</td>
                   <td className="px-4 py-2.5 text-muted-foreground">{inq.contactName}</td>
                   <td className="px-4 py-2.5 text-muted-foreground hidden md:table-cell">{inq.preferredDate || '—'}</td>
