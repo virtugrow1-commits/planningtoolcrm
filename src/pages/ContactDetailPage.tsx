@@ -157,27 +157,14 @@ export default function ContactDetailPage() {
             <InfoField icon={<User size={14} />} label="Achternaam" value={current.lastName} editing={editing} onChange={(v) => setForm({ ...form!, lastName: v })} />
             <InfoField icon={<Mail size={14} />} label="Email" value={current.email} editing={editing} type="email" onChange={(v) => setForm({ ...form!, email: v })} />
             <InfoField icon={<Phone size={14} />} label="Telefoon" value={current.phone} editing={editing} onChange={(v) => setForm({ ...form!, phone: v })} />
-            {editing ? (
-              <InfoField icon={<Building2 size={14} />} label="Bedrijf" value={current.company || ''} editing={editing} onChange={(v) => setForm({ ...form!, company: v || undefined })} />
-            ) : (
-              <div>
-                <p className="text-xs font-semibold text-muted-foreground mb-0.5 flex items-center gap-1.5"><Building2 size={14} /> Bedrijf</p>
-                {current.company ? (
-                  <button
-                    onClick={() => {
-                      const match = companies.find((c) => c.name.toLowerCase() === current.company!.toLowerCase());
-                      if (match) navigate(`/companies/${match.id}`);
-                      else if (current.companyId) navigate(`/companies/${current.companyId}`);
-                    }}
-                    className="text-primary hover:underline font-medium"
-                  >
-                    {current.company}
-                  </button>
-                ) : (
-                  <p className="text-foreground">—</p>
-                )}
-              </div>
-            )}
+            <CompanyField
+              current={current}
+              editing={editing}
+              companies={companies}
+              form={form}
+              setForm={setForm}
+              navigate={navigate}
+            />
 
             {editing && (
               <div>
@@ -352,6 +339,91 @@ function InfoField({ icon, label, value, editing, type, onChange }: {
         <Input className="h-8 text-sm" type={type} value={value} onChange={(e) => onChange(e.target.value)} />
       ) : (
         <p className="text-foreground">{value || '—'}</p>
+      )}
+    </div>
+  );
+}
+
+function CompanyField({ current, editing, companies, form, setForm, navigate }: {
+  current: Contact;
+  editing: boolean;
+  companies: { id: string; name: string }[];
+  form: Contact | null;
+  setForm: (f: Contact) => void;
+  navigate: (path: string) => void;
+}) {
+  const [companySearch, setCompanySearch] = useState('');
+  const [showDropdown, setShowDropdown] = useState(false);
+
+  if (!editing) {
+    return (
+      <div>
+        <p className="text-xs font-semibold text-muted-foreground mb-0.5 flex items-center gap-1.5"><Building2 size={14} /> Bedrijf</p>
+        {current.company ? (
+          <button
+            onClick={() => {
+              const match = companies.find((c) => c.name.toLowerCase() === current.company!.toLowerCase());
+              if (match) navigate(`/companies/${match.id}`);
+              else if (current.companyId) navigate(`/companies/${current.companyId}`);
+            }}
+            className="text-primary hover:underline font-medium text-sm"
+          >
+            {current.company}
+          </button>
+        ) : (
+          <p className="text-sm text-foreground">—</p>
+        )}
+      </div>
+    );
+  }
+
+  const searchValue = companySearch || form?.company || '';
+  const filtered = searchValue.trim()
+    ? companies.filter((c) => c.name.toLowerCase().includes(searchValue.toLowerCase())).slice(0, 8)
+    : [];
+
+  return (
+    <div className="relative">
+      <p className="text-xs font-semibold text-muted-foreground mb-0.5 flex items-center gap-1.5"><Building2 size={14} /> Bedrijf</p>
+      <Input
+        className="h-8 text-sm"
+        value={searchValue}
+        placeholder="Zoek of typ bedrijfsnaam..."
+        onChange={(e) => {
+          setCompanySearch(e.target.value);
+          setForm({ ...form!, company: e.target.value || undefined, companyId: undefined });
+          setShowDropdown(true);
+        }}
+        onFocus={() => setShowDropdown(true)}
+        onBlur={() => setTimeout(() => setShowDropdown(false), 200)}
+      />
+      {showDropdown && filtered.length > 0 && (
+        <div className="absolute z-50 w-full mt-1 bg-popover border rounded-md shadow-md max-h-40 overflow-y-auto">
+          {filtered.map((c) => (
+            <button
+              key={c.id}
+              type="button"
+              className="w-full text-left px-3 py-1.5 text-sm hover:bg-muted/50 transition-colors"
+              onMouseDown={(e) => {
+                e.preventDefault();
+                setForm({ ...form!, company: c.name, companyId: c.id });
+                setCompanySearch('');
+                setShowDropdown(false);
+              }}
+            >
+              {c.name}
+            </button>
+          ))}
+        </div>
+      )}
+      {form?.company && (
+        <button
+          type="button"
+          className="absolute right-2 top-7 text-muted-foreground hover:text-foreground"
+          onClick={() => { setForm({ ...form!, company: undefined, companyId: undefined }); setCompanySearch(''); }}
+        >
+          <X size={12} />
+        </button>
       )}
     </div>
   );
