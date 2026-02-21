@@ -2,6 +2,7 @@ import { Search, Plus, Pencil, Trash2, Building2, ChevronLeft, ChevronRight } fr
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
@@ -12,6 +13,7 @@ import { useCompaniesContext, Company } from '@/contexts/CompaniesContext';
 const PAGE_SIZES = [20, 50, 100] as const;
 
 export default function CompaniesPage() {
+  const navigate = useNavigate();
   const { companies, loading, addCompany, updateCompany, deleteCompany } = useCompaniesContext();
   const [search, setSearch] = useState('');
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -110,7 +112,7 @@ export default function CompaniesPage() {
               </tr>
             )}
             {paginated.map((c) => (
-              <tr key={c.id} className="border-b last:border-0 transition-colors hover:bg-muted/30">
+              <tr key={c.id} className="border-b last:border-0 transition-colors hover:bg-muted/30 cursor-pointer" onClick={() => navigate(`/companies/${c.id}`)}>
                 <td className="px-4 py-3 font-medium text-foreground">{c.name}</td>
                 <td className="px-4 py-3 text-muted-foreground">{c.email || '—'}</td>
                 <td className="px-4 py-3 text-muted-foreground hidden md:table-cell">{c.phone || '—'}</td>
@@ -118,7 +120,7 @@ export default function CompaniesPage() {
                   {c.website ? <a href={c.website.startsWith('http') ? c.website : `https://${c.website}`} target="_blank" rel="noopener noreferrer" className="text-accent hover:underline">{c.website}</a> : '—'}
                 </td>
                 <td className="px-4 py-3 text-muted-foreground hidden lg:table-cell">{c.address || '—'}</td>
-                <td className="px-4 py-3 text-right">
+                <td className="px-4 py-3 text-right" onClick={(e) => e.stopPropagation()}>
                   <div className="flex justify-end gap-1">
                     <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openEdit(c)}>
                       <Pencil size={14} />

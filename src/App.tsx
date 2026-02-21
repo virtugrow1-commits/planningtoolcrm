@@ -8,6 +8,7 @@ import Dashboard from "@/pages/Dashboard";
 import CalendarPage from "@/pages/CalendarPage";
 import CrmPage from "@/pages/CrmPage";
 import CompaniesPage from "@/pages/CompaniesPage";
+import CompanyDetailPage from "@/pages/CompanyDetailPage";
 import ContactDetailPage from "@/pages/ContactDetailPage";
 import InquiriesPage from "@/pages/InquiriesPage";
 import QuotationsPage from "@/pages/QuotationsPage";
@@ -50,6 +51,7 @@ function ProtectedRoutes() {
                   <Route path="/crm" element={<CrmPage />} />
                   <Route path="/crm/:id" element={<ContactDetailPage />} />
                   <Route path="/companies" element={<CompaniesPage />} />
+                  <Route path="/companies/:id" element={<CompanyDetailPage />} />
                   <Route path="/inquiries" element={<InquiriesPage />} />
                   <Route path="/quotations" element={<QuotationsPage />} />
                   <Route path="/calendar" element={<CalendarPage />} />
