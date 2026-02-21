@@ -90,10 +90,10 @@ export default function BookingDetailDialog({ booking, open, onOpenChange, onUpd
                 <Label>Van</Label>
                 <Input
                   type="time"
-                  value={formatTime(form.startHour)}
+                  value={formatTime(form.startHour, form.startMinute)}
                   onChange={(e) => {
                     const [h, m] = e.target.value.split(':').map(Number);
-                    if (!isNaN(h)) setForm({ ...form, startHour: h });
+                    if (!isNaN(h)) setForm({ ...form, startHour: h, startMinute: m || 0 });
                   }}
                 />
               </div>
@@ -101,10 +101,10 @@ export default function BookingDetailDialog({ booking, open, onOpenChange, onUpd
                 <Label>Tot</Label>
                 <Input
                   type="time"
-                  value={formatTime(form.endHour)}
+                  value={formatTime(form.endHour, form.endMinute)}
                   onChange={(e) => {
                     const [h, m] = e.target.value.split(':').map(Number);
-                    if (!isNaN(h)) setForm({ ...form, endHour: h });
+                    if (!isNaN(h)) setForm({ ...form, endHour: h, endMinute: m || 0 });
                   }}
                 />
               </div>
@@ -158,7 +158,7 @@ export default function BookingDetailDialog({ booking, open, onOpenChange, onUpd
               </div>
               <div className="flex items-center gap-2 text-sm">
                 <Clock size={14} className="text-muted-foreground" />
-                <span>{formatTime(booking.startHour)} – {formatTime(booking.endHour)}</span>
+                <span>{formatTime(booking.startHour, booking.startMinute)} – {formatTime(booking.endHour, booking.endMinute)}</span>
               </div>
               <div className="flex items-center gap-2 text-sm">
                 <User size={14} className="text-muted-foreground" />
