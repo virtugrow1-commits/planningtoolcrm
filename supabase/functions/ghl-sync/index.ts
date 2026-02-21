@@ -1016,6 +1016,70 @@ serve(async (req) => {
       });
     }
 
+    if (action === 'sync-companies') {
+      // Fetch all contacts from GHL and extract unique companies
+      let allContacts: any[] = [];
+      let nextPageUrl: string | null = `${GHL_API_BASE}/contacts/?locationId=${GHL_LOCATION_ID}&limit=100`;
+
+      while (nextPageUrl) {
+        const res = await fetch(nextPageUrl, { headers: ghlHeaders });
+        if (!res.ok) break;
+        const data = await res.json();
+        allContacts = allContacts.concat(data.contacts || []);
+        nextPageUrl = data.meta?.nextPageUrl || null;
+      }
+
+      // Extract unique companies from contacts
+      const companyMap = new Map<string, any>();
+      for (const contact of allContacts) {
+        const companyName = contact.companyName;
+        if (companyName && !companyMap.has(companyName.toLowerCase())) {
+          companyMap.set(companyName.toLowerCase(), {
+            name: companyName,
+            email: contact.email || null,
+            phone: contact.phone || null,
+            website: contact.website || null,
+            address: contact.address1 || contact.address || null,
+          });
+        }
+      }
+
+      let synced = 0;
+      for (const [, company] of companyMap) {
+        // Check if company exists by name
+        const { data: existing } = await supabase
+          .from('companies')
+          .select('id')
+          .eq('user_id', user.id)
+          .ilike('name', company.name)
+          .maybeSingle();
+
+        if (existing) {
+          // Update if needed
+          await supabase.from('companies').update({
+            email: company.email,
+            phone: company.phone,
+            website: company.website,
+            address: company.address,
+          }).eq('id', existing.id);
+        } else {
+          await supabase.from('companies').insert({
+            user_id: user.id,
+            name: company.name,
+            email: company.email,
+            phone: company.phone,
+            website: company.website,
+            address: company.address,
+          });
+        }
+        synced++;
+      }
+
+      return new Response(JSON.stringify({ success: true, synced, totalContacts: allContacts.length }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
     return new Response(JSON.stringify({ error: `Unknown action: ${action}` }), {
       status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });

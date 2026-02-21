@@ -2,6 +2,7 @@ import { NavLink, useLocation } from 'react-router-dom';
 import {
   LayoutDashboard,
   Users,
+  Building2,
   InboxIcon,
   FileText,
   CalendarDays,
@@ -23,6 +24,7 @@ import {
 const navItems = [
   { to: '/', icon: LayoutDashboard, label: 'Dashboard' },
   { to: '/crm', icon: Users, label: 'CRM' },
+  { to: '/companies', icon: Building2, label: 'Bedrijven' },
   { to: '/inquiries', icon: InboxIcon, label: 'Aanvragen' },
   { to: '/quotations', icon: FileText, label: 'Offertes' },
   { to: '/calendar', icon: CalendarDays, label: 'Kalender' },
