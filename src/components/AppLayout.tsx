@@ -36,9 +36,9 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex h-screen flex-col overflow-hidden">
       {/* Top nav */}
-      <header className="sidebar-gradient flex h-14 items-center justify-between px-4 shrink-0">
+      <header className="sidebar-gradient flex h-16 items-center justify-between px-5 shrink-0">
         {/* Desktop nav */}
-        <nav className="hidden md:flex items-center gap-1">
+        <nav className="hidden md:flex items-center gap-1.5">
           {navItems.map((item) => {
             const isActive = location.pathname === item.to;
             return (
@@ -46,13 +46,13 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                 key={item.to}
                 to={item.to}
                 className={cn(
-                  'flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-colors',
+                  'flex items-center gap-2.5 rounded-lg px-4 py-2.5 text-base font-semibold tracking-wide transition-colors',
                   isActive
                     ? 'bg-sidebar-accent text-accent'
                     : 'text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground'
                 )}
               >
-                <item.icon size={16} className="shrink-0" />
+                <item.icon size={20} className="shrink-0" />
                 <span>{item.label}</span>
               </NavLink>
             );
@@ -72,19 +72,19 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           <NavLink
             to="/settings"
             className={cn(
-              'flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-sidebar-foreground hover:bg-sidebar-accent transition-colors',
+              'flex items-center gap-2.5 rounded-lg px-4 py-2.5 text-base font-semibold text-sidebar-foreground hover:bg-sidebar-accent transition-colors',
               location.pathname === '/settings' && 'bg-sidebar-accent text-accent'
             )}
           >
-            <Settings size={16} />
+            <Settings size={20} />
             <span className="hidden md:inline">Instellingen</span>
           </NavLink>
 
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <button className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-sidebar-foreground hover:bg-sidebar-accent transition-colors">
-                <span className="hidden md:inline max-w-[140px] truncate">{user?.email}</span>
-                <LogOut size={16} className="shrink-0" />
+              <button className="flex items-center gap-2.5 rounded-lg px-4 py-2.5 text-base font-medium text-sidebar-foreground hover:bg-sidebar-accent transition-colors">
+                <span className="hidden md:inline max-w-[160px] truncate">{user?.email}</span>
+                <LogOut size={18} className="shrink-0" />
               </button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
