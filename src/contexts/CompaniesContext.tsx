@@ -2,6 +2,7 @@ import { createContext, useContext, useState, useEffect, useCallback, ReactNode 
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
+import { capitalizeWords } from '@/lib/utils';
 
 export interface Company {
   id: string;
@@ -77,7 +78,7 @@ export function CompaniesProvider({ children }: { children: ReactNode }) {
     if (!user) return;
     const { error } = await (supabase as any).from('companies').insert({
       user_id: user.id,
-      name: company.name,
+      name: capitalizeWords(company.name),
       email: company.email || null,
       phone: company.phone || null,
       website: company.website || null,
@@ -92,7 +93,7 @@ export function CompaniesProvider({ children }: { children: ReactNode }) {
 
   const updateCompany = useCallback(async (company: Company) => {
     const { error } = await (supabase as any).from('companies').update({
-      name: company.name,
+      name: capitalizeWords(company.name),
       email: company.email || null,
       phone: company.phone || null,
       website: company.website || null,

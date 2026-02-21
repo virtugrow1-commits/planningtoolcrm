@@ -157,7 +157,27 @@ export default function ContactDetailPage() {
             <InfoField icon={<User size={14} />} label="Achternaam" value={current.lastName} editing={editing} onChange={(v) => setForm({ ...form!, lastName: v })} />
             <InfoField icon={<Mail size={14} />} label="Email" value={current.email} editing={editing} type="email" onChange={(v) => setForm({ ...form!, email: v })} />
             <InfoField icon={<Phone size={14} />} label="Telefoon" value={current.phone} editing={editing} onChange={(v) => setForm({ ...form!, phone: v })} />
-            <InfoField icon={<Building2 size={14} />} label="Bedrijf" value={current.company || ''} editing={editing} onChange={(v) => setForm({ ...form!, company: v || undefined })} />
+            {editing ? (
+              <InfoField icon={<Building2 size={14} />} label="Bedrijf" value={current.company || ''} editing={editing} onChange={(v) => setForm({ ...form!, company: v || undefined })} />
+            ) : (
+              <div>
+                <p className="text-xs font-semibold text-muted-foreground mb-0.5 flex items-center gap-1.5"><Building2 size={14} /> Bedrijf</p>
+                {current.company ? (
+                  <button
+                    onClick={() => {
+                      const match = companies.find((c) => c.name.toLowerCase() === current.company!.toLowerCase());
+                      if (match) navigate(`/companies/${match.id}`);
+                      else if (current.companyId) navigate(`/companies/${current.companyId}`);
+                    }}
+                    className="text-primary hover:underline font-medium"
+                  >
+                    {current.company}
+                  </button>
+                ) : (
+                  <p className="text-foreground">—</p>
+                )}
+              </div>
+            )}
 
             {editing && (
               <div>
