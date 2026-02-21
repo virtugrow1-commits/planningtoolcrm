@@ -1412,7 +1412,15 @@ serve(async (req) => {
         throw new Error(`GHL messages fetch failed [${res.status}]: ${errText}`);
       }
       const data = await res.json();
-      const messages = (data.messages || data.data?.messages || []).map((m: any) => ({
+      console.log('GHL messages response keys:', JSON.stringify(Object.keys(data)));
+      
+      // GHL may return messages under different keys
+      const rawMessages = Array.isArray(data.messages) ? data.messages
+        : Array.isArray(data.data?.messages) ? data.data.messages
+        : Array.isArray(data) ? data
+        : [];
+      
+      const messages = rawMessages.map((m: any) => ({
         id: m.id,
         body: m.body || m.message || m.text || '',
         direction: m.direction || (m.type === 1 ? 'inbound' : 'outbound'),
