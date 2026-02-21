@@ -99,9 +99,10 @@ async function syncCalendar(supabase: any, ghlHeaders: any, locationId: string, 
 
         const { data: existing } = await supabase.from('bookings').select('id').eq('user_id', userId).eq('ghl_event_id', evt.id).maybeSingle();
         if (existing) {
+          // Don't overwrite room_name — user may have moved it to a different room
           await supabase.from('bookings').update({
             date: dateStr, start_hour: startHour, end_hour: endHour,
-            title, contact_name: contactName, status: evtStatus, room_name: roomName,
+            title, contact_name: contactName, status: evtStatus,
           }).eq('id', existing.id);
         } else {
           await supabase.from('bookings').insert({
