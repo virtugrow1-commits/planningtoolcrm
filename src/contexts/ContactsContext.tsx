@@ -4,6 +4,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { pushToGHL } from '@/lib/ghlSync';
 import { Contact } from '@/types/crm';
 import { useToast } from '@/hooks/use-toast';
+import { capitalizeWords } from '@/lib/utils';
 
 interface ContactsContextType {
   contacts: Contact[];
@@ -71,8 +72,8 @@ export function ContactsProvider({ children }: { children: ReactNode }) {
     if (!user) return;
     const { data, error } = await supabase.from('contacts').insert({
       user_id: user.id,
-      first_name: contact.firstName,
-      last_name: contact.lastName,
+      first_name: capitalizeWords(contact.firstName),
+      last_name: capitalizeWords(contact.lastName),
       email: contact.email || null,
       phone: contact.phone || null,
       company: contact.company || null,
@@ -92,8 +93,8 @@ export function ContactsProvider({ children }: { children: ReactNode }) {
 
   const updateContact = useCallback(async (contact: Contact) => {
     const { data, error } = await supabase.from('contacts').update({
-      first_name: contact.firstName,
-      last_name: contact.lastName,
+      first_name: capitalizeWords(contact.firstName),
+      last_name: capitalizeWords(contact.lastName),
       email: contact.email || null,
       phone: contact.phone || null,
       company: contact.company || null,
