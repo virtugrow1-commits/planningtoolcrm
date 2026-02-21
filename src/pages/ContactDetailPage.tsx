@@ -9,6 +9,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { ArrowLeft, Pencil, Check, X, Plus, ChevronRight, Calendar, FileText, Mail, Phone, Building2, User } from 'lucide-react';
+import ActivityTimeline from '@/components/contact/ActivityTimeline';
 import { Contact, ROOMS } from '@/types/crm';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
@@ -258,16 +259,10 @@ export default function ContactDetailPage() {
             <p className="text-xs text-muted-foreground">Geen offertes</p>
           </SectionCard>
 
-          {/* Contactpersonen */}
-          <SectionCard title="Contactpersonen">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-foreground">{contact.firstName} {contact.lastName}</p>
-                <p className="text-xs text-muted-foreground">{contact.phone || contact.email || '—'}</p>
-              </div>
-              <ChevronRight size={14} className="text-muted-foreground" />
-            </div>
-          </SectionCard>
+          {/* Gesprekken */}
+          <div className="rounded-xl bg-card p-5 card-shadow">
+            <ActivityTimeline contactId={contact.id} />
+          </div>
         </div>
       </div>
 
