@@ -431,6 +431,7 @@ export default function CalendarPage() {
         onOpenChange={setDetailOpen}
         onUpdate={handleUpdateBooking}
         onDelete={handleDeleteBooking}
+        getRoomDisplayName={getDisplayName}
       />
       <RoomSettingsDialog
         open={roomSettingsOpen}
