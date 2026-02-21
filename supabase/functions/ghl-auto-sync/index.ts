@@ -424,6 +424,27 @@ async function pushLocalInquiries(supabase: any, ghlHeaders: any, locationId: st
             ghlContactId = searchData.contacts?.[0]?.id || null;
           }
         }
+        // If still no contact, create one in GHL (required field)
+        if (!ghlContactId) {
+          const nameParts = (inq.contact_name || 'Onbekend').split(' ');
+          const createRes = await fetch(`${GHL_API_BASE}/contacts/`, {
+            method: 'POST', headers: ghlHeaders,
+            body: JSON.stringify({ firstName: nameParts[0], lastName: nameParts.slice(1).join(' ') || '', locationId }),
+          });
+          if (createRes.ok) {
+            const created = await createRes.json();
+            ghlContactId = created.contact?.id || null;
+            // Link contact back to CRM if possible
+            if (ghlContactId && inq.contact_id) {
+              await supabase.from('contacts').update({ ghl_contact_id: ghlContactId }).eq('id', inq.contact_id);
+            }
+          }
+        }
+        // Skip if we still can't get a contactId (GHL requires it)
+        if (!ghlContactId) {
+          console.log(`Skip push inquiry ${inq.id}: could not find or create GHL contact`);
+          continue;
+        }
 
         const oppPayload: any = {
           pipelineId: pipeline.id,
@@ -432,8 +453,8 @@ async function pushLocalInquiries(supabase: any, ghlHeaders: any, locationId: st
           name: inq.event_type || 'CRM Aanvraag',
           status: inq.status === 'lost' ? 'lost' : (inq.status === 'confirmed') ? 'won' : 'open',
           monetaryValue: inq.budget || 0,
+          contactId: ghlContactId,
         };
-        if (ghlContactId) oppPayload.contactId = ghlContactId;
 
         const res = await fetch(`${GHL_API_BASE}/opportunities/`, {
           method: 'POST', headers: ghlHeaders, body: JSON.stringify(oppPayload),
