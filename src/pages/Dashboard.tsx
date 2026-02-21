@@ -11,6 +11,7 @@ import {
   Flag,
 } from 'lucide-react';
 import KpiCard from '@/components/KpiCard';
+import KpiDetailDialog from '@/components/dashboard/KpiDetailDialog';
 import { useBookings } from '@/contexts/BookingsContext';
 import { useInquiriesContext } from '@/contexts/InquiriesContext';
 import { useTasksContext } from '@/contexts/TasksContext';
@@ -41,6 +42,7 @@ export default function Dashboard() {
     dueDate: '',
   });
   const [filter, setFilter] = useState<'all' | 'open' | 'in_progress' | 'completed'>('all');
+  const [kpiDialog, setKpiDialog] = useState<{ open: boolean; type: 'tasks' | 'inquiries' | 'bookings' }>({ open: false, type: 'tasks' });
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -179,18 +181,21 @@ export default function Dashboard() {
           value={String(openTaskCount)}
           icon={<CheckSquare size={20} />}
           subtitle={`${tasks.filter((t) => t.status === 'open').length} open · ${tasks.filter((t) => t.status === 'in_progress').length} in behandeling`}
+          onClick={() => setKpiDialog({ open: true, type: 'tasks' })}
         />
         <KpiCard
           title="Aanvragen"
           value={String(openInquiries.length)}
           icon={<InboxIcon size={20} />}
           subtitle="Nieuw & gecontacteerd"
+          onClick={() => setKpiDialog({ open: true, type: 'inquiries' })}
         />
         <KpiCard
           title="Boekingen Vandaag"
           value={String(todayBookings.length)}
           icon={<CalendarCheck size={20} />}
           subtitle={`${todayBookings.filter((b) => b.status === 'confirmed').length} bevestigd · ${todayBookings.filter((b) => b.status === 'option').length} in optie`}
+          onClick={() => setKpiDialog({ open: true, type: 'bookings' })}
         />
       </div>
 
@@ -333,6 +338,22 @@ export default function Dashboard() {
           ))}
         </div>
       </div>
+
+      {/* KPI Detail Dialog */}
+      <KpiDetailDialog
+        open={kpiDialog.open}
+        onOpenChange={(open) => setKpiDialog((prev) => ({ ...prev, open }))}
+        type={kpiDialog.type}
+        title={
+          kpiDialog.type === 'tasks' ? 'Openstaande Taken' :
+          kpiDialog.type === 'inquiries' ? 'Openstaande Aanvragen' :
+          'Boekingen Vandaag'
+        }
+        tasks={tasks.filter((t) => t.status !== 'completed')}
+        inquiries={openInquiries}
+        bookings={todayBookings}
+        onEditTask={(task) => { setKpiDialog({ open: false, type: 'tasks' }); openEdit(task); }}
+      />
 
       {/* New / Edit Task Dialog */}
       <Dialog open={newOpen} onOpenChange={setNewOpen}>
