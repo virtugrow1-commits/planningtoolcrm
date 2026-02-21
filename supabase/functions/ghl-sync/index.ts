@@ -8,6 +8,27 @@ const corsHeaders = {
 
 const GHL_API_BASE = 'https://services.leadconnectorhq.com';
 
+const delay = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+/** Rate-limit-aware fetch: retries on 429 with backoff */
+async function ghlFetch(url: string, opts: RequestInit = {}): Promise<Response> {
+  for (let attempt = 0; attempt < 4; attempt++) {
+    if (attempt > 0) await delay(1000 * attempt); // 1s, 2s, 3s backoff
+    const res = await fetch(url, opts);
+    if (res.status === 429) {
+      const retryAfter = res.headers.get('retry-after');
+      const waitMs = retryAfter ? parseInt(retryAfter) * 1000 : 2000 * (attempt + 1);
+      console.warn(`GHL 429 rate limit, waiting ${waitMs}ms (attempt ${attempt + 1})`);
+      await res.text(); // consume body
+      await delay(waitMs);
+      continue;
+    }
+    return res;
+  }
+  // Final attempt
+  return fetch(url, opts);
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -65,7 +86,7 @@ serve(async (req) => {
       let nextPageUrl = `${GHL_API_BASE}/contacts/?locationId=${GHL_LOCATION_ID}&limit=100`;
 
       while (nextPageUrl) {
-        const res = await fetch(nextPageUrl, { headers: ghlHeaders });
+        const res = await ghlFetch(nextPageUrl, { headers: ghlHeaders });
         if (!res.ok) {
           const errText = await res.text();
           throw new Error(`GHL contacts fetch failed [${res.status}]: ${errText}`);
@@ -137,7 +158,7 @@ serve(async (req) => {
 
         if (contact.ghl_contact_id) {
           // Update existing GHL contact
-          const res = await fetch(`${GHL_API_BASE}/contacts/${contact.ghl_contact_id}`, {
+          const res = await ghlFetch(`${GHL_API_BASE}/contacts/${contact.ghl_contact_id}`, {
             method: 'PUT',
             headers: ghlHeaders,
             body: JSON.stringify(ghlPayload),
@@ -148,7 +169,7 @@ serve(async (req) => {
           }
         } else {
           // Create new GHL contact
-          const res = await fetch(`${GHL_API_BASE}/contacts/`, {
+          const res = await ghlFetch(`${GHL_API_BASE}/contacts/`, {
             method: 'POST',
             headers: ghlHeaders,
             body: JSON.stringify(ghlPayload),
@@ -175,7 +196,7 @@ serve(async (req) => {
 
     if (action === 'sync-calendars') {
       // Fetch all calendars first
-      const calRes = await fetch(`${GHL_API_BASE}/calendars/?locationId=${GHL_LOCATION_ID}`, {
+      const calRes = await ghlFetch(`${GHL_API_BASE}/calendars/?locationId=${GHL_LOCATION_ID}`, {
         headers: ghlHeaders,
       });
       if (!calRes.ok) {
@@ -194,7 +215,7 @@ serve(async (req) => {
 
       let allEvents: any[] = [];
       for (const cal of calendars) {
-        const eventsRes = await fetch(
+        const eventsRes = await ghlFetch(
           `${GHL_API_BASE}/calendars/events?locationId=${GHL_LOCATION_ID}&calendarId=${cal.id}&startTime=${encodeURIComponent(startTime)}&endTime=${encodeURIComponent(endTime)}`,
           { headers: ghlHeaders }
         );
@@ -255,7 +276,7 @@ serve(async (req) => {
 
     if (action === 'sync-opportunities') {
       // First get pipelines to map stage IDs to names
-      const pipelinesRes = await fetch(`${GHL_API_BASE}/opportunities/pipelines?locationId=${GHL_LOCATION_ID}`, {
+      const pipelinesRes = await ghlFetch(`${GHL_API_BASE}/opportunities/pipelines?locationId=${GHL_LOCATION_ID}`, {
         headers: ghlHeaders,
       });
       if (!pipelinesRes.ok) {
@@ -294,7 +315,7 @@ serve(async (req) => {
       let hasMore = true;
 
       while (hasMore) {
-        const res = await fetch(
+        const res = await ghlFetch(
           `${GHL_API_BASE}/opportunities/search?location_id=${GHL_LOCATION_ID}&limit=100&page=${page}`,
           { headers: ghlHeaders }
         );
@@ -361,7 +382,7 @@ serve(async (req) => {
       let nextPageUrl: string | null = `${GHL_API_BASE}/contacts/?locationId=${GHL_LOCATION_ID}&limit=100`;
 
       while (nextPageUrl) {
-        const res = await fetch(nextPageUrl, { headers: ghlHeaders });
+        const res = await ghlFetch(nextPageUrl, { headers: ghlHeaders });
         if (!res.ok) {
           const errText = await res.text();
           throw new Error(`GHL contacts fetch failed [${res.status}]: ${errText}`);
@@ -415,7 +436,7 @@ serve(async (req) => {
 
       let contactsPushed = 0;
       for (const contact of localOnly || []) {
-        const res = await fetch(`${GHL_API_BASE}/contacts/`, {
+        const res = await ghlFetch(`${GHL_API_BASE}/contacts/`, {
           method: 'POST',
           headers: ghlHeaders,
           body: JSON.stringify({
@@ -444,7 +465,7 @@ serve(async (req) => {
       // Also sync opportunities
       let oppsSynced = 0;
       try {
-        const pipelinesRes = await fetch(`${GHL_API_BASE}/opportunities/pipelines?locationId=${GHL_LOCATION_ID}`, {
+        const pipelinesRes = await ghlFetch(`${GHL_API_BASE}/opportunities/pipelines?locationId=${GHL_LOCATION_ID}`, {
           headers: ghlHeaders,
         });
         if (pipelinesRes.ok) {
@@ -475,7 +496,7 @@ serve(async (req) => {
           let oppPage = 1;
           let oppHasMore = true;
           while (oppHasMore) {
-            const res = await fetch(
+            const res = await ghlFetch(
               `${GHL_API_BASE}/opportunities/search?location_id=${GHL_LOCATION_ID}&limit=100&page=${oppPage}`,
               { headers: ghlHeaders }
             );
@@ -533,7 +554,7 @@ serve(async (req) => {
       // Also sync calendar events as bookings
       let bookingsSynced = 0;
       try {
-        const calRes = await fetch(`${GHL_API_BASE}/calendars/?locationId=${GHL_LOCATION_ID}`, { headers: ghlHeaders });
+        const calRes = await ghlFetch(`${GHL_API_BASE}/calendars/?locationId=${GHL_LOCATION_ID}`, { headers: ghlHeaders });
         if (calRes.ok) {
           const calData = await calRes.json();
           const calendars = calData.calendars || [];
@@ -545,7 +566,7 @@ serve(async (req) => {
 
           let allEvents: any[] = [];
           for (const cal of calendars) {
-            const eventsRes = await fetch(
+            const eventsRes = await ghlFetch(
               `${GHL_API_BASE}/calendars/events?locationId=${GHL_LOCATION_ID}&calendarId=${cal.id}&startTime=${encodeURIComponent(startTime)}&endTime=${encodeURIComponent(endTime)}`,
               { headers: ghlHeaders }
             );
@@ -634,7 +655,7 @@ serve(async (req) => {
 
       if (contact.ghl_contact_id) {
         // Update existing GHL contact
-        const res = await fetch(`${GHL_API_BASE}/contacts/${contact.ghl_contact_id}`, {
+        const res = await ghlFetch(`${GHL_API_BASE}/contacts/${contact.ghl_contact_id}`, {
           method: 'PUT', headers: ghlHeaders, body: JSON.stringify(ghlPayload),
         });
         return new Response(JSON.stringify({ success: res.ok, action: 'updated' }), {
@@ -642,7 +663,7 @@ serve(async (req) => {
         });
       } else {
         // Create new GHL contact
-        const res = await fetch(`${GHL_API_BASE}/contacts/`, {
+        const res = await ghlFetch(`${GHL_API_BASE}/contacts/`, {
           method: 'POST', headers: ghlHeaders, body: JSON.stringify(ghlPayload),
         });
         if (res.ok) {
@@ -663,7 +684,7 @@ serve(async (req) => {
     if (action === 'delete-contact') {
       const { ghl_contact_id } = body;
       if (ghl_contact_id) {
-        const res = await fetch(`${GHL_API_BASE}/contacts/${ghl_contact_id}`, {
+        const res = await ghlFetch(`${GHL_API_BASE}/contacts/${ghl_contact_id}`, {
           method: 'DELETE', headers: ghlHeaders,
         });
         return new Response(JSON.stringify({ success: res.ok }), {
@@ -684,7 +705,7 @@ serve(async (req) => {
       }
 
       // Get first available calendar
-      const calRes = await fetch(`${GHL_API_BASE}/calendars/?locationId=${GHL_LOCATION_ID}`, { headers: ghlHeaders });
+      const calRes = await ghlFetch(`${GHL_API_BASE}/calendars/?locationId=${GHL_LOCATION_ID}`, { headers: ghlHeaders });
       const calData = calRes.ok ? await calRes.json() : { calendars: [] };
       const calendarId = calData.calendars?.[0]?.id;
       if (!calendarId) {
@@ -706,14 +727,14 @@ serve(async (req) => {
       };
 
       if (booking.ghl_event_id) {
-        const res = await fetch(`${GHL_API_BASE}/calendars/events/appointments/${booking.ghl_event_id}`, {
+        const res = await ghlFetch(`${GHL_API_BASE}/calendars/events/appointments/${booking.ghl_event_id}`, {
           method: 'PUT', headers: ghlHeaders, body: JSON.stringify(eventPayload),
         });
         return new Response(JSON.stringify({ success: res.ok, action: 'updated' }), {
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         });
       } else {
-        const res = await fetch(`${GHL_API_BASE}/calendars/events/appointments`, {
+        const res = await ghlFetch(`${GHL_API_BASE}/calendars/events/appointments`, {
           method: 'POST', headers: ghlHeaders, body: JSON.stringify(eventPayload),
         });
         if (res.ok) {
@@ -734,7 +755,7 @@ serve(async (req) => {
     if (action === 'delete-booking') {
       const { ghl_event_id } = body;
       if (ghl_event_id) {
-        const res = await fetch(`${GHL_API_BASE}/calendars/events/appointments/${ghl_event_id}`, {
+        const res = await ghlFetch(`${GHL_API_BASE}/calendars/events/appointments/${ghl_event_id}`, {
           method: 'DELETE', headers: ghlHeaders,
         });
         return new Response(JSON.stringify({ success: res.ok }), {
@@ -756,7 +777,7 @@ serve(async (req) => {
       }
 
       // Get pipelines to find the right stage
-      const pipelinesRes = await fetch(`${GHL_API_BASE}/opportunities/pipelines?locationId=${GHL_LOCATION_ID}`, { headers: ghlHeaders });
+      const pipelinesRes = await ghlFetch(`${GHL_API_BASE}/opportunities/pipelines?locationId=${GHL_LOCATION_ID}`, { headers: ghlHeaders });
       if (!pipelinesRes.ok) {
         return new Response(JSON.stringify({ success: false, error: 'Cannot fetch pipelines' }), {
           status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -797,7 +818,7 @@ serve(async (req) => {
       }
       // If no GHL contact, search by name
       if (!ghlContactId && contact_name) {
-        const searchRes = await fetch(`${GHL_API_BASE}/contacts/?locationId=${GHL_LOCATION_ID}&query=${encodeURIComponent(contact_name)}&limit=1`, { headers: ghlHeaders });
+        const searchRes = await ghlFetch(`${GHL_API_BASE}/contacts/?locationId=${GHL_LOCATION_ID}&query=${encodeURIComponent(contact_name)}&limit=1`, { headers: ghlHeaders });
         if (searchRes.ok) {
           const searchData = await searchRes.json();
           ghlContactId = searchData.contacts?.[0]?.id || null;
@@ -806,7 +827,7 @@ serve(async (req) => {
       // If still no contact, create one
       if (!ghlContactId) {
         const nameParts = (contact_name || 'Onbekend').split(' ');
-        const createRes = await fetch(`${GHL_API_BASE}/contacts/`, {
+        const createRes = await ghlFetch(`${GHL_API_BASE}/contacts/`, {
           method: 'POST', headers: ghlHeaders,
           body: JSON.stringify({ firstName: nameParts[0], lastName: nameParts.slice(1).join(' ') || '', locationId: GHL_LOCATION_ID }),
         });
@@ -826,7 +847,7 @@ serve(async (req) => {
       };
       if (ghlContactId) oppPayload.contactId = ghlContactId;
 
-      const res = await fetch(`${GHL_API_BASE}/opportunities/`, {
+      const res = await ghlFetch(`${GHL_API_BASE}/opportunities/`, {
         method: 'POST', headers: ghlHeaders, body: JSON.stringify(oppPayload),
       });
 
@@ -856,7 +877,7 @@ serve(async (req) => {
       }
 
       // Get pipelines to find stage ID from status name
-      const pipelinesRes = await fetch(`${GHL_API_BASE}/opportunities/pipelines?locationId=${GHL_LOCATION_ID}`, { headers: ghlHeaders });
+      const pipelinesRes = await ghlFetch(`${GHL_API_BASE}/opportunities/pipelines?locationId=${GHL_LOCATION_ID}`, { headers: ghlHeaders });
       if (!pipelinesRes.ok) {
         return new Response(JSON.stringify({ success: false, error: 'Cannot fetch pipelines' }), {
           status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -903,7 +924,7 @@ serve(async (req) => {
       else if (status === 'converted' || status === 'confirmed') updatePayload.status = 'won';
       else updatePayload.status = 'open';
 
-      const res = await fetch(`${GHL_API_BASE}/opportunities/${ghl_opportunity_id}`, {
+      const res = await ghlFetch(`${GHL_API_BASE}/opportunities/${ghl_opportunity_id}`, {
         method: 'PUT', headers: ghlHeaders, body: JSON.stringify(updatePayload),
       });
 
@@ -939,7 +960,7 @@ serve(async (req) => {
 
       if (task.ghl_task_id) {
         // Update existing GHL task
-        const res = await fetch(`${GHL_API_BASE}/contacts/${contactId || 'none'}/tasks/${task.ghl_task_id}`, {
+        const res = await ghlFetch(`${GHL_API_BASE}/contacts/${contactId || 'none'}/tasks/${task.ghl_task_id}`, {
           method: 'PUT', headers: ghlHeaders, body: JSON.stringify(ghlPayload),
         });
         return new Response(JSON.stringify({ success: res.ok, action: 'task-updated' }), {
@@ -948,7 +969,7 @@ serve(async (req) => {
       } else {
         // Create new GHL task (requires a contact)
         if (contactId) {
-          const res = await fetch(`${GHL_API_BASE}/contacts/${contactId}/tasks`, {
+          const res = await ghlFetch(`${GHL_API_BASE}/contacts/${contactId}/tasks`, {
             method: 'POST', headers: ghlHeaders, body: JSON.stringify(ghlPayload),
           });
           if (res.ok) {
@@ -982,7 +1003,7 @@ serve(async (req) => {
       let synced = 0;
       for (const contact of contacts || []) {
         try {
-          const res = await fetch(`${GHL_API_BASE}/contacts/${contact.ghl_contact_id}/tasks`, { headers: ghlHeaders });
+          const res = await ghlFetch(`${GHL_API_BASE}/contacts/${contact.ghl_contact_id}/tasks`, { headers: ghlHeaders });
           if (!res.ok) continue;
           const data = await res.json();
           for (const ghlTask of data.tasks || []) {
@@ -1022,11 +1043,12 @@ serve(async (req) => {
       let nextPageUrl: string | null = `${GHL_API_BASE}/contacts/?locationId=${GHL_LOCATION_ID}&limit=100`;
 
       while (nextPageUrl) {
-        const res = await fetch(nextPageUrl, { headers: ghlHeaders });
+        const res = await ghlFetch(nextPageUrl, { headers: ghlHeaders });
         if (!res.ok) break;
         const data = await res.json();
         allContacts = allContacts.concat(data.contacts || []);
         nextPageUrl = data.meta?.nextPageUrl || null;
+        if (nextPageUrl) await delay(300);
       }
 
       // Extract unique companies from contacts
