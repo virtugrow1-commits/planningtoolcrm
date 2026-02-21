@@ -50,7 +50,8 @@ serve(async (req) => {
       });
     }
 
-    const { action } = await req.json();
+    const body = await req.json();
+    const { action } = body;
 
     const ghlHeaders = {
       'Authorization': `Bearer ${GHL_API_KEY}`,
@@ -608,6 +609,204 @@ serve(async (req) => {
         opportunitiesSynced: oppsSynced,
         bookingsSynced,
       }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    // === INDIVIDUAL PUSH ACTIONS (CRM → GHL) ===
+
+    if (action === 'push-contact') {
+      const { contact } = body;
+      if (!contact) {
+        return new Response(JSON.stringify({ error: 'contact data required' }), {
+          status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      const ghlPayload = {
+        firstName: contact.first_name,
+        lastName: contact.last_name,
+        email: contact.email || undefined,
+        phone: contact.phone || undefined,
+        companyName: contact.company || undefined,
+        locationId: GHL_LOCATION_ID,
+      };
+
+      if (contact.ghl_contact_id) {
+        // Update existing GHL contact
+        const res = await fetch(`${GHL_API_BASE}/contacts/${contact.ghl_contact_id}`, {
+          method: 'PUT', headers: ghlHeaders, body: JSON.stringify(ghlPayload),
+        });
+        return new Response(JSON.stringify({ success: res.ok, action: 'updated' }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      } else {
+        // Create new GHL contact
+        const res = await fetch(`${GHL_API_BASE}/contacts/`, {
+          method: 'POST', headers: ghlHeaders, body: JSON.stringify(ghlPayload),
+        });
+        if (res.ok) {
+          const created = await res.json();
+          if (created.contact?.id && contact.id) {
+            await supabase.from('contacts').update({ ghl_contact_id: created.contact.id }).eq('id', contact.id);
+          }
+          return new Response(JSON.stringify({ success: true, action: 'created', ghl_contact_id: created.contact?.id }), {
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
+        }
+        return new Response(JSON.stringify({ success: false, error: await res.text() }), {
+          status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+    }
+
+    if (action === 'delete-contact') {
+      const { ghl_contact_id } = body;
+      if (ghl_contact_id) {
+        const res = await fetch(`${GHL_API_BASE}/contacts/${ghl_contact_id}`, {
+          method: 'DELETE', headers: ghlHeaders,
+        });
+        return new Response(JSON.stringify({ success: res.ok }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+      return new Response(JSON.stringify({ success: true, skipped: true }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    if (action === 'push-booking') {
+      const { booking } = body;
+      if (!booking) {
+        return new Response(JSON.stringify({ error: 'booking data required' }), {
+          status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      // Get first available calendar
+      const calRes = await fetch(`${GHL_API_BASE}/calendars/?locationId=${GHL_LOCATION_ID}`, { headers: ghlHeaders });
+      const calData = calRes.ok ? await calRes.json() : { calendars: [] };
+      const calendarId = calData.calendars?.[0]?.id;
+      if (!calendarId) {
+        return new Response(JSON.stringify({ success: false, error: 'No GHL calendar found' }), {
+          status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      const startTime = `${booking.date}T${String(booking.start_hour).padStart(2, '0')}:00:00`;
+      const endTime = `${booking.date}T${String(booking.end_hour).padStart(2, '0')}:00:00`;
+
+      const eventPayload = {
+        calendarId,
+        locationId: GHL_LOCATION_ID,
+        title: booking.title,
+        startTime,
+        endTime,
+        appointmentStatus: booking.status === 'confirmed' ? 'confirmed' : 'new',
+      };
+
+      if (booking.ghl_event_id) {
+        const res = await fetch(`${GHL_API_BASE}/calendars/events/appointments/${booking.ghl_event_id}`, {
+          method: 'PUT', headers: ghlHeaders, body: JSON.stringify(eventPayload),
+        });
+        return new Response(JSON.stringify({ success: res.ok, action: 'updated' }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      } else {
+        const res = await fetch(`${GHL_API_BASE}/calendars/events/appointments`, {
+          method: 'POST', headers: ghlHeaders, body: JSON.stringify(eventPayload),
+        });
+        if (res.ok) {
+          const created = await res.json();
+          if (created.id && booking.id) {
+            await supabase.from('bookings').update({ ghl_event_id: created.id }).eq('id', booking.id);
+          }
+          return new Response(JSON.stringify({ success: true, action: 'created', ghl_event_id: created.id }), {
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
+        }
+        return new Response(JSON.stringify({ success: false, error: await res.text() }), {
+          status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+    }
+
+    if (action === 'delete-booking') {
+      const { ghl_event_id } = body;
+      if (ghl_event_id) {
+        const res = await fetch(`${GHL_API_BASE}/calendars/events/appointments/${ghl_event_id}`, {
+          method: 'DELETE', headers: ghlHeaders,
+        });
+        return new Response(JSON.stringify({ success: res.ok }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+      return new Response(JSON.stringify({ success: true, skipped: true }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    if (action === 'push-inquiry-status') {
+      const { ghl_opportunity_id, status, name, monetary_value } = body;
+      if (!ghl_opportunity_id) {
+        return new Response(JSON.stringify({ success: true, skipped: true }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      // Get pipelines to find stage ID from status name
+      const pipelinesRes = await fetch(`${GHL_API_BASE}/opportunities/pipelines?locationId=${GHL_LOCATION_ID}`, { headers: ghlHeaders });
+      if (!pipelinesRes.ok) {
+        return new Response(JSON.stringify({ success: false, error: 'Cannot fetch pipelines' }), {
+          status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+      const pipelinesData = await pipelinesRes.json();
+
+      // Map CRM status back to GHL stage
+      const statusToStageName: Record<string, string> = {
+        'new': 'Nieuwe Aanvraag',
+        'contacted': 'Lopend contact',
+        'option': 'Optie',
+        'quoted': 'Offerte Verzonden',
+        'quote_revised': 'Aangepaste offerte verzonden',
+        'reserved': 'Reservering',
+        'confirmed': 'Definitieve Reservering',
+        'invoiced': 'Facturatie',
+        'lost': 'Vervallen / Verloren',
+        'after_sales': 'After Sales',
+        'converted': 'Definitieve Reservering',
+      };
+
+      const targetStageName = statusToStageName[status] || 'Nieuwe Aanvraag';
+      let targetStageId = null;
+      let targetPipelineId = null;
+
+      for (const pipeline of pipelinesData.pipelines || []) {
+        for (const stage of pipeline.stages || []) {
+          if (stage.name.toLowerCase().includes(targetStageName.toLowerCase())) {
+            targetStageId = stage.id;
+            targetPipelineId = pipeline.id;
+            break;
+          }
+        }
+        if (targetStageId) break;
+      }
+
+      const updatePayload: any = {};
+      if (targetStageId) updatePayload.pipelineStageId = targetStageId;
+      if (targetPipelineId) updatePayload.pipelineId = targetPipelineId;
+      if (name) updatePayload.name = name;
+      if (monetary_value !== undefined) updatePayload.monetaryValue = monetary_value;
+      if (status === 'lost') updatePayload.status = 'lost';
+      else if (status === 'converted' || status === 'confirmed') updatePayload.status = 'won';
+      else updatePayload.status = 'open';
+
+      const res = await fetch(`${GHL_API_BASE}/opportunities/${ghl_opportunity_id}`, {
+        method: 'PUT', headers: ghlHeaders, body: JSON.stringify(updatePayload),
+      });
+
+      return new Response(JSON.stringify({ success: res.ok, action: 'updated', targetStage: targetStageName }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }

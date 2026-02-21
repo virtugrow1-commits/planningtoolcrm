@@ -2,6 +2,7 @@ import { createContext, useContext, useState, useEffect, useCallback, ReactNode 
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { Inquiry } from '@/types/crm';
+import { pushToGHL } from '@/lib/ghlSync';
 
 interface InquiriesContextType {
   inquiries: Inquiry[];
@@ -78,6 +79,7 @@ export function InquiriesProvider({ children }: { children: ReactNode }) {
       status: inquiry.status,
       source: inquiry.source,
     });
+    // New inquiries without ghlOpportunityId don't need to push yet
   }, [user]);
 
   const updateInquiry = useCallback(async (inquiry: Inquiry) => {
@@ -93,6 +95,15 @@ export function InquiriesProvider({ children }: { children: ReactNode }) {
       status: inquiry.status,
       source: inquiry.source,
     }).eq('id', inquiry.id);
+    // Push status change to GHL if linked
+    if (inquiry.ghlOpportunityId) {
+      pushToGHL('push-inquiry-status', {
+        ghl_opportunity_id: inquiry.ghlOpportunityId,
+        status: inquiry.status,
+        name: inquiry.eventType,
+        monetary_value: inquiry.budget,
+      });
+    }
   }, []);
 
   const deleteInquiry = useCallback(async (id: string) => {
