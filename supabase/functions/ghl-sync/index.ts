@@ -716,10 +716,17 @@ serve(async (req) => {
         });
       }
 
-      const startTime = `${booking.date}T${String(booking.start_hour).padStart(2, '0')}:00:00`;
-      const endTime = `${booking.date}T${String(booking.end_hour).padStart(2, '0')}:00:00`;
+      const startTime = `${booking.date}T${String(booking.start_hour).padStart(2, '0')}:${String(booking.start_minute || 0).padStart(2, '0')}:00`;
+      const endTime = `${booking.date}T${String(booking.end_hour).padStart(2, '0')}:${String(booking.end_minute || 0).padStart(2, '0')}:00`;
 
-      const eventPayload = {
+      // Try to find the GHL contact ID for this booking's contact
+      let ghlContactId: string | null = null;
+      if (booking.contact_id) {
+        const { data: contactRow } = await supabase.from('contacts').select('ghl_contact_id').eq('id', booking.contact_id).maybeSingle();
+        ghlContactId = contactRow?.ghl_contact_id || null;
+      }
+
+      const eventPayload: Record<string, any> = {
         calendarId,
         locationId: GHL_LOCATION_ID,
         title: booking.title,
@@ -727,6 +734,9 @@ serve(async (req) => {
         endTime,
         appointmentStatus: booking.status === 'confirmed' ? 'confirmed' : 'new',
       };
+      if (ghlContactId) {
+        eventPayload.contactId = ghlContactId;
+      }
 
       if (booking.ghl_event_id) {
         const res = await ghlFetch(`${GHL_API_BASE}/calendars/events/appointments/${booking.ghl_event_id}`, {
@@ -748,8 +758,10 @@ serve(async (req) => {
             headers: { ...corsHeaders, 'Content-Type': 'application/json' },
           });
         }
-        return new Response(JSON.stringify({ success: false, error: await res.text() }), {
-          status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        const errText = await res.text();
+        console.warn(`GHL push-booking failed [${res.status}]: ${errText}`);
+        return new Response(JSON.stringify({ success: false, warning: 'GHL rejected booking, saved locally', detail: errText }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         });
       }
     }
