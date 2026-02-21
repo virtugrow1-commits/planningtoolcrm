@@ -147,14 +147,14 @@ serve(async (req) => {
 
       let pushed = 0;
       for (const contact of localContacts || []) {
-        const ghlPayload = {
-          firstName: contact.first_name,
-          lastName: contact.last_name,
-          email: contact.email || undefined,
-          phone: contact.phone || undefined,
-          companyName: contact.company || undefined,
+        const ghlPayload: Record<string, any> = {
+          firstName: contact.first_name || 'Onbekend',
+          lastName: contact.last_name || '',
           locationId: GHL_LOCATION_ID,
         };
+        if (contact.email) ghlPayload.email = contact.email;
+        if (contact.phone) ghlPayload.phone = contact.phone;
+        if (contact.company) ghlPayload.companyName = contact.company;
 
         if (contact.ghl_contact_id) {
           // Update existing GHL contact
@@ -437,17 +437,18 @@ serve(async (req) => {
 
       let contactsPushed = 0;
       for (const contact of localOnly || []) {
+        const ghlPayload: Record<string, any> = {
+          firstName: contact.first_name || 'Onbekend',
+          lastName: contact.last_name || '',
+          locationId: GHL_LOCATION_ID,
+        };
+        if (contact.email) ghlPayload.email = contact.email;
+        if (contact.phone) ghlPayload.phone = contact.phone;
+        if (contact.company) ghlPayload.companyName = contact.company;
         const res = await ghlFetch(`${GHL_API_BASE}/contacts/`, {
           method: 'POST',
           headers: ghlHeaders,
-          body: JSON.stringify({
-            firstName: contact.first_name,
-            lastName: contact.last_name,
-            email: contact.email || undefined,
-            phone: contact.phone || undefined,
-            companyName: contact.company || undefined,
-            locationId: GHL_LOCATION_ID,
-          }),
+          body: JSON.stringify(ghlPayload),
         });
         if (res.ok) {
           const created = await res.json();
