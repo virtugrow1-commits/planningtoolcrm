@@ -211,20 +211,22 @@ serve(async (req) => {
       const now = new Date();
       const startDateCal = new Date(now);
       startDateCal.setDate(startDateCal.getDate() - 365);
-      const startTime = startDateCal.toISOString();
+      const startTimeMs = String(startDateCal.getTime());
       const endDate = new Date(now);
       endDate.setDate(endDate.getDate() + 365);
-      const endTime = endDate.toISOString();
+      const endTimeMs = String(endDate.getTime());
+
+      // Calendar events endpoint requires Version 2021-04-15 and times in milliseconds
+      const calEventHeaders = { ...ghlHeaders, 'Version': '2021-04-15' };
 
       let allEvents: any[] = [];
       for (const cal of calendars) {
-        // Try fetching with different groupId/calendarId param
-        const eventsUrl = `${GHL_API_BASE}/calendars/events?locationId=${GHL_LOCATION_ID}&calendarId=${cal.id}&startTime=${encodeURIComponent(startTime)}&endTime=${encodeURIComponent(endTime)}`;
-        console.log(`Fetching events for calendar "${cal.name}" (${cal.id}): ${eventsUrl}`);
-        const eventsRes = await ghlFetch(eventsUrl, { headers: ghlHeaders });
+        const eventsUrl = `${GHL_API_BASE}/calendars/events?locationId=${GHL_LOCATION_ID}&calendarId=${cal.id}&startTime=${startTimeMs}&endTime=${endTimeMs}`;
+        console.log(`Fetching events for calendar "${cal.name}" (${cal.id})`);
+        const eventsRes = await ghlFetch(eventsUrl, { headers: calEventHeaders });
         if (eventsRes.ok) {
           const eventsData = await eventsRes.json();
-          console.log(`Calendar "${cal.name}": ${JSON.stringify(Object.keys(eventsData))}, events count: ${(eventsData.events || []).length}`);
+          console.log(`Calendar "${cal.name}": events count: ${(eventsData.events || []).length}`);
           allEvents = allEvents.concat((eventsData.events || []).map((e: any) => ({ ...e, calendarName: cal.name })));
         } else {
           const errText = await eventsRes.text();
