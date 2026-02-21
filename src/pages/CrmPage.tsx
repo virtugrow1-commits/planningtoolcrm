@@ -43,7 +43,11 @@ export default function CrmPage() {
   const activeFilterCount = Object.values(filters).filter(Boolean).length;
 
   const filtered = contacts.filter((c) => {
-    const matchesSearch = `${c.firstName} ${c.lastName} ${c.email} ${c.company || ''}`.toLowerCase().includes(search.toLowerCase());
+    const searchLower = search.toLowerCase().trim();
+    const contactText = `${c.firstName} ${c.lastName} ${c.email} ${c.company || ''}`.toLowerCase();
+    // Match all search terms (space-separated) so "ad dorst" finds "Ad Van Dorst"
+    const searchTerms = searchLower.split(/\s+/).filter(Boolean);
+    const matchesSearch = !searchLower || searchTerms.every((term) => contactText.includes(term));
     const matchesStatus = !filters.status || c.status === filters.status;
     const matchesCompany = !filters.company || c.company === filters.company;
     return matchesSearch && matchesStatus && matchesCompany;
