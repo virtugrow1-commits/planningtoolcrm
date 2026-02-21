@@ -7,6 +7,7 @@ import AppLayout from "@/components/AppLayout";
 import Dashboard from "@/pages/Dashboard";
 import CalendarPage from "@/pages/CalendarPage";
 import CrmPage from "@/pages/CrmPage";
+import CompaniesPage from "@/pages/CompaniesPage";
 import ContactDetailPage from "@/pages/ContactDetailPage";
 import InquiriesPage from "@/pages/InquiriesPage";
 import QuotationsPage from "@/pages/QuotationsPage";
@@ -15,6 +16,7 @@ import AuthPage from "@/pages/AuthPage";
 import NotFound from "./pages/NotFound";
 import { BookingsProvider } from "@/contexts/BookingsContext";
 import { ContactsProvider } from "@/contexts/ContactsContext";
+import { CompaniesProvider } from "@/contexts/CompaniesContext";
 import { InquiriesProvider } from "@/contexts/InquiriesContext";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { TasksProvider } from "@/contexts/TasksContext";
@@ -38,24 +40,27 @@ function ProtectedRoutes() {
 
   return (
     <ContactsProvider>
-      <InquiriesProvider>
-        <BookingsProvider>
-          <TasksProvider>
-            <AppLayout>
-              <Routes>
-                <Route path="/" element={<Dashboard />} />
-                <Route path="/crm" element={<CrmPage />} />
-                <Route path="/crm/:id" element={<ContactDetailPage />} />
-                <Route path="/inquiries" element={<InquiriesPage />} />
-                <Route path="/quotations" element={<QuotationsPage />} />
-                <Route path="/calendar" element={<CalendarPage />} />
-                <Route path="/settings" element={<SettingsPage />} />
-                <Route path="*" element={<NotFound />} />
-              </Routes>
-            </AppLayout>
-          </TasksProvider>
-        </BookingsProvider>
-      </InquiriesProvider>
+      <CompaniesProvider>
+        <InquiriesProvider>
+          <BookingsProvider>
+            <TasksProvider>
+              <AppLayout>
+                <Routes>
+                  <Route path="/" element={<Dashboard />} />
+                  <Route path="/crm" element={<CrmPage />} />
+                  <Route path="/crm/:id" element={<ContactDetailPage />} />
+                  <Route path="/companies" element={<CompaniesPage />} />
+                  <Route path="/inquiries" element={<InquiriesPage />} />
+                  <Route path="/quotations" element={<QuotationsPage />} />
+                  <Route path="/calendar" element={<CalendarPage />} />
+                  <Route path="/settings" element={<SettingsPage />} />
+                  <Route path="*" element={<NotFound />} />
+                </Routes>
+              </AppLayout>
+            </TasksProvider>
+          </BookingsProvider>
+        </InquiriesProvider>
+      </CompaniesProvider>
     </ContactsProvider>
   );
 }

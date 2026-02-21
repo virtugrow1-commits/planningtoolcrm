@@ -123,6 +123,8 @@ export default function SettingsPage() {
           ? `${data.synced} boekingen opgehaald uit ${data.calendars} GHL kalenders`
           : action === 'sync-tasks'
           ? `${data.synced} taken opgehaald uit GHL`
+          : action === 'sync-companies'
+          ? `${data.synced} bedrijven opgehaald uit GHL`
           : `${data.pushed} contacten naar GHL gestuurd`,
       });
     } catch (err: any) {
@@ -232,6 +234,9 @@ export default function SettingsPage() {
                 </Button>
                 <Button variant="outline" size="sm" disabled={syncing} onClick={() => handleSync('sync-tasks')}>
                   <RefreshCw size={14} className={`mr-1.5 ${syncing ? 'animate-spin' : ''}`} /> Taken GHL → CRM
+                </Button>
+                <Button variant="outline" size="sm" disabled={syncing} onClick={() => handleSync('sync-companies')}>
+                  <RefreshCw size={14} className={`mr-1.5 ${syncing ? 'animate-spin' : ''}`} /> Bedrijven GHL → CRM
                 </Button>
                 <Button size="sm" disabled={syncing} onClick={() => handleSync('full-sync')}>
                   <RefreshCw size={14} className={`mr-1.5 ${syncing ? 'animate-spin' : ''}`} /> Volledige Sync

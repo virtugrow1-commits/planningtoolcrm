@@ -1,25 +1,49 @@
-import { Search, Plus } from 'lucide-react';
+import { Search, Plus, Filter, X } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Badge } from '@/components/ui/badge';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Contact } from '@/types/crm';
 import { useToast } from '@/hooks/use-toast';
 import { useContactsContext } from '@/contexts/ContactsContext';
+
+const STATUS_LABELS: Record<string, string> = {
+  lead: 'Lead',
+  prospect: 'Prospect',
+  client: 'Klant',
+  inactive: 'Inactief',
+};
+
+type FilterKey = 'status' | 'company';
 
 export default function CrmPage() {
   const { contacts, loading, addContact } = useContactsContext();
   const [search, setSearch] = useState('');
   const [newOpen, setNewOpen] = useState(false);
   const [newContact, setNewContact] = useState<Omit<Contact, 'id' | 'createdAt'>>({ firstName: '', lastName: '', email: '', phone: '', status: 'lead' });
+  const [filters, setFilters] = useState<Record<FilterKey, string>>({ status: '', company: '' });
   const navigate = useNavigate();
   const { toast } = useToast();
 
-  const filtered = contacts.filter((c) =>
-    `${c.firstName} ${c.lastName} ${c.email} ${c.company || ''}`.toLowerCase().includes(search.toLowerCase())
-  );
+  // Unique values for filter dropdowns
+  const uniqueStatuses = [...new Set(contacts.map((c) => c.status))];
+  const uniqueCompanies = [...new Set(contacts.map((c) => c.company).filter(Boolean))] as string[];
+
+  const activeFilterCount = Object.values(filters).filter(Boolean).length;
+
+  const filtered = contacts.filter((c) => {
+    const matchesSearch = `${c.firstName} ${c.lastName} ${c.email} ${c.company || ''}`.toLowerCase().includes(search.toLowerCase());
+    const matchesStatus = !filters.status || c.status === filters.status;
+    const matchesCompany = !filters.company || c.company === filters.company;
+    return matchesSearch && matchesStatus && matchesCompany;
+  });
+
+  const clearFilters = () => setFilters({ status: '', company: '' });
 
   const handleAddContact = async () => {
     if (!newContact.firstName || !newContact.lastName) {
@@ -45,18 +69,86 @@ export default function CrmPage() {
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-foreground">CRM / Contacten</h1>
-          <p className="text-sm text-muted-foreground">{contacts.length} contacten</p>
+          <p className="text-sm text-muted-foreground">{filtered.length} van {contacts.length} contacten</p>
         </div>
         <div className="flex items-center gap-2">
           <div className="relative w-64">
             <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
             <Input placeholder="Zoeken..." className="pl-9" value={search} onChange={(e) => setSearch(e.target.value)} />
           </div>
+
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button variant="outline" size="sm" className="relative">
+                <Filter size={14} className="mr-1" /> Filters
+                {activeFilterCount > 0 && (
+                  <Badge variant="secondary" className="ml-1.5 h-5 min-w-5 px-1 text-xs">{activeFilterCount}</Badge>
+                )}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-72 space-y-3" align="end">
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-semibold">Filters</span>
+                {activeFilterCount > 0 && (
+                  <Button variant="ghost" size="sm" className="h-6 text-xs" onClick={clearFilters}>
+                    <X size={12} className="mr-1" /> Wissen
+                  </Button>
+                )}
+              </div>
+
+              <div className="grid gap-1.5">
+                <Label className="text-xs">Status</Label>
+                <Select value={filters.status} onValueChange={(v) => setFilters({ ...filters, status: v === '_all' ? '' : v })}>
+                  <SelectTrigger className="h-8 text-xs">
+                    <SelectValue placeholder="Alle statussen" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="_all">Alle statussen</SelectItem>
+                    {uniqueStatuses.map((s) => (
+                      <SelectItem key={s} value={s}>{STATUS_LABELS[s] || s}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="grid gap-1.5">
+                <Label className="text-xs">Bedrijf</Label>
+                <Select value={filters.company} onValueChange={(v) => setFilters({ ...filters, company: v === '_all' ? '' : v })}>
+                  <SelectTrigger className="h-8 text-xs">
+                    <SelectValue placeholder="Alle bedrijven" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="_all">Alle bedrijven</SelectItem>
+                    {uniqueCompanies.map((c) => (
+                      <SelectItem key={c} value={c}>{c}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </PopoverContent>
+          </Popover>
+
           <Button size="sm" onClick={() => setNewOpen(true)}>
             <Plus size={14} className="mr-1" /> Nieuw Contact
           </Button>
         </div>
       </div>
+
+      {/* Active filter badges */}
+      {activeFilterCount > 0 && (
+        <div className="flex flex-wrap gap-2">
+          {filters.status && (
+            <Badge variant="secondary" className="gap-1 cursor-pointer" onClick={() => setFilters({ ...filters, status: '' })}>
+              Status: {STATUS_LABELS[filters.status] || filters.status} <X size={12} />
+            </Badge>
+          )}
+          {filters.company && (
+            <Badge variant="secondary" className="gap-1 cursor-pointer" onClick={() => setFilters({ ...filters, company: '' })}>
+              Bedrijf: {filters.company} <X size={12} />
+            </Badge>
+          )}
+        </div>
+      )}
 
       <div className="overflow-x-auto rounded-xl border bg-card card-shadow">
         <table className="w-full text-sm">
@@ -66,15 +158,24 @@ export default function CrmPage() {
               <th className="px-4 py-3 text-left font-semibold text-muted-foreground">Email</th>
               <th className="px-4 py-3 text-left font-semibold text-muted-foreground hidden md:table-cell">Telefoon</th>
               <th className="px-4 py-3 text-left font-semibold text-muted-foreground hidden lg:table-cell">Bedrijf</th>
+              <th className="px-4 py-3 text-left font-semibold text-muted-foreground hidden lg:table-cell">Status</th>
             </tr>
           </thead>
           <tbody>
+            {filtered.length === 0 && (
+              <tr>
+                <td colSpan={5} className="px-4 py-8 text-center text-muted-foreground">Geen contacten gevonden</td>
+              </tr>
+            )}
             {filtered.map((c) => (
               <tr key={c.id} onClick={() => navigate(`/crm/${c.id}`)} className="border-b last:border-0 transition-colors hover:bg-muted/30 cursor-pointer">
                 <td className="px-4 py-3 font-medium text-foreground">{c.firstName} {c.lastName}</td>
                 <td className="px-4 py-3 text-muted-foreground">{c.email || '—'}</td>
                 <td className="px-4 py-3 text-muted-foreground hidden md:table-cell">{c.phone || '—'}</td>
                 <td className="px-4 py-3 text-muted-foreground hidden lg:table-cell">{c.company || '—'}</td>
+                <td className="px-4 py-3 hidden lg:table-cell">
+                  <Badge variant="outline" className="text-xs">{STATUS_LABELS[c.status] || c.status}</Badge>
+                </td>
               </tr>
             ))}
           </tbody>
