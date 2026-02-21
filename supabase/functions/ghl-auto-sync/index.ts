@@ -4,7 +4,6 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 const GHL_API_BASE = 'https://services.leadconnectorhq.com';
 
 serve(async (req) => {
-  // This function is called by pg_cron — no user auth needed, uses service role
   const GHL_API_KEY = Deno.env.get('GHL_API_KEY');
   const GHL_LOCATION_ID = Deno.env.get('GHL_LOCATION_ID');
   const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
@@ -22,197 +21,203 @@ serve(async (req) => {
     'Version': '2021-07-28',
   };
 
-  // Get all users that have data (distinct user_ids)
-  const { data: users } = await supabase.from('contacts').select('user_id').limit(100);
-  const userIds = [...new Set((users || []).map((u: any) => u.user_id))];
+  // Get all user_ids from both tables
+  const [{ data: cUsers }, { data: bUsers }, { data: iUsers }] = await Promise.all([
+    supabase.from('contacts').select('user_id'),
+    supabase.from('bookings').select('user_id'),
+    supabase.from('inquiries').select('user_id'),
+  ]);
+  const userIds = [...new Set([
+    ...(cUsers || []).map((u: any) => u.user_id),
+    ...(bUsers || []).map((u: any) => u.user_id),
+    ...(iUsers || []).map((u: any) => u.user_id),
+  ])];
 
-  const results: any = { contacts: 0, opportunities: 0, bookings: 0, pushed: 0 };
+  const results: any = { bookings_pulled: 0, bookings_pushed: 0, contacts: 0, opportunities: 0, contacts_pushed: 0 };
 
+  // === 1. CALENDAR SYNC FIRST (highest priority) ===
   try {
-    // === PULL CONTACTS FROM GHL ===
-    let allContacts: any[] = [];
-    let nextPageUrl: string | null = `${GHL_API_BASE}/contacts/?locationId=${GHL_LOCATION_ID}&limit=100`;
-    while (nextPageUrl) {
-      const res = await fetch(nextPageUrl, { headers: ghlHeaders });
-      if (!res.ok) break;
-      const data = await res.json();
-      allContacts = allContacts.concat(data.contacts || []);
-      nextPageUrl = data.meta?.nextPageUrl || null;
-    }
+    const calRes = await fetch(`${GHL_API_BASE}/calendars/?locationId=${GHL_LOCATION_ID}`, { headers: ghlHeaders });
+    console.log('Calendar API status:', calRes.status);
 
-    for (const userId of userIds) {
-      for (const ghlContact of allContacts) {
-        const firstName = ghlContact.firstName || ghlContact.name?.split(' ')[0] || 'Onbekend';
-        const lastName = ghlContact.lastName || ghlContact.name?.split(' ').slice(1).join(' ') || '';
-        const { data: existing } = await supabase.from('contacts').select('id').eq('user_id', userId).eq('ghl_contact_id', ghlContact.id).maybeSingle();
-        if (existing) {
-          await supabase.from('contacts').update({
-            first_name: firstName, last_name: lastName,
-            email: ghlContact.email || null, phone: ghlContact.phone || null,
-            company: ghlContact.companyName || null,
-          }).eq('id', existing.id);
-        } else {
-          await supabase.from('contacts').insert({
-            user_id: userId, ghl_contact_id: ghlContact.id,
-            first_name: firstName, last_name: lastName,
-            email: ghlContact.email || null, phone: ghlContact.phone || null,
-            company: ghlContact.companyName || null, status: 'lead',
-          });
-        }
-        results.contacts++;
-      }
+    if (calRes.ok) {
+      const calData = await calRes.json();
+      const calendars = calData.calendars || [];
+      console.log(`Found ${calendars.length} calendars:`, calendars.map((c: any) => `${c.name} (${c.id})`));
 
-      // Push local contacts without GHL ID
-      const { data: localOnly } = await supabase.from('contacts').select('*').eq('user_id', userId).is('ghl_contact_id', null);
-      for (const contact of localOnly || []) {
-        const res = await fetch(`${GHL_API_BASE}/contacts/`, {
-          method: 'POST', headers: ghlHeaders,
-          body: JSON.stringify({
-            firstName: contact.first_name, lastName: contact.last_name,
-            email: contact.email || undefined, phone: contact.phone || undefined,
-            companyName: contact.company || undefined, locationId: GHL_LOCATION_ID,
-          }),
-        });
-        if (res.ok) {
-          const created = await res.json();
-          if (created.contact?.id) {
-            await supabase.from('contacts').update({ ghl_contact_id: created.contact.id }).eq('id', contact.id);
-          }
-          results.pushed++;
-        }
-      }
-    }
+      // 365 days back + 365 forward
+      const now = new Date();
+      const startDate = new Date(now); startDate.setDate(startDate.getDate() - 365);
+      const endDate = new Date(now); endDate.setDate(endDate.getDate() + 365);
 
-    // === PULL OPPORTUNITIES FROM GHL ===
-    const stageToStatus = (stageName: string): string => {
-      const lower = stageName.toLowerCase();
-      if (lower.includes('nieuwe aanvraag') || lower.includes('new')) return 'new';
-      if (lower.includes('lopend contact') || lower.includes('contact')) return 'contacted';
-      if (lower.includes('optie')) return 'option';
-      if (lower.includes('aangepaste offerte')) return 'quote_revised';
-      if (lower.includes('offerte verzonden') || lower.includes('offerte')) return 'quoted';
-      if (lower.includes('definitieve reservering') || lower.includes('definitief')) return 'confirmed';
-      if (lower.includes('reservering')) return 'reserved';
-      if (lower.includes('facturatie') || lower.includes('invoice')) return 'invoiced';
-      if (lower.includes('vervallen') || lower.includes('verloren') || lower.includes('lost')) return 'lost';
-      if (lower.includes('after sales') || lower.includes('aftersales')) return 'after_sales';
-      return 'new';
-    };
-
-    try {
-      const pipelinesRes = await fetch(`${GHL_API_BASE}/opportunities/pipelines?locationId=${GHL_LOCATION_ID}`, { headers: ghlHeaders });
-      if (pipelinesRes.ok) {
-        const pipelinesData = await pipelinesRes.json();
-        const stageMap: Record<string, string> = {};
-        for (const pipeline of pipelinesData.pipelines || []) {
-          for (const stage of pipeline.stages || []) {
-            stageMap[stage.id] = stage.name;
-          }
-        }
-
-        let allOpps: any[] = [];
-        let oppPage = 1;
-        let oppHasMore = true;
-        while (oppHasMore) {
-          const res = await fetch(`${GHL_API_BASE}/opportunities/search?location_id=${GHL_LOCATION_ID}&limit=100&page=${oppPage}`, { headers: ghlHeaders });
-          if (!res.ok) break;
-          const data = await res.json();
-          allOpps = allOpps.concat(data.opportunities || []);
-          oppHasMore = (data.opportunities || []).length === 100;
-          oppPage++;
-        }
-
-        for (const userId of userIds) {
-          for (const opp of allOpps) {
-            const stageName = stageMap[opp.pipelineStageId] || opp.status || 'new';
-            const crmStatus = stageToStatus(stageName);
-            const contactName = opp.contact?.name || opp.name || 'Onbekend';
-            const monetaryValue = opp.monetaryValue ? Number(opp.monetaryValue) : null;
-
-            const { data: existing } = await supabase.from('inquiries').select('id').eq('user_id', userId).eq('ghl_opportunity_id', opp.id).maybeSingle();
-            if (existing) {
-              await supabase.from('inquiries').update({
-                contact_name: contactName, status: crmStatus,
-                budget: monetaryValue, event_type: opp.name || 'Onbekend',
-              }).eq('id', existing.id);
-            } else {
-              await supabase.from('inquiries').insert({
-                user_id: userId, ghl_opportunity_id: opp.id,
-                contact_name: contactName, contact_id: null,
-                event_type: opp.name || 'Onbekend', status: crmStatus,
-                guest_count: 0, budget: monetaryValue, source: 'GHL',
-                message: opp.notes || null, preferred_date: opp.date || null,
-                room_preference: null,
-              });
-            }
-            results.opportunities++;
-          }
-        }
-      }
-    } catch (e) { console.error('Opp sync error:', e); }
-
-    // === PULL CALENDAR EVENTS FROM GHL ===
-    try {
-      const calRes = await fetch(`${GHL_API_BASE}/calendars/?locationId=${GHL_LOCATION_ID}`, { headers: ghlHeaders });
-      if (calRes.ok) {
-        const calData = await calRes.json();
-        const calendars = calData.calendars || [];
-        const now = new Date();
-        const startTime = now.toISOString();
-        const endDate = new Date(now);
-        endDate.setDate(endDate.getDate() + 90);
-        const endTime = endDate.toISOString();
-
-        let allEvents: any[] = [];
-        for (const cal of calendars) {
-          const eventsRes = await fetch(
-            `${GHL_API_BASE}/calendars/events?locationId=${GHL_LOCATION_ID}&calendarId=${cal.id}&startTime=${encodeURIComponent(startTime)}&endTime=${encodeURIComponent(endTime)}`,
-            { headers: ghlHeaders }
-          );
+      let allEvents: any[] = [];
+      for (const cal of calendars) {
+        try {
+          const eventsUrl = `${GHL_API_BASE}/calendars/events?locationId=${GHL_LOCATION_ID}&calendarId=${cal.id}&startTime=${encodeURIComponent(startDate.toISOString())}&endTime=${encodeURIComponent(endDate.toISOString())}`;
+          const eventsRes = await fetch(eventsUrl, { headers: ghlHeaders });
+          
           if (eventsRes.ok) {
             const eventsData = await eventsRes.json();
-            allEvents = allEvents.concat((eventsData.events || []).map((e: any) => ({ ...e, calendarName: cal.name })));
+            const events = eventsData.events || [];
+            console.log(`Calendar "${cal.name}": ${events.length} events`);
+            allEvents = allEvents.concat(events.map((e: any) => ({ ...e, calendarName: cal.name, calendarId: cal.id })));
+          } else {
+            console.error(`Calendar "${cal.name}" error: ${eventsRes.status} ${await eventsRes.text()}`);
           }
-        }
+        } catch (e) { console.error(`Calendar "${cal.name}" fetch error:`, e); }
+      }
 
-        for (const userId of userIds) {
-          for (const evt of allEvents) {
-            const evtStart = new Date(evt.startTime || evt.start);
-            const evtEnd = new Date(evt.endTime || evt.end);
+      console.log(`Total events from GHL: ${allEvents.length}`);
+
+      // Upsert events into bookings
+      for (const userId of userIds) {
+        for (const evt of allEvents) {
+          try {
+            const evtStart = new Date(evt.startTime || evt.start || evt.startDate);
+            const evtEnd = new Date(evt.endTime || evt.end || evt.endDate);
+            if (isNaN(evtStart.getTime())) continue;
+
             const dateStr = evtStart.toISOString().split('T')[0];
             const startHour = evtStart.getHours();
-            const endHour = evtEnd.getHours() || 17;
-            const contactName = evt.contact?.name || evt.title || 'GHL Afspraak';
-            const title = evt.title || evt.calendarName || 'GHL Afspraak';
+            let endHour = evtEnd.getHours();
+            if (isNaN(evtEnd.getTime()) || endHour <= startHour) endHour = Math.min(startHour + 1, 23);
+
+            const contactName = evt.contact?.name || evt.title || evt.calendarName || 'GHL Afspraak';
+            const title = evt.title || evt.name || evt.calendarName || 'GHL Afspraak';
             const evtStatus = (evt.status === 'confirmed' || evt.appointmentStatus === 'confirmed') ? 'confirmed' : 'option';
+            const roomName = evt.calendarName || 'Vergaderzaal 100';
 
             const { data: existing } = await supabase.from('bookings').select('id').eq('user_id', userId).eq('ghl_event_id', evt.id).maybeSingle();
             if (existing) {
               await supabase.from('bookings').update({
                 date: dateStr, start_hour: startHour, end_hour: endHour,
-                title, contact_name: contactName, status: evtStatus,
+                title, contact_name: contactName, status: evtStatus, room_name: roomName,
               }).eq('id', existing.id);
             } else {
               await supabase.from('bookings').insert({
-                user_id: userId, ghl_event_id: evt.id,
-                room_name: evt.calendarName || 'Vergaderzaal 100',
+                user_id: userId, ghl_event_id: evt.id, room_name: roomName,
                 date: dateStr, start_hour: startHour, end_hour: endHour,
                 title, contact_name: contactName, status: evtStatus,
               });
             }
-            results.bookings++;
+            results.bookings_pulled++;
+          } catch (evtErr) { console.error('Event error:', evt.id, evtErr); }
+        }
+      }
+
+      // Push local bookings without ghl_event_id
+      const defaultCalendarId = calendars[0]?.id;
+      if (defaultCalendarId) {
+        for (const userId of userIds) {
+          const { data: localBookings } = await supabase.from('bookings').select('*').eq('user_id', userId).is('ghl_event_id', null);
+          for (const booking of localBookings || []) {
+            try {
+              const startTime = `${booking.date}T${String(booking.start_hour).padStart(2, '0')}:00:00`;
+              const endTime = `${booking.date}T${String(booking.end_hour).padStart(2, '0')}:00:00`;
+              const res = await fetch(`${GHL_API_BASE}/calendars/events/appointments`, {
+                method: 'POST', headers: ghlHeaders,
+                body: JSON.stringify({ calendarId: defaultCalendarId, locationId: GHL_LOCATION_ID, title: booking.title || 'CRM Boeking', startTime, endTime, appointmentStatus: booking.status === 'confirmed' ? 'confirmed' : 'new' }),
+              });
+              if (res.ok) {
+                const created = await res.json();
+                const ghlId = created.id || created.event?.id;
+                if (ghlId) await supabase.from('bookings').update({ ghl_event_id: ghlId }).eq('id', booking.id);
+                results.bookings_pushed++;
+              } else {
+                console.error(`Push booking ${booking.id} failed: ${await res.text()}`);
+              }
+            } catch (e) { console.error('Push booking error:', booking.id, e); }
           }
         }
       }
-    } catch (e) { console.error('Calendar sync error:', e); }
+    } else {
+      console.error('Calendar list error:', calRes.status, await calRes.text());
+    }
+  } catch (e) { console.error('Calendar sync error:', e); }
 
-  } catch (error) {
-    console.error('Auto-sync error:', error);
-    return new Response(JSON.stringify({ error: String(error) }), { status: 500 });
-  }
+  // === 2. CONTACTS (only new/changed — limit API calls) ===
+  try {
+    // Only fetch first page of GHL contacts to stay within timeout
+    const res = await fetch(`${GHL_API_BASE}/contacts/?locationId=${GHL_LOCATION_ID}&limit=100&sortBy=dateUpdated&sortOrder=desc`, { headers: ghlHeaders });
+    if (res.ok) {
+      const data = await res.json();
+      const recentContacts = data.contacts || [];
+      for (const userId of userIds) {
+        for (const ghlContact of recentContacts) {
+          const firstName = ghlContact.firstName || ghlContact.name?.split(' ')[0] || 'Onbekend';
+          const lastName = ghlContact.lastName || ghlContact.name?.split(' ').slice(1).join(' ') || '';
+          const { data: existing } = await supabase.from('contacts').select('id').eq('user_id', userId).eq('ghl_contact_id', ghlContact.id).maybeSingle();
+          if (existing) {
+            await supabase.from('contacts').update({ first_name: firstName, last_name: lastName, email: ghlContact.email || null, phone: ghlContact.phone || null, company: ghlContact.companyName || null }).eq('id', existing.id);
+          } else {
+            await supabase.from('contacts').insert({ user_id: userId, ghl_contact_id: ghlContact.id, first_name: firstName, last_name: lastName, email: ghlContact.email || null, phone: ghlContact.phone || null, company: ghlContact.companyName || null, status: 'lead' });
+          }
+          results.contacts++;
+        }
+      }
+
+      // Push local contacts without GHL ID (max 20 per run)
+      for (const userId of userIds) {
+        const { data: localOnly } = await supabase.from('contacts').select('*').eq('user_id', userId).is('ghl_contact_id', null).limit(20);
+        for (const contact of localOnly || []) {
+          const pushRes = await fetch(`${GHL_API_BASE}/contacts/`, { method: 'POST', headers: ghlHeaders, body: JSON.stringify({ firstName: contact.first_name, lastName: contact.last_name, email: contact.email || undefined, phone: contact.phone || undefined, companyName: contact.company || undefined, locationId: GHL_LOCATION_ID }) });
+          if (pushRes.ok) {
+            const created = await pushRes.json();
+            if (created.contact?.id) await supabase.from('contacts').update({ ghl_contact_id: created.contact.id }).eq('id', contact.id);
+            results.contacts_pushed++;
+          }
+        }
+      }
+    }
+  } catch (e) { console.error('Contact sync error:', e); }
+
+  // === 3. OPPORTUNITIES ===
+  try {
+    const pipelinesRes = await fetch(`${GHL_API_BASE}/opportunities/pipelines?locationId=${GHL_LOCATION_ID}`, { headers: ghlHeaders });
+    if (pipelinesRes.ok) {
+      const pipelinesData = await pipelinesRes.json();
+      const stageMap: Record<string, string> = {};
+      for (const pipeline of pipelinesData.pipelines || []) {
+        for (const stage of pipeline.stages || []) stageMap[stage.id] = stage.name;
+      }
+
+      const stageToStatus = (s: string): string => {
+        const l = s.toLowerCase();
+        if (l.includes('nieuwe aanvraag') || l.includes('new')) return 'new';
+        if (l.includes('lopend contact') || l.includes('contact')) return 'contacted';
+        if (l.includes('optie')) return 'option';
+        if (l.includes('aangepaste offerte')) return 'quote_revised';
+        if (l.includes('offerte verzonden') || l.includes('offerte')) return 'quoted';
+        if (l.includes('definitieve reservering') || l.includes('definitief')) return 'confirmed';
+        if (l.includes('reservering')) return 'reserved';
+        if (l.includes('facturatie') || l.includes('invoice')) return 'invoiced';
+        if (l.includes('vervallen') || l.includes('verloren') || l.includes('lost')) return 'lost';
+        if (l.includes('after sales') || l.includes('aftersales')) return 'after_sales';
+        return 'new';
+      };
+
+      const oppRes = await fetch(`${GHL_API_BASE}/opportunities/search?location_id=${GHL_LOCATION_ID}&limit=100&page=1`, { headers: ghlHeaders });
+      if (oppRes.ok) {
+        const oppData = await oppRes.json();
+        for (const userId of userIds) {
+          for (const opp of oppData.opportunities || []) {
+            const stageName = stageMap[opp.pipelineStageId] || opp.status || 'new';
+            const crmStatus = stageToStatus(stageName);
+            const contactName = opp.contact?.name || opp.name || 'Onbekend';
+            const monetaryValue = opp.monetaryValue ? Number(opp.monetaryValue) : null;
+            const { data: existing } = await supabase.from('inquiries').select('id').eq('user_id', userId).eq('ghl_opportunity_id', opp.id).maybeSingle();
+            if (existing) {
+              await supabase.from('inquiries').update({ contact_name: contactName, status: crmStatus, budget: monetaryValue, event_type: opp.name || 'Onbekend' }).eq('id', existing.id);
+            } else {
+              await supabase.from('inquiries').insert({ user_id: userId, ghl_opportunity_id: opp.id, contact_name: contactName, contact_id: null, event_type: opp.name || 'Onbekend', status: crmStatus, guest_count: 0, budget: monetaryValue, source: 'GHL', message: opp.notes || null, preferred_date: opp.date || null, room_preference: null });
+            }
+            results.opportunities++;
+          }
+        }
+      }
+    }
+  } catch (e) { console.error('Opp sync error:', e); }
 
   console.log('Auto-sync completed:', results);
-  return new Response(JSON.stringify({ success: true, ...results }), {
-    headers: { 'Content-Type': 'application/json' },
-  });
+  return new Response(JSON.stringify({ success: true, ...results }), { headers: { 'Content-Type': 'application/json' } });
 });
