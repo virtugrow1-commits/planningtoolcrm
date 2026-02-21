@@ -12,21 +12,22 @@ const delay = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 /** Rate-limit-aware fetch: retries on 429 with backoff */
 async function ghlFetch(url: string, opts: RequestInit = {}): Promise<Response> {
-  for (let attempt = 0; attempt < 4; attempt++) {
-    if (attempt > 0) await delay(1000 * attempt); // 1s, 2s, 3s backoff
-    const res = await fetch(url, opts);
-    if (res.status === 429) {
-      const retryAfter = res.headers.get('retry-after');
-      const waitMs = retryAfter ? parseInt(retryAfter) * 1000 : 2000 * (attempt + 1);
-      console.warn(`GHL 429 rate limit, waiting ${waitMs}ms (attempt ${attempt + 1})`);
-      await res.text(); // consume body
-      await delay(waitMs);
-      continue;
+  for (let attempt = 0; attempt < 5; attempt++) {
+    if (attempt > 0) {
+      const backoff = Math.min(2000 * attempt, 10000);
+      console.warn(`GHL retry attempt ${attempt}, waiting ${backoff}ms`);
+      await delay(backoff);
     }
-    return res;
+    const res = await fetch(url, opts);
+    if (res.status !== 429) return res;
+    // Consume body to free resources
+    await res.text();
+    const retryAfter = res.headers.get('retry-after');
+    if (retryAfter) {
+      await delay(parseInt(retryAfter) * 1000);
+    }
   }
-  // Final attempt
-  return fetch(url, opts);
+  throw new Error(`GHL API rate limit exceeded after 5 retries for ${url}`);
 }
 
 serve(async (req) => {
@@ -81,28 +82,27 @@ serve(async (req) => {
     };
 
     if (action === 'sync-contacts') {
-      // Fetch contacts from GHL
-      let allContacts: any[] = [];
-      let nextPageUrl = `${GHL_API_BASE}/contacts/?locationId=${GHL_LOCATION_ID}&limit=100`;
+      // Paginated sync: fetch one page at a time, caller passes nextPageUrl
+      const limit = body.limit || 50;
+      const pageUrl = body.nextPageUrl || `${GHL_API_BASE}/contacts/?locationId=${GHL_LOCATION_ID}&limit=${limit}`;
 
-      while (nextPageUrl) {
-        const res = await ghlFetch(nextPageUrl, { headers: ghlHeaders });
-        if (!res.ok) {
-          const errText = await res.text();
-          throw new Error(`GHL contacts fetch failed [${res.status}]: ${errText}`);
-        }
-        const data = await res.json();
-        allContacts = allContacts.concat(data.contacts || []);
-        nextPageUrl = data.meta?.nextPageUrl || null;
+      const res = await ghlFetch(pageUrl, { headers: ghlHeaders });
+      if (!res.ok) {
+        const errText = await res.text();
+        return new Response(JSON.stringify({ success: false, error: `GHL fetch failed [${res.status}]: ${errText}` }), {
+          status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
       }
+      const data = await res.json();
+      const contacts = data.contacts || [];
+      const nextPageUrl = data.meta?.nextPageUrl || null;
 
-      // Upsert contacts into database
+      // Upsert this page of contacts
       let synced = 0;
-      for (const ghlContact of allContacts) {
+      for (const ghlContact of contacts) {
         const firstName = ghlContact.firstName || ghlContact.name?.split(' ')[0] || 'Onbekend';
         const lastName = ghlContact.lastName || ghlContact.name?.split(' ').slice(1).join(' ') || '';
 
-        // Check if contact exists by ghl_contact_id
         const { data: existing } = await supabase
           .from('contacts')
           .select('id')
@@ -133,7 +133,7 @@ serve(async (req) => {
         synced++;
       }
 
-      return new Response(JSON.stringify({ success: true, synced, total: allContacts.length }), {
+      return new Response(JSON.stringify({ success: true, synced, pageContacts: contacts.length, nextPageUrl, hasMore: !!nextPageUrl }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
@@ -382,10 +382,11 @@ serve(async (req) => {
       let nextPageUrl: string | null = `${GHL_API_BASE}/contacts/?locationId=${GHL_LOCATION_ID}&limit=100`;
 
       while (nextPageUrl) {
+        await delay(500);
         const res = await ghlFetch(nextPageUrl, { headers: ghlHeaders });
         if (!res.ok) {
-          const errText = await res.text();
-          throw new Error(`GHL contacts fetch failed [${res.status}]: ${errText}`);
+          console.error(`GHL contacts fetch failed [${res.status}]`);
+          break;
         }
         const data = await res.json();
         allContacts = allContacts.concat(data.contacts || []);
@@ -1043,12 +1044,12 @@ serve(async (req) => {
       let nextPageUrl: string | null = `${GHL_API_BASE}/contacts/?locationId=${GHL_LOCATION_ID}&limit=100`;
 
       while (nextPageUrl) {
+        await delay(500);
         const res = await ghlFetch(nextPageUrl, { headers: ghlHeaders });
         if (!res.ok) break;
         const data = await res.json();
         allContacts = allContacts.concat(data.contacts || []);
         nextPageUrl = data.meta?.nextPageUrl || null;
-        if (nextPageUrl) await delay(300);
       }
 
       // Extract unique companies from contacts

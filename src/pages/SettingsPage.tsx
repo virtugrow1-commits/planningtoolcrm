@@ -107,26 +107,90 @@ export default function SettingsPage() {
   const handleSync = async (action: string) => {
     setSyncing(true);
     try {
-      const { data, error } = await supabase.functions.invoke('ghl-sync', {
-        body: { action },
-      });
-      if (error) throw error;
-      toast({
-        title: '✅ Synchronisatie voltooid',
-        description: action === 'full-sync'
-          ? `${data.contactsSynced} contacten, ${data.contactsPushed} gepusht, ${data.opportunitiesSynced || 0} opportunities, ${data.bookingsSynced || 0} boekingen`
-          : action === 'sync-contacts'
-          ? `${data.synced} contacten opgehaald uit GHL`
-          : action === 'sync-opportunities'
-          ? `${data.synced} opportunities/aanvragen opgehaald uit GHL`
-          : action === 'sync-calendars'
-          ? `${data.synced} boekingen opgehaald uit ${data.calendars} GHL kalenders`
-          : action === 'sync-tasks'
-          ? `${data.synced} taken opgehaald uit GHL`
-          : action === 'sync-companies'
-          ? `${data.synced} bedrijven opgehaald uit GHL`
-          : `${data.pushed} contacten naar GHL gestuurd`,
-      });
+      if (action === 'sync-contacts') {
+        // Paginated contact sync
+        let totalSynced = 0;
+        let nextPageUrl: string | null = null;
+        let hasMore = true;
+        let page = 0;
+        while (hasMore) {
+          page++;
+          const body: any = { action: 'sync-contacts' };
+          if (nextPageUrl) body.nextPageUrl = nextPageUrl;
+          const { data, error } = await supabase.functions.invoke('ghl-sync', { body });
+          if (error) throw error;
+          totalSynced += data.synced || 0;
+          nextPageUrl = data.nextPageUrl || null;
+          hasMore = !!data.hasMore;
+          // Small delay between pages to avoid rate limits
+          if (hasMore) await new Promise(r => setTimeout(r, 1000));
+        }
+        toast({ title: '✅ Synchronisatie voltooid', description: `${totalSynced} contacten opgehaald uit GHL (${page} pagina's)` });
+      } else if (action === 'full-sync') {
+        // Run individual syncs sequentially
+        const results: string[] = [];
+        
+        // 1. Contacts (paginated)
+        let totalContacts = 0;
+        let nextPageUrl: string | null = null;
+        let hasMore = true;
+        while (hasMore) {
+          const body: any = { action: 'sync-contacts' };
+          if (nextPageUrl) body.nextPageUrl = nextPageUrl;
+          const { data, error } = await supabase.functions.invoke('ghl-sync', { body });
+          if (error) { console.error('Contact sync error:', error); break; }
+          totalContacts += data.synced || 0;
+          nextPageUrl = data.nextPageUrl || null;
+          hasMore = !!data.hasMore;
+          if (hasMore) await new Promise(r => setTimeout(r, 1000));
+        }
+        results.push(`${totalContacts} contacten`);
+
+        // 2. Opportunities
+        await new Promise(r => setTimeout(r, 1500));
+        try {
+          const { data } = await supabase.functions.invoke('ghl-sync', { body: { action: 'sync-opportunities' } });
+          results.push(`${data?.synced || 0} opportunities`);
+        } catch (e) { console.error('Opp sync error:', e); }
+
+        // 3. Calendars
+        await new Promise(r => setTimeout(r, 1500));
+        try {
+          const { data } = await supabase.functions.invoke('ghl-sync', { body: { action: 'sync-calendars' } });
+          results.push(`${data?.synced || 0} boekingen`);
+        } catch (e) { console.error('Cal sync error:', e); }
+
+        // 4. Tasks
+        await new Promise(r => setTimeout(r, 1500));
+        try {
+          const { data } = await supabase.functions.invoke('ghl-sync', { body: { action: 'sync-tasks' } });
+          results.push(`${data?.synced || 0} taken`);
+        } catch (e) { console.error('Task sync error:', e); }
+
+        // 5. Companies
+        await new Promise(r => setTimeout(r, 1500));
+        try {
+          const { data } = await supabase.functions.invoke('ghl-sync', { body: { action: 'sync-companies' } });
+          results.push(`${data?.synced || 0} bedrijven`);
+        } catch (e) { console.error('Company sync error:', e); }
+
+        toast({ title: '✅ Volledige sync voltooid', description: results.join(', ') });
+      } else {
+        const { data, error } = await supabase.functions.invoke('ghl-sync', { body: { action } });
+        if (error) throw error;
+        toast({
+          title: '✅ Synchronisatie voltooid',
+          description: action === 'sync-opportunities'
+            ? `${data.synced} opportunities/aanvragen opgehaald uit GHL`
+            : action === 'sync-calendars'
+            ? `${data.synced} boekingen opgehaald uit ${data.calendars} GHL kalenders`
+            : action === 'sync-tasks'
+            ? `${data.synced} taken opgehaald uit GHL`
+            : action === 'sync-companies'
+            ? `${data.synced} bedrijven opgehaald uit GHL`
+            : `${data.pushed || data.synced || 0} items gesynchroniseerd`,
+        });
+      }
     } catch (err: any) {
       toast({ title: 'Synchronisatie mislukt', description: err.message, variant: 'destructive' });
     } finally {
