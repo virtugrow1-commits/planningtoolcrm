@@ -7,6 +7,7 @@ import AppLayout from "@/components/AppLayout";
 import Dashboard from "@/pages/Dashboard";
 import CalendarPage from "@/pages/CalendarPage";
 import CrmPage from "@/pages/CrmPage";
+import ContactDetailPage from "@/pages/ContactDetailPage";
 import InquiriesPage from "@/pages/InquiriesPage";
 import QuotationsPage from "@/pages/QuotationsPage";
 import SettingsPage from "@/pages/SettingsPage";
@@ -42,6 +43,7 @@ function ProtectedRoutes() {
             <Routes>
               <Route path="/" element={<Dashboard />} />
               <Route path="/crm" element={<CrmPage />} />
+              <Route path="/crm/:id" element={<ContactDetailPage />} />
               <Route path="/inquiries" element={<InquiriesPage />} />
               <Route path="/quotations" element={<QuotationsPage />} />
               <Route path="/calendar" element={<CalendarPage />} />
