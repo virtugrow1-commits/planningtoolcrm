@@ -66,7 +66,7 @@ export function InquiriesProvider({ children }: { children: ReactNode }) {
 
   const addInquiry = useCallback(async (inquiry: Omit<Inquiry, 'id' | 'createdAt'>) => {
     if (!user) return;
-    await supabase.from('inquiries').insert({
+    const { data: inserted } = await supabase.from('inquiries').insert({
       user_id: user.id,
       contact_id: inquiry.contactId || null,
       contact_name: inquiry.contactName,
@@ -78,8 +78,18 @@ export function InquiriesProvider({ children }: { children: ReactNode }) {
       message: inquiry.message || null,
       status: inquiry.status,
       source: inquiry.source,
-    });
-    // New inquiries without ghlOpportunityId don't need to push yet
+    }).select('id').single();
+    // Push new inquiry to GHL as opportunity
+    if (inserted?.id) {
+      pushToGHL('push-inquiry', {
+        inquiry_id: inserted.id,
+        contact_name: inquiry.contactName,
+        event_type: inquiry.eventType,
+        budget: inquiry.budget,
+        status: inquiry.status,
+        message: inquiry.message,
+      });
+    }
   }, [user]);
 
   const updateInquiry = useCallback(async (inquiry: Inquiry) => {
