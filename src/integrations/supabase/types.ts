@@ -82,39 +82,60 @@ export type Database = {
       companies: {
         Row: {
           address: string | null
+          btw_number: string | null
+          city: string | null
+          country: string | null
           created_at: string
+          crm_group: string | null
+          customer_number: string | null
           email: string | null
           ghl_company_id: string | null
           id: string
+          kvk: string | null
           name: string
           notes: string | null
           phone: string | null
+          postcode: string | null
           updated_at: string
           user_id: string
           website: string | null
         }
         Insert: {
           address?: string | null
+          btw_number?: string | null
+          city?: string | null
+          country?: string | null
           created_at?: string
+          crm_group?: string | null
+          customer_number?: string | null
           email?: string | null
           ghl_company_id?: string | null
           id?: string
+          kvk?: string | null
           name: string
           notes?: string | null
           phone?: string | null
+          postcode?: string | null
           updated_at?: string
           user_id: string
           website?: string | null
         }
         Update: {
           address?: string | null
+          btw_number?: string | null
+          city?: string | null
+          country?: string | null
           created_at?: string
+          crm_group?: string | null
+          customer_number?: string | null
           email?: string | null
           ghl_company_id?: string | null
           id?: string
+          kvk?: string | null
           name?: string
           notes?: string | null
           phone?: string | null
+          postcode?: string | null
           updated_at?: string
           user_id?: string
           website?: string | null

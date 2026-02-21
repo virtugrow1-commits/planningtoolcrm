@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import { pushToGHL } from '@/lib/ghlSync';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { capitalizeWords } from '@/lib/utils';
@@ -13,6 +14,13 @@ export interface Company {
   address?: string;
   notes?: string;
   ghlCompanyId?: string;
+  kvk?: string;
+  city?: string;
+  postcode?: string;
+  country?: string;
+  customerNumber?: string;
+  crmGroup?: string;
+  btwNumber?: string;
   createdAt: string;
 }
 
@@ -55,6 +63,13 @@ export function CompaniesProvider({ children }: { children: ReactNode }) {
         address: c.address || undefined,
         notes: c.notes || undefined,
         ghlCompanyId: c.ghl_company_id || undefined,
+        kvk: c.kvk || undefined,
+        city: c.city || undefined,
+        postcode: c.postcode || undefined,
+        country: c.country || undefined,
+        customerNumber: c.customer_number || undefined,
+        crmGroup: c.crm_group || undefined,
+        btwNumber: c.btw_number || undefined,
         createdAt: c.created_at?.split('T')[0] || '',
       })));
     }
@@ -85,6 +100,13 @@ export function CompaniesProvider({ children }: { children: ReactNode }) {
       address: company.address || null,
       notes: company.notes || null,
       ghl_company_id: company.ghlCompanyId || null,
+      kvk: company.kvk || null,
+      city: company.city || null,
+      postcode: company.postcode || null,
+      country: company.country || null,
+      customer_number: company.customerNumber || null,
+      crm_group: company.crmGroup || null,
+      btw_number: company.btwNumber || null,
     });
     if (error) {
       toast({ title: 'Fout bij aanmaken bedrijf', description: error.message, variant: 'destructive' });
@@ -100,7 +122,17 @@ export function CompaniesProvider({ children }: { children: ReactNode }) {
       address: company.address || null,
       notes: company.notes || null,
       ghl_company_id: company.ghlCompanyId || null,
+      kvk: company.kvk || null,
+      city: company.city || null,
+      postcode: company.postcode || null,
+      country: company.country || null,
+      customer_number: company.customerNumber || null,
+      crm_group: company.crmGroup || null,
+      btw_number: company.btwNumber || null,
     }).eq('id', company.id);
+    if (!error) {
+      pushToGHL('updateCompany', { companyId: company.id, company });
+    }
     if (error) {
       toast({ title: 'Fout bij bijwerken bedrijf', description: error.message, variant: 'destructive' });
     }
