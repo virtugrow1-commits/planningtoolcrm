@@ -188,6 +188,108 @@ serve(async (req) => {
       });
     }
 
+    if (action === 'sync-opportunities') {
+      // First get pipelines to map stage IDs to names
+      const pipelinesRes = await fetch(`${GHL_API_BASE}/opportunities/pipelines?locationId=${GHL_LOCATION_ID}`, {
+        headers: ghlHeaders,
+      });
+      if (!pipelinesRes.ok) {
+        const errText = await pipelinesRes.text();
+        throw new Error(`GHL pipelines fetch failed [${pipelinesRes.status}]: ${errText}`);
+      }
+      const pipelinesData = await pipelinesRes.json();
+      
+      // Build stage name lookup
+      const stageMap: Record<string, string> = {};
+      for (const pipeline of pipelinesData.pipelines || []) {
+        for (const stage of pipeline.stages || []) {
+          stageMap[stage.id] = stage.name;
+        }
+      }
+
+      // Map GHL stage names to CRM statuses
+      const stageToStatus = (stageName: string): string => {
+        const lower = stageName.toLowerCase();
+        if (lower.includes('nieuwe aanvraag') || lower.includes('new')) return 'new';
+        if (lower.includes('lopend contact') || lower.includes('contact')) return 'contacted';
+        if (lower.includes('optie')) return 'option';
+        if (lower.includes('aangepaste offerte') || lower.includes('adjusted')) return 'quote_revised';
+        if (lower.includes('offerte verzonden') || lower.includes('offerte')) return 'quoted';
+        if (lower.includes('definitieve reservering') || lower.includes('definitief')) return 'confirmed';
+        if (lower.includes('reservering')) return 'reserved';
+        if (lower.includes('facturatie') || lower.includes('invoice')) return 'invoiced';
+        if (lower.includes('vervallen') || lower.includes('verloren') || lower.includes('lost')) return 'lost';
+        if (lower.includes('after sales') || lower.includes('aftersales')) return 'after_sales';
+        return 'new';
+      };
+
+      // Fetch all opportunities
+      let allOpportunities: any[] = [];
+      let page = 1;
+      let hasMore = true;
+
+      while (hasMore) {
+        const res = await fetch(
+          `${GHL_API_BASE}/opportunities/search?location_id=${GHL_LOCATION_ID}&limit=100&page=${page}`,
+          { headers: ghlHeaders }
+        );
+        if (!res.ok) {
+          const errText = await res.text();
+          throw new Error(`GHL opportunities fetch failed [${res.status}]: ${errText}`);
+        }
+        const data = await res.json();
+        const opps = data.opportunities || [];
+        allOpportunities = allOpportunities.concat(opps);
+        hasMore = opps.length === 100;
+        page++;
+      }
+
+      let synced = 0;
+      for (const opp of allOpportunities) {
+        const stageName = stageMap[opp.pipelineStageId] || opp.status || 'new';
+        const crmStatus = stageToStatus(stageName);
+        const contactName = opp.contact?.name || opp.name || 'Onbekend';
+        const monetaryValue = opp.monetaryValue ? Number(opp.monetaryValue) : null;
+
+        // Check if opportunity already exists
+        const { data: existing } = await supabase
+          .from('inquiries')
+          .select('id')
+          .eq('user_id', user.id)
+          .eq('ghl_opportunity_id', opp.id)
+          .maybeSingle();
+
+        if (existing) {
+          await supabase.from('inquiries').update({
+            contact_name: contactName,
+            status: crmStatus,
+            budget: monetaryValue,
+            event_type: opp.name || 'Onbekend',
+          }).eq('id', existing.id);
+        } else {
+          await supabase.from('inquiries').insert({
+            user_id: user.id,
+            ghl_opportunity_id: opp.id,
+            contact_name: contactName,
+            contact_id: null,
+            event_type: opp.name || 'Onbekend',
+            status: crmStatus,
+            guest_count: 0,
+            budget: monetaryValue,
+            source: 'GHL',
+            message: opp.notes || null,
+            preferred_date: opp.date || null,
+            room_preference: null,
+          });
+        }
+        synced++;
+      }
+
+      return new Response(JSON.stringify({ success: true, synced, total: allOpportunities.length }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
     if (action === 'full-sync') {
       // Pull contacts from GHL
       let allContacts: any[] = [];
@@ -274,11 +376,101 @@ serve(async (req) => {
         }
       }
 
+      // Also sync opportunities
+      let oppsSynced = 0;
+      try {
+        const pipelinesRes = await fetch(`${GHL_API_BASE}/opportunities/pipelines?locationId=${GHL_LOCATION_ID}`, {
+          headers: ghlHeaders,
+        });
+        if (pipelinesRes.ok) {
+          const pipelinesData = await pipelinesRes.json();
+          const stageMap: Record<string, string> = {};
+          for (const pipeline of pipelinesData.pipelines || []) {
+            for (const stage of pipeline.stages || []) {
+              stageMap[stage.id] = stage.name;
+            }
+          }
+
+          const stageToStatus = (stageName: string): string => {
+            const lower = stageName.toLowerCase();
+            if (lower.includes('nieuwe aanvraag') || lower.includes('new')) return 'new';
+            if (lower.includes('lopend contact') || lower.includes('contact')) return 'contacted';
+            if (lower.includes('optie')) return 'option';
+            if (lower.includes('aangepaste offerte')) return 'quote_revised';
+            if (lower.includes('offerte verzonden') || lower.includes('offerte')) return 'quoted';
+            if (lower.includes('definitieve reservering') || lower.includes('definitief')) return 'confirmed';
+            if (lower.includes('reservering')) return 'reserved';
+            if (lower.includes('facturatie') || lower.includes('invoice')) return 'invoiced';
+            if (lower.includes('vervallen') || lower.includes('verloren') || lower.includes('lost')) return 'lost';
+            if (lower.includes('after sales') || lower.includes('aftersales')) return 'after_sales';
+            return 'new';
+          };
+
+          let allOpps: any[] = [];
+          let oppPage = 1;
+          let oppHasMore = true;
+          while (oppHasMore) {
+            const res = await fetch(
+              `${GHL_API_BASE}/opportunities/search?location_id=${GHL_LOCATION_ID}&limit=100&page=${oppPage}`,
+              { headers: ghlHeaders }
+            );
+            if (!res.ok) break;
+            const data = await res.json();
+            const opps = data.opportunities || [];
+            allOpps = allOpps.concat(opps);
+            oppHasMore = opps.length === 100;
+            oppPage++;
+          }
+
+          for (const opp of allOpps) {
+            const stageName = stageMap[opp.pipelineStageId] || opp.status || 'new';
+            const crmStatus = stageToStatus(stageName);
+            const contactName = opp.contact?.name || opp.name || 'Onbekend';
+            const monetaryValue = opp.monetaryValue ? Number(opp.monetaryValue) : null;
+
+            const { data: existing } = await supabase
+              .from('inquiries')
+              .select('id')
+              .eq('user_id', user.id)
+              .eq('ghl_opportunity_id', opp.id)
+              .maybeSingle();
+
+            if (existing) {
+              await supabase.from('inquiries').update({
+                contact_name: contactName,
+                status: crmStatus,
+                budget: monetaryValue,
+                event_type: opp.name || 'Onbekend',
+              }).eq('id', existing.id);
+            } else {
+              await supabase.from('inquiries').insert({
+                user_id: user.id,
+                ghl_opportunity_id: opp.id,
+                contact_name: contactName,
+                contact_id: null,
+                event_type: opp.name || 'Onbekend',
+                status: crmStatus,
+                guest_count: 0,
+                budget: monetaryValue,
+                source: 'GHL',
+                message: opp.notes || null,
+                preferred_date: opp.date || null,
+                room_preference: null,
+              });
+            }
+            oppsSynced++;
+          }
+        }
+      } catch (oppErr) {
+        console.error('Opportunity sync error during full-sync:', oppErr);
+      }
+
       return new Response(JSON.stringify({
         success: true,
         contactsSynced,
         contactsPushed,
         totalGhlContacts: allContacts.length,
+        opportunitiesSynced: oppsSynced,
       }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });

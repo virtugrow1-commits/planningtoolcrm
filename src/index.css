@@ -152,6 +152,11 @@
     color: hsl(var(--primary));
     border: 1px solid hsl(var(--primary) / 0.25);
   }
+  .status-option {
+    background-color: hsl(var(--accent) / 0.15);
+    color: hsl(var(--accent-foreground));
+    border: 1px solid hsl(var(--accent) / 0.3);
+  }
   .status-converted {
     background-color: hsl(var(--success) / 0.12);
     color: hsl(152 60% 28%);
