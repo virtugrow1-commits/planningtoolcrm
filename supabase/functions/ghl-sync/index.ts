@@ -1289,6 +1289,72 @@ serve(async (req) => {
       });
     }
 
+    if (action === 'sync-notes') {
+      // Fetch notes from GHL for each contact and store as contact_activities
+      const { data: contacts } = await supabase
+        .from('contacts')
+        .select('id, ghl_contact_id')
+        .eq('user_id', user.id)
+        .not('ghl_contact_id', 'is', null);
+
+      let synced = 0;
+      let skipped = 0;
+      for (const contact of contacts || []) {
+        try {
+          await delay(300); // Rate limit protection
+          const res = await ghlFetch(
+            `${GHL_API_BASE}/contacts/${contact.ghl_contact_id}/notes`,
+            { headers: ghlHeaders }
+          );
+          if (!res.ok) {
+            console.warn(`Failed to fetch notes for contact ${contact.ghl_contact_id}: [${res.status}]`);
+            skipped++;
+            continue;
+          }
+          const data = await res.json();
+          const notes = data.notes || [];
+
+          for (const note of notes) {
+            // Check if we already have this note (match on contact_id + body + approximate time)
+            const noteBody = note.body || note.description || '';
+            const noteDate = note.dateAdded || note.createdAt || note.date || new Date().toISOString();
+
+            // Use a unique identifier: GHL note doesn't have a stable ID always, so match on body+date
+            const { data: existing } = await supabase
+              .from('contact_activities')
+              .select('id')
+              .eq('user_id', user.id)
+              .eq('contact_id', contact.id)
+              .eq('type', 'note')
+              .eq('body', noteBody)
+              .maybeSingle();
+
+            if (existing) {
+              skipped++;
+              continue;
+            }
+
+            await supabase.from('contact_activities').insert({
+              user_id: user.id,
+              contact_id: contact.id,
+              type: 'note',
+              subject: 'GHL Notitie',
+              body: noteBody || null,
+              created_at: noteDate,
+            });
+            synced++;
+          }
+        } catch (e) {
+          console.error(`Failed to sync notes for contact ${contact.ghl_contact_id}:`, e);
+          skipped++;
+        }
+      }
+
+      return new Response(JSON.stringify({ success: true, synced, skipped, totalContacts: (contacts || []).length }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
     return new Response(JSON.stringify({ error: `Unknown action: ${action}` }), {
       status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });

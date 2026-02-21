@@ -174,6 +174,13 @@ export default function SettingsPage() {
           results.push(`${data?.synced || 0} bedrijven`);
         } catch (e) { console.error('Company sync error:', e); }
 
+        // 6. Notes/Gesprekken
+        await new Promise(r => setTimeout(r, 1500));
+        try {
+          const { data } = await supabase.functions.invoke('ghl-sync', { body: { action: 'sync-notes' } });
+          results.push(`${data?.synced || 0} gesprekken`);
+        } catch (e) { console.error('Notes sync error:', e); }
+
         toast({ title: '✅ Volledige sync voltooid', description: results.join(', ') });
       } else {
         const { data, error } = await supabase.functions.invoke('ghl-sync', { body: { action } });
@@ -188,6 +195,8 @@ export default function SettingsPage() {
             ? `${data.synced} taken opgehaald uit GHL`
             : action === 'sync-companies'
             ? `${data.synced} bedrijven opgehaald uit GHL`
+            : action === 'sync-notes'
+            ? `${data.synced} gesprekken opgehaald uit GHL (${data.skipped || 0} overgeslagen)`
             : `${data.pushed || data.synced || 0} items gesynchroniseerd`,
         });
       }
@@ -301,6 +310,9 @@ export default function SettingsPage() {
                 </Button>
                 <Button variant="outline" size="sm" disabled={syncing} onClick={() => handleSync('sync-companies')}>
                   <RefreshCw size={14} className={`mr-1.5 ${syncing ? 'animate-spin' : ''}`} /> Bedrijven GHL → CRM
+                </Button>
+                <Button variant="outline" size="sm" disabled={syncing} onClick={() => handleSync('sync-notes')}>
+                  <RefreshCw size={14} className={`mr-1.5 ${syncing ? 'animate-spin' : ''}`} /> Gesprekken GHL → CRM
                 </Button>
                 <Button size="sm" disabled={syncing} onClick={() => handleSync('full-sync')}>
                   <RefreshCw size={14} className={`mr-1.5 ${syncing ? 'animate-spin' : ''}`} /> Volledige Sync
