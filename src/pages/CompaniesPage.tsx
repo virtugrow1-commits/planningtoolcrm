@@ -1,4 +1,4 @@
-import { Search, Plus, Pencil, Trash2, Building2 } from 'lucide-react';
+import { Search, Plus, Pencil, Trash2, Building2, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { useState } from 'react';
@@ -6,7 +6,10 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useCompaniesContext, Company } from '@/contexts/CompaniesContext';
+
+const PAGE_SIZES = [20, 50, 100] as const;
 
 export default function CompaniesPage() {
   const { companies, loading, addCompany, updateCompany, deleteCompany } = useCompaniesContext();
@@ -14,11 +17,18 @@ export default function CompaniesPage() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<Company | null>(null);
   const [form, setForm] = useState({ name: '', email: '', phone: '', website: '', address: '', notes: '' });
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState<number>(20);
   const { toast } = useToast();
+
+  const handleSearch = (v: string) => { setSearch(v); setPage(1); };
 
   const filtered = companies.filter((c) =>
     `${c.name} ${c.email || ''} ${c.phone || ''} ${c.address || ''}`.toLowerCase().includes(search.toLowerCase())
   );
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
+  const paginated = filtered.slice((page - 1) * pageSize, page * pageSize);
 
   const openNew = () => {
     setEditing(null);
@@ -70,7 +80,7 @@ export default function CompaniesPage() {
         <div className="flex items-center gap-2">
           <div className="relative w-64">
             <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-            <Input placeholder="Zoeken..." className="pl-9" value={search} onChange={(e) => setSearch(e.target.value)} />
+            <Input placeholder="Zoeken..." className="pl-9" value={search} onChange={(e) => handleSearch(e.target.value)} />
           </div>
           <Button size="sm" onClick={openNew}>
             <Plus size={14} className="mr-1" /> Nieuw Bedrijf
@@ -91,7 +101,7 @@ export default function CompaniesPage() {
             </tr>
           </thead>
           <tbody>
-            {filtered.length === 0 && (
+            {paginated.length === 0 && (
               <tr>
                 <td colSpan={6} className="px-4 py-8 text-center text-muted-foreground">
                   <Building2 size={32} className="mx-auto mb-2 opacity-40" />
@@ -99,7 +109,7 @@ export default function CompaniesPage() {
                 </td>
               </tr>
             )}
-            {filtered.map((c) => (
+            {paginated.map((c) => (
               <tr key={c.id} className="border-b last:border-0 transition-colors hover:bg-muted/30">
                 <td className="px-4 py-3 font-medium text-foreground">{c.name}</td>
                 <td className="px-4 py-3 text-muted-foreground">{c.email || '—'}</td>
@@ -122,6 +132,31 @@ export default function CompaniesPage() {
             ))}
           </tbody>
         </table>
+      </div>
+
+      {/* Pagination */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+          <span>Tonen:</span>
+          <Select value={String(pageSize)} onValueChange={(v) => { setPageSize(Number(v)); setPage(1); }}>
+            <SelectTrigger className="h-8 w-20 text-xs">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {PAGE_SIZES.map((s) => <SelectItem key={s} value={String(s)}>{s}</SelectItem>)}
+            </SelectContent>
+          </Select>
+          <span>van {filtered.length}</span>
+        </div>
+        <div className="flex items-center gap-1">
+          <Button variant="outline" size="icon" className="h-8 w-8" disabled={page <= 1} onClick={() => setPage(page - 1)}>
+            <ChevronLeft size={14} />
+          </Button>
+          <span className="px-2 text-sm text-muted-foreground">{page} / {totalPages}</span>
+          <Button variant="outline" size="icon" className="h-8 w-8" disabled={page >= totalPages} onClick={() => setPage(page + 1)}>
+            <ChevronRight size={14} />
+          </Button>
+        </div>
       </div>
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
