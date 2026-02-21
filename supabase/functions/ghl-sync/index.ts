@@ -173,7 +173,7 @@ serve(async (req) => {
     }
 
     if (action === 'sync-calendars') {
-      // Fetch calendars/events from GHL
+      // Fetch all calendars first
       const calRes = await fetch(`${GHL_API_BASE}/calendars/?locationId=${GHL_LOCATION_ID}`, {
         headers: ghlHeaders,
       });
@@ -182,8 +182,72 @@ serve(async (req) => {
         throw new Error(`GHL calendars fetch failed [${calRes.status}]: ${errText}`);
       }
       const calData = await calRes.json();
+      const calendars = calData.calendars || [];
 
-      return new Response(JSON.stringify({ success: true, calendars: calData.calendars || [] }), {
+      // Fetch events from each calendar (next 90 days)
+      const now = new Date();
+      const startTime = now.toISOString();
+      const endDate = new Date(now);
+      endDate.setDate(endDate.getDate() + 90);
+      const endTime = endDate.toISOString();
+
+      let allEvents: any[] = [];
+      for (const cal of calendars) {
+        const eventsRes = await fetch(
+          `${GHL_API_BASE}/calendars/events?locationId=${GHL_LOCATION_ID}&calendarId=${cal.id}&startTime=${encodeURIComponent(startTime)}&endTime=${encodeURIComponent(endTime)}`,
+          { headers: ghlHeaders }
+        );
+        if (eventsRes.ok) {
+          const eventsData = await eventsRes.json();
+          allEvents = allEvents.concat((eventsData.events || []).map((e: any) => ({ ...e, calendarName: cal.name })));
+        }
+      }
+
+      // Upsert events as bookings
+      let synced = 0;
+      for (const evt of allEvents) {
+        const startDate = new Date(evt.startTime || evt.start);
+        const endDateEvt = new Date(evt.endTime || evt.end);
+        const dateStr = startDate.toISOString().split('T')[0];
+        const startHour = startDate.getHours();
+        const endHour = endDateEvt.getHours() || 17;
+        const contactName = evt.contact?.name || evt.title || 'GHL Afspraak';
+        const title = evt.title || evt.calendarName || 'GHL Afspraak';
+        const status = (evt.status === 'confirmed' || evt.appointmentStatus === 'confirmed') ? 'confirmed' : 'option';
+
+        const { data: existing } = await supabase
+          .from('bookings')
+          .select('id')
+          .eq('user_id', user.id)
+          .eq('ghl_event_id', evt.id)
+          .maybeSingle();
+
+        if (existing) {
+          await supabase.from('bookings').update({
+            date: dateStr,
+            start_hour: startHour,
+            end_hour: endHour,
+            title,
+            contact_name: contactName,
+            status,
+          }).eq('id', existing.id);
+        } else {
+          await supabase.from('bookings').insert({
+            user_id: user.id,
+            ghl_event_id: evt.id,
+            room_name: evt.calendarName || 'Vergaderzaal 100',
+            date: dateStr,
+            start_hour: startHour,
+            end_hour: endHour,
+            title,
+            contact_name: contactName,
+            status,
+          });
+        }
+        synced++;
+      }
+
+      return new Response(JSON.stringify({ success: true, synced, totalEvents: allEvents.length, calendars: calendars.length }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
@@ -465,12 +529,84 @@ serve(async (req) => {
         console.error('Opportunity sync error during full-sync:', oppErr);
       }
 
+      // Also sync calendar events as bookings
+      let bookingsSynced = 0;
+      try {
+        const calRes = await fetch(`${GHL_API_BASE}/calendars/?locationId=${GHL_LOCATION_ID}`, { headers: ghlHeaders });
+        if (calRes.ok) {
+          const calData = await calRes.json();
+          const calendars = calData.calendars || [];
+          const now = new Date();
+          const startTime = now.toISOString();
+          const endDate = new Date(now);
+          endDate.setDate(endDate.getDate() + 90);
+          const endTime = endDate.toISOString();
+
+          let allEvents: any[] = [];
+          for (const cal of calendars) {
+            const eventsRes = await fetch(
+              `${GHL_API_BASE}/calendars/events?locationId=${GHL_LOCATION_ID}&calendarId=${cal.id}&startTime=${encodeURIComponent(startTime)}&endTime=${encodeURIComponent(endTime)}`,
+              { headers: ghlHeaders }
+            );
+            if (eventsRes.ok) {
+              const eventsData = await eventsRes.json();
+              allEvents = allEvents.concat((eventsData.events || []).map((e: any) => ({ ...e, calendarName: cal.name })));
+            }
+          }
+
+          for (const evt of allEvents) {
+            const evtStart = new Date(evt.startTime || evt.start);
+            const evtEnd = new Date(evt.endTime || evt.end);
+            const dateStr = evtStart.toISOString().split('T')[0];
+            const startHour = evtStart.getHours();
+            const endHour = evtEnd.getHours() || 17;
+            const contactName = evt.contact?.name || evt.title || 'GHL Afspraak';
+            const title = evt.title || evt.calendarName || 'GHL Afspraak';
+            const evtStatus = (evt.status === 'confirmed' || evt.appointmentStatus === 'confirmed') ? 'confirmed' : 'option';
+
+            const { data: existing } = await supabase
+              .from('bookings')
+              .select('id')
+              .eq('user_id', user.id)
+              .eq('ghl_event_id', evt.id)
+              .maybeSingle();
+
+            if (existing) {
+              await supabase.from('bookings').update({
+                date: dateStr,
+                start_hour: startHour,
+                end_hour: endHour,
+                title,
+                contact_name: contactName,
+                status: evtStatus,
+              }).eq('id', existing.id);
+            } else {
+              await supabase.from('bookings').insert({
+                user_id: user.id,
+                ghl_event_id: evt.id,
+                room_name: evt.calendarName || 'Vergaderzaal 100',
+                date: dateStr,
+                start_hour: startHour,
+                end_hour: endHour,
+                title,
+                contact_name: contactName,
+                status: evtStatus,
+              });
+            }
+            bookingsSynced++;
+          }
+        }
+      } catch (calErr) {
+        console.error('Calendar sync error during full-sync:', calErr);
+      }
+
       return new Response(JSON.stringify({
         success: true,
         contactsSynced,
         contactsPushed,
         totalGhlContacts: allContacts.length,
         opportunitiesSynced: oppsSynced,
+        bookingsSynced,
       }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });

@@ -21,6 +21,7 @@ export type Database = {
           created_at: string
           date: string
           end_hour: number
+          ghl_event_id: string | null
           id: string
           notes: string | null
           room_name: string
@@ -36,6 +37,7 @@ export type Database = {
           created_at?: string
           date: string
           end_hour: number
+          ghl_event_id?: string | null
           id?: string
           notes?: string | null
           room_name: string
@@ -51,6 +53,7 @@ export type Database = {
           created_at?: string
           date?: string
           end_hour?: number
+          ghl_event_id?: string | null
           id?: string
           notes?: string | null
           room_name?: string
