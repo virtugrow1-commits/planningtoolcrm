@@ -66,7 +66,9 @@ export interface Booking {
   roomName: RoomName;
   date: string;
   startHour: number;
+  startMinute: number;
   endHour: number;
+  endMinute: number;
   title: string;
   contactName: string;
   contactId?: string;

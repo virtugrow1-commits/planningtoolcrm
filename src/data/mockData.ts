@@ -24,11 +24,11 @@ export const mockQuotations: Quotation[] = [
 ];
 
 export const mockBookings: Booking[] = [
-  { id: 'b-1', roomName: 'Vergaderzaal 100', date: today, startHour: 9, endHour: 17, title: 'Bedrijfsevent Van Dam', contactName: 'R. van Dam', status: 'confirmed' },
-  { id: 'b-2', roomName: 'Vergaderzaal 1.03', date: today, startHour: 10, endHour: 12, title: 'Vergadering Visser Group', contactName: 'Thomas Visser', contactId: '5', status: 'confirmed' },
-  { id: 'b-3', roomName: 'Coachingruimte 2.05', date: today, startHour: 13, endHour: 17, title: 'Fotoshoot Studio', contactName: 'L. Smit', status: 'option' },
-  { id: 'b-4', roomName: 'Keuken / Kookstudio', date: today, startHour: 14, endHour: 18, title: 'Verjaardag feest', contactName: 'Maria Jansen', contactId: '2', status: 'confirmed' },
-  { id: 'b-5', roomName: 'Vergaderzaal 1.04', date: today, startHour: 9, endHour: 12, title: 'Workshop Schilderen', contactName: 'A. Kunst', status: 'option' },
-  { id: 'b-6', roomName: 'Petit Café / Horeca', date: today, startHour: 18, endHour: 22, title: 'Diner privé', contactName: 'Sophie Mulder', contactId: '4', status: 'confirmed' },
-  { id: 'b-7', roomName: 'BBQ- en Borrelterras', date: today, startHour: 15, endHour: 20, title: 'Cocktailparty', contactName: 'J. Berg', status: 'option' },
+  { id: 'b-1', roomName: 'Vergaderzaal 100', date: today, startHour: 9, startMinute: 0, endHour: 17, endMinute: 0, title: 'Bedrijfsevent Van Dam', contactName: 'R. van Dam', status: 'confirmed' },
+  { id: 'b-2', roomName: 'Vergaderzaal 1.03', date: today, startHour: 10, startMinute: 0, endHour: 12, endMinute: 0, title: 'Vergadering Visser Group', contactName: 'Thomas Visser', contactId: '5', status: 'confirmed' },
+  { id: 'b-3', roomName: 'Coachingruimte 2.05', date: today, startHour: 13, startMinute: 0, endHour: 17, endMinute: 0, title: 'Fotoshoot Studio', contactName: 'L. Smit', status: 'option' },
+  { id: 'b-4', roomName: 'Keuken / Kookstudio', date: today, startHour: 14, startMinute: 0, endHour: 18, endMinute: 0, title: 'Verjaardag feest', contactName: 'Maria Jansen', contactId: '2', status: 'confirmed' },
+  { id: 'b-5', roomName: 'Vergaderzaal 1.04', date: today, startHour: 9, startMinute: 0, endHour: 12, endMinute: 0, title: 'Workshop Schilderen', contactName: 'A. Kunst', status: 'option' },
+  { id: 'b-6', roomName: 'Petit Café / Horeca', date: today, startHour: 18, startMinute: 0, endHour: 22, endMinute: 0, title: 'Diner privé', contactName: 'Sophie Mulder', contactId: '4', status: 'confirmed' },
+  { id: 'b-7', roomName: 'BBQ- en Borrelterras', date: today, startHour: 15, startMinute: 0, endHour: 20, endMinute: 0, title: 'Cocktailparty', contactName: 'J. Berg', status: 'option' },
 ];

@@ -87,7 +87,9 @@ export default function CalendarPage() {
       roomName: newBooking.room,
       date: dateStr,
       startHour: newBooking.startHour,
+      startMinute: 0,
       endHour: newBooking.endHour,
+      endMinute: 0,
       title: newBooking.title || 'Nieuwe boeking',
       contactName: newBooking.contactName || 'Onbekend',
       status: newBooking.status,
@@ -207,7 +209,9 @@ export default function CalendarPage() {
       roomName: form.room,
       date,
       startHour: form.startHour,
+      startMinute: form.startMinute ?? 0,
       endHour: form.endHour,
+      endMinute: form.endMinute ?? 0,
       title: form.title,
       contactName: form.contactName,
       contactId: form.contactId,
@@ -374,7 +378,7 @@ export default function CalendarPage() {
                           <div className="min-w-0 flex-1">
                             <div className="text-xs font-medium leading-tight truncate">{booking.title}</div>
                             <div className="mt-0.5 text-[10px] opacity-70">{booking.contactName}</div>
-                            <div className="mt-0.5 text-[10px] opacity-60">{String(booking.startHour).padStart(2,'0')}:00–{String(booking.endHour).padStart(2,'0')}:00</div>
+                            <div className="mt-0.5 text-[10px] opacity-60">{String(booking.startHour).padStart(2,'0')}:{String(booking.startMinute || 0).padStart(2,'0')}–{String(booking.endHour).padStart(2,'0')}:{String(booking.endMinute || 0).padStart(2,'0')}</div>
                           </div>
                         </div>
                       </td>
