@@ -122,6 +122,7 @@ export type Database = {
           contact_name: string
           created_at: string
           event_type: string
+          ghl_opportunity_id: string | null
           guest_count: number
           id: string
           message: string | null
@@ -138,6 +139,7 @@ export type Database = {
           contact_name: string
           created_at?: string
           event_type: string
+          ghl_opportunity_id?: string | null
           guest_count?: number
           id?: string
           message?: string | null
@@ -154,6 +156,7 @@ export type Database = {
           contact_name?: string
           created_at?: string
           event_type?: string
+          ghl_opportunity_id?: string | null
           guest_count?: number
           id?: string
           message?: string | null

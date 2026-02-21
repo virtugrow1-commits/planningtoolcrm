@@ -18,11 +18,16 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { cn } from '@/lib/utils';
 
 const PIPELINE_COLUMNS: { key: Inquiry['status']; label: string; colorClass: string; badgeClass: string }[] = [
-  { key: 'new', label: 'Nieuw', colorClass: 'border-t-info bg-info/5', badgeClass: 'status-new' },
-  { key: 'contacted', label: 'Gecontacteerd', colorClass: 'border-t-warning bg-warning/5', badgeClass: 'status-contacted' },
-  { key: 'quoted', label: 'Offerte Verstuurd', colorClass: 'border-t-primary bg-primary/5', badgeClass: 'status-quoted' },
-  { key: 'converted', label: 'Geconverteerd', colorClass: 'border-t-success bg-success/5', badgeClass: 'status-converted' },
-  { key: 'lost', label: 'Verloren', colorClass: 'border-t-muted-foreground bg-muted/30', badgeClass: 'status-lost' },
+  { key: 'new', label: 'Nieuwe Aanvraag', colorClass: 'border-t-info bg-info/5', badgeClass: 'status-new' },
+  { key: 'contacted', label: 'Lopend Contact', colorClass: 'border-t-warning bg-warning/5', badgeClass: 'status-contacted' },
+  { key: 'option', label: 'Optie', colorClass: 'border-t-accent bg-accent/5', badgeClass: 'status-option' },
+  { key: 'quoted', label: 'Offerte Verzonden', colorClass: 'border-t-primary bg-primary/5', badgeClass: 'status-quoted' },
+  { key: 'quote_revised', label: 'Aangepaste Offerte', colorClass: 'border-t-primary bg-primary/5', badgeClass: 'status-quoted' },
+  { key: 'reserved', label: 'Reservering', colorClass: 'border-t-success bg-success/5', badgeClass: 'status-converted' },
+  { key: 'confirmed', label: 'Definitieve Reservering', colorClass: 'border-t-success bg-success/5', badgeClass: 'status-converted' },
+  { key: 'invoiced', label: 'Facturatie', colorClass: 'border-t-info bg-info/5', badgeClass: 'status-new' },
+  { key: 'lost', label: 'Vervallen / Verloren', colorClass: 'border-t-muted-foreground bg-muted/30', badgeClass: 'status-lost' },
+  { key: 'after_sales', label: 'After Sales', colorClass: 'border-t-success bg-success/5', badgeClass: 'status-converted' },
 ];
 
 const HOURS = [...Array.from({ length: 17 }, (_, i) => i + 7), 0, 1];

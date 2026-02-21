@@ -40,6 +40,7 @@ export function InquiriesProvider({ children }: { children: ReactNode }) {
         status: i.status as Inquiry['status'],
         createdAt: i.created_at.split('T')[0],
         source: i.source,
+        ghlOpportunityId: (i as any).ghl_opportunity_id || undefined,
       })));
     }
     setLoading(false);
