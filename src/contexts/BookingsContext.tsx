@@ -2,6 +2,7 @@ import { createContext, useContext, useState, useEffect, ReactNode, useCallback 
 import { Booking, RoomName } from '@/types/crm';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
+import { pushToGHL } from '@/lib/ghlSync';
 
 interface BookingsContextType {
   bookings: Booking[];
@@ -63,7 +64,7 @@ export function BookingsProvider({ children }: { children: ReactNode }) {
 
   const addBooking = useCallback(async (booking: Omit<Booking, 'id'>) => {
     if (!user) return;
-    const { error } = await supabase.from('bookings').insert({
+    const { data, error } = await supabase.from('bookings').insert({
       user_id: user.id,
       room_name: booking.roomName,
       date: booking.date,
@@ -74,8 +75,11 @@ export function BookingsProvider({ children }: { children: ReactNode }) {
       contact_id: booking.contactId || null,
       status: booking.status,
       notes: booking.notes || null,
-    });
-    if (!error) await fetchBookings();
+    }).select().single();
+    if (!error && data) {
+      await fetchBookings();
+      pushToGHL('push-booking', { booking: data });
+    }
   }, [user, fetchBookings]);
 
   const addBookings = useCallback(async (newBookings: Omit<Booking, 'id'>[]) => {
@@ -92,12 +96,18 @@ export function BookingsProvider({ children }: { children: ReactNode }) {
       status: b.status,
       notes: b.notes || null,
     }));
-    const { error } = await supabase.from('bookings').insert(rows);
-    if (!error) await fetchBookings();
+    const { data, error } = await supabase.from('bookings').insert(rows).select();
+    if (!error) {
+      await fetchBookings();
+      // Push each booking to GHL
+      for (const booking of data || []) {
+        pushToGHL('push-booking', { booking });
+      }
+    }
   }, [user, fetchBookings]);
 
   const updateBooking = useCallback(async (updated: Booking) => {
-    const { error } = await supabase.from('bookings').update({
+    const { data, error } = await supabase.from('bookings').update({
       room_name: updated.roomName,
       date: updated.date,
       start_hour: updated.startHour,
@@ -106,13 +116,23 @@ export function BookingsProvider({ children }: { children: ReactNode }) {
       contact_name: updated.contactName,
       status: updated.status,
       notes: updated.notes || null,
-    }).eq('id', updated.id);
-    if (!error) await fetchBookings();
+    }).eq('id', updated.id).select().single();
+    if (!error) {
+      await fetchBookings();
+      if (data) pushToGHL('push-booking', { booking: data });
+    }
   }, [fetchBookings]);
 
   const deleteBooking = useCallback(async (id: string) => {
+    // Get GHL ID before deleting
+    const { data: existing } = await supabase.from('bookings').select('ghl_event_id').eq('id', id).single();
     const { error } = await supabase.from('bookings').delete().eq('id', id);
-    if (!error) await fetchBookings();
+    if (!error) {
+      await fetchBookings();
+      if ((existing as any)?.ghl_event_id) {
+        pushToGHL('delete-booking', { ghl_event_id: (existing as any).ghl_event_id });
+      }
+    }
   }, [fetchBookings]);
 
   return (

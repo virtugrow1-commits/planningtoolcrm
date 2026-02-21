@@ -1,6 +1,7 @@
 import { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
+import { pushToGHL } from '@/lib/ghlSync';
 import { Contact } from '@/types/crm';
 
 interface ContactsContextType {
@@ -62,7 +63,7 @@ export function ContactsProvider({ children }: { children: ReactNode }) {
 
   const addContact = useCallback(async (contact: Omit<Contact, 'id' | 'createdAt'>) => {
     if (!user) return;
-    await supabase.from('contacts').insert({
+    const { data } = await supabase.from('contacts').insert({
       user_id: user.id,
       first_name: contact.firstName,
       last_name: contact.lastName,
@@ -72,11 +73,14 @@ export function ContactsProvider({ children }: { children: ReactNode }) {
       status: contact.status,
       notes: contact.notes || null,
       ghl_contact_id: contact.ghlContactId || null,
-    });
+    }).select().single();
+    if (data) {
+      pushToGHL('push-contact', { contact: data });
+    }
   }, [user]);
 
   const updateContact = useCallback(async (contact: Contact) => {
-    await supabase.from('contacts').update({
+    const { data } = await supabase.from('contacts').update({
       first_name: contact.firstName,
       last_name: contact.lastName,
       email: contact.email || null,
@@ -85,11 +89,19 @@ export function ContactsProvider({ children }: { children: ReactNode }) {
       status: contact.status,
       notes: contact.notes || null,
       ghl_contact_id: contact.ghlContactId || null,
-    }).eq('id', contact.id);
+    }).eq('id', contact.id).select().single();
+    if (data) {
+      pushToGHL('push-contact', { contact: data });
+    }
   }, []);
 
   const deleteContact = useCallback(async (id: string) => {
+    // Get GHL ID before deleting
+    const { data: existing } = await supabase.from('contacts').select('ghl_contact_id').eq('id', id).single();
     await supabase.from('contacts').delete().eq('id', id);
+    if (existing?.ghl_contact_id) {
+      pushToGHL('delete-contact', { ghl_contact_id: existing.ghl_contact_id });
+    }
   }, []);
 
   return (
