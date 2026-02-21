@@ -1116,6 +1116,158 @@ serve(async (req) => {
       });
     }
 
+    if (action === 'sync-company-details') {
+      // Fetch all contacts from GHL to extract company-level details (address, city, postcode, etc.)
+      let allContacts: any[] = [];
+      let nextPageUrl: string | null = `${GHL_API_BASE}/contacts/?locationId=${GHL_LOCATION_ID}&limit=100`;
+      let pageCount = 0;
+      const maxPages = 5; // Limit to avoid timeout (500 contacts should cover most companies)
+
+      while (nextPageUrl && pageCount < maxPages) {
+        const res = await ghlFetch(nextPageUrl, { headers: ghlHeaders });
+        if (!res.ok) {
+          console.error(`GHL contacts fetch failed [${res.status}]`);
+          break;
+        }
+        const data = await res.json();
+        allContacts = allContacts.concat(data.contacts || []);
+        nextPageUrl = data.meta?.nextPageUrl || null;
+        pageCount++;
+      }
+
+      console.log(`Fetched ${allContacts.length} contacts from GHL for company detail extraction`);
+
+      // Group contacts by company name, pick the richest data
+      // Log a sample contact to see available fields
+      if (allContacts.length > 0) {
+        const sample = allContacts.find((c: any) => c.companyName) || allContacts[0];
+        console.log('Sample GHL contact fields:', JSON.stringify(Object.keys(sample)));
+        console.log('Sample GHL contact data:', JSON.stringify({ companyName: sample.companyName, address1: sample.address1, city: sample.city, postalCode: sample.postalCode, country: sample.country, customFields: sample.customFields?.length || 0, website: sample.website }));
+      }
+      const companyData = new Map<string, Record<string, any>>();
+      for (const c of allContacts) {
+        const companyName = c.companyName;
+        if (!companyName) continue;
+        const key = companyName.toLowerCase().trim();
+        const existing = companyData.get(key) || { name: companyName };
+
+        // Take first non-empty value for each field
+        if (!existing.address && (c.address1 || c.address)) existing.address = c.address1 || c.address;
+        if (!existing.city && c.city) existing.city = c.city;
+        if (!existing.postcode && (c.postalCode || c.postal_code)) existing.postcode = c.postalCode || c.postal_code;
+        if (!existing.country && c.country) existing.country = c.country;
+        if (!existing.website && c.website) existing.website = c.website;
+
+        // Check custom fields for KVK, BTW, klantnummer etc.
+        for (const cf of c.customFields || []) {
+          const fieldKey = (cf.id || cf.fieldKey || cf.key || '').toLowerCase();
+          const fieldValue = cf.value || cf.fieldValue || '';
+          if (!fieldValue) continue;
+          if (fieldKey.includes('kvk') && !existing.kvk) existing.kvk = String(fieldValue);
+          if ((fieldKey.includes('btw') || fieldKey.includes('vat')) && !existing.btw_number) existing.btw_number = String(fieldValue);
+          if ((fieldKey.includes('klantnummer') || fieldKey.includes('customer')) && !existing.customer_number) existing.customer_number = String(fieldValue);
+          if ((fieldKey.includes('doelgroep') || fieldKey.includes('crm')) && !existing.crm_group) existing.crm_group = String(fieldValue);
+        }
+
+        companyData.set(key, existing);
+      }
+
+      console.log(`Found ${companyData.size} unique companies with detail data`);
+
+      let synced = 0;
+      let noMatch = 0;
+      let noUpdates = 0;
+      for (const [key, data] of companyData) {
+        const { data: localCo, error: matchErr } = await (supabase as any)
+          .from('companies')
+          .select('id, address, city, postcode, country, kvk, btw_number, customer_number, crm_group, website')
+          .eq('user_id', user.id)
+          .ilike('name', data.name.trim())
+          .maybeSingle();
+
+        if (matchErr) {
+          console.error(`Match error for "${data.name}":`, matchErr.message);
+          continue;
+        }
+        if (!localCo) { noMatch++; continue; }
+
+        const updates: Record<string, any> = {};
+        if (data.address && !localCo.address) updates.address = data.address;
+        if (data.city && !localCo.city) updates.city = data.city;
+        if (data.postcode && !localCo.postcode) updates.postcode = data.postcode;
+        if (data.country && !localCo.country) updates.country = data.country;
+        if (data.website && !localCo.website) updates.website = data.website;
+        if (data.kvk && !localCo.kvk) updates.kvk = data.kvk;
+        if (data.btw_number && !localCo.btw_number) updates.btw_number = data.btw_number;
+        if (data.customer_number && !localCo.customer_number) updates.customer_number = data.customer_number;
+        if (data.crm_group && !localCo.crm_group) updates.crm_group = data.crm_group;
+
+        if (Object.keys(updates).length > 0) {
+          const { error: updateErr } = await (supabase as any).from('companies').update(updates).eq('id', localCo.id);
+          if (updateErr) {
+            console.error(`Update error for "${data.name}":`, updateErr.message);
+          } else {
+            synced++;
+          }
+        } else {
+          noUpdates++;
+        }
+      }
+      console.log(`Sync results: synced=${synced}, noMatch=${noMatch}, noUpdates=${noUpdates}`);
+
+      return new Response(JSON.stringify({ success: true, synced, totalContacts: allContacts.length, uniqueCompanies: companyData.size }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    if (action === 'updateCompany') {
+      const { companyId, company } = body;
+      if (!companyId || !company) {
+        return new Response(JSON.stringify({ success: true, skipped: true }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      // Get ghl_company_id from local DB
+      const { data: localCo } = await supabase.from('companies').select('ghl_company_id').eq('id', companyId).maybeSingle();
+      const ghlCompanyId = localCo?.ghl_company_id;
+
+      if (!ghlCompanyId) {
+        console.log(`Company ${companyId} has no GHL link, skipping push`);
+        return new Response(JSON.stringify({ success: true, skipped: true, reason: 'no_ghl_id' }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      const ghlPayload: Record<string, any> = {
+        name: company.name,
+      };
+      if (company.email) ghlPayload.email = company.email;
+      if (company.phone) ghlPayload.phone = company.phone;
+      if (company.website) ghlPayload.website = company.website;
+      if (company.address) ghlPayload.address1 = company.address;
+      if (company.city) ghlPayload.city = company.city;
+      if (company.postcode) ghlPayload.postalCode = company.postcode;
+      if (company.country) ghlPayload.country = company.country;
+
+      const res = await ghlFetch(`${GHL_API_BASE}/companies/${ghlCompanyId}`, {
+        method: 'PUT',
+        headers: ghlHeaders,
+        body: JSON.stringify(ghlPayload),
+      });
+
+      if (res.ok) {
+        return new Response(JSON.stringify({ success: true, action: 'updated' }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+      const errText = await res.text();
+      console.error(`Failed to update GHL company ${ghlCompanyId}: [${res.status}] ${errText}`);
+      return new Response(JSON.stringify({ success: false, error: errText }), {
+        status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
     return new Response(JSON.stringify({ error: `Unknown action: ${action}` }), {
       status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
@@ -1128,3 +1280,4 @@ serve(async (req) => {
     });
   }
 });
+
