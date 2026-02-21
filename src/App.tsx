@@ -12,6 +12,7 @@ import CompanyDetailPage from "@/pages/CompanyDetailPage";
 import ContactDetailPage from "@/pages/ContactDetailPage";
 import InquiriesPage from "@/pages/InquiriesPage";
 import QuotationsPage from "@/pages/QuotationsPage";
+import ConversationsPage from "@/pages/ConversationsPage";
 import SettingsPage from "@/pages/SettingsPage";
 import AuthPage from "@/pages/AuthPage";
 import NotFound from "./pages/NotFound";
@@ -54,6 +55,7 @@ function ProtectedRoutes() {
                   <Route path="/companies/:id" element={<CompanyDetailPage />} />
                   <Route path="/inquiries" element={<InquiriesPage />} />
                   <Route path="/quotations" element={<QuotationsPage />} />
+                  <Route path="/conversations" element={<ConversationsPage />} />
                   <Route path="/calendar" element={<CalendarPage />} />
                   <Route path="/settings" element={<SettingsPage />} />
                   <Route path="*" element={<NotFound />} />

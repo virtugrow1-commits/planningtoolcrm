@@ -1355,6 +1355,120 @@ serve(async (req) => {
       });
     }
 
+    // ── Conversations ──
+
+    if (action === 'get-conversations') {
+      const query = body.query || '';
+      const searchParams = new URLSearchParams({
+        locationId: GHL_LOCATION_ID,
+      });
+      if (query) searchParams.set('query', query);
+      searchParams.set('limit', '50');
+      searchParams.set('sort', 'desc');
+      searchParams.set('sortBy', 'last_message_date');
+
+      const res = await ghlFetch(
+        `${GHL_API_BASE}/conversations/search?${searchParams.toString()}`,
+        { headers: ghlHeaders }
+      );
+      if (!res.ok) {
+        const errText = await res.text();
+        throw new Error(`GHL conversations fetch failed [${res.status}]: ${errText}`);
+      }
+      const data = await res.json();
+      const conversations = (data.conversations || []).map((c: any) => ({
+        id: c.id,
+        contactId: c.contactId,
+        contactName: c.contactName || c.fullName || 'Onbekend',
+        lastMessageBody: c.lastMessageBody || '',
+        lastMessageDate: c.lastMessageDate || c.dateUpdated || '',
+        lastMessageType: c.lastMessageType || '',
+        lastMessageDirection: c.lastMessageDirection || '',
+        unreadCount: c.unreadCount || 0,
+        type: c.type || c.lastMessageType || 'SMS',
+        phone: c.phone || '',
+        email: c.email || '',
+      }));
+
+      return new Response(JSON.stringify({ success: true, conversations }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    if (action === 'get-messages') {
+      const { conversationId } = body;
+      if (!conversationId) {
+        return new Response(JSON.stringify({ error: 'conversationId required' }), {
+          status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      const res = await ghlFetch(
+        `${GHL_API_BASE}/conversations/${conversationId}/messages?limit=50`,
+        { headers: ghlHeaders }
+      );
+      if (!res.ok) {
+        const errText = await res.text();
+        throw new Error(`GHL messages fetch failed [${res.status}]: ${errText}`);
+      }
+      const data = await res.json();
+      const messages = (data.messages || data.data?.messages || []).map((m: any) => ({
+        id: m.id,
+        body: m.body || m.message || m.text || '',
+        direction: m.direction || (m.type === 1 ? 'inbound' : 'outbound'),
+        dateAdded: m.dateAdded || m.createdAt || '',
+        type: m.messageType || m.type || 'SMS',
+        status: m.status || '',
+        contentType: m.contentType || 'text',
+        attachments: m.attachments || [],
+      }));
+
+      return new Response(JSON.stringify({ success: true, messages }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    if (action === 'send-message') {
+      const { conversationId, contactId, message, type } = body;
+      if (!conversationId || !message) {
+        return new Response(JSON.stringify({ error: 'conversationId and message required' }), {
+          status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      const msgType = (type || 'SMS').toUpperCase();
+      const payload: any = {
+        type: msgType,
+        contactId,
+        message,
+      };
+
+      // For email, we need subject
+      if (msgType === 'EMAIL') {
+        payload.subject = body.subject || 'Re:';
+        payload.html = message;
+      }
+
+      const res = await ghlFetch(`${GHL_API_BASE}/conversations/messages`, {
+        method: 'POST',
+        headers: ghlHeaders,
+        body: JSON.stringify(payload),
+      });
+
+      if (!res.ok) {
+        const errText = await res.text();
+        console.error(`GHL send message failed [${res.status}]: ${errText}`);
+        return new Response(JSON.stringify({ success: false, error: `Verzenden mislukt [${res.status}]: ${errText}` }), {
+          status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      const result = await res.json();
+      return new Response(JSON.stringify({ success: true, messageId: result.messageId || result.id }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
     return new Response(JSON.stringify({ error: `Unknown action: ${action}` }), {
       status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
