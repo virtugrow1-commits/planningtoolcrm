@@ -121,6 +121,47 @@ export type Database = {
         }
         Relationships: []
       }
+      contact_activities: {
+        Row: {
+          body: string | null
+          contact_id: string
+          created_at: string
+          id: string
+          subject: string | null
+          type: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          body?: string | null
+          contact_id: string
+          created_at?: string
+          id?: string
+          subject?: string | null
+          type?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          body?: string | null
+          contact_id?: string
+          created_at?: string
+          id?: string
+          subject?: string | null
+          type?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "contact_activities_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       contacts: {
         Row: {
           company: string | null
