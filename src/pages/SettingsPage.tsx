@@ -1,12 +1,15 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { useToast } from '@/hooks/use-toast';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Webhook, Key, ArrowRightLeft, CheckCircle2, AlertCircle, RefreshCw } from 'lucide-react';
+import { Webhook, Key, ArrowRightLeft, CheckCircle2, AlertCircle, RefreshCw, Upload } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { useContactsContext } from '@/contexts/ContactsContext';
+import { Contact } from '@/types/crm';
 
 const GHL_WEBHOOKS = [
   // Inbound — GHL → CRM
@@ -27,13 +30,79 @@ const GHL_WEBHOOKS = [
   { id: 'recurring_created', label: 'Herhaling aangemaakt', description: 'Sync terugkerende boekingen naar GHL', direction: 'outbound' },
 ];
 
+function parseCSV(text: string): Record<string, string>[] {
+  const lines = text.split(/\r?\n/).filter((l) => l.trim());
+  if (lines.length < 2) return [];
+  const headers = lines[0].split(/[;,]/).map((h) => h.trim().toLowerCase().replace(/['"]/g, ''));
+  return lines.slice(1).map((line) => {
+    const values = line.split(/[;,]/).map((v) => v.trim().replace(/^["']|["']$/g, ''));
+    const row: Record<string, string> = {};
+    headers.forEach((h, i) => { row[h] = values[i] || ''; });
+    return row;
+  });
+}
+
+function mapRow(row: Record<string, string>): Omit<Contact, 'id' | 'createdAt'> | null {
+  const get = (...keys: string[]) => {
+    for (const k of keys) { if (row[k]?.trim()) return row[k].trim(); }
+    return '';
+  };
+  const firstName = get('voornaam', 'firstname', 'first_name', 'first name');
+  const lastName = get('achternaam', 'lastname', 'last_name', 'last name');
+  if (!firstName && !lastName) return null;
+  return {
+    firstName: firstName || '—',
+    lastName: lastName || '—',
+    email: get('email', 'e-mail', 'emailadres'),
+    phone: get('telefoon', 'phone', 'tel', 'telefoonnummer', 'mobile'),
+    company: get('bedrijf', 'company', 'organisatie', 'organization') || undefined,
+    status: 'lead',
+  };
+}
+
 export default function SettingsPage() {
   const [apiKey, setApiKey] = useState('');
   const [locationId, setLocationId] = useState('');
   const [connected, setConnected] = useState(false);
   const [webhooks, setWebhooks] = useState<Record<string, boolean>>({});
   const [syncing, setSyncing] = useState(false);
+  const [csvPreview, setCsvPreview] = useState<Omit<Contact, 'id' | 'createdAt'>[]>([]);
+  const [csvOpen, setCsvOpen] = useState(false);
+  const [importing, setImporting] = useState(false);
+  const fileRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
+  const { addContact } = useContactsContext();
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const text = ev.target?.result as string;
+      const rows = parseCSV(text);
+      const mapped = rows.map(mapRow).filter(Boolean) as Omit<Contact, 'id' | 'createdAt'>[];
+      if (mapped.length === 0) {
+        toast({ title: 'Geen geldige contacten gevonden in CSV', variant: 'destructive' });
+        return;
+      }
+      setCsvPreview(mapped);
+      setCsvOpen(true);
+    };
+    reader.readAsText(file);
+    e.target.value = '';
+  };
+
+  const handleImport = async () => {
+    setImporting(true);
+    let count = 0;
+    for (const c of csvPreview) {
+      try { await addContact(c); count++; } catch { /* skip */ }
+    }
+    setImporting(false);
+    setCsvOpen(false);
+    setCsvPreview([]);
+    toast({ title: `${count} contacten geïmporteerd` });
+  };
 
   const handleSync = async (action: string) => {
     setSyncing(true);
@@ -91,6 +160,7 @@ export default function SettingsPage() {
           <TabsTrigger value="ghl" className="gap-2"><Key size={14} /> GHL Verbinding</TabsTrigger>
           <TabsTrigger value="webhooks" className="gap-2"><Webhook size={14} /> Webhooks</TabsTrigger>
           <TabsTrigger value="mapping" className="gap-2"><ArrowRightLeft size={14} /> Veld Mapping</TabsTrigger>
+          <TabsTrigger value="import" className="gap-2"><Upload size={14} /> CSV Import</TabsTrigger>
         </TabsList>
 
         <TabsContent value="ghl" className="space-y-4">
@@ -273,7 +343,82 @@ export default function SettingsPage() {
             </p>
           </div>
         </TabsContent>
+
+        <TabsContent value="import" className="space-y-4">
+          <div className="rounded-xl border bg-card p-6 card-shadow space-y-4">
+            <div>
+              <h3 className="font-semibold text-card-foreground">CSV Contacten Import</h3>
+              <p className="text-xs text-muted-foreground">Upload een CSV-bestand om contacten in bulk te importeren in het CRM</p>
+            </div>
+
+            <div className="rounded-lg border-2 border-dashed border-border p-8 text-center space-y-3">
+              <Upload size={32} className="mx-auto text-muted-foreground" />
+              <div>
+                <p className="text-sm font-medium text-card-foreground">Sleep een CSV-bestand hierheen of klik om te selecteren</p>
+                <p className="text-xs text-muted-foreground mt-1">Ondersteunde kolommen: voornaam, achternaam, email, telefoon, bedrijf</p>
+              </div>
+              <input ref={fileRef} type="file" accept=".csv" className="hidden" onChange={handleFileSelect} />
+              <Button variant="outline" onClick={() => fileRef.current?.click()}>
+                <Upload size={14} className="mr-1.5" /> Selecteer CSV
+              </Button>
+            </div>
+
+            <div className="rounded-lg bg-muted/50 p-4 text-xs text-muted-foreground space-y-2">
+              <p className="font-medium text-foreground">Ondersteunde kolomnamen</p>
+              <ul className="list-disc pl-4 space-y-1">
+                <li><strong>Voornaam:</strong> voornaam, firstname, first_name</li>
+                <li><strong>Achternaam:</strong> achternaam, lastname, last_name</li>
+                <li><strong>Email:</strong> email, e-mail, emailadres</li>
+                <li><strong>Telefoon:</strong> telefoon, phone, tel, telefoonnummer, mobile</li>
+                <li><strong>Bedrijf:</strong> bedrijf, company, organisatie, organization</li>
+              </ul>
+              <p>Scheidingsteken: komma (,) of puntkomma (;)</p>
+            </div>
+          </div>
+        </TabsContent>
       </Tabs>
+
+      {/* CSV Import Preview Dialog */}
+      <Dialog open={csvOpen} onOpenChange={setCsvOpen}>
+        <DialogContent className="max-w-2xl max-h-[80vh] overflow-hidden flex flex-col">
+          <DialogHeader>
+            <DialogTitle>CSV Import — {csvPreview.length} contacten gevonden</DialogTitle>
+          </DialogHeader>
+          <div className="overflow-auto flex-1 rounded border">
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="bg-muted/50 border-b">
+                  <th className="px-3 py-2 text-left font-medium text-muted-foreground">Voornaam</th>
+                  <th className="px-3 py-2 text-left font-medium text-muted-foreground">Achternaam</th>
+                  <th className="px-3 py-2 text-left font-medium text-muted-foreground">Email</th>
+                  <th className="px-3 py-2 text-left font-medium text-muted-foreground">Telefoon</th>
+                  <th className="px-3 py-2 text-left font-medium text-muted-foreground">Bedrijf</th>
+                </tr>
+              </thead>
+              <tbody>
+                {csvPreview.slice(0, 50).map((c, i) => (
+                  <tr key={i} className="border-b last:border-0">
+                    <td className="px-3 py-1.5">{c.firstName}</td>
+                    <td className="px-3 py-1.5">{c.lastName}</td>
+                    <td className="px-3 py-1.5 text-muted-foreground">{c.email || '—'}</td>
+                    <td className="px-3 py-1.5 text-muted-foreground">{c.phone || '—'}</td>
+                    <td className="px-3 py-1.5 text-muted-foreground">{c.company || '—'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            {csvPreview.length > 50 && (
+              <p className="text-xs text-muted-foreground p-2">... en {csvPreview.length - 50} meer</p>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setCsvOpen(false)}>Annuleren</Button>
+            <Button onClick={handleImport} disabled={importing}>
+              {importing ? 'Importeren...' : `Importeer ${csvPreview.length} contacten`}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
