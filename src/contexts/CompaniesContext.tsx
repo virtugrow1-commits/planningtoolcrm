@@ -1,6 +1,7 @@
 import { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
+import { useToast } from '@/hooks/use-toast';
 
 export interface Company {
   id: string;
@@ -29,6 +30,7 @@ export function CompaniesProvider({ children }: { children: ReactNode }) {
   const [companies, setCompanies] = useState<Company[]>([]);
   const [loading, setLoading] = useState(true);
   const { user } = useAuth();
+  const { toast } = useToast();
 
   const fetchCompanies = useCallback(async () => {
     if (!user) return;
@@ -37,7 +39,12 @@ export function CompaniesProvider({ children }: { children: ReactNode }) {
       .select('*')
       .order('name');
 
-    if (!error && data) {
+    if (error) {
+      toast({ title: 'Fout bij laden bedrijven', description: error.message, variant: 'destructive' });
+      setLoading(false);
+      return;
+    }
+    if (data) {
       setCompanies(data.map((c: any) => ({
         id: c.id,
         name: c.name,
@@ -51,7 +58,7 @@ export function CompaniesProvider({ children }: { children: ReactNode }) {
       })));
     }
     setLoading(false);
-  }, [user]);
+  }, [user, toast]);
 
   useEffect(() => { fetchCompanies(); }, [fetchCompanies]);
 
@@ -68,7 +75,7 @@ export function CompaniesProvider({ children }: { children: ReactNode }) {
 
   const addCompany = useCallback(async (company: Omit<Company, 'id' | 'createdAt'>) => {
     if (!user) return;
-    await (supabase as any).from('companies').insert({
+    const { error } = await (supabase as any).from('companies').insert({
       user_id: user.id,
       name: company.name,
       email: company.email || null,
@@ -78,10 +85,13 @@ export function CompaniesProvider({ children }: { children: ReactNode }) {
       notes: company.notes || null,
       ghl_company_id: company.ghlCompanyId || null,
     });
-  }, [user]);
+    if (error) {
+      toast({ title: 'Fout bij aanmaken bedrijf', description: error.message, variant: 'destructive' });
+    }
+  }, [user, toast]);
 
   const updateCompany = useCallback(async (company: Company) => {
-    await (supabase as any).from('companies').update({
+    const { error } = await (supabase as any).from('companies').update({
       name: company.name,
       email: company.email || null,
       phone: company.phone || null,
@@ -90,11 +100,17 @@ export function CompaniesProvider({ children }: { children: ReactNode }) {
       notes: company.notes || null,
       ghl_company_id: company.ghlCompanyId || null,
     }).eq('id', company.id);
-  }, []);
+    if (error) {
+      toast({ title: 'Fout bij bijwerken bedrijf', description: error.message, variant: 'destructive' });
+    }
+  }, [toast]);
 
   const deleteCompany = useCallback(async (id: string) => {
-    await (supabase as any).from('companies').delete().eq('id', id);
-  }, []);
+    const { error } = await (supabase as any).from('companies').delete().eq('id', id);
+    if (error) {
+      toast({ title: 'Fout bij verwijderen bedrijf', description: error.message, variant: 'destructive' });
+    }
+  }, [toast]);
 
   return (
     <CompaniesContext.Provider value={{ companies, loading, addCompany, updateCompany, deleteCompany, refetch: fetchCompanies }}>

@@ -3,6 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { Inquiry } from '@/types/crm';
 import { pushToGHL } from '@/lib/ghlSync';
+import { useToast } from '@/hooks/use-toast';
 
 interface InquiriesContextType {
   inquiries: Inquiry[];
@@ -19,6 +20,7 @@ export function InquiriesProvider({ children }: { children: ReactNode }) {
   const [inquiries, setInquiries] = useState<Inquiry[]>([]);
   const [loading, setLoading] = useState(true);
   const { user } = useAuth();
+  const { toast } = useToast();
 
   const fetchInquiries = useCallback(async () => {
     if (!user) return;
@@ -27,7 +29,12 @@ export function InquiriesProvider({ children }: { children: ReactNode }) {
       .select('*')
       .order('created_at', { ascending: false });
 
-    if (!error && data) {
+    if (error) {
+      toast({ title: 'Fout bij laden aanvragen', description: error.message, variant: 'destructive' });
+      setLoading(false);
+      return;
+    }
+    if (data) {
       setInquiries(data.map((i) => ({
         id: i.id,
         contactId: i.contact_id || '',
@@ -45,13 +52,12 @@ export function InquiriesProvider({ children }: { children: ReactNode }) {
       })));
     }
     setLoading(false);
-  }, [user]);
+  }, [user, toast]);
 
   useEffect(() => {
     fetchInquiries();
   }, [fetchInquiries]);
 
-  // Realtime subscription
   useEffect(() => {
     if (!user) return;
     const channel = supabase
@@ -60,13 +66,12 @@ export function InquiriesProvider({ children }: { children: ReactNode }) {
         fetchInquiries();
       })
       .subscribe();
-
     return () => { supabase.removeChannel(channel); };
   }, [user, fetchInquiries]);
 
   const addInquiry = useCallback(async (inquiry: Omit<Inquiry, 'id' | 'createdAt'>) => {
     if (!user) return;
-    const { data: inserted } = await supabase.from('inquiries').insert({
+    const { data: inserted, error } = await supabase.from('inquiries').insert({
       user_id: user.id,
       contact_id: inquiry.contactId || null,
       contact_name: inquiry.contactName,
@@ -79,7 +84,10 @@ export function InquiriesProvider({ children }: { children: ReactNode }) {
       status: inquiry.status,
       source: inquiry.source,
     }).select('id').single();
-    // Push new inquiry to GHL as opportunity
+    if (error) {
+      toast({ title: 'Fout bij aanmaken aanvraag', description: error.message, variant: 'destructive' });
+      return;
+    }
     if (inserted?.id) {
       pushToGHL('push-inquiry', {
         inquiry_id: inserted.id,
@@ -90,10 +98,10 @@ export function InquiriesProvider({ children }: { children: ReactNode }) {
         message: inquiry.message,
       });
     }
-  }, [user]);
+  }, [user, toast]);
 
   const updateInquiry = useCallback(async (inquiry: Inquiry) => {
-    await supabase.from('inquiries').update({
+    const { error } = await supabase.from('inquiries').update({
       contact_id: inquiry.contactId || null,
       contact_name: inquiry.contactName,
       event_type: inquiry.eventType,
@@ -105,7 +113,10 @@ export function InquiriesProvider({ children }: { children: ReactNode }) {
       status: inquiry.status,
       source: inquiry.source,
     }).eq('id', inquiry.id);
-    // Push status change to GHL if linked
+    if (error) {
+      toast({ title: 'Fout bij bijwerken aanvraag', description: error.message, variant: 'destructive' });
+      return;
+    }
     if (inquiry.ghlOpportunityId) {
       pushToGHL('push-inquiry-status', {
         ghl_opportunity_id: inquiry.ghlOpportunityId,
@@ -114,11 +125,14 @@ export function InquiriesProvider({ children }: { children: ReactNode }) {
         monetary_value: inquiry.budget,
       });
     }
-  }, []);
+  }, [toast]);
 
   const deleteInquiry = useCallback(async (id: string) => {
-    await supabase.from('inquiries').delete().eq('id', id);
-  }, []);
+    const { error } = await supabase.from('inquiries').delete().eq('id', id);
+    if (error) {
+      toast({ title: 'Fout bij verwijderen aanvraag', description: error.message, variant: 'destructive' });
+    }
+  }, [toast]);
 
   return (
     <InquiriesContext.Provider value={{ inquiries, loading, addInquiry, updateInquiry, deleteInquiry, refetch: fetchInquiries }}>

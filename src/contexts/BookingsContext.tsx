@@ -3,6 +3,7 @@ import { Booking, RoomName } from '@/types/crm';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { pushToGHL } from '@/lib/ghlSync';
+import { useToast } from '@/hooks/use-toast';
 
 interface BookingsContextType {
   bookings: Booking[];
@@ -20,10 +21,10 @@ export function BookingsProvider({ children }: { children: ReactNode }) {
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [loading, setLoading] = useState(true);
   const { user } = useAuth();
+  const { toast } = useToast();
 
   const fetchBookings = useCallback(async () => {
     if (!user) return;
-    // Fetch ALL bookings using pagination to avoid 1000-row limit
     let allData: any[] = [];
     let from = 0;
     const PAGE_SIZE = 1000;
@@ -33,7 +34,11 @@ export function BookingsProvider({ children }: { children: ReactNode }) {
         .select('*')
         .order('date', { ascending: true })
         .range(from, from + PAGE_SIZE - 1);
-      if (error || !data || data.length === 0) break;
+      if (error) {
+        toast({ title: 'Fout bij laden boekingen', description: error.message, variant: 'destructive' });
+        break;
+      }
+      if (!data || data.length === 0) break;
       allData = allData.concat(data);
       if (data.length < PAGE_SIZE) break;
       from += PAGE_SIZE;
@@ -53,13 +58,12 @@ export function BookingsProvider({ children }: { children: ReactNode }) {
       notes: b.notes || undefined,
     })));
     setLoading(false);
-  }, [user]);
+  }, [user, toast]);
 
   useEffect(() => {
     fetchBookings();
   }, [fetchBookings]);
 
-  // Realtime subscription
   useEffect(() => {
     if (!user) return;
     const channel = supabase
@@ -68,7 +72,6 @@ export function BookingsProvider({ children }: { children: ReactNode }) {
         fetchBookings();
       })
       .subscribe();
-
     return () => { supabase.removeChannel(channel); };
   }, [user, fetchBookings]);
 
@@ -88,11 +91,15 @@ export function BookingsProvider({ children }: { children: ReactNode }) {
       status: booking.status,
       notes: booking.notes || null,
     }).select().single();
-    if (!error && data) {
+    if (error) {
+      toast({ title: 'Fout bij aanmaken boeking', description: error.message, variant: 'destructive' });
+      return;
+    }
+    if (data) {
       await fetchBookings();
       pushToGHL('push-booking', { booking: data });
     }
-  }, [user, fetchBookings]);
+  }, [user, fetchBookings, toast]);
 
   const addBookings = useCallback(async (newBookings: Omit<Booking, 'id'>[]) => {
     if (!user || newBookings.length === 0) return;
@@ -111,14 +118,17 @@ export function BookingsProvider({ children }: { children: ReactNode }) {
       notes: b.notes || null,
     }));
     const { data, error } = await supabase.from('bookings').insert(rows).select();
+    if (error) {
+      toast({ title: 'Fout bij aanmaken boekingen', description: error.message, variant: 'destructive' });
+      return;
+    }
     if (!error) {
       await fetchBookings();
-      // Push each booking to GHL
       for (const booking of data || []) {
         pushToGHL('push-booking', { booking });
       }
     }
-  }, [user, fetchBookings]);
+  }, [user, fetchBookings, toast]);
 
   const updateBooking = useCallback(async (updated: Booking) => {
     const { data, error } = await supabase.from('bookings').update({
@@ -130,26 +140,32 @@ export function BookingsProvider({ children }: { children: ReactNode }) {
       end_minute: updated.endMinute ?? 0,
       title: updated.title,
       contact_name: updated.contactName,
+      contact_id: updated.contactId || null,
       status: updated.status,
       notes: updated.notes || null,
     }).eq('id', updated.id).select().single();
-    if (!error) {
-      await fetchBookings();
-      if (data) pushToGHL('push-booking', { booking: data });
+    if (error) {
+      toast({ title: 'Fout bij bijwerken boeking', description: error.message, variant: 'destructive' });
+      return;
     }
-  }, [fetchBookings]);
+    if (data) {
+      await fetchBookings();
+      pushToGHL('push-booking', { booking: data });
+    }
+  }, [fetchBookings, toast]);
 
   const deleteBooking = useCallback(async (id: string) => {
-    // Get GHL ID before deleting
     const { data: existing } = await supabase.from('bookings').select('ghl_event_id').eq('id', id).single();
     const { error } = await supabase.from('bookings').delete().eq('id', id);
-    if (!error) {
-      await fetchBookings();
-      if ((existing as any)?.ghl_event_id) {
-        pushToGHL('delete-booking', { ghl_event_id: (existing as any).ghl_event_id });
-      }
+    if (error) {
+      toast({ title: 'Fout bij verwijderen boeking', description: error.message, variant: 'destructive' });
+      return;
     }
-  }, [fetchBookings]);
+    await fetchBookings();
+    if ((existing as any)?.ghl_event_id) {
+      pushToGHL('delete-booking', { ghl_event_id: (existing as any).ghl_event_id });
+    }
+  }, [fetchBookings, toast]);
 
   return (
     <BookingsContext.Provider value={{ bookings, loading, addBooking, addBookings, updateBooking, deleteBooking, refetch: fetchBookings }}>
