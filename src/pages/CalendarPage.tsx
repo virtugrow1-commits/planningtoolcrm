@@ -9,6 +9,7 @@ import BookingDetailDialog from '@/components/calendar/BookingDetailDialog';
 import NewBookingDialog from '@/components/calendar/NewBookingDialog';
 import NewReservationDialog, { NewReservationForm } from '@/components/calendar/NewReservationDialog';
 import RoomSettingsDialog from '@/components/calendar/RoomSettingsDialog';
+import ConflictAlertDialog from '@/components/calendar/ConflictAlertDialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useRoomSettings } from '@/hooks/useRoomSettings';
 import { useContacts } from '@/hooks/useContacts';
@@ -42,6 +43,7 @@ export default function CalendarPage() {
   const [reservationDialogOpen, setReservationDialogOpen] = useState(false);
   const [reservationConflict, setReservationConflict] = useState<string | null>(null);
   const [reservationInitial, setReservationInitial] = useState<{ hour?: number; room?: RoomName; date?: string }>({});
+  const [conflictPopup, setConflictPopup] = useState<{ conflicts: Booking[]; onProceed: () => void } | null>(null);
   const { toast } = useToast();
   const { settings: roomSettings, displayNames, updateRoomSettings, getMaxGuests, getDisplayName } = useRoomSettings();
   const { contacts, loading: contactsLoading } = useContacts();
@@ -79,8 +81,26 @@ export default function CalendarPage() {
   const handleAddBooking = () => {
     const conflict = checkConflict(newBooking.room, newBooking.startHour, newBooking.endHour);
     if (conflict) {
-      setConflictAlert(`Conflict: "${conflict.title}" is al geboekt van ${conflict.startHour}:00 tot ${conflict.endHour}:00`);
-      toast({ title: '⚠️ Boeking Conflict', description: `${newBooking.room} is al bezet in dit tijdslot.`, variant: 'destructive' });
+      const allConflicts = todayBookings.filter((b) => b.roomName === newBooking.room && newBooking.startHour < b.endHour && newBooking.endHour > b.startHour);
+      setConflictPopup({
+        conflicts: allConflicts,
+        onProceed: () => {
+          addBooking({
+            roomName: newBooking.room,
+            date: dateStr,
+            startHour: newBooking.startHour,
+            startMinute: 0,
+            endHour: newBooking.endHour,
+            endMinute: 0,
+            title: newBooking.title || 'Nieuwe boeking',
+            contactName: newBooking.contactName || 'Onbekend',
+            status: newBooking.status,
+          });
+          setNewDialogOpen(false);
+          setConflictPopup(null);
+          toast({ title: 'Boeking toegevoegd (met overlap)', variant: 'default' });
+        },
+      });
       return;
     }
     addBooking({
@@ -99,6 +119,21 @@ export default function CalendarPage() {
   };
 
   const handleUpdateBooking = (updated: Booking) => {
+    // Check conflicts across all bookings for that date
+    const dayBookings = bookings.filter((b) => b.date === updated.date);
+    const conflicts = dayBookings.filter((b) => b.roomName === updated.roomName && updated.startHour < b.endHour && updated.endHour > b.startHour && b.id !== updated.id);
+    if (conflicts.length > 0) {
+      setConflictPopup({
+        conflicts,
+        onProceed: () => {
+          updateBooking(updated);
+          setDetailBooking(updated);
+          setConflictPopup(null);
+          toast({ title: 'Boeking bijgewerkt (met overlap)' });
+        },
+      });
+      return;
+    }
     updateBooking(updated);
     setDetailBooking(updated);
     toast({ title: 'Boeking bijgewerkt' });
@@ -166,9 +201,17 @@ export default function CalendarPage() {
     const newEnd = Math.min(targetHour + duration, 25);
     const newStart = targetHour;
 
-    const conflict = checkConflict(targetRoom, newStart, newEnd, bookingId);
-    if (conflict) {
-      toast({ title: '⚠️ Conflict', description: `${targetRoom} is bezet van ${conflict.startHour}:00 tot ${conflict.endHour}:00`, variant: 'destructive' });
+    const conflicts = todayBookings.filter((b) => b.roomName === targetRoom && newStart < b.endHour && newEnd > b.startHour && b.id !== bookingId);
+    if (conflicts.length > 0) {
+      setConflictPopup({
+        conflicts,
+        onProceed: () => {
+          updateBooking({ ...booking, roomName: targetRoom, startHour: newStart, endHour: newEnd });
+          setDragBookingId(null);
+          setConflictPopup(null);
+          toast({ title: 'Boeking verplaatst (met overlap)', description: `${booking.title} → ${targetRoom} ${newStart}:00–${newEnd}:00` });
+        },
+      });
       setDragBookingId(null);
       return;
     }
@@ -176,7 +219,7 @@ export default function CalendarPage() {
     updateBooking({ ...booking, roomName: targetRoom, startHour: newStart, endHour: newEnd });
     setDragBookingId(null);
     toast({ title: 'Boeking verplaatst', description: `${booking.title} → ${targetRoom} ${newStart}:00–${newEnd}:00` });
-  }, [bookings, toast]);
+  }, [bookings, todayBookings, toast]);
 
   const handleNewReservation = async (form: NewReservationForm) => {
     const allDates: string[] = [form.date];
@@ -196,37 +239,48 @@ export default function CalendarPage() {
     }
 
     // Check conflicts across all dates
+    const allConflicts: Booking[] = [];
     for (const date of allDates) {
       const dayBookings = bookings.filter((b) => b.date === date);
-      const conflict = dayBookings.find((b) => b.roomName === form.room && form.startHour < b.endHour && form.endHour > b.startHour);
-      if (conflict) {
-        setReservationConflict(`Conflict op ${date}: "${conflict.title}" van ${conflict.startHour}:00 tot ${conflict.endHour}:00`);
-        return;
+      const dateConflicts = dayBookings.filter((b) => b.roomName === form.room && form.startHour < b.endHour && form.endHour > b.startHour);
+      allConflicts.push(...dateConflicts);
+    }
+
+    const doAdd = async () => {
+      const newBookingsList = allDates.map((date) => ({
+        roomName: form.room,
+        date,
+        startHour: form.startHour,
+        startMinute: form.startMinute ?? 0,
+        endHour: form.endHour,
+        endMinute: form.endMinute ?? 0,
+        title: form.title,
+        contactName: form.contactName,
+        contactId: form.contactId,
+        status: form.status,
+      }));
+
+      if (newBookingsList.length === 1) {
+        await addBooking(newBookingsList[0]);
+      } else {
+        await addBookings(newBookingsList);
       }
+
+      setReservationDialogOpen(false);
+      setReservationConflict(null);
+      setConflictPopup(null);
+      toast({ title: 'Reservering toegevoegd', description: `${form.title} — ${allDates.length} boeking(en)` });
+    };
+
+    if (allConflicts.length > 0) {
+      setConflictPopup({
+        conflicts: allConflicts,
+        onProceed: doAdd,
+      });
+      return;
     }
 
-    const newBookings = allDates.map((date) => ({
-      roomName: form.room,
-      date,
-      startHour: form.startHour,
-      startMinute: form.startMinute ?? 0,
-      endHour: form.endHour,
-      endMinute: form.endMinute ?? 0,
-      title: form.title,
-      contactName: form.contactName,
-      contactId: form.contactId,
-      status: form.status,
-    }));
-
-    if (newBookings.length === 1) {
-      await addBooking(newBookings[0]);
-    } else {
-      await addBookings(newBookings);
-    }
-
-    setReservationDialogOpen(false);
-    setReservationConflict(null);
-    toast({ title: 'Reservering toegevoegd', description: `${form.title} — ${allDates.length} boeking(en)` });
+    await doAdd();
   };
 
   const prevDay = () => setCurrentDate((d) => { const n = new Date(d); n.setDate(n.getDate() - 1); return n; });
@@ -459,6 +513,13 @@ export default function CalendarPage() {
         initialStartHour={reservationInitial.hour}
         initialRoom={reservationInitial.room}
         initialDate={reservationInitial.date}
+      />
+      <ConflictAlertDialog
+        open={!!conflictPopup}
+        onOpenChange={(open) => { if (!open) setConflictPopup(null); }}
+        conflicts={conflictPopup?.conflicts || []}
+        onProceed={conflictPopup?.onProceed || (() => {})}
+        getRoomDisplayName={getDisplayName}
       />
     </div>
   );
