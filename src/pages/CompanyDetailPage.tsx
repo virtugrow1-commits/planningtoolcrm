@@ -1,14 +1,19 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Building2, ChevronRight, Mail, Phone, Globe, MapPin, Plus, Pencil, Check, X } from 'lucide-react';
+import { ArrowLeft, Building2, ChevronRight, Mail, Phone, Globe, MapPin, Plus, Pencil, Check, X, Search, UserPlus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
+import { Label } from '@/components/ui/label';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useCompaniesContext, Company } from '@/contexts/CompaniesContext';
 import { useContactsContext } from '@/contexts/ContactsContext';
 import { useBookings } from '@/contexts/BookingsContext';
 import { useInquiriesContext } from '@/contexts/InquiriesContext';
+import { useToast } from '@/hooks/use-toast';
 
 const STATUS_LABELS: Record<string, string> = {
   lead: 'Lead',
@@ -92,15 +97,49 @@ export default function CompanyDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { companies, loading: companiesLoading, updateCompany } = useCompaniesContext();
-  const { contacts, loading: contactsLoading } = useContactsContext();
+  const { contacts, loading: contactsLoading, updateContact, addContact } = useContactsContext();
   const { bookings, loading: bookingsLoading } = useBookings();
   const { inquiries } = useInquiriesContext();
+  const { toast } = useToast();
 
   const [editing, setEditing] = useState<string | null>(null);
   const [editValues, setEditValues] = useState<Record<string, string>>({});
   const [showAllContacts, setShowAllContacts] = useState(false);
+  const [addContactOpen, setAddContactOpen] = useState(false);
+  const [addContactTab, setAddContactTab] = useState<string>('link');
+  const [linkSearch, setLinkSearch] = useState('');
+  const [newContactForm, setNewContactForm] = useState({ firstName: '', lastName: '', email: '', phone: '' });
 
   const company = companies.find((c) => c.id === id);
+
+  const companyContacts = useMemo(() => {
+    if (!company) return [];
+    return contacts.filter(
+      (c) => c.companyId === company.id || (!c.companyId && c.company && c.company.toLowerCase() === company.name.toLowerCase())
+    );
+  }, [contacts, company]);
+
+  const contactIds = useMemo(() => new Set(companyContacts.map((c) => c.id)), [companyContacts]);
+
+  const companyBookings = useMemo(() => bookings.filter((b) => b.contactId && contactIds.has(b.contactId)), [bookings, contactIds]);
+  const optionBookings = useMemo(() => companyBookings.filter((b) => b.status === 'option'), [companyBookings]);
+  const companyInquiries = useMemo(() => inquiries.filter((i) => i.contactId && contactIds.has(i.contactId)), [inquiries, contactIds]);
+
+  const visibleContacts = showAllContacts ? companyContacts : companyContacts.slice(0, 4);
+
+  const linkableContacts = useMemo(() => {
+    const idSet = new Set(companyContacts.map((c) => c.id));
+    return contacts.filter((c) => !idSet.has(c.id));
+  }, [contacts, companyContacts]);
+
+  const filteredLinkable = useMemo(() => {
+    if (!linkSearch.trim()) return [];
+    const terms = linkSearch.toLowerCase().split(/\s+/);
+    return linkableContacts.filter((c) => {
+      const haystack = `${c.firstName} ${c.lastName} ${c.email} ${c.phone} ${c.company || ''}`.toLowerCase();
+      return terms.every((t) => haystack.includes(t));
+    }).slice(0, 10);
+  }, [linkableContacts, linkSearch]);
 
   if (companiesLoading || contactsLoading || bookingsLoading) {
     return (
@@ -120,15 +159,6 @@ export default function CompanyDetailPage() {
       </div>
     );
   }
-
-  const companyContacts = contacts.filter(
-    (c) => c.companyId === company.id || (!c.companyId && c.company && c.company.toLowerCase() === company.name.toLowerCase())
-  );
-  const contactIds = new Set(companyContacts.map((c) => c.id));
-  const companyBookings = bookings.filter((b) => b.contactId && contactIds.has(b.contactId));
-  const optionBookings = companyBookings.filter((b) => b.status === 'option');
-  const confirmedBookings = companyBookings.filter((b) => b.status === 'confirmed');
-  const companyInquiries = inquiries.filter((i) => i.contactId && contactIds.has(i.contactId));
 
   const startEdit = (key: string) => {
     setEditing(key);
@@ -151,7 +181,33 @@ export default function CompanyDetailPage() {
     editing, editValues, onStartEdit: startEdit, onSave: saveEdit, onCancel: cancelEdit, onChange: changeVal,
   };
 
-  const visibleContacts = showAllContacts ? companyContacts : companyContacts.slice(0, 4);
+  const handleLinkContact = async (contactId: string) => {
+    const c = contacts.find((ct) => ct.id === contactId);
+    if (!c || !company) return;
+    await updateContact({ ...c, company: company.name, companyId: company.id });
+    toast({ title: `${c.firstName} ${c.lastName} gekoppeld aan ${company.name}` });
+    setAddContactOpen(false);
+    setLinkSearch('');
+  };
+
+  const handleCreateContact = async () => {
+    if (!newContactForm.firstName || !newContactForm.lastName) {
+      toast({ title: 'Vul minimaal voor- en achternaam in', variant: 'destructive' });
+      return;
+    }
+    await addContact({
+      firstName: newContactForm.firstName,
+      lastName: newContactForm.lastName,
+      email: newContactForm.email,
+      phone: newContactForm.phone,
+      company: company.name,
+      companyId: company.id,
+      status: 'lead',
+    });
+    toast({ title: `${newContactForm.firstName} ${newContactForm.lastName} aangemaakt en gekoppeld` });
+    setAddContactOpen(false);
+    setNewContactForm({ firstName: '', lastName: '', email: '', phone: '' });
+  };
 
   return (
     <div className="p-6 lg:p-8 space-y-6">
@@ -273,7 +329,7 @@ export default function CompanyDetailPage() {
           </SectionCard>
 
           {/* Contactpersonen */}
-          <SectionCard title="Contactpersonen" count={companyContacts.length}>
+          <SectionCard title="Contactpersonen" count={companyContacts.length} onAdd={() => { setAddContactOpen(true); setAddContactTab('link'); setLinkSearch(''); setNewContactForm({ firstName: '', lastName: '', email: '', phone: '' }); }}>
             {companyContacts.length === 0 ? (
               <p className="text-xs text-muted-foreground">Geen contactpersonen gevonden.</p>
             ) : (
@@ -315,6 +371,80 @@ export default function CompanyDetailPage() {
           </SectionCard>
         </div>
       </div>
+
+      {/* Add/Link Contact Dialog */}
+      <Dialog open={addContactOpen} onOpenChange={setAddContactOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Contactpersoon toevoegen aan {company.name}</DialogTitle>
+          </DialogHeader>
+          <Tabs value={addContactTab} onValueChange={setAddContactTab}>
+            <TabsList className="w-full">
+              <TabsTrigger value="link" className="flex-1">Bestaand contact koppelen</TabsTrigger>
+              <TabsTrigger value="new" className="flex-1">Nieuw contact aanmaken</TabsTrigger>
+            </TabsList>
+            <TabsContent value="link" className="space-y-3 pt-2">
+              <div className="relative">
+                <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  placeholder="Zoek op naam, email of telefoon..."
+                  className="pl-9"
+                  value={linkSearch}
+                  onChange={(e) => setLinkSearch(e.target.value)}
+                  autoFocus
+                />
+              </div>
+              {linkSearch.trim() && filteredLinkable.length === 0 && (
+                <p className="text-xs text-muted-foreground text-center py-3">Geen contacten gevonden</p>
+              )}
+              <div className="max-h-60 overflow-y-auto space-y-1">
+                {filteredLinkable.map((c) => (
+                  <button
+                    key={c.id}
+                    onClick={() => handleLinkContact(c.id)}
+                    className="w-full flex items-center justify-between py-2 px-3 rounded-md hover:bg-muted/50 transition-colors text-left text-sm"
+                  >
+                    <div>
+                      <span className="font-medium text-foreground">{c.firstName} {c.lastName}</span>
+                      {c.company && <span className="text-muted-foreground ml-2 text-xs">({c.company})</span>}
+                      <div className="text-xs text-muted-foreground">
+                        {c.email && <span>{c.email}</span>}
+                        {c.email && c.phone && <span> · </span>}
+                        {c.phone && <span>{c.phone}</span>}
+                      </div>
+                    </div>
+                    <UserPlus size={14} className="text-primary shrink-0" />
+                  </button>
+                ))}
+              </div>
+              {!linkSearch.trim() && (
+                <p className="text-xs text-muted-foreground text-center py-2">Typ om te zoeken in bestaande contacten</p>
+              )}
+            </TabsContent>
+            <TabsContent value="new" className="space-y-3 pt-2">
+              <div className="grid grid-cols-2 gap-3">
+                <div className="grid gap-1.5">
+                  <Label>Voornaam *</Label>
+                  <Input value={newContactForm.firstName} onChange={(e) => setNewContactForm({ ...newContactForm, firstName: e.target.value })} />
+                </div>
+                <div className="grid gap-1.5">
+                  <Label>Achternaam *</Label>
+                  <Input value={newContactForm.lastName} onChange={(e) => setNewContactForm({ ...newContactForm, lastName: e.target.value })} />
+                </div>
+              </div>
+              <div className="grid gap-1.5">
+                <Label>Email</Label>
+                <Input type="email" value={newContactForm.email} onChange={(e) => setNewContactForm({ ...newContactForm, email: e.target.value })} />
+              </div>
+              <div className="grid gap-1.5">
+                <Label>Telefoon</Label>
+                <Input value={newContactForm.phone} onChange={(e) => setNewContactForm({ ...newContactForm, phone: e.target.value })} />
+              </div>
+              <Button className="w-full" onClick={handleCreateContact}>Aanmaken & koppelen</Button>
+            </TabsContent>
+          </Tabs>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
