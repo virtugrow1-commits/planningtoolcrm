@@ -5,7 +5,8 @@ import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { useToast } from '@/hooks/use-toast';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Webhook, Key, ArrowRightLeft, CheckCircle2, AlertCircle } from 'lucide-react';
+import { Webhook, Key, ArrowRightLeft, CheckCircle2, AlertCircle, RefreshCw } from 'lucide-react';
+import { supabase } from '@/integrations/supabase/client';
 
 const GHL_WEBHOOKS = [
   // Inbound — GHL → CRM
@@ -31,7 +32,30 @@ export default function SettingsPage() {
   const [locationId, setLocationId] = useState('');
   const [connected, setConnected] = useState(false);
   const [webhooks, setWebhooks] = useState<Record<string, boolean>>({});
+  const [syncing, setSyncing] = useState(false);
   const { toast } = useToast();
+
+  const handleSync = async (action: string) => {
+    setSyncing(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('ghl-sync', {
+        body: { action },
+      });
+      if (error) throw error;
+      toast({
+        title: '✅ Synchronisatie voltooid',
+        description: action === 'full-sync'
+          ? `${data.contactsSynced} contacten gesynchroniseerd, ${data.contactsPushed} nieuw naar GHL`
+          : action === 'sync-contacts'
+          ? `${data.synced} contacten opgehaald uit GHL`
+          : `${data.pushed} contacten naar GHL gestuurd`,
+      });
+    } catch (err: any) {
+      toast({ title: 'Synchronisatie mislukt', description: err.message, variant: 'destructive' });
+    } finally {
+      setSyncing(false);
+    }
+  };
 
   const handleConnect = () => {
     if (!apiKey || !locationId) {
@@ -112,6 +136,25 @@ export default function SettingsPage() {
               <Button onClick={handleConnect} disabled={connected}>
                 {connected ? 'Verbonden ✓' : 'Verbinden'}
               </Button>
+            </div>
+
+            {/* Sync Actions */}
+            <div className="rounded-lg border p-4 space-y-3">
+              <h4 className="text-sm font-semibold text-card-foreground">Synchronisatie</h4>
+              <div className="flex flex-wrap gap-2">
+                <Button variant="outline" size="sm" disabled={syncing} onClick={() => handleSync('sync-contacts')}>
+                  <RefreshCw size={14} className={`mr-1.5 ${syncing ? 'animate-spin' : ''}`} /> GHL → CRM
+                </Button>
+                <Button variant="outline" size="sm" disabled={syncing} onClick={() => handleSync('push-contacts')}>
+                  <RefreshCw size={14} className={`mr-1.5 ${syncing ? 'animate-spin' : ''}`} /> CRM → GHL
+                </Button>
+                <Button size="sm" disabled={syncing} onClick={() => handleSync('full-sync')}>
+                  <RefreshCw size={14} className={`mr-1.5 ${syncing ? 'animate-spin' : ''}`} /> Volledige Sync
+                </Button>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                De API key en Location ID worden beheerd via de beveiligde backend configuratie.
+              </p>
             </div>
 
             <div className="rounded-lg bg-muted/50 p-4 text-xs text-muted-foreground space-y-2">

@@ -48,6 +48,19 @@ export function BookingsProvider({ children }: { children: ReactNode }) {
     fetchBookings();
   }, [fetchBookings]);
 
+  // Realtime subscription
+  useEffect(() => {
+    if (!user) return;
+    const channel = supabase
+      .channel('bookings-realtime')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'bookings' }, () => {
+        fetchBookings();
+      })
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
+  }, [user, fetchBookings]);
+
   const addBooking = useCallback(async (booking: Omit<Booking, 'id'>) => {
     if (!user) return;
     const { error } = await supabase.from('bookings').insert({

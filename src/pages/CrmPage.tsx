@@ -1,4 +1,3 @@
-import { mockContacts } from '@/data/mockData';
 import { Badge } from '@/components/ui/badge';
 import { Search, Plus, InboxIcon, Pencil } from 'lucide-react';
 import { Input } from '@/components/ui/input';
@@ -12,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { ROOMS } from '@/types/crm';
 import { Contact } from '@/types/crm';
 import { useToast } from '@/hooks/use-toast';
+import { useContactsContext } from '@/contexts/ContactsContext';
 
 const statusColors: Record<string, string> = {
   lead: 'bg-info/15 text-info border-info/30',
@@ -28,15 +28,18 @@ const statusLabels: Record<string, string> = {
 };
 
 export default function CrmPage() {
-  const [contacts, setContacts] = useState(mockContacts);
+  const { contacts, loading, updateContact, deleteContact, addContact } = useContactsContext();
   const [search, setSearch] = useState('');
   const [inquiryOpen, setInquiryOpen] = useState(false);
   const [selectedContact, setSelectedContact] = useState<{ id: string; name: string } | null>(null);
   const [form, setForm] = useState({ eventType: '', preferredDate: '', guestCount: '', budget: '', message: '', roomPreference: '' });
   
-  // Edit contact state
   const [editOpen, setEditOpen] = useState(false);
   const [editContact, setEditContact] = useState<Contact | null>(null);
+  
+  // New contact dialog
+  const [newOpen, setNewOpen] = useState(false);
+  const [newContact, setNewContact] = useState<Omit<Contact, 'id' | 'createdAt'>>({ firstName: '', lastName: '', email: '', phone: '', status: 'lead' });
   
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -50,22 +53,33 @@ export default function CrmPage() {
     setEditOpen(true);
   };
 
-  const handleSaveContact = () => {
+  const handleSaveContact = async () => {
     if (!editContact) return;
     if (!editContact.firstName || !editContact.lastName) {
       toast({ title: 'Vul minimaal voor- en achternaam in', variant: 'destructive' });
       return;
     }
-    setContacts((prev) => prev.map((c) => c.id === editContact.id ? editContact : c));
+    await updateContact(editContact);
     setEditOpen(false);
     toast({ title: 'Contact bijgewerkt' });
   };
 
-  const handleDeleteContact = () => {
+  const handleDeleteContact = async () => {
     if (!editContact) return;
-    setContacts((prev) => prev.filter((c) => c.id !== editContact.id));
+    await deleteContact(editContact.id);
     setEditOpen(false);
     toast({ title: 'Contact verwijderd', description: `${editContact.firstName} ${editContact.lastName}` });
+  };
+
+  const handleAddContact = async () => {
+    if (!newContact.firstName || !newContact.lastName) {
+      toast({ title: 'Vul minimaal voor- en achternaam in', variant: 'destructive' });
+      return;
+    }
+    await addContact(newContact);
+    setNewOpen(false);
+    setNewContact({ firstName: '', lastName: '', email: '', phone: '', status: 'lead' });
+    toast({ title: 'Contact aangemaakt' });
   };
 
   const openInquiryForContact = (contact: Contact) => {
@@ -93,6 +107,14 @@ export default function CrmPage() {
     navigate(`/inquiries?newInquiry=${encodeURIComponent(params.toString())}`);
   };
 
+  if (loading) {
+    return (
+      <div className="flex min-h-[50vh] items-center justify-center">
+        <div className="text-muted-foreground">Contacten laden...</div>
+      </div>
+    );
+  }
+
   return (
     <div className="p-6 lg:p-8 space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-4">
@@ -100,9 +122,14 @@ export default function CrmPage() {
           <h1 className="text-2xl font-bold text-foreground">CRM / Contacten</h1>
           <p className="text-sm text-muted-foreground">{contacts.length} contacten · Klik op een rij om te bewerken</p>
         </div>
-        <div className="relative w-64">
-          <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-          <Input placeholder="Zoeken..." className="pl-9" value={search} onChange={(e) => setSearch(e.target.value)} />
+        <div className="flex items-center gap-2">
+          <div className="relative w-64">
+            <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+            <Input placeholder="Zoeken..." className="pl-9" value={search} onChange={(e) => setSearch(e.target.value)} />
+          </div>
+          <Button size="sm" onClick={() => setNewOpen(true)}>
+            <Plus size={14} className="mr-1" /> Nieuw Contact
+          </Button>
         </div>
       </div>
 
@@ -202,6 +229,55 @@ export default function CrmPage() {
               <Button variant="outline" onClick={() => setEditOpen(false)}>Annuleren</Button>
               <Button onClick={handleSaveContact}>Opslaan</Button>
             </div>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* New Contact Dialog */}
+      <Dialog open={newOpen} onOpenChange={setNewOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Nieuw Contact</DialogTitle>
+          </DialogHeader>
+          <div className="grid gap-4 py-2">
+            <div className="grid grid-cols-2 gap-3">
+              <div className="grid gap-1.5">
+                <Label>Voornaam *</Label>
+                <Input value={newContact.firstName} onChange={(e) => setNewContact({ ...newContact, firstName: e.target.value })} />
+              </div>
+              <div className="grid gap-1.5">
+                <Label>Achternaam *</Label>
+                <Input value={newContact.lastName} onChange={(e) => setNewContact({ ...newContact, lastName: e.target.value })} />
+              </div>
+            </div>
+            <div className="grid gap-1.5">
+              <Label>Email</Label>
+              <Input type="email" value={newContact.email} onChange={(e) => setNewContact({ ...newContact, email: e.target.value })} />
+            </div>
+            <div className="grid gap-1.5">
+              <Label>Telefoon</Label>
+              <Input value={newContact.phone} onChange={(e) => setNewContact({ ...newContact, phone: e.target.value })} />
+            </div>
+            <div className="grid gap-1.5">
+              <Label>Bedrijf</Label>
+              <Input value={newContact.company || ''} onChange={(e) => setNewContact({ ...newContact, company: e.target.value || undefined })} />
+            </div>
+            <div className="grid gap-1.5">
+              <Label>Status</Label>
+              <Select value={newContact.status} onValueChange={(v: Contact['status']) => setNewContact({ ...newContact, status: v })}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="lead">Lead</SelectItem>
+                  <SelectItem value="prospect">Prospect</SelectItem>
+                  <SelectItem value="client">Klant</SelectItem>
+                  <SelectItem value="inactive">Inactief</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setNewOpen(false)}>Annuleren</Button>
+            <Button onClick={handleAddContact}>Aanmaken</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
