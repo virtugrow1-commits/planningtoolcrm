@@ -45,11 +45,13 @@ export default function SettingsPage() {
       toast({
         title: '✅ Synchronisatie voltooid',
         description: action === 'full-sync'
-          ? `${data.contactsSynced} contacten gesynchroniseerd, ${data.contactsPushed} nieuw naar GHL, ${data.opportunitiesSynced || 0} opportunities`
+          ? `${data.contactsSynced} contacten, ${data.contactsPushed} gepusht, ${data.opportunitiesSynced || 0} opportunities, ${data.bookingsSynced || 0} boekingen`
           : action === 'sync-contacts'
           ? `${data.synced} contacten opgehaald uit GHL`
           : action === 'sync-opportunities'
           ? `${data.synced} opportunities/aanvragen opgehaald uit GHL`
+          : action === 'sync-calendars'
+          ? `${data.synced} boekingen opgehaald uit ${data.calendars} GHL kalenders`
           : `${data.pushed} contacten naar GHL gestuurd`,
       });
     } catch (err: any) {
@@ -149,6 +151,9 @@ export default function SettingsPage() {
                 </Button>
                 <Button variant="outline" size="sm" disabled={syncing} onClick={() => handleSync('sync-opportunities')}>
                   <RefreshCw size={14} className={`mr-1.5 ${syncing ? 'animate-spin' : ''}`} /> Opportunities GHL → CRM
+                </Button>
+                <Button variant="outline" size="sm" disabled={syncing} onClick={() => handleSync('sync-calendars')}>
+                  <RefreshCw size={14} className={`mr-1.5 ${syncing ? 'animate-spin' : ''}`} /> Boekingen GHL → CRM
                 </Button>
                 <Button variant="outline" size="sm" disabled={syncing} onClick={() => handleSync('push-contacts')}>
                   <RefreshCw size={14} className={`mr-1.5 ${syncing ? 'animate-spin' : ''}`} /> Contacten CRM → GHL
