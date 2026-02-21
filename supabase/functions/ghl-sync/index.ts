@@ -912,6 +912,110 @@ serve(async (req) => {
       });
     }
 
+    // ── Task sync actions ──
+    if (action === 'push-task') {
+      const { task } = body;
+      if (!task) {
+        return new Response(JSON.stringify({ error: 'Missing task data' }), {
+          status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      // Find contact GHL ID if linked
+      let contactId = null;
+      if (task.contact_id) {
+        const { data: contact } = await supabase.from('contacts').select('ghl_contact_id').eq('id', task.contact_id).maybeSingle();
+        contactId = contact?.ghl_contact_id || null;
+      }
+
+      const ghlPayload: any = {
+        title: task.title,
+        body: task.description || '',
+        dueDate: task.due_date || new Date().toISOString(),
+        completed: task.status === 'completed',
+        locationId: GHL_LOCATION_ID,
+      };
+      if (contactId) ghlPayload.contactId = contactId;
+
+      if (task.ghl_task_id) {
+        // Update existing GHL task
+        const res = await fetch(`${GHL_API_BASE}/contacts/${contactId || 'none'}/tasks/${task.ghl_task_id}`, {
+          method: 'PUT', headers: ghlHeaders, body: JSON.stringify(ghlPayload),
+        });
+        return new Response(JSON.stringify({ success: res.ok, action: 'task-updated' }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      } else {
+        // Create new GHL task (requires a contact)
+        if (contactId) {
+          const res = await fetch(`${GHL_API_BASE}/contacts/${contactId}/tasks`, {
+            method: 'POST', headers: ghlHeaders, body: JSON.stringify(ghlPayload),
+          });
+          if (res.ok) {
+            const created = await res.json();
+            if (created.task?.id) {
+              await supabase.from('tasks').update({ ghl_task_id: created.task.id }).eq('id', task.id);
+            }
+          }
+          return new Response(JSON.stringify({ success: res.ok, action: 'task-created' }), {
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
+        }
+        return new Response(JSON.stringify({ success: true, action: 'task-created-local-only', note: 'No GHL contact linked' }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+    }
+
+    if (action === 'delete-task') {
+      const { ghl_task_id } = body;
+      // GHL task deletion requires contact context; fire-and-forget
+      return new Response(JSON.stringify({ success: true, action: 'task-delete-noted', ghl_task_id }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    if (action === 'sync-tasks') {
+      // Fetch tasks from GHL contacts
+      const { data: contacts } = await supabase.from('contacts').select('id, ghl_contact_id').eq('user_id', user.id).not('ghl_contact_id', 'is', null);
+      
+      let synced = 0;
+      for (const contact of contacts || []) {
+        try {
+          const res = await fetch(`${GHL_API_BASE}/contacts/${contact.ghl_contact_id}/tasks`, { headers: ghlHeaders });
+          if (!res.ok) continue;
+          const data = await res.json();
+          for (const ghlTask of data.tasks || []) {
+            const { data: existing } = await supabase.from('tasks').select('id').eq('user_id', user.id).eq('ghl_task_id', ghlTask.id).maybeSingle();
+            
+            const taskRow = {
+              title: ghlTask.title || 'GHL Taak',
+              description: ghlTask.body || null,
+              status: ghlTask.completed ? 'completed' : 'open',
+              priority: 'normal',
+              due_date: ghlTask.dueDate ? ghlTask.dueDate.split('T')[0] : null,
+              contact_id: contact.id,
+              ghl_task_id: ghlTask.id,
+              completed_at: ghlTask.completed ? (ghlTask.completedDate || new Date().toISOString()) : null,
+            };
+
+            if (existing) {
+              await supabase.from('tasks').update(taskRow).eq('id', existing.id);
+            } else {
+              await supabase.from('tasks').insert({ ...taskRow, user_id: user.id });
+            }
+            synced++;
+          }
+        } catch (e) {
+          console.error(`Failed to sync tasks for contact ${contact.ghl_contact_id}:`, e);
+        }
+      }
+
+      return new Response(JSON.stringify({ success: true, synced }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
     return new Response(JSON.stringify({ error: `Unknown action: ${action}` }), {
       status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });

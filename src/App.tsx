@@ -17,6 +17,7 @@ import { BookingsProvider } from "@/contexts/BookingsContext";
 import { ContactsProvider } from "@/contexts/ContactsContext";
 import { InquiriesProvider } from "@/contexts/InquiriesContext";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
+import { TasksProvider } from "@/contexts/TasksContext";
 
 const queryClient = new QueryClient();
 
@@ -39,18 +40,20 @@ function ProtectedRoutes() {
     <ContactsProvider>
       <InquiriesProvider>
         <BookingsProvider>
-          <AppLayout>
-            <Routes>
-              <Route path="/" element={<Dashboard />} />
-              <Route path="/crm" element={<CrmPage />} />
-              <Route path="/crm/:id" element={<ContactDetailPage />} />
-              <Route path="/inquiries" element={<InquiriesPage />} />
-              <Route path="/quotations" element={<QuotationsPage />} />
-              <Route path="/calendar" element={<CalendarPage />} />
-              <Route path="/settings" element={<SettingsPage />} />
-              <Route path="*" element={<NotFound />} />
-            </Routes>
-          </AppLayout>
+          <TasksProvider>
+            <AppLayout>
+              <Routes>
+                <Route path="/" element={<Dashboard />} />
+                <Route path="/crm" element={<CrmPage />} />
+                <Route path="/crm/:id" element={<ContactDetailPage />} />
+                <Route path="/inquiries" element={<InquiriesPage />} />
+                <Route path="/quotations" element={<QuotationsPage />} />
+                <Route path="/calendar" element={<CalendarPage />} />
+                <Route path="/settings" element={<SettingsPage />} />
+                <Route path="*" element={<NotFound />} />
+              </Routes>
+            </AppLayout>
+          </TasksProvider>
         </BookingsProvider>
       </InquiriesProvider>
     </ContactsProvider>
