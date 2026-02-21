@@ -23,25 +23,33 @@ export function BookingsProvider({ children }: { children: ReactNode }) {
 
   const fetchBookings = useCallback(async () => {
     if (!user) return;
-    const { data, error } = await supabase
-      .from('bookings')
-      .select('*')
-      .order('date', { ascending: true });
-
-    if (!error && data) {
-      setBookings(data.map((b) => ({
-        id: b.id,
-        roomName: b.room_name as RoomName,
-        date: b.date,
-        startHour: b.start_hour,
-        endHour: b.end_hour,
-        title: b.title,
-        contactName: b.contact_name,
-        contactId: b.contact_id || undefined,
-        status: b.status as 'confirmed' | 'option',
-        notes: b.notes || undefined,
-      })));
+    // Fetch ALL bookings using pagination to avoid 1000-row limit
+    let allData: any[] = [];
+    let from = 0;
+    const PAGE_SIZE = 1000;
+    while (true) {
+      const { data, error } = await supabase
+        .from('bookings')
+        .select('*')
+        .order('date', { ascending: true })
+        .range(from, from + PAGE_SIZE - 1);
+      if (error || !data || data.length === 0) break;
+      allData = allData.concat(data);
+      if (data.length < PAGE_SIZE) break;
+      from += PAGE_SIZE;
     }
+    setBookings(allData.map((b) => ({
+      id: b.id,
+      roomName: b.room_name as RoomName,
+      date: b.date,
+      startHour: b.start_hour,
+      endHour: b.end_hour,
+      title: b.title,
+      contactName: b.contact_name,
+      contactId: b.contact_id || undefined,
+      status: b.status as 'confirmed' | 'option',
+      notes: b.notes || undefined,
+    })));
     setLoading(false);
   }, [user]);
 
