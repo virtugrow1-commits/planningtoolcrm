@@ -205,50 +205,67 @@ serve(async (req) => {
       }
       const calData = await calRes.json();
       const calendars = calData.calendars || [];
+      console.log(`Found ${calendars.length} calendars:`, calendars.map((c: any) => c.name));
 
-      // Fetch events from each calendar (next 90 days)
+      // Fetch events from each calendar (past 365 days + next 365 days for complete import)
       const now = new Date();
-      const startTime = now.toISOString();
+      const startDateCal = new Date(now);
+      startDateCal.setDate(startDateCal.getDate() - 365);
+      const startTime = startDateCal.toISOString();
       const endDate = new Date(now);
-      endDate.setDate(endDate.getDate() + 90);
+      endDate.setDate(endDate.getDate() + 365);
       const endTime = endDate.toISOString();
 
       let allEvents: any[] = [];
       for (const cal of calendars) {
-        const eventsRes = await ghlFetch(
-          `${GHL_API_BASE}/calendars/events?locationId=${GHL_LOCATION_ID}&calendarId=${cal.id}&startTime=${encodeURIComponent(startTime)}&endTime=${encodeURIComponent(endTime)}`,
-          { headers: ghlHeaders }
-        );
+        // Try fetching with different groupId/calendarId param
+        const eventsUrl = `${GHL_API_BASE}/calendars/events?locationId=${GHL_LOCATION_ID}&calendarId=${cal.id}&startTime=${encodeURIComponent(startTime)}&endTime=${encodeURIComponent(endTime)}`;
+        console.log(`Fetching events for calendar "${cal.name}" (${cal.id}): ${eventsUrl}`);
+        const eventsRes = await ghlFetch(eventsUrl, { headers: ghlHeaders });
         if (eventsRes.ok) {
           const eventsData = await eventsRes.json();
+          console.log(`Calendar "${cal.name}": ${JSON.stringify(Object.keys(eventsData))}, events count: ${(eventsData.events || []).length}`);
           allEvents = allEvents.concat((eventsData.events || []).map((e: any) => ({ ...e, calendarName: cal.name })));
+        } else {
+          const errText = await eventsRes.text();
+          console.warn(`Failed to fetch events for calendar ${cal.name} [${eventsRes.status}]: ${errText}`);
         }
       }
 
+      // Default room for all imported events
+      const defaultRoom = body.defaultRoom || 'Ontmoeten Aan de Donge';
+
       // Upsert events as bookings
       let synced = 0;
+      let skipped = 0;
       for (const evt of allEvents) {
-        const startDate = new Date(evt.startTime || evt.start);
-        const endDateEvt = new Date(evt.endTime || evt.end);
-        const dateStr = startDate.toISOString().split('T')[0];
-        const startHour = startDate.getHours();
-        const endHour = endDateEvt.getHours() || 17;
+        const evtStart = new Date(evt.startTime || evt.start);
+        const evtEnd = new Date(evt.endTime || evt.end);
+        // Use local date components to avoid UTC shift
+        const dateStr = `${evtStart.getFullYear()}-${String(evtStart.getMonth() + 1).padStart(2, '0')}-${String(evtStart.getDate()).padStart(2, '0')}`;
+        const startHour = evtStart.getHours();
+        const startMinute = evtStart.getMinutes();
+        const endHour = evtEnd.getHours() || 17;
+        const endMinute = evtEnd.getMinutes();
         const contactName = evt.contact?.name || evt.title || 'GHL Afspraak';
         const title = evt.title || evt.calendarName || 'GHL Afspraak';
         const status = (evt.status === 'confirmed' || evt.appointmentStatus === 'confirmed') ? 'confirmed' : 'option';
 
         const { data: existing } = await supabase
           .from('bookings')
-          .select('id')
+          .select('id, room_name')
           .eq('user_id', user.id)
           .eq('ghl_event_id', evt.id)
           .maybeSingle();
 
         if (existing) {
+          // Update existing but keep the room assignment (user may have moved it)
           await supabase.from('bookings').update({
             date: dateStr,
             start_hour: startHour,
+            start_minute: startMinute,
             end_hour: endHour,
+            end_minute: endMinute,
             title,
             contact_name: contactName,
             status,
@@ -257,10 +274,12 @@ serve(async (req) => {
           await supabase.from('bookings').insert({
             user_id: user.id,
             ghl_event_id: evt.id,
-            room_name: evt.calendarName || 'Vergaderzaal 100',
+            room_name: defaultRoom,
             date: dateStr,
             start_hour: startHour,
+            start_minute: startMinute,
             end_hour: endHour,
+            end_minute: endMinute,
             title,
             contact_name: contactName,
             status,
@@ -269,7 +288,7 @@ serve(async (req) => {
         synced++;
       }
 
-      return new Response(JSON.stringify({ success: true, synced, totalEvents: allEvents.length, calendars: calendars.length }), {
+      return new Response(JSON.stringify({ success: true, synced, skipped, totalEvents: allEvents.length, calendars: calendars.length, defaultRoom }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
