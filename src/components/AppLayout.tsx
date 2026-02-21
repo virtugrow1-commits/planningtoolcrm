@@ -4,7 +4,7 @@ import {
   Users,
   Building2,
   InboxIcon,
-  FileText,
+  MessageSquare,
   CalendarDays,
   Settings,
   LogOut,
@@ -26,7 +26,7 @@ const navItems = [
   { to: '/crm', icon: Users, label: 'CRM' },
   { to: '/companies', icon: Building2, label: 'Bedrijven' },
   { to: '/inquiries', icon: InboxIcon, label: 'Aanvragen' },
-  { to: '/quotations', icon: FileText, label: 'Offertes' },
+  { to: '/conversations', icon: MessageSquare, label: 'Gesprekken' },
   { to: '/calendar', icon: CalendarDays, label: 'Kalender' },
 ];
 
