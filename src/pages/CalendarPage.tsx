@@ -235,7 +235,11 @@ export default function CalendarPage() {
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-foreground">Kalender</h1>
-          <p className="text-sm text-muted-foreground">Dagweergave — {ROOMS.length} ruimtes · Sleep boekingen om te verplaatsen</p>
+          <p className="text-sm text-muted-foreground">
+            {['Zondag','Maandag','Dinsdag','Woensdag','Donderdag','Vrijdag','Zaterdag'][currentDate.getDay()]} {currentDate.getDate()}{' '}
+            {['januari','februari','maart','april','mei','juni','juli','augustus','september','oktober','november','december'][currentDate.getMonth()]}{' '}
+            {currentDate.getFullYear()} — {ROOMS.length} ruimtes · Sleep boekingen om te verplaatsen
+          </p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
           <Button variant="outline" size="sm" onClick={prevDay}><ChevronLeft size={16} /></Button>
