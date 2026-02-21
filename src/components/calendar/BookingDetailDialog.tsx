@@ -1,14 +1,12 @@
 import { useState, useEffect } from 'react';
-import { Booking } from '@/types/crm';
+import { Booking, ROOMS, RoomName } from '@/types/crm';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { CalendarDays, Clock, User, MapPin, Pencil } from 'lucide-react';
-
-const HOURS = Array.from({ length: 19 }, (_, i) => (i + 7) % 24); // 7..1
+import { CalendarDays, Clock, User, MapPin, Pencil, Users } from 'lucide-react';
 
 interface BookingDetailDialogProps {
   booking: Booking | null;
@@ -16,9 +14,10 @@ interface BookingDetailDialogProps {
   onOpenChange: (open: boolean) => void;
   onUpdate: (booking: Booking) => void;
   onDelete: (bookingId: string) => void;
+  getRoomDisplayName?: (room: string) => string;
 }
 
-export default function BookingDetailDialog({ booking, open, onOpenChange, onUpdate, onDelete }: BookingDetailDialogProps) {
+export default function BookingDetailDialog({ booking, open, onOpenChange, onUpdate, onDelete, getRoomDisplayName }: BookingDetailDialogProps) {
   const [editing, setEditing] = useState(false);
   const [form, setForm] = useState<Booking | null>(null);
 
@@ -36,11 +35,14 @@ export default function BookingDetailDialog({ booking, open, onOpenChange, onUpd
     setEditing(false);
   };
 
-  const hourLabel = (h: number) => `${String(h).padStart(2, '0')}:00`;
+  const formatTime = (h: number, m?: number) =>
+    `${String(h).padStart(2, '0')}:${String(m || 0).padStart(2, '0')}`;
+
+  const displayRoom = (room: string) => getRoomDisplayName ? getRoomDisplayName(room) : room;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
+      <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <div className="flex items-center justify-between">
             <DialogTitle>Reserveringsdetails</DialogTitle>
@@ -62,22 +64,65 @@ export default function BookingDetailDialog({ booking, open, onOpenChange, onUpd
               <Label>Contactpersoon</Label>
               <Input value={form.contactName} onChange={(e) => setForm({ ...form, contactName: e.target.value })} />
             </div>
+
+            {/* Room selection */}
+            <div className="grid gap-1.5">
+              <Label>Ruimte</Label>
+              <Select value={form.roomName} onValueChange={(v) => setForm({ ...form, roomName: v as RoomName })}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {ROOMS.map((r) => (
+                    <SelectItem key={r} value={r}>{displayRoom(r)}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Date */}
+            <div className="grid gap-1.5">
+              <Label>Datum</Label>
+              <Input type="date" value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} />
+            </div>
+
+            {/* Free time input */}
             <div className="grid grid-cols-2 gap-3">
               <div className="grid gap-1.5">
                 <Label>Van</Label>
-                <Select value={String(form.startHour)} onValueChange={(v) => setForm({ ...form, startHour: Number(v) })}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>{HOURS.map((h) => <SelectItem key={h} value={String(h)}>{hourLabel(h)}</SelectItem>)}</SelectContent>
-                </Select>
+                <Input
+                  type="time"
+                  value={formatTime(form.startHour)}
+                  onChange={(e) => {
+                    const [h, m] = e.target.value.split(':').map(Number);
+                    if (!isNaN(h)) setForm({ ...form, startHour: h });
+                  }}
+                />
               </div>
               <div className="grid gap-1.5">
                 <Label>Tot</Label>
-                <Select value={String(form.endHour)} onValueChange={(v) => setForm({ ...form, endHour: Number(v) })}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>{HOURS.filter((h) => h > form.startHour || (form.startHour >= 7 && h <= 1 && h !== 0 ? false : h > form.startHour)).map((h) => <SelectItem key={h} value={String(h)}>{hourLabel(h)}</SelectItem>)}</SelectContent>
-                </Select>
+                <Input
+                  type="time"
+                  value={formatTime(form.endHour)}
+                  onChange={(e) => {
+                    const [h, m] = e.target.value.split(':').map(Number);
+                    if (!isNaN(h)) setForm({ ...form, endHour: h });
+                  }}
+                />
               </div>
             </div>
+
+            {/* Guest count */}
+            <div className="grid gap-1.5">
+              <Label>Aantal gasten</Label>
+              <Input
+                type="number"
+                min={0}
+                placeholder="0"
+                value={(form as any).guestCount || ''}
+                onChange={(e) => setForm({ ...form, guestCount: Math.max(0, Number(e.target.value)) } as any)}
+              />
+            </div>
+
+            {/* Status */}
             <div className="grid gap-1.5">
               <Label>Status</Label>
               <Select value={form.status} onValueChange={(v: 'confirmed' | 'option') => setForm({ ...form, status: v })}>
@@ -88,9 +133,16 @@ export default function BookingDetailDialog({ booking, open, onOpenChange, onUpd
                 </SelectContent>
               </Select>
             </div>
+
+            {/* Notes / Toelichting */}
             <div className="grid gap-1.5">
-              <Label>Notities</Label>
-              <Textarea value={form.notes || ''} onChange={(e) => setForm({ ...form, notes: e.target.value })} placeholder="Eventuele opmerkingen..." />
+              <Label>Toelichting</Label>
+              <Textarea
+                value={form.notes || ''}
+                onChange={(e) => setForm({ ...form, notes: e.target.value })}
+                placeholder="Eventuele opmerkingen, wensen, bijzonderheden..."
+                rows={4}
+              />
             </div>
           </div>
         ) : (
@@ -98,7 +150,7 @@ export default function BookingDetailDialog({ booking, open, onOpenChange, onUpd
             <div className="rounded-lg border p-4 space-y-3">
               <div className="flex items-center gap-2 text-sm">
                 <MapPin size={14} className="text-muted-foreground" />
-                <span className="font-medium">{booking.roomName}</span>
+                <span className="font-medium">{displayRoom(booking.roomName)}</span>
               </div>
               <div className="flex items-center gap-2 text-sm">
                 <CalendarDays size={14} className="text-muted-foreground" />
@@ -106,12 +158,18 @@ export default function BookingDetailDialog({ booking, open, onOpenChange, onUpd
               </div>
               <div className="flex items-center gap-2 text-sm">
                 <Clock size={14} className="text-muted-foreground" />
-                <span>{hourLabel(booking.startHour)} – {hourLabel(booking.endHour)}</span>
+                <span>{formatTime(booking.startHour)} – {formatTime(booking.endHour)}</span>
               </div>
               <div className="flex items-center gap-2 text-sm">
                 <User size={14} className="text-muted-foreground" />
                 <span>{booking.contactName}</span>
               </div>
+              {(booking as any).guestCount > 0 && (
+                <div className="flex items-center gap-2 text-sm">
+                  <Users size={14} className="text-muted-foreground" />
+                  <span>{(booking as any).guestCount} gasten</span>
+                </div>
+              )}
             </div>
             <div className="grid gap-1.5">
               <Label>Titel</Label>
@@ -125,8 +183,8 @@ export default function BookingDetailDialog({ booking, open, onOpenChange, onUpd
             </div>
             {booking.notes && (
               <div className="grid gap-1.5">
-                <Label>Notities</Label>
-                <p className="text-sm text-muted-foreground">{booking.notes}</p>
+                <Label>Toelichting</Label>
+                <p className="text-sm text-muted-foreground whitespace-pre-wrap">{booking.notes}</p>
               </div>
             )}
           </div>
