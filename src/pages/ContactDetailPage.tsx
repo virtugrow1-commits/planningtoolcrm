@@ -274,10 +274,6 @@ export default function ContactDetailPage() {
             )}
           </SectionCard>
 
-          {/* Offertes */}
-          <SectionCard title="Offertes" linkLabel="Bekijk offertes" onLink={() => navigate('/quotations')}>
-            <p className="text-xs text-muted-foreground">Geen offertes</p>
-          </SectionCard>
 
           {/* Gesprekken */}
           <div className="rounded-xl bg-card p-5 card-shadow">
