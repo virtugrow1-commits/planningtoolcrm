@@ -18,7 +18,7 @@ import { useContacts } from '@/hooks/useContacts';
 const HOURS = [...Array.from({ length: 17 }, (_, i) => i + 7), 0, 1];
 
 function formatDate(date: Date) {
-  return date.toISOString().split('T')[0];
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
 }
 
 export default function CalendarPage() {
@@ -234,7 +234,7 @@ export default function CalendarPage() {
         } else {
           d.setDate(d.getDate() + i * intervalDays);
         }
-        allDates.push(d.toISOString().split('T')[0]);
+        allDates.push(formatDate(d));
       }
     }
 
