@@ -27,6 +27,7 @@ const PIPELINE_COLUMNS: { key: Inquiry['status']; label: string; colorClass: str
   { key: 'confirmed', label: 'Definitieve Reservering', colorClass: 'border-t-success bg-success/5', badgeClass: 'status-converted' },
   { key: 'invoiced', label: 'Facturatie', colorClass: 'border-t-info bg-info/5', badgeClass: 'status-new' },
   { key: 'lost', label: 'Vervallen / Verloren', colorClass: 'border-t-muted-foreground bg-muted/30', badgeClass: 'status-lost' },
+  { key: 'converted', label: 'Omgezet', colorClass: 'border-t-success bg-success/5', badgeClass: 'status-converted' },
   { key: 'after_sales', label: 'After Sales', colorClass: 'border-t-success bg-success/5', badgeClass: 'status-converted' },
 ];
 

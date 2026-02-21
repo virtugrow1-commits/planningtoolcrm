@@ -48,6 +48,7 @@ export interface QuotationItem {
 }
 
 export const ROOMS = [
+  'Ontmoeten Aan de Donge',
   'Vergaderzaal 100',
   'Vergaderzaal 1.03',
   'Vergaderzaal 1.04',
