@@ -41,6 +41,9 @@ serve(async (req) => {
 
   await Promise.allSettled([calendarSync, opportunitiesSync, contactsSync]);
 
+  // Push local inquiries without GHL opportunity ID
+  await pushLocalInquiries(supabase, ghlHeaders, GHL_LOCATION_ID, userId, results);
+
   console.log('Auto-sync completed:', JSON.stringify(results));
   return new Response(JSON.stringify({ success: true, ...results }), { headers: { 'Content-Type': 'application/json' } });
 });
@@ -275,4 +278,82 @@ async function syncContacts(supabase: any, ghlHeaders: any, locationId: string, 
       }
     }
   } catch (e) { console.error('Contact sync error:', e); }
+}
+
+// === PUSH LOCAL INQUIRIES TO GHL ===
+async function pushLocalInquiries(supabase: any, ghlHeaders: any, locationId: string, userId: string, results: any) {
+  try {
+    // Get local inquiries without ghl_opportunity_id (max 10 per run to avoid timeout)
+    const { data: localInquiries } = await supabase.from('inquiries').select('*').eq('user_id', userId).is('ghl_opportunity_id', null).limit(10);
+    if (!localInquiries || localInquiries.length === 0) return;
+
+    // Get pipeline info
+    const pipelinesRes = await fetch(`${GHL_API_BASE}/opportunities/pipelines?locationId=${locationId}`, { headers: ghlHeaders });
+    if (!pipelinesRes.ok) { console.error('Pipelines fetch failed for push'); return; }
+    const pipelinesData = await pipelinesRes.json();
+    const pipeline = pipelinesData.pipelines?.[0];
+    if (!pipeline) { console.error('No pipeline found for push'); return; }
+
+    const statusToStageName: Record<string, string> = {
+      'new': 'Nieuwe Aanvraag', 'contacted': 'Lopend contact', 'option': 'Optie',
+      'quoted': 'Offerte Verzonden', 'quote_revised': 'Aangepaste offerte verzonden',
+      'reserved': 'Reservering', 'confirmed': 'Definitieve Reservering',
+      'invoiced': 'Facturatie', 'lost': 'Vervallen / Verloren', 'after_sales': 'After Sales',
+    };
+
+    results.inquiries_pushed = 0;
+
+    for (const inq of localInquiries) {
+      try {
+        const targetStageName = statusToStageName[inq.status] || 'Nieuwe Aanvraag';
+        let targetStageId = pipeline.stages?.[0]?.id;
+        for (const stage of pipeline.stages || []) {
+          if (stage.name.toLowerCase().includes(targetStageName.toLowerCase())) {
+            targetStageId = stage.id;
+            break;
+          }
+        }
+
+        // Try to find GHL contact
+        let ghlContactId = null;
+        if (inq.contact_id) {
+          const { data: contact } = await supabase.from('contacts').select('ghl_contact_id').eq('id', inq.contact_id).maybeSingle();
+          ghlContactId = contact?.ghl_contact_id || null;
+        }
+        if (!ghlContactId && inq.contact_name) {
+          const searchRes = await fetch(`${GHL_API_BASE}/contacts/?locationId=${locationId}&query=${encodeURIComponent(inq.contact_name)}&limit=1`, { headers: ghlHeaders });
+          if (searchRes.ok) {
+            const searchData = await searchRes.json();
+            ghlContactId = searchData.contacts?.[0]?.id || null;
+          }
+        }
+
+        const oppPayload: any = {
+          pipelineId: pipeline.id,
+          pipelineStageId: targetStageId,
+          locationId,
+          name: inq.event_type || 'CRM Aanvraag',
+          status: inq.status === 'lost' ? 'lost' : (inq.status === 'confirmed') ? 'won' : 'open',
+          monetaryValue: inq.budget || 0,
+        };
+        if (ghlContactId) oppPayload.contactId = ghlContactId;
+
+        const res = await fetch(`${GHL_API_BASE}/opportunities/`, {
+          method: 'POST', headers: ghlHeaders, body: JSON.stringify(oppPayload),
+        });
+
+        if (res.ok) {
+          const created = await res.json();
+          const ghlOppId = created.opportunity?.id || created.id;
+          if (ghlOppId) {
+            await supabase.from('inquiries').update({ ghl_opportunity_id: ghlOppId }).eq('id', inq.id);
+            console.log(`Pushed inquiry ${inq.id} -> GHL opportunity ${ghlOppId}`);
+          }
+          results.inquiries_pushed++;
+        } else {
+          console.error(`Push inquiry ${inq.id} failed: ${await res.text()}`);
+        }
+      } catch (e) { console.error('Push inquiry error:', inq.id, e); }
+    }
+  } catch (e) { console.error('Push local inquiries error:', e); }
 }

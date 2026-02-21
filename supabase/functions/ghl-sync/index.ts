@@ -746,6 +746,107 @@ serve(async (req) => {
       });
     }
 
+    if (action === 'push-inquiry') {
+      // Create a new opportunity in GHL from a local inquiry
+      const { inquiry_id, contact_name, event_type, budget, status, message } = body;
+      if (!inquiry_id) {
+        return new Response(JSON.stringify({ error: 'inquiry_id required' }), {
+          status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      // Get pipelines to find the right stage
+      const pipelinesRes = await fetch(`${GHL_API_BASE}/opportunities/pipelines?locationId=${GHL_LOCATION_ID}`, { headers: ghlHeaders });
+      if (!pipelinesRes.ok) {
+        return new Response(JSON.stringify({ success: false, error: 'Cannot fetch pipelines' }), {
+          status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+      const pipelinesData = await pipelinesRes.json();
+      const pipeline = pipelinesData.pipelines?.[0];
+      if (!pipeline) {
+        return new Response(JSON.stringify({ success: false, error: 'No pipeline found' }), {
+          status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      // Map CRM status to GHL stage
+      const statusToStageName: Record<string, string> = {
+        'new': 'Nieuwe Aanvraag', 'contacted': 'Lopend contact', 'option': 'Optie',
+        'quoted': 'Offerte Verzonden', 'quote_revised': 'Aangepaste offerte verzonden',
+        'reserved': 'Reservering', 'confirmed': 'Definitieve Reservering',
+        'invoiced': 'Facturatie', 'lost': 'Vervallen / Verloren', 'after_sales': 'After Sales',
+        'converted': 'Definitieve Reservering',
+      };
+      const targetStageName = statusToStageName[status || 'new'] || 'Nieuwe Aanvraag';
+      let targetStageId = pipeline.stages?.[0]?.id; // default to first stage
+      for (const stage of pipeline.stages || []) {
+        if (stage.name.toLowerCase().includes(targetStageName.toLowerCase())) {
+          targetStageId = stage.id;
+          break;
+        }
+      }
+
+      // Try to find or create a GHL contact for this inquiry
+      let ghlContactId = null;
+      // Check if inquiry has a linked contact with ghl_contact_id
+      const { data: inquiry } = await supabase.from('inquiries').select('contact_id').eq('id', inquiry_id).maybeSingle();
+      if (inquiry?.contact_id) {
+        const { data: contact } = await supabase.from('contacts').select('ghl_contact_id').eq('id', inquiry.contact_id).maybeSingle();
+        ghlContactId = contact?.ghl_contact_id || null;
+      }
+      // If no GHL contact, search by name
+      if (!ghlContactId && contact_name) {
+        const searchRes = await fetch(`${GHL_API_BASE}/contacts/?locationId=${GHL_LOCATION_ID}&query=${encodeURIComponent(contact_name)}&limit=1`, { headers: ghlHeaders });
+        if (searchRes.ok) {
+          const searchData = await searchRes.json();
+          ghlContactId = searchData.contacts?.[0]?.id || null;
+        }
+      }
+      // If still no contact, create one
+      if (!ghlContactId) {
+        const nameParts = (contact_name || 'Onbekend').split(' ');
+        const createRes = await fetch(`${GHL_API_BASE}/contacts/`, {
+          method: 'POST', headers: ghlHeaders,
+          body: JSON.stringify({ firstName: nameParts[0], lastName: nameParts.slice(1).join(' ') || '', locationId: GHL_LOCATION_ID }),
+        });
+        if (createRes.ok) {
+          const created = await createRes.json();
+          ghlContactId = created.contact?.id || null;
+        }
+      }
+
+      const oppPayload: any = {
+        pipelineId: pipeline.id,
+        pipelineStageId: targetStageId,
+        locationId: GHL_LOCATION_ID,
+        name: event_type || 'CRM Aanvraag',
+        status: status === 'lost' ? 'lost' : (status === 'confirmed' || status === 'converted') ? 'won' : 'open',
+        monetaryValue: budget || 0,
+      };
+      if (ghlContactId) oppPayload.contactId = ghlContactId;
+
+      const res = await fetch(`${GHL_API_BASE}/opportunities/`, {
+        method: 'POST', headers: ghlHeaders, body: JSON.stringify(oppPayload),
+      });
+
+      if (res.ok) {
+        const created = await res.json();
+        const ghlOppId = created.opportunity?.id || created.id;
+        if (ghlOppId) {
+          await supabase.from('inquiries').update({ ghl_opportunity_id: ghlOppId }).eq('id', inquiry_id);
+        }
+        return new Response(JSON.stringify({ success: true, action: 'created', ghl_opportunity_id: ghlOppId }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+      const errText = await res.text();
+      console.error('Failed to create GHL opportunity:', errText);
+      return new Response(JSON.stringify({ success: false, error: errText }), {
+        status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
     if (action === 'push-inquiry-status') {
       const { ghl_opportunity_id, status, name, monetary_value } = body;
       if (!ghl_opportunity_id) {
