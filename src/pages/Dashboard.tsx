@@ -5,14 +5,32 @@ import {
   Clock,
 } from 'lucide-react';
 import KpiCard from '@/components/KpiCard';
-import { mockBookings, mockInquiries } from '@/data/mockData';
-
-const today = new Date().toISOString().split('T')[0];
-const todayBookings = mockBookings.filter((b) => b.date === today);
-const openInquiries = mockInquiries.filter((i) => i.status === 'new' || i.status === 'contacted');
-const openTasks = mockInquiries.filter((i) => i.status === 'new').length + todayBookings.filter((b) => b.status === 'option').length;
+import { useBookings } from '@/contexts/BookingsContext';
+import { useInquiriesContext } from '@/contexts/InquiriesContext';
+import { useMemo } from 'react';
 
 export default function Dashboard() {
+  const { bookings, loading: bookingsLoading } = useBookings();
+  const { inquiries, loading: inquiriesLoading } = useInquiriesContext();
+
+  const today = new Date().toISOString().split('T')[0];
+
+  const todayBookings = useMemo(() => bookings.filter((b) => b.date === today), [bookings, today]);
+  const openInquiries = useMemo(() => inquiries.filter((i) => i.status === 'new' || i.status === 'contacted'), [inquiries]);
+  const openTasks = useMemo(() => {
+    const newInquiries = inquiries.filter((i) => i.status === 'new').length;
+    const optionBookings = todayBookings.filter((b) => b.status === 'option').length;
+    return newInquiries + optionBookings;
+  }, [inquiries, todayBookings]);
+
+  if (bookingsLoading || inquiriesLoading) {
+    return (
+      <div className="flex min-h-[50vh] items-center justify-center">
+        <div className="text-muted-foreground">Laden...</div>
+      </div>
+    );
+  }
+
   return (
     <div className="p-6 lg:p-8 space-y-6">
       <div>
@@ -27,7 +45,7 @@ export default function Dashboard() {
           title="Openstaande Taken"
           value={String(openTasks)}
           icon={<CheckSquare size={20} />}
-          subtitle={`${mockInquiries.filter((i) => i.status === 'new').length} nieuwe aanvragen · ${todayBookings.filter((b) => b.status === 'option').length} opties`}
+          subtitle={`${inquiries.filter((i) => i.status === 'new').length} nieuwe aanvragen · ${todayBookings.filter((b) => b.status === 'option').length} opties`}
         />
         <KpiCard
           title="Aanvragen"
@@ -43,7 +61,6 @@ export default function Dashboard() {
         />
       </div>
 
-      {/* Today's schedule */}
       <div className="rounded-xl bg-card p-5 card-shadow animate-fade-in">
         <h2 className="mb-4 text-sm font-semibold text-card-foreground">Agenda Vandaag</h2>
         <div className="space-y-3">

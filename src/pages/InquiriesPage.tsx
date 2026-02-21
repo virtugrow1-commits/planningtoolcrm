@@ -2,11 +2,11 @@ import { useState, useCallback, useEffect, DragEvent } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { format } from 'date-fns';
 import { nl } from 'date-fns/locale';
-import { mockInquiries } from '@/data/mockData';
 import { Inquiry, Booking, ROOMS, RoomName } from '@/types/crm';
 import { Calendar as CalendarIcon, Users, Euro, GripVertical, Repeat, Plus, X, Check, LayoutGrid, List, Trash2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useBookings } from '@/contexts/BookingsContext';
+import { useInquiriesContext } from '@/contexts/InquiriesContext';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
@@ -56,7 +56,7 @@ const createDateOption = (): DateOption => ({
 });
 
 export default function InquiriesPage() {
-  const [inquiries, setInquiries] = useState<Inquiry[]>(mockInquiries);
+  const { inquiries, loading: inquiriesLoading, addInquiry, updateInquiry, deleteInquiry: deleteInquiryCtx } = useInquiriesContext();
   const [dragId, setDragId] = useState<string | null>(null);
   const [scheduleOpen, setScheduleOpen] = useState(false);
   const [selectedInquiry, setSelectedInquiry] = useState<Inquiry | null>(null);
@@ -78,8 +78,7 @@ export default function InquiriesPage() {
     const newInquiryParam = searchParams.get('newInquiry');
     if (newInquiryParam) {
       const params = new URLSearchParams(decodeURIComponent(newInquiryParam));
-      const inq: Inquiry = {
-        id: `inq-${Date.now()}`,
+      addInquiry({
         contactId: params.get('contactId') || '',
         contactName: params.get('contactName') || '',
         eventType: params.get('eventType') || '',
@@ -89,12 +88,9 @@ export default function InquiriesPage() {
         budget: Number(params.get('budget')) || undefined,
         message: params.get('message') || '',
         status: 'new',
-        createdAt: new Date().toISOString().split('T')[0],
         source: 'CRM',
-      };
-      setInquiries((prev) => [inq, ...prev]);
-      toast({ title: '✅ Aanvraag ontvangen vanuit CRM', description: `${inq.eventType} — ${inq.contactName}` });
-      // Clear the param
+      });
+      toast({ title: '✅ Aanvraag ontvangen vanuit CRM', description: `${params.get('eventType')} — ${params.get('contactName')}` });
       setSearchParams({}, { replace: true });
     }
   }, []);
@@ -104,31 +100,30 @@ export default function InquiriesPage() {
     setDetailOpen(true);
   };
 
-  const handleSaveEdit = () => {
+  const handleSaveEdit = async () => {
     if (!editInquiry) return;
     if (!editInquiry.contactName || !editInquiry.eventType) {
       toast({ title: 'Vul minimaal naam en type in', variant: 'destructive' });
       return;
     }
-    setInquiries((prev) => prev.map((inq) => inq.id === editInquiry.id ? editInquiry : inq));
+    await updateInquiry(editInquiry);
     setDetailOpen(false);
     toast({ title: 'Aanvraag bijgewerkt' });
   };
 
-  const handleDeleteInquiry = () => {
+  const handleDeleteInquiry = async () => {
     if (!editInquiry) return;
-    setInquiries((prev) => prev.filter((inq) => inq.id !== editInquiry.id));
+    await deleteInquiryCtx(editInquiry.id);
     setDetailOpen(false);
     toast({ title: 'Aanvraag verwijderd', description: editInquiry.eventType });
   };
 
-  const handleAddInquiry = () => {
+  const handleAddInquiry = async () => {
     if (!newForm.contactName || !newForm.eventType) {
       toast({ title: 'Vul minimaal naam en type in', variant: 'destructive' });
       return;
     }
-    const inq: Inquiry = {
-      id: `inq-${Date.now()}`,
+    await addInquiry({
       contactId: '',
       contactName: newForm.contactName,
       eventType: newForm.eventType,
@@ -138,13 +133,11 @@ export default function InquiriesPage() {
       budget: Number(newForm.budget) || undefined,
       message: newForm.message,
       status: newForm.status,
-      createdAt: new Date().toISOString().split('T')[0],
       source: newForm.source || 'Handmatig',
-    };
-    setInquiries((prev) => [inq, ...prev]);
+    });
     setNewOpen(false);
     setNewForm({ contactName: '', eventType: '', preferredDate: '', guestCount: '', budget: '', message: '', source: 'Handmatig', roomPreference: '', status: 'new' });
-    toast({ title: 'Aanvraag aangemaakt', description: `${inq.eventType} — ${inq.contactName}` });
+    toast({ title: 'Aanvraag aangemaakt' });
   };
 
   const handleDragStart = useCallback((e: DragEvent, id: string) => {
@@ -158,15 +151,18 @@ export default function InquiriesPage() {
     e.dataTransfer.dropEffect = 'move';
   }, []);
 
-  const handleDrop = useCallback((e: DragEvent, newStatus: Inquiry['status']) => {
+  const handleDrop = useCallback(async (e: DragEvent, newStatus: Inquiry['status']) => {
     e.preventDefault();
     const id = e.dataTransfer.getData('text/plain');
     if (!id) return;
-    setInquiries((prev) => prev.map((inq) => (inq.id === id ? { ...inq, status: newStatus } : inq)));
+    const inq = inquiries.find((i) => i.id === id);
+    if (inq) {
+      await updateInquiry({ ...inq, status: newStatus });
+    }
     setDragId(null);
     const col = PIPELINE_COLUMNS.find((c) => c.key === newStatus);
     toast({ title: 'Status gewijzigd', description: `Verplaatst naar "${col?.label}"` });
-  }, [toast]);
+  }, [toast, inquiries, updateInquiry]);
 
   const openScheduleDialog = (inq: Inquiry) => {
     setSelectedInquiry(inq);
@@ -190,7 +186,7 @@ export default function InquiriesPage() {
     setDateOptions((prev) => prev.map((o) => o.id === id ? { ...o, ...updates } : o));
   };
 
-  const handleSchedule = () => {
+  const handleSchedule = async () => {
     if (!selectedInquiry) return;
     const validOptions = dateOptions.filter((o) => o.date && o.room);
     if (validOptions.length === 0) {
@@ -227,9 +223,9 @@ export default function InquiriesPage() {
     addBookings(newBookings);
 
     // Update inquiry status to converted
-    setInquiries((prev) => prev.map((inq) =>
-      inq.id === selectedInquiry.id ? { ...inq, status: 'converted' as Inquiry['status'] } : inq
-    ));
+    if (selectedInquiry) {
+      await updateInquiry({ ...selectedInquiry, status: 'converted' });
+    }
 
     const descriptions = validOptions.map((o) => {
       const dateStr = o.date ? format(o.date, 'd MMM', { locale: nl }) : '';
