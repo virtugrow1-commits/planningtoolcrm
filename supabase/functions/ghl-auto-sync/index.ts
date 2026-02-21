@@ -32,7 +32,7 @@ serve(async (req) => {
     return new Response(JSON.stringify({ error: 'No user found' }), { status: 200 });
   }
 
-  const results: any = { bookings_pulled: 0, bookings_pushed: 0, contacts: 0, opportunities: 0, contacts_pushed: 0 };
+  const results: any = { bookings_pulled: 0, bookings_pushed: 0, contacts: 0, opportunities: 0, contacts_pushed: 0, errors: [] };
 
   // Run all 3 syncs in PARALLEL to avoid timeout
   const calendarSync = syncCalendar(supabase, ghlHeaders, GHL_LOCATION_ID, userId, results);
@@ -41,7 +41,7 @@ serve(async (req) => {
 
   await Promise.allSettled([calendarSync, opportunitiesSync, contactsSync]);
 
-  console.log('Auto-sync completed:', results);
+  console.log('Auto-sync completed:', JSON.stringify(results));
   return new Response(JSON.stringify({ success: true, ...results }), { headers: { 'Content-Type': 'application/json' } });
 });
 
@@ -186,11 +186,47 @@ async function syncOpportunities(supabase: any, ghlHeaders: any, locationId: str
         const contactName = opp.contact?.name || opp.name || 'Onbekend';
         const monetaryValue = opp.monetaryValue ? Number(opp.monetaryValue) : null;
 
-        const { data: existing } = await supabase.from('inquiries').select('id').eq('user_id', userId).eq('ghl_opportunity_id', opp.id).maybeSingle();
+        const { data: existing, error: selectErr } = await supabase.from('inquiries').select('id').eq('user_id', userId).eq('ghl_opportunity_id', opp.id).maybeSingle();
+        if (selectErr) {
+          console.error(`Opp select error for ${opp.id}:`, selectErr.message);
+          results.errors.push(`select:${opp.id}:${selectErr.message}`);
+          continue;
+        }
+
         if (existing) {
-          await supabase.from('inquiries').update({ contact_name: contactName, status: crmStatus, budget: monetaryValue, event_type: opp.name || 'Onbekend' }).eq('id', existing.id);
+          const { error: updateErr } = await supabase.from('inquiries').update({
+            contact_name: contactName,
+            status: crmStatus,
+            budget: monetaryValue,
+            event_type: opp.name || 'Onbekend',
+          }).eq('id', existing.id);
+          if (updateErr) {
+            console.error(`Opp update error for ${opp.id}:`, updateErr.message);
+            results.errors.push(`update:${opp.id}:${updateErr.message}`);
+          } else {
+            console.log(`Updated opp ${opp.id} -> ${crmStatus} (stage: ${stageName})`);
+          }
         } else {
-          await supabase.from('inquiries').insert({ user_id: userId, ghl_opportunity_id: opp.id, contact_name: contactName, contact_id: null, event_type: opp.name || 'Onbekend', status: crmStatus, guest_count: 0, budget: monetaryValue, source: 'GHL', message: opp.notes || null, preferred_date: opp.date || null, room_preference: null });
+          const { error: insertErr } = await supabase.from('inquiries').insert({
+            user_id: userId,
+            ghl_opportunity_id: opp.id,
+            contact_name: contactName,
+            contact_id: null,
+            event_type: opp.name || 'Onbekend',
+            status: crmStatus,
+            guest_count: 0,
+            budget: monetaryValue,
+            source: 'GHL',
+            message: opp.notes || null,
+            preferred_date: opp.date || null,
+            room_preference: null,
+          });
+          if (insertErr) {
+            console.error(`Opp insert error for ${opp.id}:`, insertErr.message);
+            results.errors.push(`insert:${opp.id}:${insertErr.message}`);
+          } else {
+            console.log(`Inserted opp ${opp.id} -> ${crmStatus} (stage: ${stageName})`);
+          }
         }
         results.opportunities++;
       }
@@ -204,11 +240,16 @@ async function syncOpportunities(supabase: any, ghlHeaders: any, locationId: str
 // === CONTACTS SYNC ===
 async function syncContacts(supabase: any, ghlHeaders: any, locationId: string, userId: string, results: any) {
   try {
-    const res = await fetch(`${GHL_API_BASE}/contacts/?locationId=${locationId}&limit=100&sortBy=dateUpdated&sortOrder=desc`, { headers: ghlHeaders });
-    if (!res.ok) { console.error('Contacts error:', res.status); return; }
+    const res = await fetch(`${GHL_API_BASE}/contacts/?locationId=${locationId}&limit=100`, { headers: ghlHeaders });
+    if (!res.ok) {
+      const errText = await res.text();
+      console.error('Contacts error:', res.status, errText);
+      return;
+    }
 
     const data = await res.json();
     const recentContacts = data.contacts || [];
+    console.log(`Fetched ${recentContacts.length} contacts from GHL`);
 
     for (const ghlContact of recentContacts) {
       const firstName = ghlContact.firstName || ghlContact.name?.split(' ')[0] || 'Onbekend';
