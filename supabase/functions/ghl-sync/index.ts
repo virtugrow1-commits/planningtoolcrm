@@ -1444,7 +1444,18 @@ serve(async (req) => {
         });
       }
 
-      const msgType = (type || 'SMS').toUpperCase();
+      // Map conversation type to GHL message type enum
+      const typeMap: Record<string, string> = {
+        'TYPE_PHONE': 'SMS', 'TYPE_SMS': 'SMS', 'SMS': 'SMS',
+        'TYPE_EMAIL': 'Email', 'EMAIL': 'Email',
+        'TYPE_WHATSAPP': 'WhatsApp', 'WHATSAPP': 'WhatsApp',
+        'TYPE_FB_MESSENGER': 'FB', 'FB': 'FB',
+        'TYPE_INSTAGRAM': 'IG', 'IG': 'IG', 'INSTAGRAM': 'IG',
+        'TYPE_LIVE_CHAT': 'Live_Chat', 'LIVE_CHAT': 'Live_Chat',
+      };
+      const rawType = (type || 'SMS').toUpperCase();
+      const msgType = typeMap[rawType] || typeMap[type] || 'SMS';
+      
       const payload: any = {
         type: msgType,
         contactId,
@@ -1452,7 +1463,7 @@ serve(async (req) => {
       };
 
       // For email, we need subject
-      if (msgType === 'EMAIL') {
+      if (msgType === 'Email') {
         payload.subject = body.subject || 'Re:';
         payload.html = message;
       }
