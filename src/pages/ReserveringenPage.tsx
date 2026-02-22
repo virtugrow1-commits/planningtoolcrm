@@ -6,7 +6,7 @@ import { useBookings } from '@/contexts/BookingsContext';
 import { useContacts } from '@/hooks/useContacts';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { Booking, RoomName, ROOMS } from '@/types/crm';
-import { Search, Edit2, ArrowRightLeft, Calendar as CalendarIcon, Clock, Users, Building2, User, MapPin } from 'lucide-react';
+import { Search, Edit2, ArrowRightLeft, Calendar as CalendarIcon, Clock, MapPin, ChevronLeft, ChevronRight, History } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -19,36 +19,40 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 
+type EnrichedBooking = Booking & { company: string; isPast: boolean };
+
 export default function ReserveringenPage() {
   const { bookings, updateBooking, loading } = useBookings();
   const { contacts } = useContacts();
   const { t } = useLanguage();
   const { toast } = useToast();
-  const navigate = useNavigate();
 
   const [search, setSearch] = useState('');
   const [editOpen, setEditOpen] = useState(false);
   const [editBooking, setEditBooking] = useState<Booking | null>(null);
   const [tab, setTab] = useState<'all' | 'confirmed' | 'option'>('all');
+  const [pageSize, setPageSize] = useState(20);
+  const [upcomingPage, setUpcomingPage] = useState(1);
+  const [pastPage, setPastPage] = useState(1);
 
-  // Get available rooms
   const availableRooms = useMemo(() => [...ROOMS], []);
 
-  // Enrich bookings with company info from contacts
-  const enrichedBookings = useMemo(() => {
+  const todayStr = useMemo(() => new Date().toISOString().split('T')[0], []);
+
+  // Enrich bookings
+  const enrichedBookings = useMemo<EnrichedBooking[]>(() => {
     return bookings.map(b => {
       const contact = b.contactId ? contacts.find(c => c.id === b.contactId) : null;
       return {
         ...b,
         company: contact?.company || '-',
+        isPast: b.date < todayStr,
       };
     });
-  }, [bookings, contacts]);
+  }, [bookings, contacts, todayStr]);
 
-  // Filter bookings
-  const filtered = useMemo(() => {
-    let list = enrichedBookings;
-
+  // Apply tab + search filter
+  const applyFilters = (list: EnrichedBooking[]) => {
     if (tab === 'confirmed') list = list.filter(b => b.status === 'confirmed');
     else if (tab === 'option') list = list.filter(b => b.status === 'option');
 
@@ -64,13 +68,33 @@ export default function ReserveringenPage() {
         )
       );
     }
+    return list;
+  };
 
-    // Sort by date ascending
+  // Split upcoming vs past
+  const upcoming = useMemo(() => {
+    const list = applyFilters(enrichedBookings.filter(b => !b.isPast));
     return list.sort((a, b) => a.date.localeCompare(b.date));
   }, [enrichedBookings, tab, search]);
 
-  const openEdit = (booking: Booking & { company?: string }) => {
-    setEditBooking({ ...booking });
+  const past = useMemo(() => {
+    const list = applyFilters(enrichedBookings.filter(b => b.isPast));
+    return list.sort((a, b) => b.date.localeCompare(a.date)); // newest first
+  }, [enrichedBookings, tab, search]);
+
+  // Reset pages on filter change
+  useMemo(() => { setUpcomingPage(1); setPastPage(1); }, [tab, search, pageSize]);
+
+  // Pagination helpers
+  const paginate = <T,>(items: T[], page: number) => {
+    const start = (page - 1) * pageSize;
+    return items.slice(start, start + pageSize);
+  };
+  const totalPages = (total: number) => Math.max(1, Math.ceil(total / pageSize));
+
+  const openEdit = (booking: EnrichedBooking) => {
+    const { company, isPast, ...rest } = booking;
+    setEditBooking({ ...rest });
     setEditOpen(true);
   };
 
@@ -83,8 +107,7 @@ export default function ReserveringenPage() {
 
   const handleConvertToReservation = async () => {
     if (!editBooking) return;
-    const updated = { ...editBooking, status: 'confirmed' as const };
-    await updateBooking(updated);
+    await updateBooking({ ...editBooking, status: 'confirmed' as const });
     setEditOpen(false);
     toast({ title: 'Optie omgezet naar reservering', description: editBooking.title });
   };
@@ -94,15 +117,123 @@ export default function ReserveringenPage() {
 
   const formatDate = (dateStr: string) => {
     try {
-      const d = new Date(dateStr + 'T00:00:00');
-      return format(d, 'EEE d MMM yyyy', { locale: nl });
-    } catch {
-      return dateStr;
-    }
+      return format(new Date(dateStr + 'T00:00:00'), 'EEE d MMM yyyy', { locale: nl });
+    } catch { return dateStr; }
   };
 
-  const confirmedCount = enrichedBookings.filter(b => b.status === 'confirmed').length;
-  const optionCount = enrichedBookings.filter(b => b.status === 'option').length;
+  const confirmedCount = enrichedBookings.filter(b => b.status === 'confirmed' && !b.isPast).length;
+  const optionCount = enrichedBookings.filter(b => b.status === 'option' && !b.isPast).length;
+
+  const renderStatusBadge = (b: EnrichedBooking) => {
+    if (b.isPast) {
+      return (
+        <Badge variant="secondary" className="text-[11px] font-medium bg-muted text-muted-foreground">
+          Afgelopen
+        </Badge>
+      );
+    }
+    return (
+      <Badge
+        variant="secondary"
+        className={cn(
+          'text-[11px] font-medium',
+          b.status === 'confirmed'
+            ? 'bg-success/10 text-success border-success/20'
+            : 'bg-warning/10 text-warning border-warning/20'
+        )}
+      >
+        {b.status === 'confirmed' ? 'Reservering' : 'Optie'}
+      </Badge>
+    );
+  };
+
+  const renderTable = (items: EnrichedBooking[], emptyMsg: string) => (
+    <Table>
+      <TableHeader>
+        <TableRow className="bg-muted/30">
+          <TableHead>Status</TableHead>
+          <TableHead>Contactpersoon</TableHead>
+          <TableHead>Bedrijf</TableHead>
+          <TableHead>Evenement</TableHead>
+          <TableHead>Ruimte</TableHead>
+          <TableHead>Datum</TableHead>
+          <TableHead>Tijd</TableHead>
+          <TableHead className="w-[80px]"></TableHead>
+        </TableRow>
+      </TableHeader>
+      <TableBody>
+        {items.length === 0 ? (
+          <TableRow>
+            <TableCell colSpan={8} className="text-center py-12 text-muted-foreground">
+              {emptyMsg}
+            </TableCell>
+          </TableRow>
+        ) : (
+          items.map((b) => (
+            <TableRow
+              key={b.id}
+              className={cn(
+                'cursor-pointer transition-colors',
+                b.isPast ? 'opacity-60 hover:opacity-80 hover:bg-muted/20' : 'hover:bg-muted/30'
+              )}
+              onClick={() => openEdit(b)}
+            >
+              <TableCell>{renderStatusBadge(b)}</TableCell>
+              <TableCell className="font-medium">{b.contactName}</TableCell>
+              <TableCell className="text-muted-foreground">{b.company}</TableCell>
+              <TableCell>{b.title}</TableCell>
+              <TableCell>
+                <span className="flex items-center gap-1.5 text-sm">
+                  <MapPin size={13} className="text-muted-foreground" />
+                  {b.roomName}
+                </span>
+              </TableCell>
+              <TableCell>
+                <span className="flex items-center gap-1.5 text-sm">
+                  <CalendarIcon size={13} className="text-muted-foreground" />
+                  {formatDate(b.date)}
+                </span>
+              </TableCell>
+              <TableCell>
+                <span className="flex items-center gap-1.5 text-sm">
+                  <Clock size={13} className="text-muted-foreground" />
+                  {formatTime(b.startHour, b.startMinute)} – {formatTime(b.endHour, b.endMinute)}
+                </span>
+              </TableCell>
+              <TableCell>
+                <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={(e) => { e.stopPropagation(); openEdit(b); }}>
+                  <Edit2 size={14} />
+                </Button>
+              </TableCell>
+            </TableRow>
+          ))
+        )}
+      </TableBody>
+    </Table>
+  );
+
+  const renderPagination = (currentPage: number, setPage: (p: number) => void, total: number) => {
+    const pages = totalPages(total);
+    if (total <= pageSize) return null;
+    return (
+      <div className="flex items-center justify-between px-4 py-3 border-t">
+        <span className="text-xs text-muted-foreground">
+          {((currentPage - 1) * pageSize) + 1}–{Math.min(currentPage * pageSize, total)} van {total}
+        </span>
+        <div className="flex items-center gap-1">
+          <Button variant="ghost" size="sm" className="h-7 w-7 p-0" disabled={currentPage <= 1} onClick={() => setPage(currentPage - 1)}>
+            <ChevronLeft size={14} />
+          </Button>
+          <span className="text-xs text-muted-foreground px-2">
+            {currentPage} / {pages}
+          </span>
+          <Button variant="ghost" size="sm" className="h-7 w-7 p-0" disabled={currentPage >= pages} onClick={() => setPage(currentPage + 1)}>
+            <ChevronRight size={14} />
+          </Button>
+        </div>
+      </div>
+    );
+  };
 
   if (loading) {
     return (
@@ -119,8 +250,28 @@ export default function ReserveringenPage() {
         <div>
           <h1 className="text-2xl font-bold text-foreground">Reserveringen</h1>
           <p className="text-sm text-muted-foreground">
-            {confirmedCount} reserveringen · {optionCount} opties
+            {confirmedCount} reserveringen · {optionCount} opties · {past.length} afgelopen
           </p>
+        </div>
+        {/* Page size selector */}
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-muted-foreground">Per pagina:</span>
+          <div className="flex rounded-lg border border-border overflow-hidden">
+            {[20, 50, 100].map((size) => (
+              <button
+                key={size}
+                onClick={() => setPageSize(size)}
+                className={cn(
+                  'px-3 py-1.5 text-xs font-medium transition-colors',
+                  pageSize === size
+                    ? 'bg-primary text-primary-foreground'
+                    : 'bg-background text-muted-foreground hover:text-foreground'
+                )}
+              >
+                {size}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 
@@ -129,7 +280,7 @@ export default function ReserveringenPage() {
         <Tabs value={tab} onValueChange={(v) => setTab(v as any)} className="flex-1">
           <TabsList className="bg-muted/50">
             <TabsTrigger value="all">
-              Alles <Badge variant="secondary" className="ml-1.5 text-[10px]">{enrichedBookings.length}</Badge>
+              Alles <Badge variant="secondary" className="ml-1.5 text-[10px]">{upcoming.length + past.length}</Badge>
             </TabsTrigger>
             <TabsTrigger value="confirmed">
               Reserveringen <Badge variant="secondary" className="ml-1.5 text-[10px]">{confirmedCount}</Badge>
@@ -141,143 +292,69 @@ export default function ReserveringenPage() {
         </Tabs>
         <div className="relative w-full sm:w-64">
           <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            placeholder="Zoeken..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="pl-9 h-9"
-          />
+          <Input placeholder="Zoeken..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-9 h-9" />
         </div>
       </div>
 
-      {/* Table */}
-      <div className="rounded-xl border bg-card card-shadow overflow-hidden">
-        <Table>
-          <TableHeader>
-            <TableRow className="bg-muted/30">
-              <TableHead>Status</TableHead>
-              <TableHead>Contactpersoon</TableHead>
-              <TableHead>Bedrijf</TableHead>
-              <TableHead>Evenement</TableHead>
-              <TableHead>Ruimte</TableHead>
-              <TableHead>Datum</TableHead>
-              <TableHead>Tijd</TableHead>
-              <TableHead className="w-[80px]"></TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {filtered.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={8} className="text-center py-12 text-muted-foreground">
-                  Geen reserveringen gevonden
-                </TableCell>
-              </TableRow>
-            ) : (
-              filtered.map((b) => (
-                <TableRow
-                  key={b.id}
-                  className="cursor-pointer hover:bg-muted/30 transition-colors"
-                  onClick={() => openEdit(b)}
-                >
-                  <TableCell>
-                    <Badge
-                      variant="secondary"
-                      className={cn(
-                        'text-[11px] font-medium',
-                        b.status === 'confirmed'
-                          ? 'bg-success/10 text-success border-success/20'
-                          : 'bg-warning/10 text-warning border-warning/20'
-                      )}
-                    >
-                      {b.status === 'confirmed' ? 'Reservering' : 'Optie'}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="font-medium">{b.contactName}</TableCell>
-                  <TableCell className="text-muted-foreground">{(b as any).company}</TableCell>
-                  <TableCell>{b.title}</TableCell>
-                  <TableCell>
-                    <span className="flex items-center gap-1.5 text-sm">
-                      <MapPin size={13} className="text-muted-foreground" />
-                      {b.roomName}
-                    </span>
-                  </TableCell>
-                  <TableCell>
-                    <span className="flex items-center gap-1.5 text-sm">
-                      <CalendarIcon size={13} className="text-muted-foreground" />
-                      {formatDate(b.date)}
-                    </span>
-                  </TableCell>
-                  <TableCell>
-                    <span className="flex items-center gap-1.5 text-sm">
-                      <Clock size={13} className="text-muted-foreground" />
-                      {formatTime(b.startHour, b.startMinute)} – {formatTime(b.endHour, b.endMinute)}
-                    </span>
-                  </TableCell>
-                  <TableCell>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-7 w-7 p-0"
-                      onClick={(e) => { e.stopPropagation(); openEdit(b); }}
-                    >
-                      <Edit2 size={14} />
-                    </Button>
-                  </TableCell>
-                </TableRow>
-              ))
-            )}
-          </TableBody>
-        </Table>
+      {/* Upcoming bookings */}
+      <div>
+        <h2 className="text-lg font-semibold text-foreground mb-3 flex items-center gap-2">
+          <CalendarIcon size={18} className="text-primary" />
+          Komende reserveringen
+          <Badge variant="secondary" className="text-[10px]">{upcoming.length}</Badge>
+        </h2>
+        <div className="rounded-xl border bg-card card-shadow overflow-hidden">
+          {renderTable(paginate(upcoming, upcomingPage), 'Geen komende reserveringen')}
+          {renderPagination(upcomingPage, setUpcomingPage, upcoming.length)}
+        </div>
       </div>
+
+      {/* Past bookings */}
+      {past.length > 0 && (
+        <div>
+          <h2 className="text-lg font-semibold text-muted-foreground mb-3 flex items-center gap-2">
+            <History size={18} />
+            Afgelopen
+            <Badge variant="secondary" className="text-[10px]">{past.length}</Badge>
+          </h2>
+          <div className="rounded-xl border bg-card/50 card-shadow overflow-hidden">
+            {renderTable(paginate(past, pastPage), 'Geen afgelopen reserveringen')}
+            {renderPagination(pastPage, setPastPage, past.length)}
+          </div>
+        </div>
+      )}
 
       {/* Edit Dialog */}
       <Dialog open={editOpen} onOpenChange={setEditOpen}>
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              {editBooking?.status === 'option' ? 'Optie bewerken' : 'Reservering bewerken'}
-            </DialogTitle>
+            <DialogTitle>{editBooking?.status === 'option' ? 'Optie bewerken' : 'Reservering bewerken'}</DialogTitle>
           </DialogHeader>
           {editBooking && (
             <div className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <Label>Contactpersoon</Label>
-                  <Input
-                    value={editBooking.contactName}
-                    onChange={(e) => setEditBooking({ ...editBooking, contactName: e.target.value })}
-                  />
+                  <Input value={editBooking.contactName} onChange={(e) => setEditBooking({ ...editBooking, contactName: e.target.value })} />
                 </div>
                 <div>
                   <Label>Evenement</Label>
-                  <Input
-                    value={editBooking.title}
-                    onChange={(e) => setEditBooking({ ...editBooking, title: e.target.value })}
-                  />
+                  <Input value={editBooking.title} onChange={(e) => setEditBooking({ ...editBooking, title: e.target.value })} />
                 </div>
               </div>
-
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <Label>Ruimte</Label>
-                  <Select
-                    value={editBooking.roomName}
-                    onValueChange={(v) => setEditBooking({ ...editBooking, roomName: v as RoomName })}
-                  >
+                  <Select value={editBooking.roomName} onValueChange={(v) => setEditBooking({ ...editBooking, roomName: v as RoomName })}>
                     <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
-                      {availableRooms.map((r) => (
-                        <SelectItem key={r} value={r}>{r}</SelectItem>
-                      ))}
+                      {availableRooms.map((r) => (<SelectItem key={r} value={r}>{r}</SelectItem>))}
                     </SelectContent>
                   </Select>
                 </div>
                 <div>
                   <Label>Status</Label>
-                  <Select
-                    value={editBooking.status}
-                    onValueChange={(v) => setEditBooking({ ...editBooking, status: v as 'confirmed' | 'option' })}
-                  >
+                  <Select value={editBooking.status} onValueChange={(v) => setEditBooking({ ...editBooking, status: v as 'confirmed' | 'option' })}>
                     <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="confirmed">Reservering</SelectItem>
@@ -286,59 +363,30 @@ export default function ReserveringenPage() {
                   </Select>
                 </div>
               </div>
-
               <div className="grid grid-cols-3 gap-4">
                 <div>
                   <Label>Datum</Label>
-                  <Input
-                    type="date"
-                    value={editBooking.date}
-                    onChange={(e) => setEditBooking({ ...editBooking, date: e.target.value })}
-                  />
+                  <Input type="date" value={editBooking.date} onChange={(e) => setEditBooking({ ...editBooking, date: e.target.value })} />
                 </div>
                 <div>
                   <Label>Van</Label>
-                  <Input
-                    type="time"
-                    value={formatTime(editBooking.startHour, editBooking.startMinute)}
-                    onChange={(e) => {
-                      const [h, m] = e.target.value.split(':').map(Number);
-                      setEditBooking({ ...editBooking, startHour: h, startMinute: m || 0 });
-                    }}
-                  />
+                  <Input type="time" value={formatTime(editBooking.startHour, editBooking.startMinute)} onChange={(e) => { const [h, m] = e.target.value.split(':').map(Number); setEditBooking({ ...editBooking, startHour: h, startMinute: m || 0 }); }} />
                 </div>
                 <div>
                   <Label>Tot</Label>
-                  <Input
-                    type="time"
-                    value={formatTime(editBooking.endHour, editBooking.endMinute)}
-                    onChange={(e) => {
-                      const [h, m] = e.target.value.split(':').map(Number);
-                      setEditBooking({ ...editBooking, endHour: h, endMinute: m || 0 });
-                    }}
-                  />
+                  <Input type="time" value={formatTime(editBooking.endHour, editBooking.endMinute)} onChange={(e) => { const [h, m] = e.target.value.split(':').map(Number); setEditBooking({ ...editBooking, endHour: h, endMinute: m || 0 }); }} />
                 </div>
               </div>
-
               <div>
                 <Label>Notities</Label>
-                <Textarea
-                  value={editBooking.notes || ''}
-                  onChange={(e) => setEditBooking({ ...editBooking, notes: e.target.value })}
-                  rows={3}
-                />
+                <Textarea value={editBooking.notes || ''} onChange={(e) => setEditBooking({ ...editBooking, notes: e.target.value })} rows={3} />
               </div>
             </div>
           )}
           <DialogFooter className="flex-col sm:flex-row gap-2">
             {editBooking?.status === 'option' && (
-              <Button
-                variant="outline"
-                onClick={handleConvertToReservation}
-                className="gap-1.5"
-              >
-                <ArrowRightLeft size={14} />
-                Omzetten naar reservering
+              <Button variant="outline" onClick={handleConvertToReservation} className="gap-1.5">
+                <ArrowRightLeft size={14} /> Omzetten naar reservering
               </Button>
             )}
             <div className="flex gap-2 ml-auto">
