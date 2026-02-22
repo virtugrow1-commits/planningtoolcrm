@@ -1,4 +1,4 @@
-import { Search, Plus, Filter, X, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Search, Plus, Filter, X, ChevronLeft, ChevronRight, Edit2, Trash2 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { useState } from 'react';
@@ -8,10 +8,14 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Checkbox } from '@/components/ui/checkbox';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
+import BulkActionBar from '@/components/BulkActionBar';
 import { Contact } from '@/types/crm';
 import { useToast } from '@/hooks/use-toast';
 import { useContactsContext } from '@/contexts/ContactsContext';
 import { useCompaniesContext } from '@/contexts/CompaniesContext';
+import { cn } from '@/lib/utils';
 
 const STATUS_LABELS: Record<string, string> = {
   lead: 'Lead',
@@ -21,11 +25,10 @@ const STATUS_LABELS: Record<string, string> = {
 };
 
 type FilterKey = 'status' | 'company';
-
 const PAGE_SIZES = [20, 50, 100] as const;
 
 export default function CrmPage() {
-  const { contacts, loading, addContact } = useContactsContext();
+  const { contacts, loading, addContact, deleteContact, updateContact } = useContactsContext();
   const { companies } = useCompaniesContext();
   const [search, setSearch] = useState('');
   const [newOpen, setNewOpen] = useState(false);
@@ -33,19 +36,20 @@ export default function CrmPage() {
   const [filters, setFilters] = useState<Record<FilterKey, string>>({ status: '', company: '' });
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState<number>(20);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [bulkEditOpen, setBulkEditOpen] = useState(false);
+  const [bulkEditStatus, setBulkEditStatus] = useState('');
+  const [bulkEditConfirmOpen, setBulkEditConfirmOpen] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
 
-  // Unique values for filter dropdowns
   const uniqueStatuses = [...new Set(contacts.map((c) => c.status))];
   const uniqueCompanies = [...new Set(contacts.map((c) => c.company).filter(Boolean))] as string[];
-
   const activeFilterCount = Object.values(filters).filter(Boolean).length;
 
   const filtered = contacts.filter((c) => {
     const searchLower = search.toLowerCase().trim();
     const contactText = `${c.firstName} ${c.lastName} ${c.email} ${c.company || ''}`.toLowerCase();
-    // Match all search terms (space-separated) so "ad dorst" finds "Ad Van Dorst"
     const searchTerms = searchLower.split(/\s+/).filter(Boolean);
     const matchesSearch = !searchLower || searchTerms.every((term) => contactText.includes(term));
     const matchesStatus = !filters.status || c.status === filters.status;
@@ -54,20 +58,52 @@ export default function CrmPage() {
   });
 
   const clearFilters = () => { setFilters({ status: '', company: '' }); setPage(1); };
-
-  // Reset page on search/filter change
   const handleSearch = (v: string) => { setSearch(v); setPage(1); };
   const handleFilter = (f: Record<FilterKey, string>) => { setFilters(f); setPage(1); };
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
   const paginated = filtered.slice((page - 1) * pageSize, page * pageSize);
 
+  const toggleSelect = (id: string) => {
+    setSelected(prev => { const n = new Set(prev); if (n.has(id)) n.delete(id); else n.add(id); return n; });
+  };
+
+  const toggleSelectAll = () => {
+    const ids = paginated.map(c => c.id);
+    const allSel = ids.every(id => selected.has(id));
+    setSelected(prev => {
+      const n = new Set(prev);
+      if (allSel) ids.forEach(id => n.delete(id)); else ids.forEach(id => n.add(id));
+      return n;
+    });
+  };
+
+  const handleBulkDelete = async () => {
+    const count = selected.size;
+    for (const id of selected) await deleteContact(id);
+    setSelected(new Set());
+    toast({ title: `${count} contact(en) verwijderd` });
+  };
+
+  const handleBulkEditConfirm = async () => {
+    if (!bulkEditStatus) return;
+    const count = selected.size;
+    for (const id of selected) {
+      const c = contacts.find(x => x.id === id);
+      if (c) await updateContact({ ...c, status: bulkEditStatus as Contact['status'] });
+    }
+    setSelected(new Set());
+    setBulkEditOpen(false);
+    setBulkEditConfirmOpen(false);
+    setBulkEditStatus('');
+    toast({ title: `${count} contact(en) bijgewerkt` });
+  };
+
   const handleAddContact = async () => {
     if (!newContact.firstName || !newContact.lastName) {
       toast({ title: 'Vul minimaal voor- en achternaam in', variant: 'destructive' });
       return;
     }
-    // Auto-link company_id if company name matches an existing company
     let companyId: string | undefined;
     if (newContact.company) {
       const match = companies.find((c) => c.name.toLowerCase() === newContact.company!.toLowerCase());
@@ -80,12 +116,10 @@ export default function CrmPage() {
   };
 
   if (loading) {
-    return (
-      <div className="flex min-h-[50vh] items-center justify-center">
-        <div className="text-muted-foreground">Contacten laden...</div>
-      </div>
-    );
+    return <div className="flex min-h-[50vh] items-center justify-center"><div className="text-muted-foreground">Contacten laden...</div></div>;
   }
+
+  const allPageSelected = paginated.length > 0 && paginated.every(c => selected.has(c.id));
 
   return (
     <div className="p-6 lg:p-8 space-y-4">
@@ -99,84 +133,62 @@ export default function CrmPage() {
             <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
             <Input placeholder="Zoeken..." className="pl-9" value={search} onChange={(e) => handleSearch(e.target.value)} />
           </div>
-
           <Popover>
             <PopoverTrigger asChild>
               <Button variant="outline" size="sm" className="relative">
                 <Filter size={14} className="mr-1" /> Filters
-                {activeFilterCount > 0 && (
-                  <Badge variant="secondary" className="ml-1.5 h-5 min-w-5 px-1 text-xs">{activeFilterCount}</Badge>
-                )}
+                {activeFilterCount > 0 && <Badge variant="secondary" className="ml-1.5 h-5 min-w-5 px-1 text-xs">{activeFilterCount}</Badge>}
               </Button>
             </PopoverTrigger>
             <PopoverContent className="w-72 space-y-3" align="end">
               <div className="flex items-center justify-between">
                 <span className="text-sm font-semibold">Filters</span>
-                {activeFilterCount > 0 && (
-                  <Button variant="ghost" size="sm" className="h-6 text-xs" onClick={clearFilters}>
-                    <X size={12} className="mr-1" /> Wissen
-                  </Button>
-                )}
+                {activeFilterCount > 0 && <Button variant="ghost" size="sm" className="h-6 text-xs" onClick={clearFilters}><X size={12} className="mr-1" /> Wissen</Button>}
               </div>
-
               <div className="grid gap-1.5">
                 <Label className="text-xs">Status</Label>
-                 <Select value={filters.status} onValueChange={(v) => handleFilter({ ...filters, status: v === '_all' ? '' : v })}>
-                    <SelectTrigger className="h-8 text-xs">
-                      <SelectValue placeholder="Alle statussen" />
-                    </SelectTrigger>
+                <Select value={filters.status} onValueChange={(v) => handleFilter({ ...filters, status: v === '_all' ? '' : v })}>
+                  <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Alle statussen" /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="_all">Alle statussen</SelectItem>
-                    {uniqueStatuses.map((s) => (
-                      <SelectItem key={s} value={s}>{STATUS_LABELS[s] || s}</SelectItem>
-                    ))}
+                    {uniqueStatuses.map((s) => <SelectItem key={s} value={s}>{STATUS_LABELS[s] || s}</SelectItem>)}
                   </SelectContent>
                 </Select>
               </div>
-
               <div className="grid gap-1.5">
                 <Label className="text-xs">Bedrijf</Label>
-                 <Select value={filters.company} onValueChange={(v) => handleFilter({ ...filters, company: v === '_all' ? '' : v })}>
-                    <SelectTrigger className="h-8 text-xs">
-                      <SelectValue placeholder="Alle bedrijven" />
-                    </SelectTrigger>
+                <Select value={filters.company} onValueChange={(v) => handleFilter({ ...filters, company: v === '_all' ? '' : v })}>
+                  <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Alle bedrijven" /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="_all">Alle bedrijven</SelectItem>
-                    {uniqueCompanies.map((c) => (
-                      <SelectItem key={c} value={c}>{c}</SelectItem>
-                    ))}
+                    {uniqueCompanies.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
                   </SelectContent>
                 </Select>
               </div>
             </PopoverContent>
           </Popover>
-
-          <Button size="sm" onClick={() => setNewOpen(true)}>
-            <Plus size={14} className="mr-1" /> Nieuw Contact
-          </Button>
+          <Button size="sm" onClick={() => setNewOpen(true)}><Plus size={14} className="mr-1" /> Nieuw Contact</Button>
         </div>
       </div>
 
-      {/* Active filter badges */}
       {activeFilterCount > 0 && (
         <div className="flex flex-wrap gap-2">
-          {filters.status && (
-            <Badge variant="secondary" className="gap-1 cursor-pointer" onClick={() => handleFilter({ ...filters, status: '' })}>
-              Status: {STATUS_LABELS[filters.status] || filters.status} <X size={12} />
-            </Badge>
-          )}
-          {filters.company && (
-            <Badge variant="secondary" className="gap-1 cursor-pointer" onClick={() => handleFilter({ ...filters, company: '' })}>
-              Bedrijf: {filters.company} <X size={12} />
-            </Badge>
-          )}
+          {filters.status && <Badge variant="secondary" className="gap-1 cursor-pointer" onClick={() => handleFilter({ ...filters, status: '' })}>Status: {STATUS_LABELS[filters.status] || filters.status} <X size={12} /></Badge>}
+          {filters.company && <Badge variant="secondary" className="gap-1 cursor-pointer" onClick={() => handleFilter({ ...filters, company: '' })}>Bedrijf: {filters.company} <X size={12} /></Badge>}
         </div>
       )}
+
+      <BulkActionBar selectedCount={selected.size} onClear={() => setSelected(new Set())} onDelete={handleBulkDelete}>
+        <Button variant="outline" size="sm" onClick={() => { setBulkEditStatus(''); setBulkEditOpen(true); }}>
+          <Edit2 size={14} className="mr-1" /> Bulk status wijzigen
+        </Button>
+      </BulkActionBar>
 
       <div className="overflow-x-auto rounded-xl border bg-card card-shadow">
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b bg-muted/50">
+              <th className="px-4 py-3 w-[40px]"><Checkbox checked={allPageSelected} onCheckedChange={toggleSelectAll} /></th>
               <th className="px-4 py-3 text-left font-semibold text-muted-foreground">Naam</th>
               <th className="px-4 py-3 text-left font-semibold text-muted-foreground">Email</th>
               <th className="px-4 py-3 text-left font-semibold text-muted-foreground hidden md:table-cell">Telefoon</th>
@@ -186,12 +198,17 @@ export default function CrmPage() {
           </thead>
           <tbody>
             {paginated.length === 0 && (
-              <tr>
-                <td colSpan={5} className="px-4 py-8 text-center text-muted-foreground">Geen contacten gevonden</td>
-              </tr>
+              <tr><td colSpan={6} className="px-4 py-8 text-center text-muted-foreground">Geen contacten gevonden</td></tr>
             )}
             {paginated.map((c) => (
-              <tr key={c.id} onClick={() => navigate(`/crm/${c.id}`)} className="border-b last:border-0 transition-colors hover:bg-muted/30 cursor-pointer">
+              <tr
+                key={c.id}
+                className={cn('border-b last:border-0 transition-colors hover:bg-muted/30 cursor-pointer', selected.has(c.id) ? 'bg-primary/5' : '')}
+                onClick={() => navigate(`/crm/${c.id}`)}
+              >
+                <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
+                  <Checkbox checked={selected.has(c.id)} onCheckedChange={() => toggleSelect(c.id)} />
+                </td>
                 <td className="px-4 py-3 font-medium text-foreground">{c.firstName} {c.lastName}</td>
                 <td className="px-4 py-3 text-muted-foreground">{c.email || '—'}</td>
                 <td className="px-4 py-3 text-muted-foreground hidden md:table-cell">{c.phone || '—'}</td>
@@ -205,60 +222,34 @@ export default function CrmPage() {
         </table>
       </div>
 
-      {/* Pagination */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2 text-sm text-muted-foreground">
           <span>Tonen:</span>
           <Select value={String(pageSize)} onValueChange={(v) => { setPageSize(Number(v)); setPage(1); }}>
-            <SelectTrigger className="h-8 w-20 text-xs">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {PAGE_SIZES.map((s) => <SelectItem key={s} value={String(s)}>{s}</SelectItem>)}
-            </SelectContent>
+            <SelectTrigger className="h-8 w-20 text-xs"><SelectValue /></SelectTrigger>
+            <SelectContent>{PAGE_SIZES.map((s) => <SelectItem key={s} value={String(s)}>{s}</SelectItem>)}</SelectContent>
           </Select>
           <span>van {filtered.length}</span>
         </div>
         <div className="flex items-center gap-1">
-          <Button variant="outline" size="icon" className="h-8 w-8" disabled={page <= 1} onClick={() => setPage(page - 1)}>
-            <ChevronLeft size={14} />
-          </Button>
+          <Button variant="outline" size="icon" className="h-8 w-8" disabled={page <= 1} onClick={() => setPage(page - 1)}><ChevronLeft size={14} /></Button>
           <span className="px-2 text-sm text-muted-foreground">{page} / {totalPages}</span>
-          <Button variant="outline" size="icon" className="h-8 w-8" disabled={page >= totalPages} onClick={() => setPage(page + 1)}>
-            <ChevronRight size={14} />
-          </Button>
+          <Button variant="outline" size="icon" className="h-8 w-8" disabled={page >= totalPages} onClick={() => setPage(page + 1)}><ChevronRight size={14} /></Button>
         </div>
       </div>
 
       {/* New Contact Dialog */}
       <Dialog open={newOpen} onOpenChange={setNewOpen}>
         <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>Nieuw Contact</DialogTitle>
-          </DialogHeader>
+          <DialogHeader><DialogTitle>Nieuw Contact</DialogTitle></DialogHeader>
           <div className="grid gap-4 py-2">
             <div className="grid grid-cols-2 gap-3">
-              <div className="grid gap-1.5">
-                <Label>Voornaam *</Label>
-                <Input value={newContact.firstName} onChange={(e) => setNewContact({ ...newContact, firstName: e.target.value })} />
-              </div>
-              <div className="grid gap-1.5">
-                <Label>Achternaam *</Label>
-                <Input value={newContact.lastName} onChange={(e) => setNewContact({ ...newContact, lastName: e.target.value })} />
-              </div>
+              <div className="grid gap-1.5"><Label>Voornaam *</Label><Input value={newContact.firstName} onChange={(e) => setNewContact({ ...newContact, firstName: e.target.value })} /></div>
+              <div className="grid gap-1.5"><Label>Achternaam *</Label><Input value={newContact.lastName} onChange={(e) => setNewContact({ ...newContact, lastName: e.target.value })} /></div>
             </div>
-            <div className="grid gap-1.5">
-              <Label>Email</Label>
-              <Input type="email" value={newContact.email} onChange={(e) => setNewContact({ ...newContact, email: e.target.value })} />
-            </div>
-            <div className="grid gap-1.5">
-              <Label>Telefoon</Label>
-              <Input value={newContact.phone} onChange={(e) => setNewContact({ ...newContact, phone: e.target.value })} />
-            </div>
-            <div className="grid gap-1.5">
-              <Label>Bedrijf</Label>
-              <Input value={newContact.company || ''} onChange={(e) => setNewContact({ ...newContact, company: e.target.value || undefined })} />
-            </div>
+            <div className="grid gap-1.5"><Label>Email</Label><Input type="email" value={newContact.email} onChange={(e) => setNewContact({ ...newContact, email: e.target.value })} /></div>
+            <div className="grid gap-1.5"><Label>Telefoon</Label><Input value={newContact.phone} onChange={(e) => setNewContact({ ...newContact, phone: e.target.value })} /></div>
+            <div className="grid gap-1.5"><Label>Bedrijf</Label><Input value={newContact.company || ''} onChange={(e) => setNewContact({ ...newContact, company: e.target.value || undefined })} /></div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setNewOpen(false)}>Annuleren</Button>
@@ -266,6 +257,44 @@ export default function CrmPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Bulk Edit Dialog */}
+      <Dialog open={bulkEditOpen} onOpenChange={setBulkEditOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader><DialogTitle>Bulk status wijzigen ({selected.size} contacten)</DialogTitle></DialogHeader>
+          <div className="space-y-4 py-2">
+            <div>
+              <Label>Nieuwe status</Label>
+              <Select value={bulkEditStatus} onValueChange={setBulkEditStatus}>
+                <SelectTrigger><SelectValue placeholder="Selecteer status" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="lead">Lead</SelectItem>
+                  <SelectItem value="prospect">Prospect</SelectItem>
+                  <SelectItem value="client">Klant</SelectItem>
+                  <SelectItem value="inactive">Inactief</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setBulkEditOpen(false)}>Annuleren</Button>
+            <Button onClick={() => setBulkEditConfirmOpen(true)} disabled={!bulkEditStatus}>Toepassen</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <AlertDialog open={bulkEditConfirmOpen} onOpenChange={setBulkEditConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Wijzigingen bevestigen</AlertDialogTitle>
+            <AlertDialogDescription>Je past de status van {selected.size} contact(en) aan naar "{STATUS_LABELS[bulkEditStatus] || bulkEditStatus}". Weet je zeker dat je wilt doorgaan?</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annuleren</AlertDialogCancel>
+            <AlertDialogAction onClick={handleBulkEditConfirm}>Bevestigen</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

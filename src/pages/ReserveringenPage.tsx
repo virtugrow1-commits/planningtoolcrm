@@ -16,13 +16,16 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Textarea } from '@/components/ui/textarea';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Checkbox } from '@/components/ui/checkbox';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
+import BulkActionBar from '@/components/BulkActionBar';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 
 type EnrichedBooking = Booking & { company: string; isPast: boolean };
 
 export default function ReserveringenPage() {
-  const { bookings, updateBooking, loading } = useBookings();
+  const { bookings, updateBooking, deleteBooking, loading } = useBookings();
   const { contacts } = useContacts();
   const { t } = useLanguage();
   const { toast } = useToast();
@@ -34,28 +37,24 @@ export default function ReserveringenPage() {
   const [pageSize, setPageSize] = useState(20);
   const [upcomingPage, setUpcomingPage] = useState(1);
   const [pastPage, setPastPage] = useState(1);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [bulkEditOpen, setBulkEditOpen] = useState(false);
+  const [bulkEditField, setBulkEditField] = useState<{ status?: 'confirmed' | 'option'; preparationStatus?: string }>({});
+  const [bulkEditConfirmOpen, setBulkEditConfirmOpen] = useState(false);
 
   const availableRooms = useMemo(() => [...ROOMS], []);
-
   const todayStr = useMemo(() => new Date().toISOString().split('T')[0], []);
 
-  // Enrich bookings
   const enrichedBookings = useMemo<EnrichedBooking[]>(() => {
     return bookings.map(b => {
       const contact = b.contactId ? contacts.find(c => c.id === b.contactId) : null;
-      return {
-        ...b,
-        company: contact?.company || '-',
-        isPast: b.date < todayStr,
-      };
+      return { ...b, company: contact?.company || '-', isPast: b.date < todayStr };
     });
   }, [bookings, contacts, todayStr]);
 
-  // Apply tab + search filter
   const applyFilters = (list: EnrichedBooking[]) => {
     if (tab === 'confirmed') list = list.filter(b => b.status === 'confirmed');
     else if (tab === 'option') list = list.filter(b => b.status === 'option');
-
     if (search.trim()) {
       const terms = search.toLowerCase().split(/\s+/);
       list = list.filter(b =>
@@ -71,26 +70,71 @@ export default function ReserveringenPage() {
     return list;
   };
 
-  // Split upcoming vs past
   const upcoming = useMemo(() => {
-    const list = applyFilters(enrichedBookings.filter(b => !b.isPast));
-    return list.sort((a, b) => a.date.localeCompare(b.date));
+    return applyFilters(enrichedBookings.filter(b => !b.isPast)).sort((a, b) => a.date.localeCompare(b.date));
   }, [enrichedBookings, tab, search]);
 
   const past = useMemo(() => {
-    const list = applyFilters(enrichedBookings.filter(b => b.isPast));
-    return list.sort((a, b) => b.date.localeCompare(a.date)); // newest first
+    return applyFilters(enrichedBookings.filter(b => b.isPast)).sort((a, b) => b.date.localeCompare(a.date));
   }, [enrichedBookings, tab, search]);
 
-  // Reset pages on filter change
   useMemo(() => { setUpcomingPage(1); setPastPage(1); }, [tab, search, pageSize]);
 
-  // Pagination helpers
   const paginate = <T,>(items: T[], page: number) => {
     const start = (page - 1) * pageSize;
     return items.slice(start, start + pageSize);
   };
   const totalPages = (total: number) => Math.max(1, Math.ceil(total / pageSize));
+
+  const toggleSelect = (id: string) => {
+    setSelected(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleSelectAll = (items: EnrichedBooking[]) => {
+    const allIds = items.map(b => b.id);
+    const allSelected = allIds.every(id => selected.has(id));
+    setSelected(prev => {
+      const next = new Set(prev);
+      if (allSelected) {
+        allIds.forEach(id => next.delete(id));
+      } else {
+        allIds.forEach(id => next.add(id));
+      }
+      return next;
+    });
+  };
+
+  const handleBulkDelete = async () => {
+    const count = selected.size;
+    for (const id of selected) {
+      await deleteBooking(id);
+    }
+    setSelected(new Set());
+    toast({ title: `${count} reservering(en) verwijderd` });
+  };
+
+  const handleBulkEditConfirm = async () => {
+    const count = selected.size;
+    for (const id of selected) {
+      const booking = bookings.find(b => b.id === id);
+      if (booking) {
+        await updateBooking({
+          ...booking,
+          ...(bulkEditField.status ? { status: bulkEditField.status } : {}),
+          ...(bulkEditField.preparationStatus ? { preparationStatus: bulkEditField.preparationStatus as any } : {}),
+        });
+      }
+    }
+    setSelected(new Set());
+    setBulkEditOpen(false);
+    setBulkEditConfirmOpen(false);
+    setBulkEditField({});
+    toast({ title: `${count} reservering(en) bijgewerkt` });
+  };
 
   const openEdit = (booking: EnrichedBooking) => {
     const { company, isPast, ...rest } = booking;
@@ -144,104 +188,93 @@ export default function ReserveringenPage() {
 
   const renderStatusBadge = (b: EnrichedBooking) => {
     if (b.isPast) {
-      return (
-        <Badge variant="secondary" className="text-[11px] font-medium bg-muted text-muted-foreground">
-          Afgelopen
-        </Badge>
-      );
+      return <Badge variant="secondary" className="text-[11px] font-medium bg-muted text-muted-foreground">Afgelopen</Badge>;
     }
     return (
-      <Badge
-        variant="secondary"
-        className={cn(
-          'text-[11px] font-medium',
-          b.status === 'confirmed'
-            ? 'bg-success/10 text-success border-success/20'
-            : 'bg-warning/10 text-warning border-warning/20'
-        )}
-      >
+      <Badge variant="secondary" className={cn('text-[11px] font-medium', b.status === 'confirmed' ? 'bg-success/10 text-success border-success/20' : 'bg-warning/10 text-warning border-warning/20')}>
         {b.status === 'confirmed' ? 'Reservering' : 'Optie'}
       </Badge>
     );
   };
 
-  const renderTable = (items: EnrichedBooking[], emptyMsg: string) => (
-    <Table>
-      <TableHeader>
-        <TableRow className="bg-muted/30">
-          <TableHead>#</TableHead>
-          <TableHead>Status</TableHead>
-          <TableHead>Voorbereiding</TableHead>
-          <TableHead>Contactpersoon</TableHead>
-          <TableHead>Bedrijf</TableHead>
-          <TableHead>Evenement</TableHead>
-          <TableHead>Ruimte</TableHead>
-          <TableHead>Datum</TableHead>
-          <TableHead>Tijd</TableHead>
-          <TableHead className="w-[80px]"></TableHead>
-        </TableRow>
-      </TableHeader>
-      <TableBody>
-        {items.length === 0 ? (
-          <TableRow>
-            <TableCell colSpan={10} className="text-center py-12 text-muted-foreground">
-              {emptyMsg}
-            </TableCell>
+  const renderTable = (items: EnrichedBooking[], emptyMsg: string) => {
+    const allSelected = items.length > 0 && items.every(b => selected.has(b.id));
+    return (
+      <Table>
+        <TableHeader>
+          <TableRow className="bg-muted/30">
+            <TableHead className="w-[40px]">
+              <Checkbox
+                checked={allSelected}
+                onCheckedChange={() => toggleSelectAll(items)}
+              />
+            </TableHead>
+            <TableHead>#</TableHead>
+            <TableHead>Status</TableHead>
+            <TableHead>Voorbereiding</TableHead>
+            <TableHead>Contactpersoon</TableHead>
+            <TableHead>Bedrijf</TableHead>
+            <TableHead>Evenement</TableHead>
+            <TableHead>Ruimte</TableHead>
+            <TableHead>Datum</TableHead>
+            <TableHead>Tijd</TableHead>
+            <TableHead className="w-[80px]"></TableHead>
           </TableRow>
-        ) : (
-          items.map((b) => (
-            <TableRow
-              key={b.id}
-              className={cn(
-                'cursor-pointer transition-colors',
-                b.isPast ? 'opacity-60 hover:opacity-80 hover:bg-muted/20' : 'hover:bg-muted/30'
-              )}
-              onClick={() => openEdit(b)}
-            >
-              <TableCell>
-                <span className="flex items-center gap-1 text-xs font-mono text-muted-foreground">
-                  <Hash size={12} />
-                  {b.reservationNumber || '-'}
-                </span>
-              </TableCell>
-              <TableCell>{renderStatusBadge(b)}</TableCell>
-              <TableCell>
-                <Badge variant="secondary" className={cn('text-[11px] font-medium', prepStatusColor(b.preparationStatus))}>
-                  {prepStatusLabel(b.preparationStatus)}
-                </Badge>
-              </TableCell>
-              <TableCell className="font-medium">{b.contactName}</TableCell>
-              <TableCell className="text-muted-foreground">{b.company}</TableCell>
-              <TableCell>{b.title}</TableCell>
-              <TableCell>
-                <span className="flex items-center gap-1.5 text-sm">
-                  <MapPin size={13} className="text-muted-foreground" />
-                  {b.roomName}
-                </span>
-              </TableCell>
-              <TableCell>
-                <span className="flex items-center gap-1.5 text-sm">
-                  <CalendarIcon size={13} className="text-muted-foreground" />
-                  {formatDate(b.date)}
-                </span>
-              </TableCell>
-              <TableCell>
-                <span className="flex items-center gap-1.5 text-sm">
-                  <Clock size={13} className="text-muted-foreground" />
-                  {formatTime(b.startHour, b.startMinute)} – {formatTime(b.endHour, b.endMinute)}
-                </span>
-              </TableCell>
-              <TableCell>
-                <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={(e) => { e.stopPropagation(); openEdit(b); }}>
-                  <Edit2 size={14} />
-                </Button>
-              </TableCell>
+        </TableHeader>
+        <TableBody>
+          {items.length === 0 ? (
+            <TableRow>
+              <TableCell colSpan={11} className="text-center py-12 text-muted-foreground">{emptyMsg}</TableCell>
             </TableRow>
-          ))
-        )}
-      </TableBody>
-    </Table>
-  );
+          ) : (
+            items.map((b) => (
+              <TableRow
+                key={b.id}
+                className={cn(
+                  'cursor-pointer transition-colors',
+                  selected.has(b.id) ? 'bg-primary/5' : '',
+                  b.isPast ? 'opacity-60 hover:opacity-80 hover:bg-muted/20' : 'hover:bg-muted/30'
+                )}
+                onClick={() => openEdit(b)}
+              >
+                <TableCell onClick={(e) => e.stopPropagation()}>
+                  <Checkbox checked={selected.has(b.id)} onCheckedChange={() => toggleSelect(b.id)} />
+                </TableCell>
+                <TableCell>
+                  <span className="flex items-center gap-1 text-xs font-mono text-muted-foreground">
+                    <Hash size={12} />{b.reservationNumber || '-'}
+                  </span>
+                </TableCell>
+                <TableCell>{renderStatusBadge(b)}</TableCell>
+                <TableCell>
+                  <Badge variant="secondary" className={cn('text-[11px] font-medium', prepStatusColor(b.preparationStatus))}>
+                    {prepStatusLabel(b.preparationStatus)}
+                  </Badge>
+                </TableCell>
+                <TableCell className="font-medium">{b.contactName}</TableCell>
+                <TableCell className="text-muted-foreground">{b.company}</TableCell>
+                <TableCell>{b.title}</TableCell>
+                <TableCell>
+                  <span className="flex items-center gap-1.5 text-sm"><MapPin size={13} className="text-muted-foreground" />{b.roomName}</span>
+                </TableCell>
+                <TableCell>
+                  <span className="flex items-center gap-1.5 text-sm"><CalendarIcon size={13} className="text-muted-foreground" />{formatDate(b.date)}</span>
+                </TableCell>
+                <TableCell>
+                  <span className="flex items-center gap-1.5 text-sm"><Clock size={13} className="text-muted-foreground" />{formatTime(b.startHour, b.startMinute)} – {formatTime(b.endHour, b.endMinute)}</span>
+                </TableCell>
+                <TableCell>
+                  <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={(e) => { e.stopPropagation(); openEdit(b); }}>
+                    <Edit2 size={14} />
+                  </Button>
+                </TableCell>
+              </TableRow>
+            ))
+          )}
+        </TableBody>
+      </Table>
+    );
+  };
 
   const renderPagination = (currentPage: number, setPage: (p: number) => void, total: number) => {
     const pages = totalPages(total);
@@ -255,9 +288,7 @@ export default function ReserveringenPage() {
           <Button variant="ghost" size="sm" className="h-7 w-7 p-0" disabled={currentPage <= 1} onClick={() => setPage(currentPage - 1)}>
             <ChevronLeft size={14} />
           </Button>
-          <span className="text-xs text-muted-foreground px-2">
-            {currentPage} / {pages}
-          </span>
+          <span className="text-xs text-muted-foreground px-2">{currentPage} / {pages}</span>
           <Button variant="ghost" size="sm" className="h-7 w-7 p-0" disabled={currentPage >= pages} onClick={() => setPage(currentPage + 1)}>
             <ChevronRight size={14} />
           </Button>
@@ -276,7 +307,6 @@ export default function ReserveringenPage() {
 
   return (
     <div className="p-6 lg:p-8 space-y-6 animate-fade-in">
-      {/* Header */}
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-foreground">Reserveringen</h1>
@@ -284,21 +314,11 @@ export default function ReserveringenPage() {
             {confirmedCount} reserveringen · {optionCount} opties · {past.length} afgelopen
           </p>
         </div>
-        {/* Page size selector */}
         <div className="flex items-center gap-2">
           <span className="text-xs text-muted-foreground">Per pagina:</span>
           <div className="flex rounded-lg border border-border overflow-hidden">
             {[20, 50, 100].map((size) => (
-              <button
-                key={size}
-                onClick={() => setPageSize(size)}
-                className={cn(
-                  'px-3 py-1.5 text-xs font-medium transition-colors',
-                  pageSize === size
-                    ? 'bg-primary text-primary-foreground'
-                    : 'bg-background text-muted-foreground hover:text-foreground'
-                )}
-              >
+              <button key={size} onClick={() => setPageSize(size)} className={cn('px-3 py-1.5 text-xs font-medium transition-colors', pageSize === size ? 'bg-primary text-primary-foreground' : 'bg-background text-muted-foreground hover:text-foreground')}>
                 {size}
               </button>
             ))}
@@ -306,19 +326,23 @@ export default function ReserveringenPage() {
         </div>
       </div>
 
-      {/* Tabs + Search */}
+      {/* Bulk action bar */}
+      <BulkActionBar
+        selectedCount={selected.size}
+        onClear={() => setSelected(new Set())}
+        onDelete={handleBulkDelete}
+      >
+        <Button variant="outline" size="sm" onClick={() => { setBulkEditField({}); setBulkEditOpen(true); }}>
+          <Edit2 size={14} className="mr-1" /> Bulk bewerken
+        </Button>
+      </BulkActionBar>
+
       <div className="flex flex-wrap items-center gap-3">
         <Tabs value={tab} onValueChange={(v) => setTab(v as any)} className="flex-1">
           <TabsList className="bg-muted/50">
-            <TabsTrigger value="all">
-              Alles <Badge variant="secondary" className="ml-1.5 text-[10px]">{upcoming.length + past.length}</Badge>
-            </TabsTrigger>
-            <TabsTrigger value="confirmed">
-              Reserveringen <Badge variant="secondary" className="ml-1.5 text-[10px]">{confirmedCount}</Badge>
-            </TabsTrigger>
-            <TabsTrigger value="option">
-              Opties <Badge variant="secondary" className="ml-1.5 text-[10px]">{optionCount}</Badge>
-            </TabsTrigger>
+            <TabsTrigger value="all">Alles <Badge variant="secondary" className="ml-1.5 text-[10px]">{upcoming.length + past.length}</Badge></TabsTrigger>
+            <TabsTrigger value="confirmed">Reserveringen <Badge variant="secondary" className="ml-1.5 text-[10px]">{confirmedCount}</Badge></TabsTrigger>
+            <TabsTrigger value="option">Opties <Badge variant="secondary" className="ml-1.5 text-[10px]">{optionCount}</Badge></TabsTrigger>
           </TabsList>
         </Tabs>
         <div className="relative w-full sm:w-64">
@@ -327,11 +351,9 @@ export default function ReserveringenPage() {
         </div>
       </div>
 
-      {/* Upcoming bookings */}
       <div>
         <h2 className="text-lg font-semibold text-foreground mb-3 flex items-center gap-2">
-          <CalendarIcon size={18} className="text-primary" />
-          Komende reserveringen
+          <CalendarIcon size={18} className="text-primary" />Komende reserveringen
           <Badge variant="secondary" className="text-[10px]">{upcoming.length}</Badge>
         </h2>
         <div className="rounded-xl border bg-card card-shadow overflow-hidden">
@@ -340,12 +362,10 @@ export default function ReserveringenPage() {
         </div>
       </div>
 
-      {/* Past bookings */}
       {past.length > 0 && (
         <div>
           <h2 className="text-lg font-semibold text-muted-foreground mb-3 flex items-center gap-2">
-            <History size={18} />
-            Afgelopen
+            <History size={18} />Afgelopen
             <Badge variant="secondary" className="text-[10px]">{past.length}</Badge>
           </h2>
           <div className="rounded-xl border bg-card/50 card-shadow overflow-hidden">
@@ -369,23 +389,15 @@ export default function ReserveringenPage() {
           {editBooking && (
             <div className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label>Contactpersoon</Label>
-                  <Input value={editBooking.contactName} onChange={(e) => setEditBooking({ ...editBooking, contactName: e.target.value })} />
-                </div>
-                <div>
-                  <Label>Evenement</Label>
-                  <Input value={editBooking.title} onChange={(e) => setEditBooking({ ...editBooking, title: e.target.value })} />
-                </div>
+                <div><Label>Contactpersoon</Label><Input value={editBooking.contactName} onChange={(e) => setEditBooking({ ...editBooking, contactName: e.target.value })} /></div>
+                <div><Label>Evenement</Label><Input value={editBooking.title} onChange={(e) => setEditBooking({ ...editBooking, title: e.target.value })} /></div>
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <Label>Ruimte</Label>
                   <Select value={editBooking.roomName} onValueChange={(v) => setEditBooking({ ...editBooking, roomName: v as RoomName })}>
                     <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      {availableRooms.map((r) => (<SelectItem key={r} value={r}>{r}</SelectItem>))}
-                    </SelectContent>
+                    <SelectContent>{availableRooms.map((r) => (<SelectItem key={r} value={r}>{r}</SelectItem>))}</SelectContent>
                   </Select>
                 </div>
                 <div>
@@ -400,28 +412,13 @@ export default function ReserveringenPage() {
                 </div>
               </div>
               <div className="grid grid-cols-3 gap-4">
-                <div>
-                  <Label>Datum</Label>
-                  <Input type="date" value={editBooking.date} onChange={(e) => setEditBooking({ ...editBooking, date: e.target.value })} />
-                </div>
-                <div>
-                  <Label>Van</Label>
-                  <Input type="time" value={formatTime(editBooking.startHour, editBooking.startMinute)} onChange={(e) => { const [h, m] = e.target.value.split(':').map(Number); setEditBooking({ ...editBooking, startHour: h, startMinute: m || 0 }); }} />
-                </div>
-                <div>
-                  <Label>Tot</Label>
-                  <Input type="time" value={formatTime(editBooking.endHour, editBooking.endMinute)} onChange={(e) => { const [h, m] = e.target.value.split(':').map(Number); setEditBooking({ ...editBooking, endHour: h, endMinute: m || 0 }); }} />
-                </div>
+                <div><Label>Datum</Label><Input type="date" value={editBooking.date} onChange={(e) => setEditBooking({ ...editBooking, date: e.target.value })} /></div>
+                <div><Label>Van</Label><Input type="time" value={formatTime(editBooking.startHour, editBooking.startMinute)} onChange={(e) => { const [h, m] = e.target.value.split(':').map(Number); setEditBooking({ ...editBooking, startHour: h, startMinute: m || 0 }); }} /></div>
+                <div><Label>Tot</Label><Input type="time" value={formatTime(editBooking.endHour, editBooking.endMinute)} onChange={(e) => { const [h, m] = e.target.value.split(':').map(Number); setEditBooking({ ...editBooking, endHour: h, endMinute: m || 0 }); }} /></div>
               </div>
               <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label>Aantal gasten</Label>
-                  <Input type="number" min={0} value={editBooking.guestCount || ''} onChange={(e) => setEditBooking({ ...editBooking, guestCount: Math.max(0, Number(e.target.value)) })} />
-                </div>
-                <div>
-                  <Label>Zaalopstelling</Label>
-                  <Input value={editBooking.roomSetup || ''} onChange={(e) => setEditBooking({ ...editBooking, roomSetup: e.target.value })} placeholder="bijv. U-vorm, Theater" />
-                </div>
+                <div><Label>Aantal gasten</Label><Input type="number" min={0} value={editBooking.guestCount || ''} onChange={(e) => setEditBooking({ ...editBooking, guestCount: Math.max(0, Number(e.target.value)) })} /></div>
+                <div><Label>Zaalopstelling</Label><Input value={editBooking.roomSetup || ''} onChange={(e) => setEditBooking({ ...editBooking, roomSetup: e.target.value })} placeholder="bijv. U-vorm, Theater" /></div>
               </div>
               <div>
                 <Label>Voorbereiding</Label>
@@ -435,14 +432,8 @@ export default function ReserveringenPage() {
                   </SelectContent>
                 </Select>
               </div>
-              <div>
-                <Label>Benodigdheden</Label>
-                <Textarea value={editBooking.requirements || ''} onChange={(e) => setEditBooking({ ...editBooking, requirements: e.target.value })} placeholder="Beamer, flipover, koffie/thee, lunch..." rows={3} />
-              </div>
-              <div>
-                <Label>Notities</Label>
-                <Textarea value={editBooking.notes || ''} onChange={(e) => setEditBooking({ ...editBooking, notes: e.target.value })} rows={3} />
-              </div>
+              <div><Label>Benodigdheden</Label><Textarea value={editBooking.requirements || ''} onChange={(e) => setEditBooking({ ...editBooking, requirements: e.target.value })} placeholder="Beamer, flipover, koffie/thee, lunch..." rows={3} /></div>
+              <div><Label>Notities</Label><Textarea value={editBooking.notes || ''} onChange={(e) => setEditBooking({ ...editBooking, notes: e.target.value })} rows={3} /></div>
             </div>
           )}
           <DialogFooter className="flex-col sm:flex-row gap-2">
@@ -458,6 +449,62 @@ export default function ReserveringenPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Bulk Edit Dialog */}
+      <Dialog open={bulkEditOpen} onOpenChange={setBulkEditOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Bulk bewerken ({selected.size} items)</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <p className="text-sm text-muted-foreground">Selecteer de velden die je wilt wijzigen. Lege velden worden niet aangepast.</p>
+            <div>
+              <Label>Status</Label>
+              <Select value={bulkEditField.status || '_none'} onValueChange={(v) => setBulkEditField({ ...bulkEditField, status: v === '_none' ? undefined : v as any })}>
+                <SelectTrigger><SelectValue placeholder="Niet wijzigen" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="_none">Niet wijzigen</SelectItem>
+                  <SelectItem value="confirmed">Reservering</SelectItem>
+                  <SelectItem value="option">Optie</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label>Voorbereiding</Label>
+              <Select value={bulkEditField.preparationStatus || '_none'} onValueChange={(v) => setBulkEditField({ ...bulkEditField, preparationStatus: v === '_none' ? undefined : v })}>
+                <SelectTrigger><SelectValue placeholder="Niet wijzigen" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="_none">Niet wijzigen</SelectItem>
+                  <SelectItem value="pending">Open</SelectItem>
+                  <SelectItem value="info_waiting">Wacht op info</SelectItem>
+                  <SelectItem value="in_progress">In voorbereiding</SelectItem>
+                  <SelectItem value="ready">Gereed</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setBulkEditOpen(false)}>Annuleren</Button>
+            <Button onClick={() => setBulkEditConfirmOpen(true)} disabled={!bulkEditField.status && !bulkEditField.preparationStatus}>Toepassen</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Bulk Edit Confirm */}
+      <AlertDialog open={bulkEditConfirmOpen} onOpenChange={setBulkEditConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Wijzigingen bevestigen</AlertDialogTitle>
+            <AlertDialogDescription>
+              Je past {selected.size} reservering(en) aan. Weet je zeker dat je wilt doorgaan?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annuleren</AlertDialogCancel>
+            <AlertDialogAction onClick={handleBulkEditConfirm}>Bevestigen</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
