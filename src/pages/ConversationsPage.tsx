@@ -11,7 +11,7 @@ import {
   Send,
   RefreshCw,
   MessageSquare,
-  Phone,
+  PhoneCall,
   Mail,
   Instagram,
   Globe,
@@ -152,7 +152,7 @@ export default function ConversationsPage() {
 
   const getTypeIcon = (type: string) => {
     const t = type?.toLowerCase() || '';
-    if (t.includes('sms') || t.includes('phone')) return Phone;
+    if (t.includes('sms') || t.includes('phone')) return PhoneCall;
     if (t.includes('email')) return Mail;
     if (t.includes('instagram') || t.includes('ig')) return Instagram;
     if (t.includes('whatsapp') || t.includes('wa')) return MessageSquare;
@@ -162,13 +162,13 @@ export default function ConversationsPage() {
 
   const getChannelIcons = (type: string) => {
     const t = type?.toLowerCase() || '';
-    const icons: (typeof Phone)[] = [];
-    if (t.includes('phone') || t.includes('call')) icons.push(Phone);
+    const icons: (typeof PhoneCall)[] = [];
+    if (t.includes('phone') || t.includes('call')) icons.push(PhoneCall);
     if (t.includes('email')) icons.push(Mail);
     if (t.includes('sms')) icons.push(MessageSquare);
     if (t.includes('whatsapp') || t.includes('wa')) icons.push(MessageSquare);
     if (t.includes('instagram') || t.includes('ig')) icons.push(Instagram);
-    if (icons.length === 0) icons.push(MessageSquare);
+    if (icons.length === 0) icons.push(PhoneCall);
     return icons;
   };
 
