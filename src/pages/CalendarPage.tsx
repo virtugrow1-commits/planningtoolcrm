@@ -9,6 +9,7 @@ import BookingDetailDialog from '@/components/calendar/BookingDetailDialog';
 import NewReservationDialog, { NewReservationForm } from '@/components/calendar/NewReservationDialog';
 import RoomSettingsDialog from '@/components/calendar/RoomSettingsDialog';
 import ConflictAlertDialog from '@/components/calendar/ConflictAlertDialog';
+import { AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogFooter, AlertDialogCancel, AlertDialogAction } from '@/components/ui/alert-dialog';
 import WeekView from '@/components/calendar/WeekView';
 import MonthView from '@/components/calendar/MonthView';
 import DayGridView from '@/components/calendar/DayGridView';
@@ -41,7 +42,8 @@ export default function CalendarPage() {
   const [reservationDialogOpen, setReservationDialogOpen] = useState(false);
   const [reservationConflict, setReservationConflict] = useState<string | null>(null);
   const [reservationInitial, setReservationInitial] = useState<{ hour?: number; room?: RoomName; date?: string }>({});
-  const [conflictPopup, setConflictPopup] = useState<{ conflicts: Booking[]; onProceed: () => void } | null>(null);
+  const [conflictPopup, setConflictPopup] = useState<{ conflicts: Booking[] } | null>(null);
+  const [moveConfirm, setMoveConfirm] = useState<{ booking: Booking; updated: Booking; description: string } | null>(null);
   const { toast } = useToast();
   const { settings: roomSettings, displayNames, updateRoomSettings, getMaxGuests, getDisplayName } = useRoomSettings();
   const { contacts, loading: contactsLoading } = useContacts();
@@ -68,15 +70,8 @@ export default function CalendarPage() {
       b.id !== updated.id
     );
     if (conflicts.length > 0) {
-      setConflictPopup({
-        conflicts,
-        onProceed: () => {
-          updateBooking(updated);
-          setDetailBooking(updated);
-          setConflictPopup(null);
-          toast({ title: 'Boeking bijgewerkt (met overlap)' });
-        },
-      });
+      setConflictPopup({ conflicts });
+      toast({ title: 'Dubbele boeking niet toegestaan', description: 'Er is al een reservering op dit tijdslot.', variant: 'destructive' });
       return;
     }
     updateBooking(updated);
@@ -102,19 +97,14 @@ export default function CalendarPage() {
       b.id !== booking.id
     );
     if (conflicts.length > 0) {
-      setConflictPopup({
-        conflicts,
-        onProceed: () => {
-          updateBooking(updated);
-          setConflictPopup(null);
-          toast({ title: 'Boeking verplaatst (met overlap)' });
-        },
-      });
+      setConflictPopup({ conflicts });
+      toast({ title: 'Dubbele boeking niet toegestaan', description: 'Er is al een reservering op dit tijdslot.', variant: 'destructive' });
       return;
     }
-    updateBooking(updated);
-    toast({ title: 'Boeking verplaatst', description: `${booking.title} → ${String(startHour).padStart(2,'0')}:${String(startMinute).padStart(2,'0')}` });
-  }, [bookings, updateBooking, toast]);
+    // Show confirmation dialog
+    const desc = `${booking.title} → ${getDisplayName(targetRoom)}, ${String(startHour).padStart(2,'0')}:${String(startMinute).padStart(2,'0')}–${String(endHour).padStart(2,'0')}:${String(endMinute).padStart(2,'0')}`;
+    setMoveConfirm({ booking, updated, description: desc });
+  }, [bookings, toast, getDisplayName]);
 
   const handleNewReservation = async (form: NewReservationForm) => {
     const allDates: string[] = [form.date];
@@ -167,7 +157,8 @@ export default function CalendarPage() {
     };
 
     if (allConflicts.length > 0) {
-      setConflictPopup({ conflicts: allConflicts, onProceed: doAdd });
+      setConflictPopup({ conflicts: allConflicts });
+      toast({ title: 'Dubbele boeking niet toegestaan', description: 'Er is al een reservering op dit tijdslot.', variant: 'destructive' });
       return;
     }
 
@@ -333,9 +324,34 @@ export default function CalendarPage() {
         open={!!conflictPopup}
         onOpenChange={(open) => { if (!open) setConflictPopup(null); }}
         conflicts={conflictPopup?.conflicts || []}
-        onProceed={conflictPopup?.onProceed || (() => {})}
         getRoomDisplayName={getDisplayName}
       />
+
+      {/* Move confirmation dialog */}
+      <AlertDialog open={!!moveConfirm} onOpenChange={(open) => { if (!open) setMoveConfirm(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Reservering verzetten?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Weet je zeker dat je deze reservering wilt verplaatsen?
+              <br />
+              <span className="font-medium text-foreground mt-1 block">{moveConfirm?.description}</span>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annuleren</AlertDialogCancel>
+            <AlertDialogAction onClick={() => {
+              if (moveConfirm) {
+                updateBooking(moveConfirm.updated);
+                toast({ title: 'Boeking verplaatst' });
+              }
+              setMoveConfirm(null);
+            }}>
+              Ja, verzetten
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

@@ -15,7 +15,6 @@ interface ConflictAlertDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   conflicts: Booking[];
-  onProceed: () => void;
   getRoomDisplayName?: (room: string) => string;
 }
 
@@ -28,7 +27,6 @@ export default function ConflictAlertDialog({
   open,
   onOpenChange,
   conflicts,
-  onProceed,
   getRoomDisplayName,
 }: ConflictAlertDialogProps) {
   const formatTime = (h: number, m?: number) =>
@@ -48,7 +46,7 @@ export default function ConflictAlertDialog({
           <AlertDialogDescription asChild>
             <div className="space-y-3">
               <p className="text-sm text-muted-foreground">
-                Er {conflicts.length === 1 ? 'is al een boeking' : `zijn al ${conflicts.length} boekingen`} op dit tijdslot. Wil je toch doorgaan?
+                Er {conflicts.length === 1 ? 'is al een boeking' : `zijn al ${conflicts.length} boekingen`} op dit tijdslot. Dubbele boekingen zijn niet toegestaan.
               </p>
               <div className="space-y-2">
                 {conflicts.map((b) => (
@@ -91,13 +89,7 @@ export default function ConflictAlertDialog({
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
-          <AlertDialogCancel>Annuleren</AlertDialogCancel>
-          <AlertDialogAction
-            onClick={onProceed}
-            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-          >
-            Toch doorgaan
-          </AlertDialogAction>
+          <AlertDialogCancel>Begrepen</AlertDialogCancel>
         </AlertDialogFooter>
       </AlertDialogContent>
     </AlertDialog>
