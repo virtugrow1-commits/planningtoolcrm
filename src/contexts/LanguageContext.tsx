@@ -9,6 +9,7 @@ const translations: Record<string, Record<Language, string>> = {
   'nav.companies': { nl: 'Bedrijven', en: 'Companies' },
   'nav.inquiries': { nl: 'Aanvragen', en: 'Inquiries' },
   'nav.conversations': { nl: 'Gesprekken', en: 'Conversations' },
+  'nav.reserveringen': { nl: 'Reserveringen', en: 'Reservations' },
   'nav.calendar': { nl: 'Kalender', en: 'Calendar' },
   'nav.settings': { nl: 'Instellingen', en: 'Settings' },
   'nav.logout': { nl: 'Uitloggen', en: 'Sign out' },
