@@ -6,6 +6,7 @@ import {
   InboxIcon,
   MessageSquare,
   CalendarDays,
+  ClipboardList,
   Settings,
   LogOut,
   Menu,
@@ -27,10 +28,11 @@ import { Button } from '@/components/ui/button';
 
 const navItemDefs = [
   { to: '/', icon: LayoutDashboard, key: 'nav.dashboard' },
+  { to: '/conversations', icon: MessageSquare, key: 'nav.conversations' },
   { to: '/crm', icon: Users, key: 'nav.crm' },
   { to: '/companies', icon: Building2, key: 'nav.companies' },
   { to: '/inquiries', icon: InboxIcon, key: 'nav.inquiries' },
-  { to: '/conversations', icon: MessageSquare, key: 'nav.conversations' },
+  { to: '/reserveringen', icon: ClipboardList, key: 'nav.reserveringen' },
   { to: '/calendar', icon: CalendarDays, key: 'nav.calendar' },
 ];
 
