@@ -34,7 +34,7 @@
     --input: 28 20% 88%;
     --ring: 15 46% 42%;
 
-    --radius: 0.625rem;
+    --radius: 0.75rem;
 
     /* CRM-specific tokens */
     --sidebar-bg: 15 46% 42%;
@@ -102,65 +102,98 @@
   body {
     @apply bg-background text-foreground font-sans antialiased;
     font-family: 'Inter', system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  /* Smooth scrolling everywhere */
+  html {
+    scroll-behavior: smooth;
+  }
+
+  /* Refined scrollbar */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: hsl(var(--border));
+    border-radius: 999px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: hsl(var(--muted-foreground) / 0.4);
   }
 }
 
 @layer utilities {
   .sidebar-gradient {
-    background: linear-gradient(180deg, hsl(15 46% 44%) 0%, hsl(15 46% 38%) 100%);
+    background: linear-gradient(135deg, hsl(15 46% 44%) 0%, hsl(15 46% 36%) 100%);
   }
 
   .card-shadow {
-    box-shadow: 0 1px 3px 0 hsl(15 30% 18% / 0.06), 0 1px 2px -1px hsl(15 30% 18% / 0.06);
+    box-shadow:
+      0 1px 2px 0 hsl(15 30% 18% / 0.04),
+      0 1px 3px 0 hsl(15 30% 18% / 0.06);
   }
 
   .card-shadow-hover {
-    box-shadow: 0 4px 12px 0 hsl(15 30% 18% / 0.1), 0 2px 4px -1px hsl(15 30% 18% / 0.06);
+    box-shadow:
+      0 4px 16px 0 hsl(15 30% 18% / 0.08),
+      0 2px 6px -1px hsl(15 30% 18% / 0.04);
+  }
+
+  .glass {
+    background: hsl(var(--card) / 0.7);
+    backdrop-filter: blur(12px) saturate(1.5);
+    -webkit-backdrop-filter: blur(12px) saturate(1.5);
   }
 
   .booking-confirmed {
-    background-color: hsl(var(--booking-confirmed) / 0.15);
-    border-left: 4px solid hsl(var(--booking-confirmed));
+    background-color: hsl(var(--booking-confirmed) / 0.12);
+    border-left: 3px solid hsl(var(--booking-confirmed));
     color: hsl(152 60% 25%);
   }
 
   .booking-option {
-    background-color: hsl(var(--booking-option) / 0.15);
-    border-left: 4px solid hsl(var(--booking-option));
+    background-color: hsl(var(--booking-option) / 0.12);
+    border-left: 3px solid hsl(var(--booking-option));
     color: hsl(37 80% 30%);
   }
 
   .booking-conflict {
-    background-color: hsl(var(--booking-conflict) / 0.1);
+    background-color: hsl(var(--booking-conflict) / 0.08);
     border: 2px dashed hsl(var(--booking-conflict));
     color: hsl(0 72% 40%);
   }
 
   /* Pipeline status badges */
   .status-new {
-    background-color: hsl(var(--info) / 0.12);
+    background-color: hsl(var(--info) / 0.1);
     color: hsl(210 80% 42%);
-    border: 1px solid hsl(var(--info) / 0.25);
+    border: 1px solid hsl(var(--info) / 0.2);
   }
   .status-contacted {
-    background-color: hsl(var(--warning) / 0.12);
+    background-color: hsl(var(--warning) / 0.1);
     color: hsl(37 80% 35%);
-    border: 1px solid hsl(var(--warning) / 0.25);
+    border: 1px solid hsl(var(--warning) / 0.2);
   }
   .status-quoted {
-    background-color: hsl(var(--primary) / 0.12);
+    background-color: hsl(var(--primary) / 0.1);
     color: hsl(var(--primary));
-    border: 1px solid hsl(var(--primary) / 0.25);
+    border: 1px solid hsl(var(--primary) / 0.2);
   }
   .status-option {
-    background-color: hsl(var(--accent) / 0.15);
+    background-color: hsl(var(--accent) / 0.12);
     color: hsl(var(--accent-foreground));
-    border: 1px solid hsl(var(--accent) / 0.3);
+    border: 1px solid hsl(var(--accent) / 0.25);
   }
   .status-converted {
-    background-color: hsl(var(--success) / 0.12);
+    background-color: hsl(var(--success) / 0.1);
     color: hsl(152 60% 28%);
-    border: 1px solid hsl(var(--success) / 0.25);
+    border: 1px solid hsl(var(--success) / 0.2);
   }
   .status-lost {
     background-color: hsl(var(--muted));
