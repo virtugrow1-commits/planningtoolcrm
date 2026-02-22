@@ -64,6 +64,7 @@ export type RoomName = typeof ROOMS[number];
 
 export interface Booking {
   id: string;
+  reservationNumber?: string;
   roomName: RoomName;
   date: string;
   startHour: number;
@@ -76,6 +77,10 @@ export interface Booking {
   status: 'confirmed' | 'option';
   notes?: string;
   color?: string;
+  guestCount?: number;
+  roomSetup?: string;
+  requirements?: string;
+  preparationStatus?: 'pending' | 'info_waiting' | 'in_progress' | 'ready';
 }
 
 export interface DaySchedule {

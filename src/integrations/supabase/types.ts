@@ -23,9 +23,14 @@ export type Database = {
           end_hour: number
           end_minute: number
           ghl_event_id: string | null
+          guest_count: number
           id: string
           notes: string | null
+          preparation_status: string
+          requirements: string | null
+          reservation_number: string | null
           room_name: string
+          room_setup: string | null
           start_hour: number
           start_minute: number
           status: string
@@ -41,9 +46,14 @@ export type Database = {
           end_hour: number
           end_minute?: number
           ghl_event_id?: string | null
+          guest_count?: number
           id?: string
           notes?: string | null
+          preparation_status?: string
+          requirements?: string | null
+          reservation_number?: string | null
           room_name: string
+          room_setup?: string | null
           start_hour: number
           start_minute?: number
           status?: string
@@ -59,9 +69,14 @@ export type Database = {
           end_hour?: number
           end_minute?: number
           ghl_event_id?: string | null
+          guest_count?: number
           id?: string
           notes?: string | null
+          preparation_status?: string
+          requirements?: string | null
+          reservation_number?: string | null
           room_name?: string
+          room_setup?: string | null
           start_hour?: number
           start_minute?: number
           status?: string

@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { CalendarDays, Clock, User, MapPin, Pencil, Users } from 'lucide-react';
+import { CalendarDays, Clock, User, MapPin, Pencil, Users, Hash, ClipboardList, Package } from 'lucide-react';
 
 interface BookingDetailDialogProps {
   booking: Booking | null;
@@ -45,7 +45,12 @@ export default function BookingDetailDialog({ booking, open, onOpenChange, onUpd
       <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <div className="flex items-center justify-between">
-            <DialogTitle>Reserveringsdetails</DialogTitle>
+            <div>
+              <DialogTitle>Reserveringsdetails</DialogTitle>
+              {booking.reservationNumber && (
+                <p className="text-xs font-mono text-muted-foreground mt-0.5">{booking.reservationNumber}</p>
+              )}
+            </div>
             {!editing && (
               <Button variant="ghost" size="sm" onClick={() => setEditing(true)}>
                 <Pencil size={14} className="mr-1" /> Bewerken
@@ -111,15 +116,25 @@ export default function BookingDetailDialog({ booking, open, onOpenChange, onUpd
             </div>
 
             {/* Guest count */}
-            <div className="grid gap-1.5">
-              <Label>Aantal gasten</Label>
-              <Input
-                type="number"
-                min={0}
-                placeholder="0"
-                value={(form as any).guestCount || ''}
-                onChange={(e) => setForm({ ...form, guestCount: Math.max(0, Number(e.target.value)) } as any)}
-              />
+            <div className="grid grid-cols-2 gap-3">
+              <div className="grid gap-1.5">
+                <Label>Aantal gasten</Label>
+                <Input
+                  type="number"
+                  min={0}
+                  placeholder="0"
+                  value={form.guestCount || ''}
+                  onChange={(e) => setForm({ ...form, guestCount: Math.max(0, Number(e.target.value)) })}
+                />
+              </div>
+              <div className="grid gap-1.5">
+                <Label>Zaalopstelling</Label>
+                <Input
+                  value={form.roomSetup || ''}
+                  onChange={(e) => setForm({ ...form, roomSetup: e.target.value })}
+                  placeholder="bijv. U-vorm, Theater"
+                />
+              </div>
             </div>
 
             {/* Status */}
@@ -134,6 +149,31 @@ export default function BookingDetailDialog({ booking, open, onOpenChange, onUpd
               </Select>
             </div>
 
+            {/* Preparation status */}
+            <div className="grid gap-1.5">
+              <Label>Voorbereiding</Label>
+              <Select value={form.preparationStatus || 'pending'} onValueChange={(v) => setForm({ ...form, preparationStatus: v as any })}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="pending">Open</SelectItem>
+                  <SelectItem value="info_waiting">Wacht op info</SelectItem>
+                  <SelectItem value="in_progress">In voorbereiding</SelectItem>
+                  <SelectItem value="ready">Gereed</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Requirements */}
+            <div className="grid gap-1.5">
+              <Label>Benodigdheden</Label>
+              <Textarea
+                value={form.requirements || ''}
+                onChange={(e) => setForm({ ...form, requirements: e.target.value })}
+                placeholder="Beamer, flipover, koffie/thee, lunch..."
+                rows={3}
+              />
+            </div>
+
             {/* Notes / Toelichting */}
             <div className="grid gap-1.5">
               <Label>Toelichting</Label>
@@ -141,7 +181,7 @@ export default function BookingDetailDialog({ booking, open, onOpenChange, onUpd
                 value={form.notes || ''}
                 onChange={(e) => setForm({ ...form, notes: e.target.value })}
                 placeholder="Eventuele opmerkingen, wensen, bijzonderheden..."
-                rows={4}
+                rows={3}
               />
             </div>
           </div>
@@ -164,10 +204,16 @@ export default function BookingDetailDialog({ booking, open, onOpenChange, onUpd
                 <User size={14} className="text-muted-foreground" />
                 <span>{booking.contactName}</span>
               </div>
-              {(booking as any).guestCount > 0 && (
+              {(booking.guestCount ?? 0) > 0 && (
                 <div className="flex items-center gap-2 text-sm">
                   <Users size={14} className="text-muted-foreground" />
-                  <span>{(booking as any).guestCount} gasten</span>
+                  <span>{booking.guestCount} gasten</span>
+                </div>
+              )}
+              {booking.roomSetup && (
+                <div className="flex items-center gap-2 text-sm">
+                  <ClipboardList size={14} className="text-muted-foreground" />
+                  <span>{booking.roomSetup}</span>
                 </div>
               )}
             </div>
@@ -175,12 +221,28 @@ export default function BookingDetailDialog({ booking, open, onOpenChange, onUpd
               <Label>Titel</Label>
               <p className="text-sm font-medium">{booking.title}</p>
             </div>
-            <div className="grid gap-1.5">
-              <Label>Status</Label>
-              <p className={`text-sm font-medium ${booking.status === 'confirmed' ? 'text-success' : 'text-warning'}`}>
-                {booking.status === 'confirmed' ? 'Bevestigd' : 'In Optie'}
-              </p>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="grid gap-1.5">
+                <Label>Status</Label>
+                <p className={`text-sm font-medium ${booking.status === 'confirmed' ? 'text-success' : 'text-warning'}`}>
+                  {booking.status === 'confirmed' ? 'Bevestigd' : 'In Optie'}
+                </p>
+              </div>
+              <div className="grid gap-1.5">
+                <Label>Voorbereiding</Label>
+                <p className="text-sm font-medium">
+                  {booking.preparationStatus === 'info_waiting' ? 'Wacht op info' :
+                   booking.preparationStatus === 'in_progress' ? 'In voorbereiding' :
+                   booking.preparationStatus === 'ready' ? 'Gereed' : 'Open'}
+                </p>
+              </div>
             </div>
+            {booking.requirements && (
+              <div className="grid gap-1.5">
+                <Label>Benodigdheden</Label>
+                <p className="text-sm text-muted-foreground whitespace-pre-wrap">{booking.requirements}</p>
+              </div>
+            )}
             {booking.notes && (
               <div className="grid gap-1.5">
                 <Label>Toelichting</Label>
