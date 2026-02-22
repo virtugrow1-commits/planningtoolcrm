@@ -199,7 +199,7 @@ export default function CalendarPage() {
           <p className="text-sm text-muted-foreground">
             {['Zondag','Maandag','Dinsdag','Woensdag','Donderdag','Vrijdag','Zaterdag'][currentDate.getDay()]} {currentDate.getDate()}{' '}
             {['januari','februari','maart','april','mei','juni','juli','augustus','september','oktober','november','december'][currentDate.getMonth()]}{' '}
-            {currentDate.getFullYear()} — {ROOMS.length} ruimtes · Sleep boekingen om te verplaatsen (15 min)
+            {currentDate.getFullYear()}
           </p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
