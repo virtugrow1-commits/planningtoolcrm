@@ -1,15 +1,19 @@
 import { useState, useRef } from 'react';
+import { Navigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { useToast } from '@/hooks/use-toast';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Webhook, Key, ArrowRightLeft, CheckCircle2, AlertCircle, RefreshCw, Upload } from 'lucide-react';
+import { Webhook, Key, ArrowRightLeft, CheckCircle2, AlertCircle, RefreshCw, Upload, Copy, Link2 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { useContactsContext } from '@/contexts/ContactsContext';
+import { useAuth } from '@/contexts/AuthContext';
 import { Contact } from '@/types/crm';
+
+const WEBHOOK_URL = `https://${import.meta.env.VITE_SUPABASE_PROJECT_ID}.supabase.co/functions/v1/ghl-webhook`;
 
 const GHL_WEBHOOKS = [
   // Inbound — GHL → CRM
@@ -61,6 +65,7 @@ function mapRow(row: Record<string, string>): Omit<Contact, 'id' | 'createdAt'> 
 }
 
 export default function SettingsPage() {
+  const { isAdmin } = useAuth();
   const [apiKey, setApiKey] = useState('');
   const [locationId, setLocationId] = useState('');
   const [connected, setConnected] = useState(false);
@@ -72,6 +77,11 @@ export default function SettingsPage() {
   const fileRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
   const { addContact } = useContactsContext();
+
+  // Non-admins should not access settings
+  if (!isAdmin) {
+    return <Navigate to="/" replace />;
+  }
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -328,6 +338,32 @@ export default function SettingsPage() {
               <p className="text-xs text-muted-foreground">
                 De API key en Location ID worden beheerd via de beveiligde backend configuratie.
               </p>
+            </div>
+
+            {/* Webhook URL for GHL */}
+            <div className="rounded-lg border border-primary/20 bg-primary/5 p-4 space-y-2">
+              <div className="flex items-center gap-2">
+                <Link2 size={16} className="text-primary" />
+                <h4 className="text-sm font-semibold text-card-foreground">Webhook URL</h4>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Plak deze URL in GHL → Settings → Webhooks om realtime data te ontvangen.
+              </p>
+              <div className="flex items-center gap-2">
+                <code className="flex-1 rounded bg-muted px-3 py-2 text-xs font-mono text-foreground break-all">
+                  {WEBHOOK_URL}
+                </code>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    navigator.clipboard.writeText(WEBHOOK_URL);
+                    toast({ title: 'Webhook URL gekopieerd!' });
+                  }}
+                >
+                  <Copy size={14} />
+                </Button>
+              </div>
             </div>
 
             <div className="rounded-lg bg-muted/50 p-4 text-xs text-muted-foreground space-y-2">
