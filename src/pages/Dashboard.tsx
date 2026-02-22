@@ -191,7 +191,7 @@ export default function Dashboard() {
           onClick={() => setKpiDialog({ open: true, type: 'inquiries' })}
         />
         <KpiCard
-          title="Boekingen Vandaag"
+          title="Reserveringen Vandaag"
           value={String(todayBookings.length)}
           icon={<CalendarCheck size={20} />}
           subtitle={`${todayBookings.filter((b) => b.status === 'confirmed').length} bevestigd · ${todayBookings.filter((b) => b.status === 'option').length} in optie`}
@@ -347,7 +347,7 @@ export default function Dashboard() {
         title={
           kpiDialog.type === 'tasks' ? 'Openstaande Taken' :
           kpiDialog.type === 'inquiries' ? 'Openstaande Aanvragen' :
-          'Boekingen Vandaag'
+          'Reserveringen Vandaag'
         }
         tasks={tasks.filter((t) => t.status !== 'completed')}
         inquiries={openInquiries}
