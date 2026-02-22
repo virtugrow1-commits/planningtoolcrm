@@ -1,4 +1,5 @@
 import { useState, useRef } from 'react';
+import LegacyImport from '@/components/LegacyImport';
 import { Navigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -6,7 +7,7 @@ import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { useToast } from '@/hooks/use-toast';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Webhook, Key, ArrowRightLeft, CheckCircle2, AlertCircle, RefreshCw, Upload, Copy, Link2 } from 'lucide-react';
+import { Webhook, Key, ArrowRightLeft, CheckCircle2, AlertCircle, RefreshCw, Upload, Copy, Link2, Database } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { useContactsContext } from '@/contexts/ContactsContext';
@@ -248,6 +249,7 @@ export default function SettingsPage() {
           <TabsTrigger value="webhooks" className="gap-2"><Webhook size={14} /> Webhooks</TabsTrigger>
           <TabsTrigger value="mapping" className="gap-2"><ArrowRightLeft size={14} /> Veld Mapping</TabsTrigger>
           <TabsTrigger value="import" className="gap-2"><Upload size={14} /> CSV Import</TabsTrigger>
+          <TabsTrigger value="legacy" className="gap-2"><Database size={14} /> Legacy Import</TabsTrigger>
         </TabsList>
 
         <TabsContent value="ghl" className="space-y-4">
@@ -497,6 +499,10 @@ export default function SettingsPage() {
               <p>Scheidingsteken: komma (,) of puntkomma (;)</p>
             </div>
           </div>
+        </TabsContent>
+
+        <TabsContent value="legacy">
+          <LegacyImport />
         </TabsContent>
       </Tabs>
 
