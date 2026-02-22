@@ -6,7 +6,7 @@ import { useBookings } from '@/contexts/BookingsContext';
 import { useContacts } from '@/hooks/useContacts';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { Booking, RoomName, ROOMS } from '@/types/crm';
-import { Search, Edit2, ArrowRightLeft, Calendar as CalendarIcon, Clock, MapPin, ChevronLeft, ChevronRight, History } from 'lucide-react';
+import { Search, Edit2, ArrowRightLeft, Calendar as CalendarIcon, Clock, MapPin, ChevronLeft, ChevronRight, History, Hash, ClipboardCheck } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -124,6 +124,24 @@ export default function ReserveringenPage() {
   const confirmedCount = enrichedBookings.filter(b => b.status === 'confirmed' && !b.isPast).length;
   const optionCount = enrichedBookings.filter(b => b.status === 'option' && !b.isPast).length;
 
+  const prepStatusLabel = (s?: string) => {
+    switch (s) {
+      case 'info_waiting': return 'Wacht op info';
+      case 'in_progress': return 'In voorbereiding';
+      case 'ready': return 'Gereed';
+      default: return 'Open';
+    }
+  };
+
+  const prepStatusColor = (s?: string) => {
+    switch (s) {
+      case 'info_waiting': return 'bg-warning/10 text-warning border-warning/20';
+      case 'in_progress': return 'bg-primary/10 text-primary border-primary/20';
+      case 'ready': return 'bg-success/10 text-success border-success/20';
+      default: return 'bg-muted text-muted-foreground';
+    }
+  };
+
   const renderStatusBadge = (b: EnrichedBooking) => {
     if (b.isPast) {
       return (
@@ -151,7 +169,9 @@ export default function ReserveringenPage() {
     <Table>
       <TableHeader>
         <TableRow className="bg-muted/30">
+          <TableHead>#</TableHead>
           <TableHead>Status</TableHead>
+          <TableHead>Voorbereiding</TableHead>
           <TableHead>Contactpersoon</TableHead>
           <TableHead>Bedrijf</TableHead>
           <TableHead>Evenement</TableHead>
@@ -164,7 +184,7 @@ export default function ReserveringenPage() {
       <TableBody>
         {items.length === 0 ? (
           <TableRow>
-            <TableCell colSpan={8} className="text-center py-12 text-muted-foreground">
+            <TableCell colSpan={10} className="text-center py-12 text-muted-foreground">
               {emptyMsg}
             </TableCell>
           </TableRow>
@@ -178,7 +198,18 @@ export default function ReserveringenPage() {
               )}
               onClick={() => openEdit(b)}
             >
+              <TableCell>
+                <span className="flex items-center gap-1 text-xs font-mono text-muted-foreground">
+                  <Hash size={12} />
+                  {b.reservationNumber || '-'}
+                </span>
+              </TableCell>
               <TableCell>{renderStatusBadge(b)}</TableCell>
+              <TableCell>
+                <Badge variant="secondary" className={cn('text-[11px] font-medium', prepStatusColor(b.preparationStatus))}>
+                  {prepStatusLabel(b.preparationStatus)}
+                </Badge>
+              </TableCell>
               <TableCell className="font-medium">{b.contactName}</TableCell>
               <TableCell className="text-muted-foreground">{b.company}</TableCell>
               <TableCell>{b.title}</TableCell>
@@ -326,9 +357,14 @@ export default function ReserveringenPage() {
 
       {/* Edit Dialog */}
       <Dialog open={editOpen} onOpenChange={setEditOpen}>
-        <DialogContent className="sm:max-w-lg">
+        <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>{editBooking?.status === 'option' ? 'Optie bewerken' : 'Reservering bewerken'}</DialogTitle>
+            <DialogTitle>
+              {editBooking?.status === 'option' ? 'Optie bewerken' : 'Reservering bewerken'}
+              {editBooking?.reservationNumber && (
+                <span className="ml-2 text-sm font-mono text-muted-foreground">{editBooking.reservationNumber}</span>
+              )}
+            </DialogTitle>
           </DialogHeader>
           {editBooking && (
             <div className="space-y-4">
@@ -376,6 +412,32 @@ export default function ReserveringenPage() {
                   <Label>Tot</Label>
                   <Input type="time" value={formatTime(editBooking.endHour, editBooking.endMinute)} onChange={(e) => { const [h, m] = e.target.value.split(':').map(Number); setEditBooking({ ...editBooking, endHour: h, endMinute: m || 0 }); }} />
                 </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label>Aantal gasten</Label>
+                  <Input type="number" min={0} value={editBooking.guestCount || ''} onChange={(e) => setEditBooking({ ...editBooking, guestCount: Math.max(0, Number(e.target.value)) })} />
+                </div>
+                <div>
+                  <Label>Zaalopstelling</Label>
+                  <Input value={editBooking.roomSetup || ''} onChange={(e) => setEditBooking({ ...editBooking, roomSetup: e.target.value })} placeholder="bijv. U-vorm, Theater" />
+                </div>
+              </div>
+              <div>
+                <Label>Voorbereiding</Label>
+                <Select value={editBooking.preparationStatus || 'pending'} onValueChange={(v) => setEditBooking({ ...editBooking, preparationStatus: v as any })}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="pending">Open</SelectItem>
+                    <SelectItem value="info_waiting">Wacht op info</SelectItem>
+                    <SelectItem value="in_progress">In voorbereiding</SelectItem>
+                    <SelectItem value="ready">Gereed</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label>Benodigdheden</Label>
+                <Textarea value={editBooking.requirements || ''} onChange={(e) => setEditBooking({ ...editBooking, requirements: e.target.value })} placeholder="Beamer, flipover, koffie/thee, lunch..." rows={3} />
               </div>
               <div>
                 <Label>Notities</Label>

@@ -142,6 +142,10 @@ export default function CalendarPage() {
         contactName: form.contactName,
         contactId: form.contactId,
         status: form.status,
+        guestCount: form.guestCount ?? 0,
+        roomSetup: form.roomSetup || undefined,
+        requirements: form.notes || undefined,
+        preparationStatus: 'pending' as const,
       }));
 
       if (newBookingsList.length === 1) {

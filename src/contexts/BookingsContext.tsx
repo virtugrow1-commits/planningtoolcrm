@@ -45,6 +45,7 @@ export function BookingsProvider({ children }: { children: ReactNode }) {
     }
     setBookings(allData.map((b) => ({
       id: b.id,
+      reservationNumber: (b as any).reservation_number || undefined,
       roomName: b.room_name as RoomName,
       date: b.date,
       startHour: b.start_hour,
@@ -56,6 +57,10 @@ export function BookingsProvider({ children }: { children: ReactNode }) {
       contactId: b.contact_id || undefined,
       status: b.status as 'confirmed' | 'option',
       notes: b.notes || undefined,
+      guestCount: (b as any).guest_count ?? 0,
+      roomSetup: (b as any).room_setup || undefined,
+      requirements: (b as any).requirements || undefined,
+      preparationStatus: (b as any).preparation_status || 'pending',
     })));
     setLoading(false);
   }, [user, toast]);
@@ -90,7 +95,11 @@ export function BookingsProvider({ children }: { children: ReactNode }) {
       contact_id: booking.contactId || null,
       status: booking.status,
       notes: booking.notes || null,
-    }).select().single();
+      guest_count: booking.guestCount ?? 0,
+      room_setup: booking.roomSetup || null,
+      requirements: booking.requirements || null,
+      preparation_status: booking.preparationStatus || 'pending',
+    } as any).select().single();
     if (error) {
       toast({ title: 'Fout bij aanmaken boeking', description: error.message, variant: 'destructive' });
       return;
@@ -116,7 +125,11 @@ export function BookingsProvider({ children }: { children: ReactNode }) {
       contact_id: b.contactId || null,
       status: b.status,
       notes: b.notes || null,
-    }));
+      guest_count: b.guestCount ?? 0,
+      room_setup: b.roomSetup || null,
+      requirements: b.requirements || null,
+      preparation_status: b.preparationStatus || 'pending',
+    } as any));
     const { data, error } = await supabase.from('bookings').insert(rows).select();
     if (error) {
       toast({ title: 'Fout bij aanmaken boekingen', description: error.message, variant: 'destructive' });
@@ -143,7 +156,11 @@ export function BookingsProvider({ children }: { children: ReactNode }) {
       contact_id: updated.contactId || null,
       status: updated.status,
       notes: updated.notes || null,
-    }).eq('id', updated.id).select().single();
+      guest_count: updated.guestCount ?? 0,
+      room_setup: updated.roomSetup || null,
+      requirements: updated.requirements || null,
+      preparation_status: updated.preparationStatus || 'pending',
+    } as any).eq('id', updated.id).select().single();
     if (error) {
       toast({ title: 'Fout bij bijwerken boeking', description: error.message, variant: 'destructive' });
       return;
