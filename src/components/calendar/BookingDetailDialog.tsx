@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { CalendarDays, Clock, User, MapPin, Pencil, Users, Hash, ClipboardList, Package } from 'lucide-react';
+import { CalendarDays, Clock, User, MapPin, Pencil, Users, Hash, ClipboardList, Package, Copy } from 'lucide-react';
 
 interface BookingDetailDialogProps {
   booking: Booking | null;
@@ -14,10 +14,11 @@ interface BookingDetailDialogProps {
   onOpenChange: (open: boolean) => void;
   onUpdate: (booking: Booking) => void;
   onDelete: (bookingId: string) => void;
+  onCopy?: (booking: Booking) => void;
   getRoomDisplayName?: (room: string) => string;
 }
 
-export default function BookingDetailDialog({ booking, open, onOpenChange, onUpdate, onDelete, getRoomDisplayName }: BookingDetailDialogProps) {
+export default function BookingDetailDialog({ booking, open, onOpenChange, onUpdate, onDelete, onCopy, getRoomDisplayName }: BookingDetailDialogProps) {
   const [editing, setEditing] = useState(false);
   const [form, setForm] = useState<Booking | null>(null);
 
@@ -52,9 +53,16 @@ export default function BookingDetailDialog({ booking, open, onOpenChange, onUpd
               )}
             </div>
             {!editing && (
-              <Button variant="ghost" size="sm" onClick={() => setEditing(true)}>
-                <Pencil size={14} className="mr-1" /> Bewerken
-              </Button>
+              <div className="flex items-center gap-1">
+                {onCopy && (
+                  <Button variant="ghost" size="sm" onClick={() => onCopy(booking)}>
+                    <Copy size={14} className="mr-1" /> Kopiëren
+                  </Button>
+                )}
+                <Button variant="ghost" size="sm" onClick={() => setEditing(true)}>
+                  <Pencil size={14} className="mr-1" /> Bewerken
+                </Button>
+              </div>
             )}
           </div>
         </DialogHeader>

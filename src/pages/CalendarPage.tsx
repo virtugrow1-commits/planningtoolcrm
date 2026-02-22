@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { useBookings } from '@/contexts/BookingsContext';
 import BookingDetailDialog from '@/components/calendar/BookingDetailDialog';
+import CopyBookingDialog from '@/components/calendar/CopyBookingDialog';
 import NewReservationDialog, { NewReservationForm } from '@/components/calendar/NewReservationDialog';
 import RoomSettingsDialog from '@/components/calendar/RoomSettingsDialog';
 import ConflictAlertDialog from '@/components/calendar/ConflictAlertDialog';
@@ -44,6 +45,8 @@ export default function CalendarPage() {
   const [reservationInitial, setReservationInitial] = useState<{ hour?: number; room?: RoomName; date?: string }>({});
   const [conflictPopup, setConflictPopup] = useState<{ conflicts: Booking[] } | null>(null);
   const [moveConfirm, setMoveConfirm] = useState<{ booking: Booking; updated: Booking; description: string } | null>(null);
+  const [copyBooking, setCopyBooking] = useState<Booking | null>(null);
+  const [copyDialogOpen, setCopyDialogOpen] = useState(false);
   const { toast } = useToast();
   const { settings: roomSettings, displayNames, updateRoomSettings, getMaxGuests, getDisplayName } = useRoomSettings();
   const { contacts, loading: contactsLoading } = useContacts();
@@ -78,6 +81,57 @@ export default function CalendarPage() {
     setDetailBooking(updated);
     toast({ title: 'Boeking bijgewerkt' });
   };
+
+  const handleCopyBooking = useCallback(async (booking: Booking, dates: string[]) => {
+    const newBookings = dates.map((date) => ({
+      roomName: booking.roomName,
+      date,
+      startHour: booking.startHour,
+      startMinute: booking.startMinute,
+      endHour: booking.endHour,
+      endMinute: booking.endMinute,
+      title: booking.title,
+      contactName: booking.contactName,
+      contactId: booking.contactId,
+      status: booking.status,
+      notes: booking.notes,
+      guestCount: booking.guestCount ?? 0,
+      roomSetup: booking.roomSetup,
+      requirements: booking.requirements,
+      preparationStatus: booking.preparationStatus || 'pending' as const,
+    }));
+
+    // Check conflicts
+    const allConflicts: Booking[] = [];
+    for (const nb of newBookings) {
+      const dayBookings = bookings.filter((b) => b.date === nb.date);
+      const conflicts = dayBookings.filter((b) =>
+        b.roomName === nb.roomName &&
+        nb.startHour * 60 + (nb.startMinute || 0) < b.endHour * 60 + (b.endMinute || 0) &&
+        nb.endHour * 60 + (nb.endMinute || 0) > b.startHour * 60 + (b.startMinute || 0)
+      );
+      allConflicts.push(...conflicts);
+    }
+
+    if (allConflicts.length > 0) {
+      setConflictPopup({ conflicts: allConflicts });
+      toast({ title: 'Dubbele boeking niet toegestaan', description: 'Er is al een reservering op een van de gekozen datums.', variant: 'destructive' });
+      return;
+    }
+
+    if (newBookings.length === 1) {
+      await addBooking(newBookings[0]);
+    } else {
+      await addBookings(newBookings);
+    }
+    toast({ title: 'Reserveringen gekopieerd', description: `${dates.length} kopie(ën) aangemaakt` });
+  }, [bookings, addBooking, addBookings, toast]);
+
+  const handleOpenCopyDialog = useCallback((booking: Booking) => {
+    setCopyBooking(booking);
+    setCopyDialogOpen(true);
+    setDetailOpen(false);
+  }, []);
 
   const handleDeleteBooking = (bookingId: string) => {
     deleteBooking(bookingId);
@@ -303,6 +357,14 @@ export default function CalendarPage() {
         onOpenChange={setDetailOpen}
         onUpdate={handleUpdateBooking}
         onDelete={handleDeleteBooking}
+        onCopy={handleOpenCopyDialog}
+        getRoomDisplayName={getDisplayName}
+      />
+      <CopyBookingDialog
+        booking={copyBooking}
+        open={copyDialogOpen}
+        onOpenChange={setCopyDialogOpen}
+        onCopy={handleCopyBooking}
         getRoomDisplayName={getDisplayName}
       />
       <RoomSettingsDialog
