@@ -10,29 +10,33 @@ import {
   LogOut,
   Menu,
   X,
+  Globe,
 } from 'lucide-react';
 import { useState } from 'react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
+import { useLanguage } from '@/contexts/LanguageContext';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { Button } from '@/components/ui/button';
 
-const navItems = [
-  { to: '/', icon: LayoutDashboard, label: 'Dashboard' },
-  { to: '/crm', icon: Users, label: 'CRM' },
-  { to: '/companies', icon: Building2, label: 'Bedrijven' },
-  { to: '/inquiries', icon: InboxIcon, label: 'Aanvragen' },
-  { to: '/conversations', icon: MessageSquare, label: 'Gesprekken' },
-  { to: '/calendar', icon: CalendarDays, label: 'Kalender' },
+const navItemDefs = [
+  { to: '/', icon: LayoutDashboard, key: 'nav.dashboard' },
+  { to: '/crm', icon: Users, key: 'nav.crm' },
+  { to: '/companies', icon: Building2, key: 'nav.companies' },
+  { to: '/inquiries', icon: InboxIcon, key: 'nav.inquiries' },
+  { to: '/conversations', icon: MessageSquare, key: 'nav.conversations' },
+  { to: '/calendar', icon: CalendarDays, key: 'nav.calendar' },
 ];
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const location = useLocation();
   const { signOut, user, isAdmin } = useAuth();
+  const { language, setLanguage, t } = useLanguage();
   const [mobileOpen, setMobileOpen] = useState(false);
 
   return (
@@ -41,7 +45,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       <header className="sidebar-gradient flex h-16 items-center justify-between px-5 shrink-0">
         {/* Desktop nav */}
         <nav className="hidden md:flex items-center gap-1.5">
-          {navItems.map((item) => {
+          {navItemDefs.map((item) => {
             const isActive = location.pathname === item.to;
             return (
               <NavLink
@@ -55,7 +59,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                 )}
               >
                 <item.icon size={20} className="shrink-0" />
-                <span>{item.label}</span>
+                <span>{t(item.key)}</span>
               </NavLink>
             );
           })}
@@ -69,8 +73,18 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           {mobileOpen ? <X size={20} /> : <Menu size={20} />}
         </button>
 
-        {/* Right side: settings + user */}
+        {/* Right side: lang toggle + settings + user */}
         <div className="flex items-center gap-1">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setLanguage(language === 'nl' ? 'en' : 'nl')}
+            className="text-sidebar-foreground hover:bg-sidebar-accent gap-1.5 px-2.5"
+          >
+            <Globe size={16} />
+            <span className="text-xs font-semibold uppercase">{language === 'nl' ? 'EN' : 'NL'}</span>
+          </Button>
+
           {isAdmin && (
             <NavLink
               to="/settings"
@@ -80,7 +94,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
               )}
             >
               <Settings size={20} />
-              <span className="hidden md:inline">Instellingen</span>
+              <span className="hidden md:inline">{t('nav.settings')}</span>
             </NavLink>
           )}
 
@@ -97,7 +111,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                   {user.email}
                 </DropdownMenuItem>
               )}
-              <DropdownMenuItem onClick={signOut}>Uitloggen</DropdownMenuItem>
+              <DropdownMenuItem onClick={signOut}>{t('nav.logout')}</DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
@@ -106,7 +120,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       {/* Mobile nav dropdown */}
       {mobileOpen && (
         <nav className="md:hidden sidebar-gradient border-t border-sidebar-border px-2 py-2 space-y-1">
-          {navItems.map((item) => {
+          {navItemDefs.map((item) => {
             const isActive = location.pathname === item.to;
             return (
               <NavLink
@@ -121,7 +135,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                 )}
               >
                 <item.icon size={18} className="shrink-0" />
-                <span>{item.label}</span>
+                <span>{t(item.key)}</span>
               </NavLink>
             );
           })}
