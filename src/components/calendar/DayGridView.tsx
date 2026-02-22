@@ -3,8 +3,8 @@ import { Booking, ROOMS, RoomName } from '@/types/crm';
 import { cn } from '@/lib/utils';
 import { GripVertical, Plus } from 'lucide-react';
 
-const HOUR_HEIGHT = 64; // px per hour
-const QUARTER_HEIGHT = HOUR_HEIGHT / 4; // 16px per 15min
+const HOUR_HEIGHT = 36; // px per hour — compact to fit full day in view
+const QUARTER_HEIGHT = HOUR_HEIGHT / 4; // 9px per 15min
 const HOURS = [...Array.from({ length: 17 }, (_, i) => i + 7), 0, 1]; // 07:00–01:00
 const TOTAL_SLOTS = HOURS.length * 4; // 15-min slots
 
@@ -237,10 +237,10 @@ export default function DayGridView({
                     <div
                       key={b.id}
                       className={cn(
-                        'absolute left-0.5 right-0.5 rounded-md px-1.5 py-1 cursor-grab active:cursor-grabbing transition-opacity overflow-hidden z-10',
+                        'absolute left-0.5 right-0.5 rounded-md px-1.5 py-0.5 cursor-grab active:cursor-grabbing transition-opacity overflow-hidden z-10 shadow-sm',
                         b.status === 'confirmed'
-                          ? 'bg-success/15 border-l-[3px] border-success text-success-foreground'
-                          : 'bg-warning/15 border-l-[3px] border-warning text-warning-foreground',
+                          ? 'bg-success/30 border-l-[3px] border-success text-foreground'
+                          : 'bg-warning/30 border-l-[3px] border-warning text-foreground',
                         isDragged && 'opacity-25'
                       )}
                       style={{ top, height }}
@@ -255,10 +255,10 @@ export default function DayGridView({
                       <div className="flex items-start gap-1 h-full">
                         <GripVertical size={10} className="mt-0.5 shrink-0 opacity-40" />
                         <div className="min-w-0 flex-1 overflow-hidden">
-                          <div className="text-[11px] font-semibold leading-tight truncate">{b.title}</div>
-                          {height >= 32 && <div className="text-[9px] opacity-70 truncate">{b.contactName}</div>}
-                          {height >= 44 && (
-                            <div className="text-[9px] opacity-60">
+                          <div className="text-[10px] font-semibold leading-tight truncate">{b.title}</div>
+                          {height >= 24 && <div className="text-[8px] opacity-70 truncate">{b.contactName}</div>}
+                          {height >= 32 && (
+                            <div className="text-[8px] opacity-60">
                               {formatTime(b.startHour, b.startMinute || 0)}–{formatTime(b.endHour, b.endMinute || 0)}
                             </div>
                           )}
