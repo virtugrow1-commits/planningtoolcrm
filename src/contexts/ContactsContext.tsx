@@ -54,7 +54,7 @@ export function ContactsProvider({ children }: { children: ReactNode }) {
 
     setContacts(allRows.map((c) => ({
       id: c.id,
-      displayNumber: c.display_number || undefined,
+      displayNumber: c.display_number ? c.display_number.replace(/^CON-/, '#') : undefined,
       firstName: c.first_name,
       lastName: c.last_name,
       email: c.email || '',
