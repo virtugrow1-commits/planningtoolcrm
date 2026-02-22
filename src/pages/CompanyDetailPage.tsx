@@ -215,7 +215,7 @@ export default function CompanyDetailPage() {
       <div className="flex items-center gap-2 text-sm text-muted-foreground">
         <button onClick={() => navigate('/companies')} className="hover:text-foreground transition-colors">Bedrijven</button>
         <ChevronRight size={14} />
-        <span className="text-foreground font-medium">{company.name}</span>
+        <span className="text-foreground font-medium">{company.displayNumber && <span className="font-mono text-xs text-muted-foreground mr-2">{company.displayNumber}</span>}{company.name}</span>
       </div>
 
       <div className="flex flex-col lg:flex-row gap-6">

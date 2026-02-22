@@ -394,7 +394,10 @@ export default function InquiriesPage() {
                         className="mt-0.5 shrink-0"
                       />
                       <div className="flex-1 min-w-0">
-                        <h4 className="text-sm font-medium text-card-foreground truncate">{inq.eventType}</h4>
+                        <div className="flex items-center gap-1.5">
+                          {inq.displayNumber && <span className="text-[10px] font-mono text-muted-foreground">{inq.displayNumber}</span>}
+                          <h4 className="text-sm font-medium text-card-foreground truncate">{inq.eventType}</h4>
+                        </div>
                         <p className="text-xs text-muted-foreground">{inq.contactName}</p>
                         <p className="mt-1.5 text-xs text-muted-foreground line-clamp-2">{inq.message}</p>
                         <div className="mt-2 flex flex-wrap gap-2 text-[11px] text-muted-foreground">
@@ -439,6 +442,7 @@ export default function InquiriesPage() {
                   onCheckedChange={toggleSelectAll}
                 />
               </th>
+              <th className="px-4 py-2.5 text-left font-medium text-muted-foreground w-[110px]">ID</th>
               <th className="px-4 py-2.5 text-left font-medium text-muted-foreground">Type</th>
               <th className="px-4 py-2.5 text-left font-medium text-muted-foreground">Contact</th>
               <th className="px-4 py-2.5 text-left font-medium text-muted-foreground hidden md:table-cell">Datum</th>
@@ -457,6 +461,7 @@ export default function InquiriesPage() {
                   <td className="px-4 py-2.5" onClick={(e) => e.stopPropagation()}>
                     <Checkbox checked={selected.has(inq.id)} onCheckedChange={() => toggleSelect(inq.id)} />
                   </td>
+                  <td className="px-4 py-2.5 text-xs font-mono text-muted-foreground">{inq.displayNumber || '—'}</td>
                   <td className="px-4 py-2.5 font-medium text-card-foreground">{inq.eventType}</td>
                   <td className="px-4 py-2.5 text-muted-foreground">{inq.contactName}</td>
                   <td className="px-4 py-2.5 text-muted-foreground hidden md:table-cell">{inq.preferredDate || '—'}</td>

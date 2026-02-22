@@ -1,5 +1,6 @@
 export interface Contact {
   id: string;
+  displayNumber?: string;
   firstName: string;
   lastName: string;
   email: string;
@@ -14,6 +15,7 @@ export interface Contact {
 
 export interface Inquiry {
   id: string;
+  displayNumber?: string;
   contactId: string;
   contactName: string;
   eventType: string;

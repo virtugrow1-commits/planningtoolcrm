@@ -37,6 +37,7 @@ export function InquiriesProvider({ children }: { children: ReactNode }) {
     if (data) {
       setInquiries(data.map((i) => ({
         id: i.id,
+        displayNumber: (i as any).display_number || undefined,
         contactId: i.contact_id || '',
         contactName: i.contact_name,
         eventType: i.event_type,

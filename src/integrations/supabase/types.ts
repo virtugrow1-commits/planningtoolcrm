@@ -103,6 +103,7 @@ export type Database = {
           created_at: string
           crm_group: string | null
           customer_number: string | null
+          display_number: string | null
           email: string | null
           ghl_company_id: string | null
           id: string
@@ -123,6 +124,7 @@ export type Database = {
           created_at?: string
           crm_group?: string | null
           customer_number?: string | null
+          display_number?: string | null
           email?: string | null
           ghl_company_id?: string | null
           id?: string
@@ -143,6 +145,7 @@ export type Database = {
           created_at?: string
           crm_group?: string | null
           customer_number?: string | null
+          display_number?: string | null
           email?: string | null
           ghl_company_id?: string | null
           id?: string
@@ -203,6 +206,7 @@ export type Database = {
           company: string | null
           company_id: string | null
           created_at: string
+          display_number: string | null
           email: string | null
           first_name: string
           ghl_contact_id: string | null
@@ -218,6 +222,7 @@ export type Database = {
           company?: string | null
           company_id?: string | null
           created_at?: string
+          display_number?: string | null
           email?: string | null
           first_name: string
           ghl_contact_id?: string | null
@@ -233,6 +238,7 @@ export type Database = {
           company?: string | null
           company_id?: string | null
           created_at?: string
+          display_number?: string | null
           email?: string | null
           first_name?: string
           ghl_contact_id?: string | null
@@ -260,6 +266,7 @@ export type Database = {
           contact_id: string | null
           contact_name: string
           created_at: string
+          display_number: string | null
           event_type: string
           ghl_opportunity_id: string | null
           guest_count: number
@@ -277,6 +284,7 @@ export type Database = {
           contact_id?: string | null
           contact_name: string
           created_at?: string
+          display_number?: string | null
           event_type: string
           ghl_opportunity_id?: string | null
           guest_count?: number
@@ -294,6 +302,7 @@ export type Database = {
           contact_id?: string | null
           contact_name?: string
           created_at?: string
+          display_number?: string | null
           event_type?: string
           ghl_opportunity_id?: string | null
           guest_count?: number
