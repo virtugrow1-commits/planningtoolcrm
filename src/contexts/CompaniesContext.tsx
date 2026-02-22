@@ -57,7 +57,7 @@ export function CompaniesProvider({ children }: { children: ReactNode }) {
     if (data) {
       setCompanies(data.map((c: any) => ({
         id: c.id,
-        displayNumber: c.display_number || undefined,
+        displayNumber: c.display_number ? c.display_number.replace(/^BED-/, '#') : undefined,
         name: c.name,
         email: c.email || undefined,
         phone: c.phone || undefined,

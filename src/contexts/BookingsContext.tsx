@@ -45,7 +45,7 @@ export function BookingsProvider({ children }: { children: ReactNode }) {
     }
     setBookings(allData.map((b) => ({
       id: b.id,
-      reservationNumber: (b as any).reservation_number || undefined,
+      reservationNumber: (b as any).reservation_number ? (b as any).reservation_number.replace(/^RES-/, '#') : undefined,
       roomName: b.room_name as RoomName,
       date: b.date,
       startHour: b.start_hour,
