@@ -13,11 +13,14 @@ import {
   X,
   Globe,
   ChevronDown,
+  RefreshCw,
 } from 'lucide-react';
 import { useState } from 'react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
+import { supabase } from '@/integrations/supabase/client';
+import { useToast } from '@/hooks/use-toast';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -41,6 +44,22 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const { signOut, user, isAdmin } = useAuth();
   const { language, setLanguage, t } = useLanguage();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [syncing, setSyncing] = useState(false);
+  const { toast } = useToast();
+
+  const handleFullSync = async () => {
+    if (syncing) return;
+    setSyncing(true);
+    try {
+      const { error } = await supabase.functions.invoke('ghl-auto-sync');
+      if (error) throw error;
+      toast({ title: 'Synchronisatie gestart', description: 'Volledige sync is gestart op de achtergrond.' });
+    } catch (err: any) {
+      toast({ title: 'Sync mislukt', description: err.message, variant: 'destructive' });
+    } finally {
+      setSyncing(false);
+    }
+  };
 
   return (
     <div className="flex h-screen flex-col overflow-hidden bg-background">
@@ -103,6 +122,17 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
               <span className="hidden md:inline">{t('nav.settings')}</span>
             </NavLink>
           )}
+
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={handleFullSync}
+            disabled={syncing}
+            className="text-white/75 hover:text-white hover:bg-white/10 h-9 w-9 transition-all duration-200"
+            title="Volledige synchronisatie"
+          >
+            <RefreshCw size={17} className={cn(syncing && 'animate-spin')} />
+          </Button>
 
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
