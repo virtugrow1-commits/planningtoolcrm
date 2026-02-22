@@ -160,6 +160,18 @@ export default function ConversationsPage() {
     return MessageSquare;
   };
 
+  const getChannelIcons = (type: string) => {
+    const t = type?.toLowerCase() || '';
+    const icons: (typeof Phone)[] = [];
+    if (t.includes('phone') || t.includes('call')) icons.push(Phone);
+    if (t.includes('email')) icons.push(Mail);
+    if (t.includes('sms')) icons.push(MessageSquare);
+    if (t.includes('whatsapp') || t.includes('wa')) icons.push(MessageSquare);
+    if (t.includes('instagram') || t.includes('ig')) icons.push(Instagram);
+    if (icons.length === 0) icons.push(MessageSquare);
+    return icons;
+  };
+
   const filteredConversations = conversations;
 
   return (
@@ -239,11 +251,11 @@ export default function ConversationsPage() {
                           {conv.lastMessageBody || 'Geen berichten'}
                         </p>
                         <div className="flex items-center gap-1.5 mt-1">
-                          <Badge variant="outline" className="text-[10px] px-1.5 py-0">
-                            {conv.type || 'SMS'}
-                          </Badge>
+                          {getChannelIcons(conv.type).map((ChannelIcon, idx) => (
+                            <ChannelIcon key={idx} size={12} className="text-muted-foreground" />
+                          ))}
                           {conv.unreadCount > 0 && (
-                            <Badge className="text-[10px] px-1.5 py-0 bg-primary text-primary-foreground">
+                            <Badge className="text-[10px] px-1.5 py-0 bg-primary text-primary-foreground ml-auto">
                               {conv.unreadCount}
                             </Badge>
                           )}
