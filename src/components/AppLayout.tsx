@@ -32,7 +32,7 @@ const navItems = [
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const location = useLocation();
-  const { signOut, user } = useAuth();
+  const { signOut, user, isAdmin } = useAuth();
   const [mobileOpen, setMobileOpen] = useState(false);
 
   return (
@@ -71,16 +71,18 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
         {/* Right side: settings + user */}
         <div className="flex items-center gap-1">
-          <NavLink
-            to="/settings"
-            className={cn(
-              'flex items-center gap-2.5 rounded-lg px-4 py-2.5 text-base font-semibold text-sidebar-foreground hover:bg-sidebar-accent transition-colors',
-              location.pathname === '/settings' && 'bg-sidebar-accent text-accent'
-            )}
-          >
-            <Settings size={20} />
-            <span className="hidden md:inline">Instellingen</span>
-          </NavLink>
+          {isAdmin && (
+            <NavLink
+              to="/settings"
+              className={cn(
+                'flex items-center gap-2.5 rounded-lg px-4 py-2.5 text-base font-semibold text-sidebar-foreground hover:bg-sidebar-accent transition-colors',
+                location.pathname === '/settings' && 'bg-sidebar-accent text-accent'
+              )}
+            >
+              <Settings size={20} />
+              <span className="hidden md:inline">Instellingen</span>
+            </NavLink>
+          )}
 
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
