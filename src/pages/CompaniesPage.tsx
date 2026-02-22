@@ -130,6 +130,7 @@ export default function CompaniesPage() {
           <thead>
             <tr className="border-b bg-muted/50">
               <th className="px-4 py-3 w-[40px]"><Checkbox checked={allPageSelected} onCheckedChange={toggleSelectAll} /></th>
+              <th className="px-4 py-3 text-left font-semibold text-muted-foreground w-[110px]">ID</th>
               <th className="px-4 py-3 text-left font-semibold text-muted-foreground">Naam</th>
               <th className="px-4 py-3 text-left font-semibold text-muted-foreground">Email</th>
               <th className="px-4 py-3 text-left font-semibold text-muted-foreground hidden md:table-cell">Telefoon</th>
@@ -140,13 +141,14 @@ export default function CompaniesPage() {
           </thead>
           <tbody>
             {paginated.length === 0 && (
-              <tr><td colSpan={7} className="px-4 py-8 text-center text-muted-foreground"><Building2 size={32} className="mx-auto mb-2 opacity-40" />Geen bedrijven gevonden</td></tr>
+              <tr><td colSpan={8} className="px-4 py-8 text-center text-muted-foreground"><Building2 size={32} className="mx-auto mb-2 opacity-40" />Geen bedrijven gevonden</td></tr>
             )}
             {paginated.map((c) => (
               <tr key={c.id} className={cn('border-b last:border-0 transition-colors hover:bg-muted/30 cursor-pointer', selected.has(c.id) ? 'bg-primary/5' : '')} onClick={() => navigate(`/companies/${c.id}`)}>
                 <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
                   <Checkbox checked={selected.has(c.id)} onCheckedChange={() => toggleSelect(c.id)} />
                 </td>
+                <td className="px-4 py-3 text-xs font-mono text-muted-foreground">{c.displayNumber || '—'}</td>
                 <td className="px-4 py-3 font-medium text-foreground">{c.name}</td>
                 <td className="px-4 py-3 text-muted-foreground">{c.email || '—'}</td>
                 <td className="px-4 py-3 text-muted-foreground hidden md:table-cell">{c.phone || '—'}</td>

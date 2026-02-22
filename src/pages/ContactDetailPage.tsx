@@ -126,7 +126,7 @@ export default function ContactDetailPage() {
       <div className="flex items-center gap-2 text-sm text-muted-foreground">
         <button onClick={() => navigate('/crm')} className="hover:text-foreground transition-colors">CRM</button>
         <ChevronRight size={14} />
-        <span className="text-foreground font-medium">{contact.firstName} {contact.lastName}</span>
+        <span className="text-foreground font-medium">{contact.displayNumber && <span className="font-mono text-xs text-muted-foreground mr-2">{contact.displayNumber}</span>}{contact.firstName} {contact.lastName}</span>
       </div>
 
       <div className="flex flex-col lg:flex-row gap-6">

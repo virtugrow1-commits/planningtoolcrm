@@ -7,6 +7,7 @@ import { capitalizeWords } from '@/lib/utils';
 
 export interface Company {
   id: string;
+  displayNumber?: string;
   name: string;
   email?: string;
   phone?: string;
@@ -56,6 +57,7 @@ export function CompaniesProvider({ children }: { children: ReactNode }) {
     if (data) {
       setCompanies(data.map((c: any) => ({
         id: c.id,
+        displayNumber: c.display_number || undefined,
         name: c.name,
         email: c.email || undefined,
         phone: c.phone || undefined,
