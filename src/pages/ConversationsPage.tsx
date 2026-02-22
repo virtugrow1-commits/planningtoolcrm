@@ -2,13 +2,9 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
-import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Badge } from '@/components/ui/badge';
 import {
-  Search,
-  Send,
   RefreshCw,
   MessageSquare,
   ArrowLeft,
@@ -17,6 +13,9 @@ import {
 import { format } from 'date-fns';
 import { nl } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
+import ConversationList from '@/components/conversations/ConversationList';
+import ContactDetailsPanel from '@/components/conversations/ContactDetailsPanel';
+import MessageComposer from '@/components/conversations/MessageComposer';
 
 interface Conversation {
   id: string;
@@ -27,7 +26,7 @@ interface Conversation {
   lastMessageType: string;
   lastMessageDirection: string;
   unreadCount: number;
-  type: string; // SMS, Email, etc.
+  type: string;
   phone?: string;
   email?: string;
 }
@@ -51,11 +50,8 @@ export default function ConversationsPage() {
   const [selectedConv, setSelectedConv] = useState<Conversation | null>(null);
   const [loading, setLoading] = useState(false);
   const [loadingMessages, setLoadingMessages] = useState(false);
-  const [sending, setSending] = useState(false);
-  const [replyText, setReplyText] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
 
   const fetchConversations = useCallback(async () => {
     if (!user) return;
@@ -102,156 +98,55 @@ export default function ConversationsPage() {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  const handleSendMessage = async () => {
-    if (!replyText.trim() || !selectedConv) return;
-    setSending(true);
+  const handleSendMessage = async (message: string, channel: string, subject?: string) => {
+    if (!selectedConv) return;
     try {
       const { data, error } = await supabase.functions.invoke('ghl-sync', {
         body: {
           action: 'send-message',
           conversationId: selectedConv.id,
           contactId: selectedConv.contactId,
-          message: replyText.trim(),
+          message,
           type: 'Email',
+          subject: subject || undefined,
         },
       });
       if (error) throw error;
       if (!data.success) throw new Error(data.error || 'Verzenden mislukt');
 
-      // Add the sent message locally
       setMessages((prev) => [
         ...prev,
         {
           id: data.messageId || `local-${Date.now()}`,
-          body: replyText.trim(),
+          body: message,
           direction: 'outbound',
           dateAdded: new Date().toISOString(),
-          type: selectedConv.type || 'SMS',
+          type: 'Email',
           status: 'sent',
         },
       ]);
-      setReplyText('');
-      inputRef.current?.focus();
     } catch (err: any) {
       toast({ title: 'Fout bij verzenden', description: err.message, variant: 'destructive' });
-    } finally {
-      setSending(false);
     }
   };
-
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      handleSendMessage();
-    }
-  };
-
-  const getTypeIcon = () => MessageSquare;
-
-  const getChannelIcons = () => [MessageSquare];
-
-  const filteredConversations = conversations;
 
   return (
     <div className="flex h-[calc(100vh-4rem)] overflow-hidden">
       {/* Conversation List */}
-      <div
-        className={cn(
-          'w-full md:w-96 border-r flex flex-col shrink-0 bg-card',
-          selectedConv && 'hidden md:flex'
-        )}
-      >
-        <div className="p-3 border-b space-y-2">
-          <div className="flex items-center justify-between">
-            <h1 className="text-lg font-bold text-foreground">Gesprekken</h1>
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={fetchConversations}
-              disabled={loading}
-              className="h-8 w-8"
-            >
-              <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
-            </Button>
-          </div>
-          <div className="relative">
-            <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              placeholder="Zoek gesprekken..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && fetchConversations()}
-              className="pl-8 h-8 text-sm"
-            />
-          </div>
-        </div>
-
-        <ScrollArea className="flex-1">
-          {loading && conversations.length === 0 ? (
-            <div className="p-6 text-center text-sm text-muted-foreground">Laden...</div>
-          ) : filteredConversations.length === 0 ? (
-            <div className="p-6 text-center text-sm text-muted-foreground">
-              Geen gesprekken gevonden
-            </div>
-          ) : (
-            <div className="divide-y">
-              {filteredConversations.map((conv) => {
-                const TypeIcon = getTypeIcon();
-                const isActive = selectedConv?.id === conv.id;
-                return (
-                  <button
-                    key={conv.id}
-                    onClick={() => setSelectedConv(conv)}
-                    className={cn(
-                      'w-full text-left px-3 py-3 hover:bg-accent/50 transition-colors',
-                      isActive && 'bg-accent/50'
-                    )}
-                  >
-                    <div className="flex items-start gap-2.5">
-                      <div className="mt-0.5 rounded-full bg-muted p-1.5 shrink-0">
-                        <TypeIcon size={14} className="text-muted-foreground" />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center justify-between gap-2">
-                          <span className="font-medium text-sm text-foreground truncate">
-                            {conv.contactName}
-                          </span>
-                          {conv.lastMessageDate && (
-                            <span className="text-[10px] text-muted-foreground shrink-0">
-                              {format(new Date(conv.lastMessageDate), 'd MMM', { locale: nl })}
-                            </span>
-                          )}
-                        </div>
-                        <p className="text-xs text-muted-foreground truncate mt-0.5">
-                          {conv.lastMessageDirection === 'outbound' && (
-                            <span className="text-foreground/60">Jij: </span>
-                          )}
-                          {conv.lastMessageBody || 'Geen berichten'}
-                        </p>
-                        <div className="flex items-center gap-1.5 mt-1">
-                          {getChannelIcons().map((ChannelIcon, idx) => (
-                            <ChannelIcon key={idx} size={12} className="text-muted-foreground" />
-                          ))}
-                          {conv.unreadCount > 0 && (
-                            <Badge className="text-[10px] px-1.5 py-0 bg-primary text-primary-foreground ml-auto">
-                              {conv.unreadCount}
-                            </Badge>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
-          )}
-        </ScrollArea>
-      </div>
+      <ConversationList
+        conversations={conversations}
+        selectedConv={selectedConv}
+        loading={loading}
+        searchQuery={searchQuery}
+        setSearchQuery={setSearchQuery}
+        onSelect={setSelectedConv}
+        onRefresh={fetchConversations}
+      />
 
       {/* Message Thread */}
       <div
         className={cn(
-          'flex-1 flex flex-col',
+          'flex-1 flex flex-col min-w-0',
           !selectedConv && 'hidden md:flex'
         )}
       >
@@ -339,33 +234,12 @@ export default function ConversationsPage() {
               )}
             </ScrollArea>
 
-            {/* Reply input - only for email conversations */}
-            <div className="p-3 border-t bg-card">
-              {selectedConv.type?.toLowerCase().includes('email') || selectedConv.type === 'TYPE_EMAIL' ? (
-                <div className="flex items-center gap-2 max-w-2xl mx-auto">
-                  <Input
-                    ref={inputRef}
-                    placeholder="Typ een e-mail antwoord..."
-                    value={replyText}
-                    onChange={(e) => setReplyText(e.target.value)}
-                    onKeyDown={handleKeyDown}
-                    disabled={sending}
-                    className="flex-1"
-                  />
-                  <Button
-                    size="icon"
-                    onClick={handleSendMessage}
-                    disabled={!replyText.trim() || sending}
-                  >
-                    <Send size={16} />
-                  </Button>
-                </div>
-              ) : (
-                <p className="text-xs text-center text-muted-foreground">
-                  Beantwoorden is momenteel alleen mogelijk via e-mail
-                </p>
-              )}
-            </div>
+            {/* Compose area with channel tabs */}
+            <MessageComposer
+              onSend={handleSendMessage}
+              sending={false}
+              conversationType={selectedConv.type}
+            />
           </>
         ) : (
           <div className="flex-1 flex items-center justify-center text-muted-foreground">
@@ -376,6 +250,16 @@ export default function ConversationsPage() {
           </div>
         )}
       </div>
+
+      {/* Contact Details Panel */}
+      {selectedConv && (
+        <ContactDetailsPanel
+          contactId={selectedConv.contactId}
+          contactName={selectedConv.contactName}
+          phone={selectedConv.phone}
+          email={selectedConv.email}
+        />
+      )}
     </div>
   );
 }
