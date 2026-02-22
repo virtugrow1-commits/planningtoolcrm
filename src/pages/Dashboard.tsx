@@ -167,10 +167,10 @@ export default function Dashboard() {
   }
 
   return (
-    <div className="p-6 lg:p-8 space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-foreground">Dashboard</h1>
-        <p className="text-sm text-muted-foreground">
+    <div className="p-6 lg:p-8 space-y-6 max-w-7xl mx-auto">
+      <div className="animate-fade-in">
+        <h1 className="text-2xl font-bold text-foreground tracking-tight">Dashboard</h1>
+        <p className="text-sm text-muted-foreground mt-1">
           {new Date().toLocaleDateString('nl-NL', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
         </p>
       </div>
@@ -200,7 +200,7 @@ export default function Dashboard() {
       </div>
 
       {/* Taken */}
-      <div className="rounded-xl bg-card card-shadow animate-fade-in">
+      <div className="rounded-xl bg-card card-shadow animate-fade-in-up overflow-hidden">
         <div className="flex items-center justify-between border-b px-5 py-3">
           <h2 className="text-sm font-semibold text-card-foreground flex items-center gap-2">
             <CheckSquare size={16} /> Taken
@@ -313,7 +313,7 @@ export default function Dashboard() {
       </div>
 
       {/* Agenda Vandaag */}
-      <div className="rounded-xl bg-card p-5 card-shadow animate-fade-in">
+      <div className="rounded-xl bg-card p-5 card-shadow animate-fade-in-up overflow-hidden">
         <h2 className="mb-4 text-sm font-semibold text-card-foreground">Agenda Vandaag</h2>
         <div className="space-y-3">
           {todayBookings.length === 0 && (
