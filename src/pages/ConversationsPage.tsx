@@ -11,10 +11,6 @@ import {
   Send,
   RefreshCw,
   MessageSquare,
-  PhoneCall,
-  Mail,
-  Instagram,
-  Globe,
   ArrowLeft,
   User,
 } from 'lucide-react';
@@ -150,27 +146,9 @@ export default function ConversationsPage() {
     }
   };
 
-  const getTypeIcon = (type: string) => {
-    const t = type?.toLowerCase() || '';
-    if (t.includes('sms') || t.includes('phone')) return PhoneCall;
-    if (t.includes('email')) return Mail;
-    if (t.includes('instagram') || t.includes('ig')) return Instagram;
-    if (t.includes('whatsapp') || t.includes('wa')) return MessageSquare;
-    if (t.includes('web') || t.includes('chat') || t.includes('live')) return Globe;
-    return MessageSquare;
-  };
+  const getTypeIcon = () => MessageSquare;
 
-  const getChannelIcons = (type: string) => {
-    const t = type?.toLowerCase() || '';
-    const icons: (typeof PhoneCall)[] = [];
-    if (t.includes('phone') || t.includes('call')) icons.push(PhoneCall);
-    if (t.includes('email')) icons.push(Mail);
-    if (t.includes('sms')) icons.push(MessageSquare);
-    if (t.includes('whatsapp') || t.includes('wa')) icons.push(MessageSquare);
-    if (t.includes('instagram') || t.includes('ig')) icons.push(Instagram);
-    if (icons.length === 0) icons.push(PhoneCall);
-    return icons;
-  };
+  const getChannelIcons = () => [MessageSquare];
 
   const filteredConversations = conversations;
 
@@ -218,7 +196,7 @@ export default function ConversationsPage() {
           ) : (
             <div className="divide-y">
               {filteredConversations.map((conv) => {
-                const TypeIcon = getTypeIcon(conv.type);
+                const TypeIcon = getTypeIcon();
                 const isActive = selectedConv?.id === conv.id;
                 return (
                   <button
@@ -251,7 +229,7 @@ export default function ConversationsPage() {
                           {conv.lastMessageBody || 'Geen berichten'}
                         </p>
                         <div className="flex items-center gap-1.5 mt-1">
-                          {getChannelIcons(conv.type).map((ChannelIcon, idx) => (
+                          {getChannelIcons().map((ChannelIcon, idx) => (
                             <ChannelIcon key={idx} size={12} className="text-muted-foreground" />
                           ))}
                           {conv.unreadCount > 0 && (
