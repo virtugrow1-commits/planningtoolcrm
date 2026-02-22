@@ -3,11 +3,12 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { format } from 'date-fns';
 import { nl } from 'date-fns/locale';
 import { Inquiry, Booking, ROOMS, RoomName } from '@/types/crm';
-import { Calendar as CalendarIcon, Users, Euro, GripVertical, Repeat, Plus, X, Check, LayoutGrid, List, Trash2, ArrowRight } from 'lucide-react';
+import { Calendar as CalendarIcon, Users, Euro, GripVertical, Repeat, Plus, X, Check, LayoutGrid, List, Trash2, ArrowRight, AlertTriangle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useBookings } from '@/contexts/BookingsContext';
 import { useInquiriesContext } from '@/contexts/InquiriesContext';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
@@ -76,6 +77,8 @@ export default function InquiriesPage() {
   const [editInquiry, setEditInquiry] = useState<Inquiry | null>(null);
   const [newForm, setNewForm] = useState({ contactName: '', eventType: '', preferredDate: '', guestCount: '', budget: '', message: '', source: 'Handmatig', roomPreference: '', status: 'new' as Inquiry['status'] });
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [bulkDeleteConfirmOpen, setBulkDeleteConfirmOpen] = useState(false);
+  const [bulkMoveTarget, setBulkMoveTarget] = useState<Inquiry['status'] | null>(null);
   const { toast } = useToast();
   const { addBookings } = useBookings();
   const navigate = useNavigate();
@@ -103,6 +106,7 @@ export default function InquiriesPage() {
       await deleteInquiryCtx(id);
     }
     setSelected(new Set());
+    setBulkDeleteConfirmOpen(false);
     toast({ title: `${count} aanvra${count === 1 ? 'ag' : 'gen'} verwijderd` });
   };
 
@@ -113,6 +117,7 @@ export default function InquiriesPage() {
       if (inq) await updateInquiry({ ...inq, status: newStatus });
     }
     setSelected(new Set());
+    setBulkMoveTarget(null);
     const col = PIPELINE_COLUMNS.find((c) => c.key === newStatus);
     toast({ title: `${count} aanvra${count === 1 ? 'ag' : 'gen'} verplaatst`, description: `Naar "${col?.label}"` });
   };
@@ -338,7 +343,7 @@ export default function InquiriesPage() {
                   {PIPELINE_COLUMNS.map((col) => (
                     <button
                       key={col.key}
-                      onClick={() => handleBulkMove(col.key)}
+                      onClick={() => setBulkMoveTarget(col.key)}
                       className="w-full rounded-md px-3 py-1.5 text-left text-sm hover:bg-muted transition-colors"
                     >
                       {col.label}
@@ -347,7 +352,7 @@ export default function InquiriesPage() {
                 </div>
               </PopoverContent>
             </Popover>
-            <Button variant="destructive" size="sm" onClick={handleBulkDelete}>
+            <Button variant="destructive" size="sm" onClick={() => setBulkDeleteConfirmOpen(true)}>
               <Trash2 size={14} className="mr-1" /> Verwijderen
             </Button>
             <Button variant="ghost" size="sm" onClick={() => setSelected(new Set())}>
@@ -796,6 +801,40 @@ export default function InquiriesPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Bulk Delete Confirm */}
+      <AlertDialog open={bulkDeleteConfirmOpen} onOpenChange={setBulkDeleteConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Weet je het zeker?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Je staat op het punt om {selected.size} aanvra{selected.size !== 1 ? 'gen' : 'ag'} te verwijderen. Deze actie kan niet ongedaan worden gemaakt.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annuleren</AlertDialogCancel>
+            <AlertDialogAction className="bg-destructive text-destructive-foreground hover:bg-destructive/90" onClick={handleBulkDelete}>
+              Verwijderen ({selected.size})
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Bulk Move Confirm */}
+      <AlertDialog open={!!bulkMoveTarget} onOpenChange={(open) => { if (!open) setBulkMoveTarget(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Verplaatsen bevestigen</AlertDialogTitle>
+            <AlertDialogDescription>
+              Weet je zeker dat je {selected.size} aanvra{selected.size !== 1 ? 'gen' : 'ag'} wilt verplaatsen naar "{PIPELINE_COLUMNS.find(c => c.key === bulkMoveTarget)?.label}"?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annuleren</AlertDialogCancel>
+            <AlertDialogAction onClick={() => bulkMoveTarget && handleBulkMove(bulkMoveTarget)}>Bevestigen</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
