@@ -7,7 +7,7 @@ export interface Contact {
   phone: string;
   company?: string;
   companyId?: string;
-  status: 'lead' | 'prospect' | 'client' | 'inactive';
+  status: 'lead' | 'prospect' | 'client' | 'inactive' | 'do_not_contact';
   createdAt: string;
   notes?: string;
   ghlContactId?: string;

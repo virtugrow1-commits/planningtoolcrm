@@ -1,4 +1,4 @@
-import { Search, Plus, Filter, X, ChevronLeft, ChevronRight, Edit2, Trash2 } from 'lucide-react';
+import { Search, Plus, Filter, X, ChevronLeft, ChevronRight, Edit2, Trash2, Download, Building2, Users } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { useState } from 'react';
@@ -10,26 +10,31 @@ import { Badge } from '@/components/ui/badge';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Checkbox } from '@/components/ui/checkbox';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import BulkActionBar from '@/components/BulkActionBar';
 import { Contact } from '@/types/crm';
 import { useToast } from '@/hooks/use-toast';
 import { useContactsContext } from '@/contexts/ContactsContext';
 import { useCompaniesContext } from '@/contexts/CompaniesContext';
 import { cn } from '@/lib/utils';
+import { exportToCSV } from '@/lib/csvExport';
 
 const STATUS_LABELS: Record<string, string> = {
   lead: 'Lead',
   prospect: 'Prospect',
   client: 'Klant',
   inactive: 'Inactief',
+  do_not_contact: 'Niet benaderen',
 };
 
 type FilterKey = 'status' | 'company';
+type CrmTab = 'contacts' | 'companies';
 const PAGE_SIZES = [20, 50, 100] as const;
 
 export default function CrmPage() {
   const { contacts, loading, addContact, deleteContact, updateContact } = useContactsContext();
-  const { companies } = useCompaniesContext();
+  const { companies, loading: companiesLoading, deleteCompany } = useCompaniesContext();
+  const [activeTab, setActiveTab] = useState<CrmTab>('contacts');
   const [search, setSearch] = useState('');
   const [newOpen, setNewOpen] = useState(false);
   const [newContact, setNewContact] = useState<Omit<Contact, 'id' | 'createdAt'>>({ firstName: '', lastName: '', email: '', phone: '', status: 'lead' });
@@ -115,18 +120,72 @@ export default function CrmPage() {
     toast({ title: 'Contact aangemaakt' });
   };
 
-  if (loading) {
-    return <div className="flex min-h-[50vh] items-center justify-center"><div className="text-muted-foreground">Contacten laden...</div></div>;
+  // Companies tab filtering
+  const filteredCompanies = companies.filter((c) =>
+    `${c.name} ${c.email || ''} ${c.phone || ''} ${c.address || ''}`.toLowerCase().includes(search.toLowerCase())
+  );
+  const companyTotalPages = Math.max(1, Math.ceil(filteredCompanies.length / pageSize));
+  const paginatedCompanies = filteredCompanies.slice((page - 1) * pageSize, page * pageSize);
+
+  const handleExportContacts = () => {
+    exportToCSV(filtered.map(c => ({
+      id: c.displayNumber || '',
+      naam: `${c.firstName} ${c.lastName}`,
+      email: c.email,
+      telefoon: c.phone,
+      bedrijf: c.company || '',
+      status: STATUS_LABELS[c.status] || c.status,
+      aangemaakt: c.createdAt,
+    })), [
+      { key: 'id', label: 'ID' },
+      { key: 'naam', label: 'Naam' },
+      { key: 'email', label: 'Email' },
+      { key: 'telefoon', label: 'Telefoon' },
+      { key: 'bedrijf', label: 'Bedrijf' },
+      { key: 'status', label: 'Status' },
+      { key: 'aangemaakt', label: 'Aangemaakt' },
+    ], 'contacten-export');
+    toast({ title: `${filtered.length} contacten geëxporteerd` });
+  };
+
+  const handleExportCompanies = () => {
+    exportToCSV(filteredCompanies.map(c => ({
+      id: c.displayNumber || '',
+      naam: c.name,
+      email: c.email || '',
+      telefoon: c.phone || '',
+      website: c.website || '',
+      adres: c.address || '',
+    })), [
+      { key: 'id', label: 'ID' },
+      { key: 'naam', label: 'Naam' },
+      { key: 'email', label: 'Email' },
+      { key: 'telefoon', label: 'Telefoon' },
+      { key: 'website', label: 'Website' },
+      { key: 'adres', label: 'Adres' },
+    ], 'bedrijven-export');
+    toast({ title: `${filteredCompanies.length} bedrijven geëxporteerd` });
+  };
+
+  if (loading || companiesLoading) {
+    return <div className="flex min-h-[50vh] items-center justify-center"><div className="text-muted-foreground">Laden...</div></div>;
   }
 
-  const allPageSelected = paginated.length > 0 && paginated.every(c => selected.has(c.id));
+  const allPageSelected = activeTab === 'contacts'
+    ? paginated.length > 0 && paginated.every(c => selected.has(c.id))
+    : paginatedCompanies.length > 0 && paginatedCompanies.every(c => selected.has(c.id));
+
+  const currentTotalPages = activeTab === 'contacts' ? totalPages : companyTotalPages;
+  const currentTotal = activeTab === 'contacts' ? filtered.length : filteredCompanies.length;
 
   return (
     <div className="p-6 lg:p-8 space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-foreground">CRM / Contacten</h1>
-          <p className="text-sm text-muted-foreground">{filtered.length} van {contacts.length} contacten</p>
+          <h1 className="text-2xl font-bold text-foreground">CRM</h1>
+          <p className="text-sm text-muted-foreground">
+            {activeTab === 'contacts' ? `${filtered.length} van ${contacts.length} contacten` : `${filteredCompanies.length} van ${companies.length} bedrijven`}
+          </p>
         </div>
         <div className="flex items-center gap-2">
           <div className="relative w-64">
@@ -167,7 +226,10 @@ export default function CrmPage() {
               </div>
             </PopoverContent>
           </Popover>
-          <Button size="sm" onClick={() => setNewOpen(true)}><Plus size={14} className="mr-1" /> Nieuw Contact</Button>
+          <Button variant="outline" size="sm" onClick={activeTab === 'contacts' ? handleExportContacts : handleExportCompanies}>
+            <Download size={14} className="mr-1" /> Export
+          </Button>
+          <Button size="sm" onClick={() => setNewOpen(true)}><Plus size={14} className="mr-1" /> {activeTab === 'contacts' ? 'Nieuw Contact' : 'Nieuw Bedrijf'}</Button>
         </div>
       </div>
 
@@ -178,12 +240,23 @@ export default function CrmPage() {
         </div>
       )}
 
-      <BulkActionBar selectedCount={selected.size} onClear={() => setSelected(new Set())} onDelete={handleBulkDelete}>
-        <Button variant="outline" size="sm" onClick={() => { setBulkEditStatus(''); setBulkEditOpen(true); }}>
-          <Edit2 size={14} className="mr-1" /> Bulk status wijzigen
-        </Button>
-      </BulkActionBar>
+      {/* Tab toggle */}
+      <Tabs value={activeTab} onValueChange={(v) => { setActiveTab(v as CrmTab); setPage(1); setSelected(new Set()); setSearch(''); setFilters({ status: '', company: '' }); }}>
+        <TabsList>
+          <TabsTrigger value="contacts" className="gap-1.5"><Users size={14} /> Contactpersonen</TabsTrigger>
+          <TabsTrigger value="companies" className="gap-1.5"><Building2 size={14} /> Bedrijven</TabsTrigger>
+        </TabsList>
+      </Tabs>
 
+      {activeTab === 'contacts' && (
+        <BulkActionBar selectedCount={selected.size} onClear={() => setSelected(new Set())} onDelete={handleBulkDelete}>
+          <Button variant="outline" size="sm" onClick={() => { setBulkEditStatus(''); setBulkEditOpen(true); }}>
+            <Edit2 size={14} className="mr-1" /> Bulk status wijzigen
+          </Button>
+        </BulkActionBar>
+      )}
+
+      {activeTab === 'contacts' ? (
       <div className="overflow-x-auto rounded-xl border bg-card card-shadow">
         <table className="w-full text-sm">
           <thead>
@@ -216,13 +289,54 @@ export default function CrmPage() {
                 <td className="px-4 py-3 text-muted-foreground hidden md:table-cell">{c.phone || '—'}</td>
                 <td className="px-4 py-3 text-muted-foreground hidden lg:table-cell">{c.company || '—'}</td>
                 <td className="px-4 py-3 hidden lg:table-cell">
-                  <Badge variant="outline" className="text-xs">{STATUS_LABELS[c.status] || c.status}</Badge>
+                  <Badge variant={c.status === 'do_not_contact' ? 'destructive' : 'outline'} className="text-xs">{STATUS_LABELS[c.status] || c.status}</Badge>
                 </td>
               </tr>
             ))}
           </tbody>
         </table>
       </div>
+      ) : (
+      <div className="overflow-x-auto rounded-xl border bg-card card-shadow">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="border-b bg-muted/50">
+              <th className="px-4 py-3 w-[40px]"><Checkbox checked={allPageSelected} onCheckedChange={() => {
+                const ids = paginatedCompanies.map(c => c.id);
+                const allSel = ids.every(id => selected.has(id));
+                setSelected(prev => { const n = new Set(prev); if (allSel) ids.forEach(id => n.delete(id)); else ids.forEach(id => n.add(id)); return n; });
+              }} /></th>
+              <th className="px-4 py-3 text-left font-semibold text-muted-foreground w-[110px]">ID</th>
+              <th className="px-4 py-3 text-left font-semibold text-muted-foreground">Naam</th>
+              <th className="px-4 py-3 text-left font-semibold text-muted-foreground">Email</th>
+              <th className="px-4 py-3 text-left font-semibold text-muted-foreground hidden md:table-cell">Telefoon</th>
+              <th className="px-4 py-3 text-left font-semibold text-muted-foreground hidden lg:table-cell">Plaats</th>
+            </tr>
+          </thead>
+          <tbody>
+            {paginatedCompanies.length === 0 && (
+              <tr><td colSpan={6} className="px-4 py-8 text-center text-muted-foreground"><Building2 size={32} className="mx-auto mb-2 opacity-40" />Geen bedrijven gevonden</td></tr>
+            )}
+            {paginatedCompanies.map((c) => (
+              <tr
+                key={c.id}
+                className={cn('border-b last:border-0 transition-colors hover:bg-muted/30 cursor-pointer', selected.has(c.id) ? 'bg-primary/5' : '')}
+                onClick={() => navigate(`/companies/${c.id}`)}
+              >
+                <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
+                  <Checkbox checked={selected.has(c.id)} onCheckedChange={() => toggleSelect(c.id)} />
+                </td>
+                <td className="px-4 py-3 text-xs font-mono text-muted-foreground">{c.displayNumber || '—'}</td>
+                <td className="px-4 py-3 font-medium text-foreground">{c.name}</td>
+                <td className="px-4 py-3 text-muted-foreground">{c.email || '—'}</td>
+                <td className="px-4 py-3 text-muted-foreground hidden md:table-cell">{c.phone || '—'}</td>
+                <td className="px-4 py-3 text-muted-foreground hidden lg:table-cell">{c.city || '—'}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      )}
 
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2 text-sm text-muted-foreground">
@@ -231,12 +345,12 @@ export default function CrmPage() {
             <SelectTrigger className="h-8 w-20 text-xs"><SelectValue /></SelectTrigger>
             <SelectContent>{PAGE_SIZES.map((s) => <SelectItem key={s} value={String(s)}>{s}</SelectItem>)}</SelectContent>
           </Select>
-          <span>van {filtered.length}</span>
+          <span>van {currentTotal}</span>
         </div>
         <div className="flex items-center gap-1">
           <Button variant="outline" size="icon" className="h-8 w-8" disabled={page <= 1} onClick={() => setPage(page - 1)}><ChevronLeft size={14} /></Button>
-          <span className="px-2 text-sm text-muted-foreground">{page} / {totalPages}</span>
-          <Button variant="outline" size="icon" className="h-8 w-8" disabled={page >= totalPages} onClick={() => setPage(page + 1)}><ChevronRight size={14} /></Button>
+          <span className="px-2 text-sm text-muted-foreground">{page} / {currentTotalPages}</span>
+          <Button variant="outline" size="icon" className="h-8 w-8" disabled={page >= currentTotalPages} onClick={() => setPage(page + 1)}><ChevronRight size={14} /></Button>
         </div>
       </div>
 
@@ -274,6 +388,7 @@ export default function CrmPage() {
                   <SelectItem value="prospect">Prospect</SelectItem>
                   <SelectItem value="client">Klant</SelectItem>
                   <SelectItem value="inactive">Inactief</SelectItem>
+                  <SelectItem value="do_not_contact">Niet benaderen</SelectItem>
                 </SelectContent>
               </Select>
             </div>
