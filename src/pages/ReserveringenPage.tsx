@@ -34,10 +34,9 @@ export default function ReserveringenPage() {
   const contacts = fullContacts.map(c => ({ id: c.id, firstName: c.firstName, lastName: c.lastName, email: c.email || null, company: c.company || null, companyId: c.companyId || null }));
   const { t } = useLanguage();
   const { toast } = useToast();
+  const navigate = useNavigate();
 
   const [search, setSearch] = useState('');
-  const [detailOpen, setDetailOpen] = useState(false);
-  const [detailBooking, setDetailBooking] = useState<Booking | null>(null);
   const [tab, setTab] = useState<'all' | 'confirmed' | 'option'>('all');
   const [pageSize, setPageSize] = useState(20);
   const [upcomingPage, setUpcomingPage] = useState(1);
@@ -145,21 +144,7 @@ export default function ReserveringenPage() {
   };
 
   const openDetail = (booking: EnrichedBooking) => {
-    const { company, isPast, ...rest } = booking;
-    setDetailBooking({ ...rest });
-    setDetailOpen(true);
-  };
-
-  const handleDetailUpdate = async (updated: Booking) => {
-    await updateBooking(updated);
-    setDetailOpen(false);
-    toast({ title: 'Reservering bijgewerkt' });
-  };
-
-  const handleDetailDelete = async (id: string) => {
-    await deleteBooking(id);
-    setDetailOpen(false);
-    toast({ title: 'Reservering verwijderd' });
+    navigate(`/reserveringen/${booking.id}`);
   };
 
   const formatTime = (h: number, m: number) =>
@@ -410,14 +395,6 @@ export default function ReserveringenPage() {
         </div>
       )}
 
-      {/* Detail Dialog */}
-      <BookingDetailDialog
-        booking={detailBooking}
-        open={detailOpen}
-        onOpenChange={setDetailOpen}
-        onUpdate={handleDetailUpdate}
-        onDelete={handleDetailDelete}
-      />
 
       {/* Bulk Edit Dialog */}
       <Dialog open={bulkEditOpen} onOpenChange={setBulkEditOpen}>

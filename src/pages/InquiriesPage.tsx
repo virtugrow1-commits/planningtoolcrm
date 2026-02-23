@@ -166,8 +166,7 @@ export default function InquiriesPage() {
   }, []);
 
   const openDetailDialog = (inq: Inquiry) => {
-    setEditInquiry({ ...inq });
-    setDetailOpen(true);
+    navigate(`/inquiries/${inq.id}`);
   };
 
   const handleSaveEdit = async () => {
