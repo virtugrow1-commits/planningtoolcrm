@@ -8,6 +8,7 @@ import { useCompaniesContext } from '@/contexts/CompaniesContext';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { Booking, RoomName, ROOMS } from '@/types/crm';
 import { Search, Edit2, ArrowRightLeft, Calendar as CalendarIcon, Clock, MapPin, ChevronLeft, ChevronRight, History, Hash, ClipboardCheck, Download } from 'lucide-react';
+import BookingDetailDialog from '@/components/calendar/BookingDetailDialog';
 import { exportToCSV } from '@/lib/csvExport';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -35,8 +36,8 @@ export default function ReserveringenPage() {
   const { toast } = useToast();
 
   const [search, setSearch] = useState('');
-  const [editOpen, setEditOpen] = useState(false);
-  const [editBooking, setEditBooking] = useState<Booking | null>(null);
+  const [detailOpen, setDetailOpen] = useState(false);
+  const [detailBooking, setDetailBooking] = useState<Booking | null>(null);
   const [tab, setTab] = useState<'all' | 'confirmed' | 'option'>('all');
   const [pageSize, setPageSize] = useState(20);
   const [upcomingPage, setUpcomingPage] = useState(1);
@@ -143,24 +144,22 @@ export default function ReserveringenPage() {
     toast({ title: `${count} reservering(en) bijgewerkt` });
   };
 
-  const openEdit = (booking: EnrichedBooking) => {
+  const openDetail = (booking: EnrichedBooking) => {
     const { company, isPast, ...rest } = booking;
-    setEditBooking({ ...rest });
-    setEditOpen(true);
+    setDetailBooking({ ...rest });
+    setDetailOpen(true);
   };
 
-  const handleSave = async () => {
-    if (!editBooking) return;
-    await updateBooking(editBooking);
-    setEditOpen(false);
+  const handleDetailUpdate = async (updated: Booking) => {
+    await updateBooking(updated);
+    setDetailOpen(false);
     toast({ title: 'Reservering bijgewerkt' });
   };
 
-  const handleConvertToReservation = async () => {
-    if (!editBooking) return;
-    await updateBooking({ ...editBooking, status: 'confirmed' as const });
-    setEditOpen(false);
-    toast({ title: 'Optie omgezet naar reservering', description: editBooking.title });
+  const handleDetailDelete = async (id: string) => {
+    await deleteBooking(id);
+    setDetailOpen(false);
+    toast({ title: 'Reservering verwijderd' });
   };
 
   const formatTime = (h: number, m: number) =>
@@ -242,7 +241,7 @@ export default function ReserveringenPage() {
                   selected.has(b.id) ? 'bg-primary/5' : '',
                   b.isPast ? 'opacity-60 hover:opacity-80 hover:bg-muted/20' : 'hover:bg-muted/30'
                 )}
-                onClick={() => openEdit(b)}
+                onClick={() => openDetail(b)}
               >
                 <TableCell onClick={(e) => e.stopPropagation()}>
                   <Checkbox checked={selected.has(b.id)} onCheckedChange={() => toggleSelect(b.id)} />
@@ -271,7 +270,7 @@ export default function ReserveringenPage() {
                   <span className="flex items-center gap-1.5 text-sm"><Clock size={13} className="text-muted-foreground" />{formatTime(b.startHour, b.startMinute)} – {formatTime(b.endHour, b.endMinute)}</span>
                 </TableCell>
                 <TableCell>
-                  <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={(e) => { e.stopPropagation(); openEdit(b); }}>
+                  <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={(e) => { e.stopPropagation(); openDetail(b); }}>
                     <Edit2 size={14} />
                   </Button>
                 </TableCell>
@@ -411,80 +410,14 @@ export default function ReserveringenPage() {
         </div>
       )}
 
-      {/* Edit Dialog */}
-      <Dialog open={editOpen} onOpenChange={setEditOpen}>
-        <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>
-              {editBooking?.status === 'option' ? 'Optie bewerken' : 'Reservering bewerken'}
-              {editBooking?.reservationNumber && (
-                <span className="ml-2 text-sm font-mono text-muted-foreground">{editBooking.reservationNumber}</span>
-              )}
-            </DialogTitle>
-          </DialogHeader>
-          {editBooking && (
-            <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div><Label>Contactpersoon</Label><Input value={editBooking.contactName} onChange={(e) => setEditBooking({ ...editBooking, contactName: e.target.value })} /></div>
-                <div><Label>Evenement</Label><Input value={editBooking.title} onChange={(e) => setEditBooking({ ...editBooking, title: e.target.value })} /></div>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label>Ruimte</Label>
-                  <Select value={editBooking.roomName} onValueChange={(v) => setEditBooking({ ...editBooking, roomName: v as RoomName })}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>{availableRooms.map((r) => (<SelectItem key={r} value={r}>{r}</SelectItem>))}</SelectContent>
-                  </Select>
-                </div>
-                <div>
-                  <Label>Status</Label>
-                  <Select value={editBooking.status} onValueChange={(v) => setEditBooking({ ...editBooking, status: v as 'confirmed' | 'option' })}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="confirmed">Reservering</SelectItem>
-                      <SelectItem value="option">Optie</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-              <div className="grid grid-cols-3 gap-4">
-                <div><Label>Datum</Label><Input type="date" value={editBooking.date} onChange={(e) => setEditBooking({ ...editBooking, date: e.target.value })} /></div>
-                <div><Label>Van</Label><Input type="time" value={formatTime(editBooking.startHour, editBooking.startMinute)} onChange={(e) => { const [h, m] = e.target.value.split(':').map(Number); setEditBooking({ ...editBooking, startHour: h, startMinute: m || 0 }); }} /></div>
-                <div><Label>Tot</Label><Input type="time" value={formatTime(editBooking.endHour, editBooking.endMinute)} onChange={(e) => { const [h, m] = e.target.value.split(':').map(Number); setEditBooking({ ...editBooking, endHour: h, endMinute: m || 0 }); }} /></div>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div><Label>Aantal gasten</Label><Input type="number" min={0} value={editBooking.guestCount || ''} onChange={(e) => setEditBooking({ ...editBooking, guestCount: Math.max(0, Number(e.target.value)) })} /></div>
-                <div><Label>Zaalopstelling</Label><Input value={editBooking.roomSetup || ''} onChange={(e) => setEditBooking({ ...editBooking, roomSetup: e.target.value })} placeholder="bijv. U-vorm, Theater" /></div>
-              </div>
-              <div>
-                <Label>Voorbereiding</Label>
-                <Select value={editBooking.preparationStatus || 'pending'} onValueChange={(v) => setEditBooking({ ...editBooking, preparationStatus: v as any })}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="pending">Open</SelectItem>
-                    <SelectItem value="info_waiting">Wacht op info</SelectItem>
-                    <SelectItem value="in_progress">In voorbereiding</SelectItem>
-                    <SelectItem value="ready">Gereed</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div><Label>Benodigdheden</Label><Textarea value={editBooking.requirements || ''} onChange={(e) => setEditBooking({ ...editBooking, requirements: e.target.value })} placeholder="Beamer, flipover, koffie/thee, lunch..." rows={3} /></div>
-              <div><Label>Notities</Label><Textarea value={editBooking.notes || ''} onChange={(e) => setEditBooking({ ...editBooking, notes: e.target.value })} rows={3} /></div>
-            </div>
-          )}
-          <DialogFooter className="flex-col sm:flex-row gap-2">
-            {editBooking?.status === 'option' && (
-              <Button variant="outline" onClick={handleConvertToReservation} className="gap-1.5">
-                <ArrowRightLeft size={14} /> Omzetten naar reservering
-              </Button>
-            )}
-            <div className="flex gap-2 ml-auto">
-              <Button variant="ghost" onClick={() => setEditOpen(false)}>Annuleren</Button>
-              <Button onClick={handleSave}>Opslaan</Button>
-            </div>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {/* Detail Dialog */}
+      <BookingDetailDialog
+        booking={detailBooking}
+        open={detailOpen}
+        onOpenChange={setDetailOpen}
+        onUpdate={handleDetailUpdate}
+        onDelete={handleDetailDelete}
+      />
 
       {/* Bulk Edit Dialog */}
       <Dialog open={bulkEditOpen} onOpenChange={setBulkEditOpen}>
