@@ -149,6 +149,24 @@ export default function ConversationsPage() {
     }
   };
 
+  const handleBulkDelete = async (ids: string[]) => {
+    let deleted = 0;
+    for (const id of ids) {
+      try {
+        await supabase.functions.invoke('ghl-sync', {
+          body: { action: 'delete-conversation', conversationId: id },
+        });
+        deleted++;
+      } catch {}
+    }
+    setConversations((prev) => prev.filter((c) => !ids.includes(c.id)));
+    if (selectedConv && ids.includes(selectedConv.id)) {
+      setSelectedConv(null);
+      setMessages([]);
+    }
+    toast({ title: `${deleted} gesprek${deleted !== 1 ? 'ken' : ''} verwijderd` });
+  };
+
   return (
     <div className="flex h-[calc(100vh-4rem)] overflow-hidden">
       {/* Conversation List */}
@@ -161,6 +179,7 @@ export default function ConversationsPage() {
         onSelect={setSelectedConv}
         onRefresh={fetchConversations}
         onDelete={handleDeleteConversation}
+        onBulkDelete={handleBulkDelete}
       />
 
       {/* Message Thread */}
