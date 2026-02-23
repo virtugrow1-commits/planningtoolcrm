@@ -4,6 +4,7 @@ import { format } from 'date-fns';
 import { nl } from 'date-fns/locale';
 import { useBookings } from '@/contexts/BookingsContext';
 import { useContactsContext } from '@/contexts/ContactsContext';
+import { useCompaniesContext } from '@/contexts/CompaniesContext';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { Booking, RoomName, ROOMS } from '@/types/crm';
 import { Search, Edit2, ArrowRightLeft, Calendar as CalendarIcon, Clock, MapPin, ChevronLeft, ChevronRight, History, Hash, ClipboardCheck } from 'lucide-react';
@@ -27,7 +28,8 @@ type EnrichedBooking = Booking & { company: string; isPast: boolean };
 export default function ReserveringenPage() {
   const { bookings, updateBooking, deleteBooking, loading } = useBookings();
   const { contacts: fullContacts } = useContactsContext();
-  const contacts = fullContacts.map(c => ({ id: c.id, firstName: c.firstName, lastName: c.lastName, email: c.email || null, company: c.company || null }));
+  const { companies } = useCompaniesContext();
+  const contacts = fullContacts.map(c => ({ id: c.id, firstName: c.firstName, lastName: c.lastName, email: c.email || null, company: c.company || null, companyId: c.companyId || null }));
   const { t } = useLanguage();
   const { toast } = useToast();
 
@@ -48,12 +50,13 @@ export default function ReserveringenPage() {
 
   const enrichedBookings = useMemo<EnrichedBooking[]>(() => {
     return bookings
-      .filter(b => b.roomName !== 'Ontmoeten Aan de Donge') // Exclude GHL-synced general events
+      .filter(b => b.roomName !== 'Ontmoeten Aan de Donge')
       .map(b => {
         const contact = b.contactId ? contacts.find(c => c.id === b.contactId) : null;
-        return { ...b, company: contact?.company || '-', isPast: b.date < todayStr };
+        const companyName = contact?.company || (contact?.companyId ? companies.find(co => co.id === contact.companyId)?.name : null) || '-';
+        return { ...b, company: companyName, isPast: b.date < todayStr };
       });
-  }, [bookings, contacts, todayStr]);
+  }, [bookings, contacts, companies, todayStr]);
 
   const applyFilters = (list: EnrichedBooking[]) => {
     if (tab === 'confirmed') list = list.filter(b => b.status === 'confirmed');

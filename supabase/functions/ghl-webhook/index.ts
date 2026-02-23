@@ -55,15 +55,19 @@ serve(async (req) => {
       'Version': '2021-07-28',
     };
 
+    // Detect webhook type - GHL sometimes sends pipeline/opportunity data without a type field
+    const hasPipelineData = payload.pipeline_id || payload.pipleline_stage || payload.pipeline_name || payload.opportunity_name;
+    const hasContactData = payload.contact_id && (payload.first_name || payload.last_name || payload.full_name);
+    const hasAppointmentData = payload.startTime || payload.appointmentId || payload.calendarId;
+
     // Handle different webhook types
-    if (type.includes('opportunity') || type.includes('OpportunityStatus') || type.includes('pipeline')) {
-      await handleOpportunityWebhook(supabase, ghlHeaders, GHL_LOCATION_ID, userId, payload);
-    } else if (type.includes('contact') || type.includes('Contact')) {
+    if (type.includes('opportunity') || type.includes('OpportunityStatus') || type.includes('pipeline') || (hasPipelineData && !hasAppointmentData)) {
+      await handleOpportunityFromWebhookPayload(supabase, ghlHeaders, GHL_LOCATION_ID, userId, payload);
+    } else if (type.includes('contact') || type.includes('Contact') || (hasContactData && !hasPipelineData && !hasAppointmentData)) {
       await handleContactWebhook(supabase, userId, payload);
-    } else if (type.includes('appointment') || type.includes('calendar') || type.includes('event')) {
+    } else if (type.includes('appointment') || type.includes('calendar') || type.includes('event') || hasAppointmentData) {
       await handleAppointmentWebhook(supabase, userId, payload);
     } else {
-      // Unknown type - log and skip (no longer trigger full sync to prevent loops)
       console.log('Unknown webhook type, skipping:', type);
     }
 
@@ -74,50 +78,78 @@ serve(async (req) => {
   }
 });
 
-async function handleOpportunityWebhook(supabase: any, ghlHeaders: any, locationId: string, userId: string, payload: any) {
+async function handleOpportunityFromWebhookPayload(supabase: any, ghlHeaders: any, locationId: string, userId: string, payload: any) {
+  // GHL sends pipeline webhooks in two formats:
+  // 1. With an opportunity ID (fetch full data from API)
+  // 2. Direct payload with pipleline_stage, opportunity_name, contact_id etc.
+  
   const oppId = payload.id || payload.opportunityId || payload.data?.id;
-  if (!oppId) { console.log('No opportunity ID in webhook'); return; }
+  const stageName = payload.pipleline_stage || payload.pipeline_stage || '';
+  
+  if (!oppId && !stageName) { console.log('No opportunity ID or stage in webhook'); return; }
 
-  // Fetch full opportunity from GHL
-  const res = await fetch(`${GHL_API_BASE}/opportunities/${oppId}`, { headers: ghlHeaders });
-  if (!res.ok) { console.error('Fetch opp failed:', res.status); return; }
-  const opp = (await res.json()).opportunity || await res.json();
+  let status: string;
+  let contactName: string;
+  let monetaryValue: number | null = null;
+  let eventType: string;
+  let ghlOppId = oppId;
 
-  // Get pipeline stages for mapping
-  const pipelinesRes = await fetch(`${GHL_API_BASE}/opportunities/pipelines?locationId=${locationId}`, { headers: ghlHeaders });
-  const stageMap: Record<string, string> = {};
-  if (pipelinesRes.ok) {
-    const pd = await pipelinesRes.json();
-    for (const p of pd.pipelines || []) {
-      for (const s of p.stages || []) { stageMap[s.id] = s.name; }
+  if (stageName) {
+    // Direct payload from GHL webhook trigger (most common)
+    status = stageToStatus(stageName);
+    contactName = payload.full_name || payload.opportunity_name || payload.contact_name || 'Onbekend';
+    monetaryValue = payload.lead_value ? Number(payload.lead_value) : null;
+    eventType = payload.opportunity_name || 'Onbekend';
+    ghlOppId = oppId || payload.id;
+  } else {
+    // Fallback: fetch from GHL API
+    const res = await fetch(`${GHL_API_BASE}/opportunities/${oppId}`, { headers: ghlHeaders });
+    if (!res.ok) { console.error('Fetch opp failed:', res.status); return; }
+    const opp = (await res.json()).opportunity || await res.json();
+
+    const pipelinesRes = await fetch(`${GHL_API_BASE}/opportunities/pipelines?locationId=${locationId}`, { headers: ghlHeaders });
+    const stageMap: Record<string, string> = {};
+    if (pipelinesRes.ok) {
+      const pd = await pipelinesRes.json();
+      for (const p of pd.pipelines || []) {
+        for (const s of p.stages || []) { stageMap[s.id] = s.name; }
+      }
     }
+    const resolvedStage = stageMap[opp.pipelineStageId] || opp.status || 'new';
+    status = stageToStatus(resolvedStage);
+    contactName = opp.contact?.name || opp.name || 'Onbekend';
+    monetaryValue = opp.monetaryValue ? Number(opp.monetaryValue) : null;
+    eventType = opp.name || 'Onbekend';
   }
 
-  const stageName = stageMap[opp.pipelineStageId] || opp.status || 'new';
-  const status = stageToStatus(stageName);
-  const contactName = opp.contact?.name || opp.name || 'Onbekend';
-  const monetaryValue = opp.monetaryValue ? Number(opp.monetaryValue) : null;
+  if (!ghlOppId) { console.log('No GHL opportunity ID resolved'); return; }
 
-  const { data: existing } = await supabase.from('inquiries').select('id, updated_at').eq('user_id', userId).eq('ghl_opportunity_id', oppId).maybeSingle();
+  const { data: existing } = await supabase.from('inquiries').select('id, updated_at').eq('user_id', userId).eq('ghl_opportunity_id', ghlOppId).maybeSingle();
 
   if (existing) {
-    // Only update if CRM wasn't recently changed (within 2 min)
     const recentThreshold = new Date(Date.now() - 2 * 60 * 1000).toISOString();
     if (existing.updated_at <= recentThreshold) {
       await supabase.from('inquiries').update({
-        contact_name: contactName, status, budget: monetaryValue, event_type: opp.name || 'Onbekend',
+        contact_name: contactName, status, budget: monetaryValue, event_type: eventType,
       }).eq('id', existing.id);
-      console.log(`Webhook: GHL -> CRM opp ${oppId} -> ${status}`);
+      console.log(`Webhook: GHL -> CRM opp ${ghlOppId} -> ${status}`);
     } else {
-      console.log(`Webhook: Skipped opp ${oppId}, CRM recently updated`);
+      console.log(`Webhook: Skipped opp ${ghlOppId}, CRM recently updated`);
     }
   } else {
+    // Try to link to existing contact
+    let contactId = null;
+    if (payload.contact_id) {
+      const { data: contactMatch } = await supabase.from('contacts').select('id').eq('ghl_contact_id', payload.contact_id).maybeSingle();
+      contactId = contactMatch?.id || null;
+    }
+    
     await supabase.from('inquiries').insert({
-      user_id: userId, ghl_opportunity_id: oppId, contact_name: contactName,
-      event_type: opp.name || 'Onbekend', status, guest_count: 0,
-      budget: monetaryValue, source: 'GHL',
+      user_id: userId, ghl_opportunity_id: ghlOppId, contact_name: contactName,
+      event_type: eventType, status, guest_count: 0,
+      budget: monetaryValue, source: 'GHL', contact_id: contactId,
     });
-    console.log(`Webhook: Inserted new opp ${oppId} -> ${status}`);
+    console.log(`Webhook: Inserted new opp ${ghlOppId} -> ${status}`);
   }
 }
 
