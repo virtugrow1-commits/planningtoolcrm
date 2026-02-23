@@ -892,9 +892,10 @@ serve(async (req) => {
       const statusToStageName: Record<string, string> = {
         'new': 'Nieuwe Aanvraag', 'contacted': 'Lopend contact', 'option': 'Optie',
         'quoted': 'Offerte Verzonden', 'quote_revised': 'Aangepaste offerte verzonden',
-        'reserved': 'Reservering', 'confirmed': 'Definitieve Reservering',
+        'reserved': 'Reservering', 'script': 'Draaiboek maken',
+        'confirmed': 'Definitieve Reservering',
         'invoiced': 'Facturatie', 'lost': 'Vervallen / Verloren', 'after_sales': 'After Sales',
-        'converted': 'Definitieve Reservering',
+        'converted': 'Evenement',
       };
       const targetStageName = statusToStageName[status || 'new'] || 'Nieuwe Aanvraag';
       let targetStageId = pipeline.stages?.[0]?.id; // default to first stage
@@ -990,11 +991,12 @@ serve(async (req) => {
         'quoted': 'Offerte Verzonden',
         'quote_revised': 'Aangepaste offerte verzonden',
         'reserved': 'Reservering',
+        'script': 'Draaiboek maken',
         'confirmed': 'Definitieve Reservering',
         'invoiced': 'Facturatie',
         'lost': 'Vervallen / Verloren',
         'after_sales': 'After Sales',
-        'converted': 'Definitieve Reservering',
+        'converted': 'Evenement',
       };
 
       const targetStageName = statusToStageName[status] || 'Nieuwe Aanvraag';

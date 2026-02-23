@@ -228,9 +228,10 @@ async function syncOpportunities(supabase: any, ghlHeaders: any, locationId: str
     const statusToStageName: Record<string, string> = {
       'new': 'nieuwe aanvraag', 'contacted': 'lopend contact', 'option': 'optie',
       'quoted': 'offerte verzonden', 'quote_revised': 'aangepaste offerte',
-      'reserved': 'reservering', 'confirmed': 'definitieve reservering',
-      'script': 'draaiboek', 'invoiced': 'facturatie', 'lost': 'vervallen', 'after_sales': 'after sales',
-      'converted': 'definitieve reservering',
+      'reserved': 'reservering', 'script': 'draaiboek maken',
+      'confirmed': 'definitieve reservering',
+      'invoiced': 'facturatie', 'lost': 'vervallen', 'after_sales': 'after sales',
+      'converted': 'evenement',
     };
 
     const findStageId = (crmStatus: string): string | null => {
