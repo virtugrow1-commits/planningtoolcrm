@@ -66,16 +66,15 @@ serve(async (req) => {
     const anonClient = createClient(SUPABASE_URL, anonKey, {
       global: { headers: { Authorization: authHeader } },
     });
-    const token = authHeader.replace('Bearer ', '');
-    const { data, error: authError } = await anonClient.auth.getClaims(token);
+    const { data: { user: authUser }, error: authError } = await anonClient.auth.getUser();
     
-    if (authError || !data?.claims) {
+    if (authError || !authUser) {
       console.error('Auth error:', authError);
       return new Response(JSON.stringify({ error: 'Unauthorized' }), {
         status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
-    const user = { id: data.claims.sub as string };
+    const user = { id: authUser.id };
 
     const body = await req.json();
     const { action } = body;
