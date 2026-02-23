@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, DragEvent } from 'react';
+import { useState, useCallback, useEffect, useMemo, DragEvent } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { format } from 'date-fns';
 import { nl } from 'date-fns/locale';
@@ -8,6 +8,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useBookings } from '@/contexts/BookingsContext';
 import { useInquiriesContext } from '@/contexts/InquiriesContext';
 import { useContactsContext } from '@/contexts/ContactsContext';
+import { useTasksContext } from '@/contexts/TasksContext';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
@@ -70,6 +71,7 @@ export default function InquiriesPage() {
   const { inquiries, loading: inquiriesLoading, addInquiry, updateInquiry, deleteInquiry: deleteInquiryCtx } = useInquiriesContext();
   const { contacts } = useContactsContext();
   const { bookings, addBookings } = useBookings();
+  const { tasks, addTask } = useTasksContext();
   const [dragId, setDragId] = useState<string | null>(null);
   const [scheduleOpen, setScheduleOpen] = useState(false);
   const [selectedInquiry, setSelectedInquiry] = useState<Inquiry | null>(null);
@@ -84,10 +86,21 @@ export default function InquiriesPage() {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [bulkDeleteConfirmOpen, setBulkDeleteConfirmOpen] = useState(false);
   const [bulkMoveTarget, setBulkMoveTarget] = useState<Inquiry['status'] | null>(null);
+  const [noteDialogInquiry, setNoteDialogInquiry] = useState<Inquiry | null>(null);
+  const [noteText, setNoteText] = useState('');
+  const [taskDialogInquiry, setTaskDialogInquiry] = useState<Inquiry | null>(null);
+  const [taskTitle, setTaskTitle] = useState('');
   const { toast } = useToast();
   
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
+
+  // Count tasks per inquiry
+  const taskCountByInquiry = useMemo(() => {
+    const map: Record<string, number> = {};
+    tasks.forEach(t => { if (t.inquiryId) map[t.inquiryId] = (map[t.inquiryId] || 0) + 1; });
+    return map;
+  }, [tasks]);
 
   const toggleSelect = (id: string) => {
     setSelected((prev) => {
@@ -384,9 +397,10 @@ export default function InquiriesPage() {
               </div>
               <div className="space-y-2">
                 {items.map((inq) => {
-                  // Find related bookings by matching contactName + eventType as title
                   const relatedBookings = bookings.filter(b => b.contactName === inq.contactName && b.title === inq.eventType);
                   const firstBooking = relatedBookings.length > 0 ? relatedBookings[0] : null;
+                  const inquiryTaskCount = taskCountByInquiry[inq.id] || 0;
+                  const hasMessage = inq.message && inq.message.trim().length > 0;
 
                   return (
                   <div
@@ -405,9 +419,9 @@ export default function InquiriesPage() {
                           className="mt-1 shrink-0"
                         />
                         <div className="flex-1 min-w-0">
-                          <p className="text-[11px] text-muted-foreground truncate">{inq.eventType}</p>
+                          <p className="text-sm font-semibold text-card-foreground truncate">{inq.eventType}</p>
                           <button
-                            className="text-sm font-semibold text-card-foreground hover:text-primary transition-colors text-left truncate block w-full"
+                            className="text-xs text-muted-foreground hover:text-primary transition-colors text-left truncate block w-full"
                             onClick={(e) => { e.stopPropagation(); if (inq.contactId) navigate(`/crm/${inq.contactId}`); else openDetailDialog(inq); }}
                           >
                             {inq.contactName}
@@ -428,7 +442,6 @@ export default function InquiriesPage() {
                       <div className="flex gap-2"><span className="text-muted-foreground w-[100px] shrink-0">Personen:</span><span className="text-card-foreground">{inq.guestCount}</span></div>
                       <div className="flex gap-2"><span className="text-muted-foreground w-[100px] shrink-0">Waarde:</span><span className="text-card-foreground">€{(inq.budget || 0).toLocaleString('nl-NL', { minimumFractionDigits: 2 })}</span></div>
                       
-                      {/* Ingeplande boeking info */}
                       {firstBooking && (
                         <>
                           <div className="flex gap-2">
@@ -447,13 +460,34 @@ export default function InquiriesPage() {
 
                     {/* Icon row + Inplannen */}
                     <div className="mt-3 flex items-center justify-between border-t pt-2">
-                      <div className="flex items-center gap-2">
-                        <span className="text-[10px] text-muted-foreground/60">{inq.source === 'GHL' ? 'VirtuGrow' : inq.source}{inq.displayNumber ? ` · ${inq.displayNumber}` : ''}</span>
-                        <div className="flex items-center gap-1.5 ml-1">
-                          <MessageSquare size={12} className="text-muted-foreground/50" />
-                          <StickyNote size={12} className="text-muted-foreground/50" />
-                          <CheckSquare size={12} className="text-muted-foreground/50" />
-                        </div>
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          onClick={(e) => { e.stopPropagation(); navigate('/conversations'); }}
+                          className="relative p-1 rounded hover:bg-muted transition-colors"
+                          title="Gesprekken"
+                        >
+                          <MessageSquare size={13} className="text-muted-foreground" />
+                          {hasMessage && (
+                            <span className="absolute -top-1 -right-1 h-3.5 w-3.5 rounded-full bg-success text-[8px] font-bold text-primary-foreground flex items-center justify-center">1</span>
+                          )}
+                        </button>
+                        <button
+                          onClick={(e) => { e.stopPropagation(); setNoteDialogInquiry(inq); setNoteText(''); }}
+                          className="p-1 rounded hover:bg-muted transition-colors"
+                          title="Notitie toevoegen"
+                        >
+                          <StickyNote size={13} className="text-muted-foreground" />
+                        </button>
+                        <button
+                          onClick={(e) => { e.stopPropagation(); setTaskDialogInquiry(inq); setTaskTitle(''); }}
+                          className="relative p-1 rounded hover:bg-muted transition-colors"
+                          title="Taak toevoegen"
+                        >
+                          <CheckSquare size={13} className="text-muted-foreground" />
+                          {inquiryTaskCount > 0 && (
+                            <span className="absolute -top-1 -right-1 h-3.5 w-3.5 rounded-full bg-info text-[8px] font-bold text-primary-foreground flex items-center justify-center">{inquiryTaskCount}</span>
+                          )}
+                        </button>
                       </div>
                       <Button
                         variant="ghost"
@@ -907,6 +941,64 @@ export default function InquiriesPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Note Dialog */}
+      <Dialog open={!!noteDialogInquiry} onOpenChange={(open) => { if (!open) setNoteDialogInquiry(null); }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Notitie toevoegen</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">{noteDialogInquiry?.eventType} — {noteDialogInquiry?.contactName}</p>
+          <Textarea
+            placeholder="Schrijf een notitie..."
+            value={noteText}
+            onChange={(e) => setNoteText(e.target.value)}
+            className="min-h-[100px]"
+          />
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setNoteDialogInquiry(null)}>Annuleren</Button>
+            <Button onClick={async () => {
+              if (!noteDialogInquiry || !noteText.trim()) return;
+              const currentMsg = noteDialogInquiry.message || '';
+              const timestamp = format(new Date(), 'd MMM yyyy HH:mm', { locale: nl });
+              const newMessage = currentMsg ? `${currentMsg}\n\n[${timestamp}] ${noteText.trim()}` : `[${timestamp}] ${noteText.trim()}`;
+              await updateInquiry({ ...noteDialogInquiry, message: newMessage });
+              toast({ title: 'Notitie toegevoegd' });
+              setNoteDialogInquiry(null);
+            }}>Opslaan</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Task Dialog */}
+      <Dialog open={!!taskDialogInquiry} onOpenChange={(open) => { if (!open) setTaskDialogInquiry(null); }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Taak toevoegen</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">{taskDialogInquiry?.eventType} — {taskDialogInquiry?.contactName}</p>
+          <Input
+            placeholder="Taakomschrijving..."
+            value={taskTitle}
+            onChange={(e) => setTaskTitle(e.target.value)}
+          />
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setTaskDialogInquiry(null)}>Annuleren</Button>
+            <Button onClick={async () => {
+              if (!taskDialogInquiry || !taskTitle.trim()) return;
+              await addTask({
+                title: taskTitle.trim(),
+                status: 'open',
+                priority: 'normal',
+                inquiryId: taskDialogInquiry.id,
+                contactId: taskDialogInquiry.contactId || undefined,
+              });
+              toast({ title: 'Taak aangemaakt' });
+              setTaskDialogInquiry(null);
+            }}>Opslaan</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
