@@ -4,6 +4,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Switch } from '@/components/ui/switch';
 import { useToast } from '@/hooks/use-toast';
 import { Plus, Trash2 } from 'lucide-react';
 
@@ -13,23 +14,25 @@ interface RoomSettingsDialogProps {
   settings: Record<string, number>;
   displayNames: Record<string, string>;
   ghlCalendarIds?: Record<string, string>;
-  onSave: (roomName: string, maxGuests: number, displayName?: string, ghlCalendarId?: string) => Promise<any>;
+  enabledRooms?: Record<string, boolean>;
+  onSave: (roomName: string, maxGuests: number, displayName?: string, ghlCalendarId?: string, enabled?: boolean) => Promise<any>;
 }
 
-export default function RoomSettingsDialog({ open, onOpenChange, settings, displayNames, ghlCalendarIds = {}, onSave }: RoomSettingsDialogProps) {
-  const [localSettings, setLocalSettings] = useState<Record<string, { maxGuests: string; displayName: string; ghlCalendarId: string }>>({});
+export default function RoomSettingsDialog({ open, onOpenChange, settings, displayNames, ghlCalendarIds = {}, enabledRooms = {}, onSave }: RoomSettingsDialogProps) {
+  const [localSettings, setLocalSettings] = useState<Record<string, { maxGuests: string; displayName: string; ghlCalendarId: string; enabled: boolean }>>({});
   const [customRooms, setCustomRooms] = useState<string[]>([]);
   const [newRoomName, setNewRoomName] = useState('');
   const { toast } = useToast();
 
   useEffect(() => {
     if (open) {
-      const map: Record<string, { maxGuests: string; displayName: string; ghlCalendarId: string }> = {};
+      const map: Record<string, { maxGuests: string; displayName: string; ghlCalendarId: string; enabled: boolean }> = {};
       ROOMS.forEach((room) => {
         map[room] = {
           maxGuests: String(settings[room] ?? ''),
           displayName: displayNames[room] ?? '',
           ghlCalendarId: ghlCalendarIds[room] ?? '',
+          enabled: enabledRooms[room] !== false,
         };
       });
       const extraRooms: string[] = [];
@@ -39,6 +42,7 @@ export default function RoomSettingsDialog({ open, onOpenChange, settings, displ
             maxGuests: String(settings[room] ?? ''),
             displayName: displayNames[room] ?? '',
             ghlCalendarId: ghlCalendarIds[room] ?? '',
+            enabled: enabledRooms[room] !== false,
           };
           extraRooms.push(room);
         }
@@ -49,6 +53,7 @@ export default function RoomSettingsDialog({ open, onOpenChange, settings, displ
             maxGuests: String(settings[room] ?? ''),
             displayName: displayNames[room] ?? '',
             ghlCalendarId: ghlCalendarIds[room] ?? '',
+            enabled: enabledRooms[room] !== false,
           };
           extraRooms.push(room);
         }
@@ -57,7 +62,7 @@ export default function RoomSettingsDialog({ open, onOpenChange, settings, displ
       setCustomRooms(extraRooms);
       setNewRoomName('');
     }
-  }, [open, settings, displayNames, ghlCalendarIds]);
+  }, [open, settings, displayNames, ghlCalendarIds, enabledRooms]);
 
   const allRooms = [...ROOMS, ...customRooms.filter((r) => !(ROOMS as readonly string[]).includes(r))];
 
@@ -71,7 +76,7 @@ export default function RoomSettingsDialog({ open, onOpenChange, settings, displ
     setCustomRooms((prev) => [...prev, name]);
     setLocalSettings((prev) => ({
       ...prev,
-      [name]: { maxGuests: '', displayName: '', ghlCalendarId: '' },
+      [name]: { maxGuests: '', displayName: '', ghlCalendarId: '', enabled: true },
     }));
     setNewRoomName('');
   };
@@ -90,11 +95,13 @@ export default function RoomSettingsDialog({ open, onOpenChange, settings, displ
       const val = parseInt(localSettings[room]?.maxGuests || '0', 10);
       const name = localSettings[room]?.displayName?.trim() || undefined;
       const calId = localSettings[room]?.ghlCalendarId?.trim() || undefined;
+      const enabled = localSettings[room]?.enabled ?? true;
       const currentMax = settings[room] ?? 0;
       const currentName = displayNames[room] || undefined;
       const currentCalId = ghlCalendarIds[room] || undefined;
-      if (val !== currentMax || name !== currentName || calId !== currentCalId || customRooms.includes(room)) {
-        await onSave(room, val, name, calId);
+      const currentEnabled = enabledRooms[room] !== false;
+      if (val !== currentMax || name !== currentName || calId !== currentCalId || enabled !== currentEnabled || customRooms.includes(room)) {
+        await onSave(room, val, name, calId, enabled);
       }
     }
     toast({ title: 'Ruimte-instellingen opgeslagen' });
@@ -108,7 +115,8 @@ export default function RoomSettingsDialog({ open, onOpenChange, settings, displ
           <DialogTitle>Ruimte-instellingen</DialogTitle>
         </DialogHeader>
         <div className="grid gap-3 py-2">
-          <div className="grid grid-cols-[1fr_120px_70px_160px_32px] gap-2 text-xs font-semibold text-muted-foreground px-1">
+          <div className="grid grid-cols-[40px_1fr_120px_70px_160px_32px] gap-2 text-xs font-semibold text-muted-foreground px-1">
+            <span>Aan</span>
             <span>Standaard naam</span>
             <span>Weergavenaam</span>
             <span>Max</span>
@@ -118,7 +126,14 @@ export default function RoomSettingsDialog({ open, onOpenChange, settings, displ
           {allRooms.map((room) => {
             const isCustom = !(ROOMS as readonly string[]).includes(room as any);
             return (
-              <div key={room} className="grid grid-cols-[1fr_120px_70px_160px_32px] items-center gap-2">
+              <div key={room} className="grid grid-cols-[40px_1fr_120px_70px_160px_32px] items-center gap-2">
+                <Switch
+                  checked={localSettings[room]?.enabled ?? true}
+                  onCheckedChange={(checked) => setLocalSettings((prev) => ({
+                    ...prev,
+                    [room]: { ...prev[room], enabled: checked },
+                  }))}
+                />
                 <Label className="text-sm min-w-0 truncate">{room}</Label>
                 <Input
                   className="h-8 text-sm"

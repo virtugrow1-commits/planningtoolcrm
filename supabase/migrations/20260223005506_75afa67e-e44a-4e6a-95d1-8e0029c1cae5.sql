@@ -1,0 +1,1 @@
+ALTER TABLE public.room_settings ADD COLUMN enabled boolean NOT NULL DEFAULT true;
