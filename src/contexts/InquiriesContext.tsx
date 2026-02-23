@@ -72,7 +72,7 @@ export function InquiriesProvider({ children }: { children: ReactNode }) {
 
   const addInquiry = useCallback(async (inquiry: Omit<Inquiry, 'id' | 'createdAt'>) => {
     if (!user) return;
-    const { data: inserted, error } = await supabase.from('inquiries').insert({
+    const { data: inserted, error } = await supabase.from('inquiries').upsert({
       user_id: user.id,
       contact_id: inquiry.contactId || null,
       contact_name: inquiry.contactName,
@@ -84,7 +84,7 @@ export function InquiriesProvider({ children }: { children: ReactNode }) {
       message: inquiry.message || null,
       status: inquiry.status,
       source: inquiry.source,
-    }).select('id').single();
+    }, { onConflict: 'ghl_opportunity_id', ignoreDuplicates: true }).select('id').single();
     if (error) {
       toast({ title: 'Fout bij aanmaken aanvraag', description: error.message, variant: 'destructive' });
       return;

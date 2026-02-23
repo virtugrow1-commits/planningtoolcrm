@@ -309,8 +309,8 @@ async function syncOpportunities(supabase: any, ghlHeaders: any, locationId: str
             }
           }
         } else {
-          // New from GHL → insert into CRM
-          const { error: insertErr } = await supabase.from('inquiries').insert({
+          // New from GHL → upsert into CRM (prevent duplicates via unique ghl_opportunity_id)
+          const { error: insertErr } = await supabase.from('inquiries').upsert({
             user_id: userId,
             ghl_opportunity_id: opp.id,
             contact_name: contactName,
@@ -323,7 +323,7 @@ async function syncOpportunities(supabase: any, ghlHeaders: any, locationId: str
             message: opp.notes || null,
             preferred_date: opp.date || null,
             room_preference: null,
-          });
+          }, { onConflict: 'ghl_opportunity_id', ignoreDuplicates: true });
           if (insertErr) {
             console.error(`Opp insert error for ${opp.id}:`, insertErr.message);
             results.errors.push(`insert:${opp.id}:${insertErr.message}`);
