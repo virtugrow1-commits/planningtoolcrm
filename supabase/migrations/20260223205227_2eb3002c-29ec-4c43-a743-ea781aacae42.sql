@@ -1,0 +1,1 @@
+DELETE FROM bookings WHERE room_name = 'Ontmoeten Aan de Donge';

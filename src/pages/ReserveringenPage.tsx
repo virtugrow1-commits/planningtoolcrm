@@ -51,7 +51,6 @@ export default function ReserveringenPage() {
 
   const enrichedBookings = useMemo<EnrichedBooking[]>(() => {
     return bookings
-      .filter(b => b.roomName !== 'Ontmoeten Aan de Donge')
       .map(b => {
         const contact = b.contactId ? contacts.find(c => c.id === b.contactId) : null;
         const companyName = contact?.company || (contact?.companyId ? companies.find(co => co.id === contact.companyId)?.name : null) || '-';
