@@ -110,7 +110,7 @@ async function syncCalendar(supabase: any, ghlHeaders: any, locationId: string, 
     const allEvents = eventArrays.flat();
     console.log(`Total events from GHL: ${allEvents.length}`);
 
-    // Batch upsert events
+    // Upsert events with exact GHL times preserved
     for (const evt of allEvents) {
       try {
         const evtStart = new Date(evt.startTime || evt.start || evt.startDate);
@@ -122,30 +122,35 @@ async function syncCalendar(supabase: any, ghlHeaders: any, locationId: string, 
         const dateStr = startLocal.dateStr;
         const startHour = startLocal.hours;
         const startMinute = startLocal.minutes;
-        let endHour = endLocal ? endLocal.hours : Math.min(startHour + 1, 23);
-        let endMinute = endLocal ? endLocal.minutes : 0;
-        if (endHour <= startHour && endHour !== 0) endHour = Math.min(startHour + 1, 23);
+        // Preserve exact end time from GHL — never override
+        const endHour = endLocal ? endLocal.hours : Math.min(startHour + 1, 23);
+        const endMinute = endLocal ? endLocal.minutes : 0;
 
         const contactName = evt.contact?.name || evt.title || evt.calendarName || 'GHL Afspraak';
         const title = evt.title || evt.name || evt.calendarName || 'GHL Afspraak';
         const evtStatus = (evt.status === 'confirmed' || evt.appointmentStatus === 'confirmed') ? 'confirmed' : 'option';
-        // Use room mapping if available
         const roomName = calIdToRoom[evt.calendarId] || evt.calendarName || 'Ontmoeten Aan de Donge';
 
-        const { data: existing } = await supabase.from('bookings').select('id').eq('user_id', userId).eq('ghl_event_id', evt.id).maybeSingle();
-        if (existing) {
-          await supabase.from('bookings').update({
-            date: dateStr, start_hour: startHour, end_hour: endHour,
-            title, contact_name: contactName, status: evtStatus,
-          }).eq('id', existing.id);
+        // Upsert using unique ghl_event_id constraint — prevents duplicates
+        const { error: upsertErr } = await supabase.from('bookings').upsert({
+          user_id: userId,
+          ghl_event_id: evt.id,
+          room_name: roomName,
+          date: dateStr,
+          start_hour: startHour,
+          start_minute: startMinute,
+          end_hour: endHour,
+          end_minute: endMinute,
+          title,
+          contact_name: contactName,
+          status: evtStatus,
+        }, { onConflict: 'ghl_event_id' });
+        if (upsertErr) {
+          console.error(`Booking upsert error for ${evt.id}:`, upsertErr.message);
+          results.errors.push(`booking:${evt.id}:${upsertErr.message}`);
         } else {
-          await supabase.from('bookings').insert({
-            user_id: userId, ghl_event_id: evt.id, room_name: roomName,
-            date: dateStr, start_hour: startHour, end_hour: endHour,
-            title, contact_name: contactName, status: evtStatus,
-          });
+          results.bookings_pulled++;
         }
-        results.bookings_pulled++;
       } catch (evtErr) { console.error('Event error:', evt.id, evtErr); }
     }
 
@@ -387,11 +392,19 @@ async function syncContacts(supabase: any, ghlHeaders: any, locationId: string, 
     for (const ghlContact of recentContacts) {
       const firstName = ghlContact.firstName || ghlContact.name?.split(' ')[0] || 'Onbekend';
       const lastName = ghlContact.lastName || ghlContact.name?.split(' ').slice(1).join(' ') || '';
-      const { data: existing } = await supabase.from('contacts').select('id').eq('user_id', userId).eq('ghl_contact_id', ghlContact.id).maybeSingle();
-      if (existing) {
-        await supabase.from('contacts').update({ first_name: firstName, last_name: lastName, email: ghlContact.email || null, phone: ghlContact.phone || null, company: ghlContact.companyName || null }).eq('id', existing.id);
-      } else {
-        await supabase.from('contacts').insert({ user_id: userId, ghl_contact_id: ghlContact.id, first_name: firstName, last_name: lastName, email: ghlContact.email || null, phone: ghlContact.phone || null, company: ghlContact.companyName || null, status: 'lead' });
+      // Upsert using unique ghl_contact_id constraint — prevents duplicates
+      const { error: upsertErr } = await supabase.from('contacts').upsert({
+        user_id: userId,
+        ghl_contact_id: ghlContact.id,
+        first_name: firstName,
+        last_name: lastName,
+        email: ghlContact.email || null,
+        phone: ghlContact.phone || null,
+        company: ghlContact.companyName || null,
+        status: 'lead',
+      }, { onConflict: 'ghl_contact_id' });
+      if (upsertErr) {
+        console.error(`Contact upsert error for ${ghlContact.id}:`, upsertErr.message);
       }
       results.contacts++;
     }

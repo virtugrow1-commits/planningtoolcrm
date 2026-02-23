@@ -160,9 +160,9 @@ async function handleAppointmentWebhook(supabase: any, userId: string, payload: 
   const dateStr = startLocal.dateStr;
   const startHour = startLocal.hours;
   const startMinute = startLocal.minutes;
-  let endHour = endLocal ? endLocal.hours : Math.min(startHour + 1, 23);
+  // Preserve exact end time from GHL — never override
+  const endHour = endLocal ? endLocal.hours : Math.min(startHour + 1, 23);
   const endMinute = endLocal ? endLocal.minutes : 0;
-  if (isNaN(endTime.getTime()) || endHour <= startHour) endHour = Math.min(startHour + 1, 23);
 
   const title = payload.title || payload.name || 'GHL Afspraak';
   const contactName = payload.contact?.name || title;
@@ -172,15 +172,19 @@ async function handleAppointmentWebhook(supabase: any, userId: string, payload: 
 
   if (existing) {
     await supabase.from('bookings').update({
-      date: dateStr, start_hour: startHour, start_minute: startMinute, end_hour: endHour, end_minute: endMinute, title, contact_name: contactName, status,
+      date: dateStr, start_hour: startHour, start_minute: startMinute,
+      end_hour: endHour, end_minute: endMinute,
+      title, contact_name: contactName, status,
     }).eq('id', existing.id);
   } else {
     await supabase.from('bookings').insert({
       user_id: userId, ghl_event_id: eventId, room_name: 'Ontmoeten Aan de Donge',
-      date: dateStr, start_hour: startHour, start_minute: startMinute, end_hour: endHour, end_minute: endMinute, title, contact_name: contactName, status,
+      date: dateStr, start_hour: startHour, start_minute: startMinute,
+      end_hour: endHour, end_minute: endMinute,
+      title, contact_name: contactName, status,
     });
   }
-  console.log(`Webhook: Appointment ${eventId} synced`);
+  console.log(`Webhook: Appointment ${eventId} synced (${startHour}:${String(startMinute).padStart(2,'0')}-${endHour}:${String(endMinute).padStart(2,'0')})`);
 }
 
 function stageToStatus(s: string): string {
