@@ -247,14 +247,20 @@ export default function ContactDetailPage() {
                     <th className="text-left pb-2 font-medium">Datum</th>
                     <th className="text-left pb-2 font-medium">Ruimte</th>
                     <th className="text-left pb-2 font-medium">Tijd</th>
+                    <th className="text-left pb-2 font-medium">Status</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {contactBookings.slice(0, 5).map((b) => (
+                  {contactBookings.slice(0, 8).map((b) => (
                     <tr key={b.id} className="border-t border-border/50">
                       <td className="py-1.5">{b.date}</td>
                       <td className="py-1.5">{b.roomName}</td>
-                      <td className="py-1.5">{b.startHour}:00 - {b.endHour}:00</td>
+                      <td className="py-1.5">{String(b.startHour).padStart(2, '0')}:{String(b.startMinute || 0).padStart(2, '0')} - {String(b.endHour).padStart(2, '0')}:{String(b.endMinute || 0).padStart(2, '0')}</td>
+                      <td className="py-1.5">
+                        <span className={`inline-flex rounded-md px-1.5 py-0.5 text-[10px] font-medium border ${b.status === 'option' ? 'bg-warning/10 text-warning border-warning/30' : 'bg-success/10 text-success border-success/30'}`}>
+                          {b.status === 'option' ? 'Optie' : 'Bevestigd'}
+                        </span>
+                      </td>
                     </tr>
                   ))}
                 </tbody>
