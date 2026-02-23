@@ -102,6 +102,7 @@ const translations: Record<string, Record<Language, string>> = {
   'status.quote_revised': { nl: 'Aangepaste Offerte', en: 'Quote Revised' },
   'status.confirmed': { nl: 'Bevestigd', en: 'Confirmed' },
   'status.reserved': { nl: 'Gereserveerd', en: 'Reserved' },
+  'status.script': { nl: 'Draaiboek Maken', en: 'Script' },
   'status.invoiced': { nl: 'Gefactureerd', en: 'Invoiced' },
   'status.lost': { nl: 'Vervallen', en: 'Lost' },
   'status.after_sales': { nl: 'After Sales', en: 'After Sales' },
