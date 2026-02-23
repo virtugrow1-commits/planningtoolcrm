@@ -3,7 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { format } from 'date-fns';
 import { nl } from 'date-fns/locale';
 import { Inquiry, Booking, ROOMS, RoomName } from '@/types/crm';
-import { Calendar as CalendarIcon, Users, Euro, GripVertical, Repeat, Plus, X, Check, LayoutGrid, List, Trash2, ArrowRight, AlertTriangle, Download, MapPin } from 'lucide-react';
+import { Calendar as CalendarIcon, Users, Euro, GripVertical, Repeat, Plus, X, Check, LayoutGrid, List, Trash2, ArrowRight, AlertTriangle, Download, MapPin, MessageSquare, StickyNote, CheckSquare, Clock } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useBookings } from '@/contexts/BookingsContext';
 import { useInquiriesContext } from '@/contexts/InquiriesContext';
@@ -69,6 +69,7 @@ const createDateOption = (): DateOption => ({
 export default function InquiriesPage() {
   const { inquiries, loading: inquiriesLoading, addInquiry, updateInquiry, deleteInquiry: deleteInquiryCtx } = useInquiriesContext();
   const { contacts } = useContactsContext();
+  const { bookings, addBookings } = useBookings();
   const [dragId, setDragId] = useState<string | null>(null);
   const [scheduleOpen, setScheduleOpen] = useState(false);
   const [selectedInquiry, setSelectedInquiry] = useState<Inquiry | null>(null);
@@ -84,7 +85,7 @@ export default function InquiriesPage() {
   const [bulkDeleteConfirmOpen, setBulkDeleteConfirmOpen] = useState(false);
   const [bulkMoveTarget, setBulkMoveTarget] = useState<Inquiry['status'] | null>(null);
   const { toast } = useToast();
-  const { addBookings } = useBookings();
+  
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
 
@@ -382,7 +383,12 @@ export default function InquiriesPage() {
                 <span className="rounded-full bg-background px-2 py-0.5 text-xs font-medium text-muted-foreground">{items.length}</span>
               </div>
               <div className="space-y-2">
-                {items.map((inq) => (
+                {items.map((inq) => {
+                  // Find related bookings by matching contactName + eventType as title
+                  const relatedBookings = bookings.filter(b => b.contactName === inq.contactName && b.title === inq.eventType);
+                  const firstBooking = relatedBookings.length > 0 ? relatedBookings[0] : null;
+
+                  return (
                   <div
                     key={inq.id}
                     draggable
@@ -399,11 +405,12 @@ export default function InquiriesPage() {
                           className="mt-1 shrink-0"
                         />
                         <div className="flex-1 min-w-0">
+                          <p className="text-[11px] text-muted-foreground truncate">{inq.eventType}</p>
                           <button
                             className="text-sm font-semibold text-card-foreground hover:text-primary transition-colors text-left truncate block w-full"
                             onClick={(e) => { e.stopPropagation(); if (inq.contactId) navigate(`/crm/${inq.contactId}`); else openDetailDialog(inq); }}
                           >
-                            {inq.contactName} – {inq.eventType}
+                            {inq.contactName}
                           </button>
                         </div>
                       </div>
@@ -416,15 +423,38 @@ export default function InquiriesPage() {
                       {(() => { const contact = inq.contactId ? contacts.find(c => c.id === inq.contactId) : null; return contact?.company ? (
                         <div className="flex gap-2"><span className="text-muted-foreground w-[100px] shrink-0">Bedrijfsnaam:</span><span className="text-card-foreground font-medium truncate">{contact.company}</span></div>
                       ) : null; })()}
-                      <div className="flex gap-2"><span className="text-muted-foreground w-[100px] shrink-0">Type:</span><span className="text-card-foreground truncate">{inq.eventType}</span></div>
                       {inq.roomPreference && <div className="flex gap-2"><span className="text-muted-foreground w-[100px] shrink-0">Ruimte:</span><span className="text-card-foreground truncate">{inq.roomPreference}</span></div>}
                       {inq.preferredDate && <div className="flex gap-2"><span className="text-muted-foreground w-[100px] shrink-0">Datum:</span><span className="text-card-foreground">{inq.preferredDate}</span></div>}
                       <div className="flex gap-2"><span className="text-muted-foreground w-[100px] shrink-0">Personen:</span><span className="text-card-foreground">{inq.guestCount}</span></div>
                       <div className="flex gap-2"><span className="text-muted-foreground w-[100px] shrink-0">Waarde:</span><span className="text-card-foreground">€{(inq.budget || 0).toLocaleString('nl-NL', { minimumFractionDigits: 2 })}</span></div>
+                      
+                      {/* Ingeplande boeking info */}
+                      {firstBooking && (
+                        <>
+                          <div className="flex gap-2">
+                            <span className="text-muted-foreground w-[100px] shrink-0">Ingepland:</span>
+                            <span className="text-card-foreground">
+                              {format(new Date(firstBooking.date), 'd MMM yyyy', { locale: nl })} · {String(firstBooking.startHour).padStart(2, '0')}:{String(firstBooking.startMinute).padStart(2, '0')} - {String(firstBooking.endHour).padStart(2, '0')}:{String(firstBooking.endMinute).padStart(2, '0')}
+                            </span>
+                          </div>
+                          <div className="flex gap-2">
+                            <span className="text-muted-foreground w-[100px] shrink-0">Zaal:</span>
+                            <span className="text-card-foreground truncate">{firstBooking.roomName}</span>
+                          </div>
+                        </>
+                      )}
                     </div>
 
+                    {/* Icon row + Inplannen */}
                     <div className="mt-3 flex items-center justify-between border-t pt-2">
-                      <span className="text-[10px] text-muted-foreground/60">{inq.source === 'GHL' ? 'VirtuGrow' : inq.source}{inq.displayNumber ? ` · ${inq.displayNumber}` : ''}</span>
+                      <div className="flex items-center gap-2">
+                        <span className="text-[10px] text-muted-foreground/60">{inq.source === 'GHL' ? 'VirtuGrow' : inq.source}{inq.displayNumber ? ` · ${inq.displayNumber}` : ''}</span>
+                        <div className="flex items-center gap-1.5 ml-1">
+                          <MessageSquare size={12} className="text-muted-foreground/50" />
+                          <StickyNote size={12} className="text-muted-foreground/50" />
+                          <CheckSquare size={12} className="text-muted-foreground/50" />
+                        </div>
+                      </div>
                       <Button
                         variant="ghost"
                         size="sm"
@@ -435,7 +465,8 @@ export default function InquiriesPage() {
                       </Button>
                     </div>
                   </div>
-                ))}
+                  );
+                })}
                 {items.length === 0 && (
                   <div className="rounded-lg border-2 border-dashed border-border/50 p-4 text-center text-xs text-muted-foreground/50">
                     Sleep een aanvraag hierheen
