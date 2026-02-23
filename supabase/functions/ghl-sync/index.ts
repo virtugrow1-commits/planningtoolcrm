@@ -55,7 +55,7 @@ serve(async (req) => {
   try {
     // Get user from auth header
     const authHeader = req.headers.get('Authorization');
-    if (!authHeader) {
+    if (!authHeader?.startsWith('Bearer ')) {
       return new Response(JSON.stringify({ error: 'Unauthorized' }), {
         status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
@@ -63,14 +63,19 @@ serve(async (req) => {
 
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
     const anonKey = Deno.env.get('SUPABASE_ANON_KEY')!;
-    const anonClient = createClient(SUPABASE_URL, anonKey);
-    const { data: { user }, error: authError } = await anonClient.auth.getUser(authHeader.replace('Bearer ', ''));
+    const anonClient = createClient(SUPABASE_URL, anonKey, {
+      global: { headers: { Authorization: authHeader } },
+    });
+    const token = authHeader.replace('Bearer ', '');
+    const { data, error: authError } = await anonClient.auth.getClaims(token);
     
-    if (authError || !user) {
+    if (authError || !data?.claims) {
+      console.error('Auth error:', authError);
       return new Response(JSON.stringify({ error: 'Unauthorized' }), {
         status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
+    const user = { id: data.claims.sub as string };
 
     const body = await req.json();
     const { action } = body;

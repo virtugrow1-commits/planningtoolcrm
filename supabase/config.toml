@@ -2,3 +2,9 @@ project_id = "homqvnnphotphxemurwp"
 
 [functions.ghl-webhook]
 verify_jwt = false
+
+[functions.ghl-sync]
+verify_jwt = false
+
+[functions.ghl-auto-sync]
+verify_jwt = false
