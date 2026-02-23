@@ -44,6 +44,7 @@ interface DayGridViewProps {
   onBookingMove: (booking: Booking, targetRoom: RoomName, startHour: number, startMinute: number, endHour: number, endMinute: number) => void;
   getDisplayName: (room: RoomName) => string;
   getMaxGuests: (room: string) => number | undefined;
+  isRoomEnabled?: (room: string) => boolean;
 }
 
 export default function DayGridView({
@@ -54,7 +55,9 @@ export default function DayGridView({
   onBookingMove,
   getDisplayName,
   getMaxGuests,
+  isRoomEnabled,
 }: DayGridViewProps) {
+  const visibleRooms = useMemo(() => ROOMS.filter((r) => !isRoomEnabled || isRoomEnabled(r)), [isRoomEnabled]);
   const todayBookings = useMemo(() => bookings.filter((b) => b.date === dateStr), [bookings, dateStr]);
 
   const [dragging, setDragging] = useState<{ bookingId: string; offsetSlots: number } | null>(null);
@@ -67,12 +70,12 @@ export default function DayGridView({
   // Get bookings per room
   const bookingsByRoom = useMemo(() => {
     const map: Record<string, Booking[]> = {};
-    ROOMS.forEach((r) => { map[r] = []; });
+    visibleRooms.forEach((r) => { map[r] = []; });
     todayBookings.forEach((b) => {
       if (map[b.roomName]) map[b.roomName].push(b);
     });
     return map;
-  }, [todayBookings]);
+  }, [todayBookings, visibleRooms]);
 
   const handleMouseDown = useCallback((e: MouseEvent, booking: Booking) => {
     e.preventDefault();
@@ -93,7 +96,7 @@ export default function DayGridView({
     // Find which room column we're over
     let foundRoom: RoomName | null = null;
     let yInCol = 0;
-    for (const room of ROOMS) {
+    for (const room of visibleRooms) {
       const col = columnRefs.current.get(room);
       if (!col) continue;
       const rect = col.getBoundingClientRect();
@@ -163,7 +166,7 @@ export default function DayGridView({
         </div>
 
         {/* Room columns */}
-        {ROOMS.map((room) => {
+        {visibleRooms.map((room) => {
           const max = getMaxGuests(room);
           const roomBookings = bookingsByRoom[room] || [];
 
