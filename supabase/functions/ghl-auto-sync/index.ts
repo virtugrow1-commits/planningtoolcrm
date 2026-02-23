@@ -58,6 +58,22 @@ async function syncCalendar(supabase: any, ghlHeaders: any, locationId: string, 
     const calendars = calData.calendars || [];
     console.log(`Found ${calendars.length} calendars`);
 
+    // Build room_name -> ghl_calendar_id mapping
+    const { data: roomMappings } = await supabase
+      .from('room_settings')
+      .select('room_name, ghl_calendar_id')
+      .eq('user_id', userId)
+      .not('ghl_calendar_id', 'is', null);
+    
+    const calIdToRoom: Record<string, string> = {};
+    const roomToCalId: Record<string, string> = {};
+    for (const rm of roomMappings || []) {
+      if (rm.ghl_calendar_id) {
+        calIdToRoom[rm.ghl_calendar_id] = rm.room_name;
+        roomToCalId[rm.room_name] = rm.ghl_calendar_id;
+      }
+    }
+
     const now = new Date();
     const startDate = new Date(now); startDate.setDate(startDate.getDate() - 365);
     const endDate = new Date(now); endDate.setDate(endDate.getDate() + 365);
@@ -98,11 +114,11 @@ async function syncCalendar(supabase: any, ghlHeaders: any, locationId: string, 
         const contactName = evt.contact?.name || evt.title || evt.calendarName || 'GHL Afspraak';
         const title = evt.title || evt.name || evt.calendarName || 'GHL Afspraak';
         const evtStatus = (evt.status === 'confirmed' || evt.appointmentStatus === 'confirmed') ? 'confirmed' : 'option';
-        const roomName = evt.calendarName || 'Ontmoeten Aan de Donge';
+        // Use room mapping if available
+        const roomName = calIdToRoom[evt.calendarId] || evt.calendarName || 'Ontmoeten Aan de Donge';
 
         const { data: existing } = await supabase.from('bookings').select('id').eq('user_id', userId).eq('ghl_event_id', evt.id).maybeSingle();
         if (existing) {
-          // Don't overwrite room_name — user may have moved it to a different room
           await supabase.from('bookings').update({
             date: dateStr, start_hour: startHour, end_hour: endHour,
             title, contact_name: contactName, status: evtStatus,
@@ -118,28 +134,29 @@ async function syncCalendar(supabase: any, ghlHeaders: any, locationId: string, 
       } catch (evtErr) { console.error('Event error:', evt.id, evtErr); }
     }
 
-    // Push local bookings with GHL contact linked
+    // Push local bookings - use room-specific calendar ID
     const defaultCalendarId = calendars[0]?.id;
-    if (defaultCalendarId) {
-      const { data: localBookings } = await supabase.from('bookings').select('*, contacts!bookings_contact_id_fkey(ghl_contact_id)').eq('user_id', userId).is('ghl_event_id', null);
-      for (const booking of localBookings || []) {
-        const ghlContactId = (booking as any).contacts?.ghl_contact_id || null;
-        if (!ghlContactId) { console.log(`Skip push booking ${booking.id}: no GHL contact linked`); continue; }
-        try {
-          const startTime = `${booking.date}T${String(booking.start_hour).padStart(2, '0')}:00:00`;
-          const endTime = `${booking.date}T${String(booking.end_hour).padStart(2, '0')}:00:00`;
-          const res = await fetch(`${GHL_API_BASE}/calendars/events/appointments`, {
-            method: 'POST', headers: ghlHeaders,
-            body: JSON.stringify({ calendarId: defaultCalendarId, locationId, contactId: ghlContactId, title: booking.title || 'CRM Boeking', startTime, endTime, appointmentStatus: booking.status === 'confirmed' ? 'confirmed' : 'new' }),
-          });
-          if (res.ok) {
-            const created = await res.json();
-            const ghlId = created.id || created.event?.id;
-            if (ghlId) await supabase.from('bookings').update({ ghl_event_id: ghlId }).eq('id', booking.id);
-            results.bookings_pushed++;
-          } else { console.error(`Push booking ${booking.id} failed: ${await res.text()}`); }
-        } catch (e) { console.error('Push booking error:', booking.id, e); }
-      }
+    const { data: localBookings } = await supabase.from('bookings').select('*, contacts!bookings_contact_id_fkey(ghl_contact_id)').eq('user_id', userId).is('ghl_event_id', null);
+    for (const booking of localBookings || []) {
+      const ghlContactId = (booking as any).contacts?.ghl_contact_id || null;
+      if (!ghlContactId) { console.log(`Skip push booking ${booking.id}: no GHL contact linked`); continue; }
+      // Use room-specific calendar or fallback to default
+      const targetCalendarId = roomToCalId[booking.room_name] || defaultCalendarId;
+      if (!targetCalendarId) continue;
+      try {
+        const startTime = `${booking.date}T${String(booking.start_hour).padStart(2, '0')}:${String(booking.start_minute || 0).padStart(2, '0')}:00`;
+        const endTime = `${booking.date}T${String(booking.end_hour).padStart(2, '0')}:${String(booking.end_minute || 0).padStart(2, '0')}:00`;
+        const res = await fetch(`${GHL_API_BASE}/calendars/events/appointments`, {
+          method: 'POST', headers: ghlHeaders,
+          body: JSON.stringify({ calendarId: targetCalendarId, locationId, contactId: ghlContactId, title: booking.title || 'CRM Boeking', startTime, endTime, appointmentStatus: booking.status === 'confirmed' ? 'confirmed' : 'new' }),
+        });
+        if (res.ok) {
+          const created = await res.json();
+          const ghlId = created.id || created.event?.id;
+          if (ghlId) await supabase.from('bookings').update({ ghl_event_id: ghlId }).eq('id', booking.id);
+          results.bookings_pushed++;
+        } else { console.error(`Push booking ${booking.id} failed: ${await res.text()}`); }
+      } catch (e) { console.error('Push booking error:', booking.id, e); }
     }
   } catch (e) { console.error('Calendar sync error:', e); }
 }

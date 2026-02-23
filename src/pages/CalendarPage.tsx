@@ -48,7 +48,7 @@ export default function CalendarPage() {
   const [copyBooking, setCopyBooking] = useState<Booking | null>(null);
   const [copyDialogOpen, setCopyDialogOpen] = useState(false);
   const { toast } = useToast();
-  const { settings: roomSettings, displayNames, updateRoomSettings, getMaxGuests, getDisplayName } = useRoomSettings();
+  const { settings: roomSettings, displayNames, ghlCalendarIds, updateRoomSettings, getMaxGuests, getDisplayName } = useRoomSettings();
   const { contacts: fullContacts, loading: contactsLoading } = useContactsContext();
   const contacts = fullContacts.map(c => ({ id: c.id, firstName: c.firstName, lastName: c.lastName, email: c.email || null, company: c.company || null }));
 
@@ -373,6 +373,7 @@ export default function CalendarPage() {
         onOpenChange={setRoomSettingsOpen}
         settings={roomSettings}
         displayNames={displayNames}
+        ghlCalendarIds={ghlCalendarIds}
         onSave={updateRoomSettings}
       />
       <NewReservationDialog

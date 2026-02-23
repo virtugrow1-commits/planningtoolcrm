@@ -12,32 +12,33 @@ interface RoomSettingsDialogProps {
   onOpenChange: (open: boolean) => void;
   settings: Record<string, number>;
   displayNames: Record<string, string>;
-  onSave: (roomName: string, maxGuests: number, displayName?: string) => Promise<any>;
+  ghlCalendarIds?: Record<string, string>;
+  onSave: (roomName: string, maxGuests: number, displayName?: string, ghlCalendarId?: string) => Promise<any>;
 }
 
-export default function RoomSettingsDialog({ open, onOpenChange, settings, displayNames, onSave }: RoomSettingsDialogProps) {
-  const [localSettings, setLocalSettings] = useState<Record<string, { maxGuests: string; displayName: string }>>({});
+export default function RoomSettingsDialog({ open, onOpenChange, settings, displayNames, ghlCalendarIds = {}, onSave }: RoomSettingsDialogProps) {
+  const [localSettings, setLocalSettings] = useState<Record<string, { maxGuests: string; displayName: string; ghlCalendarId: string }>>({});
   const [customRooms, setCustomRooms] = useState<string[]>([]);
   const [newRoomName, setNewRoomName] = useState('');
   const { toast } = useToast();
 
   useEffect(() => {
     if (open) {
-      const map: Record<string, { maxGuests: string; displayName: string }> = {};
-      // Include default rooms
+      const map: Record<string, { maxGuests: string; displayName: string; ghlCalendarId: string }> = {};
       ROOMS.forEach((room) => {
         map[room] = {
           maxGuests: String(settings[room] ?? ''),
           displayName: displayNames[room] ?? '',
+          ghlCalendarId: ghlCalendarIds[room] ?? '',
         };
       });
-      // Include any rooms from settings that aren't in ROOMS (custom rooms)
       const extraRooms: string[] = [];
       Object.keys(settings).forEach((room) => {
         if (!(ROOMS as readonly string[]).includes(room)) {
           map[room] = {
             maxGuests: String(settings[room] ?? ''),
             displayName: displayNames[room] ?? '',
+            ghlCalendarId: ghlCalendarIds[room] ?? '',
           };
           extraRooms.push(room);
         }
@@ -47,6 +48,7 @@ export default function RoomSettingsDialog({ open, onOpenChange, settings, displ
           map[room] = {
             maxGuests: String(settings[room] ?? ''),
             displayName: displayNames[room] ?? '',
+            ghlCalendarId: ghlCalendarIds[room] ?? '',
           };
           extraRooms.push(room);
         }
@@ -55,7 +57,7 @@ export default function RoomSettingsDialog({ open, onOpenChange, settings, displ
       setCustomRooms(extraRooms);
       setNewRoomName('');
     }
-  }, [open, settings, displayNames]);
+  }, [open, settings, displayNames, ghlCalendarIds]);
 
   const allRooms = [...ROOMS, ...customRooms.filter((r) => !(ROOMS as readonly string[]).includes(r))];
 
@@ -69,7 +71,7 @@ export default function RoomSettingsDialog({ open, onOpenChange, settings, displ
     setCustomRooms((prev) => [...prev, name]);
     setLocalSettings((prev) => ({
       ...prev,
-      [name]: { maxGuests: '', displayName: '' },
+      [name]: { maxGuests: '', displayName: '', ghlCalendarId: '' },
     }));
     setNewRoomName('');
   };
@@ -87,10 +89,12 @@ export default function RoomSettingsDialog({ open, onOpenChange, settings, displ
     for (const room of allRooms) {
       const val = parseInt(localSettings[room]?.maxGuests || '0', 10);
       const name = localSettings[room]?.displayName?.trim() || undefined;
+      const calId = localSettings[room]?.ghlCalendarId?.trim() || undefined;
       const currentMax = settings[room] ?? 0;
       const currentName = displayNames[room] || undefined;
-      if (val !== currentMax || name !== currentName || customRooms.includes(room)) {
-        await onSave(room, val, name);
+      const currentCalId = ghlCalendarIds[room] || undefined;
+      if (val !== currentMax || name !== currentName || calId !== currentCalId || customRooms.includes(room)) {
+        await onSave(room, val, name, calId);
       }
     }
     toast({ title: 'Ruimte-instellingen opgeslagen' });
@@ -99,21 +103,22 @@ export default function RoomSettingsDialog({ open, onOpenChange, settings, displ
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Ruimte-instellingen</DialogTitle>
         </DialogHeader>
         <div className="grid gap-3 py-2">
-          <div className="grid grid-cols-[1fr_140px_80px_32px] gap-2 text-xs font-semibold text-muted-foreground px-1">
+          <div className="grid grid-cols-[1fr_120px_70px_160px_32px] gap-2 text-xs font-semibold text-muted-foreground px-1">
             <span>Standaard naam</span>
             <span>Weergavenaam</span>
-            <span>Max gasten</span>
+            <span>Max</span>
+            <span>GHL Kalender ID</span>
             <span></span>
           </div>
           {allRooms.map((room) => {
             const isCustom = !(ROOMS as readonly string[]).includes(room as any);
             return (
-              <div key={room} className="grid grid-cols-[1fr_140px_80px_32px] items-center gap-2">
+              <div key={room} className="grid grid-cols-[1fr_120px_70px_160px_32px] items-center gap-2">
                 <Label className="text-sm min-w-0 truncate">{room}</Label>
                 <Input
                   className="h-8 text-sm"
@@ -133,6 +138,15 @@ export default function RoomSettingsDialog({ open, onOpenChange, settings, displ
                   onChange={(e) => setLocalSettings((prev) => ({
                     ...prev,
                     [room]: { ...prev[room], maxGuests: e.target.value },
+                  }))}
+                />
+                <Input
+                  className="h-8 text-xs font-mono"
+                  placeholder="GHL calendar ID"
+                  value={localSettings[room]?.ghlCalendarId ?? ''}
+                  onChange={(e) => setLocalSettings((prev) => ({
+                    ...prev,
+                    [room]: { ...prev[room], ghlCalendarId: e.target.value },
                   }))}
                 />
                 {isCustom ? (
@@ -159,6 +173,10 @@ export default function RoomSettingsDialog({ open, onOpenChange, settings, displ
               <Plus size={14} /> Toevoegen
             </Button>
           </div>
+
+          <p className="text-xs text-muted-foreground mt-2">
+            💡 Je vindt de GHL Kalender ID in GoHighLevel → Calendars → klik op een kalender → de ID staat in de URL.
+          </p>
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>Annuleren</Button>
