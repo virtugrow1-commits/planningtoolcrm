@@ -207,6 +207,18 @@ serve(async (req) => {
       const calendars = calData.calendars || [];
       console.log(`Found ${calendars.length} calendars:`, calendars.map((c: any) => c.name));
 
+      // Build room_name -> ghl_calendar_id mapping from room_settings
+      const { data: roomMappings } = await supabase
+        .from('room_settings')
+        .select('room_name, ghl_calendar_id')
+        .eq('user_id', user.id)
+        .not('ghl_calendar_id', 'is', null);
+      
+      const calIdToRoom: Record<string, string> = {};
+      for (const rm of roomMappings || []) {
+        if (rm.ghl_calendar_id) calIdToRoom[rm.ghl_calendar_id] = rm.room_name;
+      }
+
       // Fetch events from each calendar (past 365 days + next 365 days for complete import)
       const now = new Date();
       const startDateCal = new Date(now);
@@ -219,6 +231,9 @@ serve(async (req) => {
       // Calendar events endpoint requires Version 2021-04-15 and times in milliseconds
       const calEventHeaders = { ...ghlHeaders, 'Version': '2021-04-15' };
 
+      // Default room for unmapped calendars
+      const defaultRoom = body.defaultRoom || 'Ontmoeten Aan de Donge';
+
       let allEvents: any[] = [];
       for (const cal of calendars) {
         const eventsUrl = `${GHL_API_BASE}/calendars/events?locationId=${GHL_LOCATION_ID}&calendarId=${cal.id}&startTime=${startTimeMs}&endTime=${endTimeMs}`;
@@ -227,15 +242,12 @@ serve(async (req) => {
         if (eventsRes.ok) {
           const eventsData = await eventsRes.json();
           console.log(`Calendar "${cal.name}": events count: ${(eventsData.events || []).length}`);
-          allEvents = allEvents.concat((eventsData.events || []).map((e: any) => ({ ...e, calendarName: cal.name })));
+          allEvents = allEvents.concat((eventsData.events || []).map((e: any) => ({ ...e, calendarName: cal.name, calendarId: cal.id })));
         } else {
           const errText = await eventsRes.text();
           console.warn(`Failed to fetch events for calendar ${cal.name} [${eventsRes.status}]: ${errText}`);
         }
       }
-
-      // Default room for all imported events
-      const defaultRoom = body.defaultRoom || 'Ontmoeten Aan de Donge';
 
       // Upsert events as bookings
       let synced = 0;
@@ -252,6 +264,9 @@ serve(async (req) => {
         const contactName = evt.contact?.name || evt.title || 'GHL Afspraak';
         const title = evt.title || evt.calendarName || 'GHL Afspraak';
         const status = (evt.status === 'confirmed' || evt.appointmentStatus === 'confirmed') ? 'confirmed' : 'option';
+
+        // Determine room: use mapping if available, otherwise default
+        const roomName = calIdToRoom[evt.calendarId] || defaultRoom;
 
         const { data: existing } = await supabase
           .from('bookings')
@@ -276,7 +291,7 @@ serve(async (req) => {
           await supabase.from('bookings').insert({
             user_id: user.id,
             ghl_event_id: evt.id,
-            room_name: defaultRoom,
+            room_name: roomName,
             date: dateStr,
             start_hour: startHour,
             start_minute: startMinute,
@@ -727,10 +742,24 @@ serve(async (req) => {
         });
       }
 
-      // Get first available calendar
-      const calRes = await ghlFetch(`${GHL_API_BASE}/calendars/?locationId=${GHL_LOCATION_ID}`, { headers: ghlHeaders });
-      const calData = calRes.ok ? await calRes.json() : { calendars: [] };
-      const calendarId = calData.calendars?.[0]?.id;
+      // Try to find room-specific GHL calendar ID from room_settings
+      let calendarId: string | null = null;
+      if (booking.room_name) {
+        const { data: roomSetting } = await supabase
+          .from('room_settings')
+          .select('ghl_calendar_id')
+          .eq('user_id', user.id)
+          .eq('room_name', booking.room_name)
+          .maybeSingle();
+        calendarId = roomSetting?.ghl_calendar_id || null;
+      }
+
+      // Fallback: get first available calendar
+      if (!calendarId) {
+        const calRes = await ghlFetch(`${GHL_API_BASE}/calendars/?locationId=${GHL_LOCATION_ID}`, { headers: ghlHeaders });
+        const calData = calRes.ok ? await calRes.json() : { calendars: [] };
+        calendarId = calData.calendars?.[0]?.id || null;
+      }
       if (!calendarId) {
         return new Response(JSON.stringify({ success: false, error: 'No GHL calendar found' }), {
           status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
