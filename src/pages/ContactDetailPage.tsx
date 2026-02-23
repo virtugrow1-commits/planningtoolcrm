@@ -176,6 +176,7 @@ export default function ContactDetailPage() {
                     <SelectItem value="prospect">Prospect</SelectItem>
                     <SelectItem value="client">Klant</SelectItem>
                     <SelectItem value="inactive">Inactief</SelectItem>
+                    <SelectItem value="do_not_contact">Niet benaderen</SelectItem>
                   </SelectContent>
                 </Select>
               </div>

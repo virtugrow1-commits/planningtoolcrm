@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Building2, ChevronRight, Mail, Phone, Globe, MapPin, Plus, Pencil, Check, X, Search, UserPlus } from 'lucide-react';
+import { ArrowLeft, Building2, ChevronRight, Mail, Phone, Globe, MapPin, Plus, Pencil, Check, X, Search, UserPlus, Download } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
@@ -15,11 +15,14 @@ import { useBookings } from '@/contexts/BookingsContext';
 import { useInquiriesContext } from '@/contexts/InquiriesContext';
 import { useToast } from '@/hooks/use-toast';
 
+import CompanyActivityTimeline from '@/components/company/CompanyActivityTimeline';
+
 const STATUS_LABELS: Record<string, string> = {
   lead: 'Lead',
   prospect: 'Prospect',
   client: 'Klant',
   inactive: 'Inactief',
+  do_not_contact: 'Niet benaderen',
 };
 
 const BOOKING_STATUS: Record<string, string> = {
@@ -345,7 +348,7 @@ export default function CompanyDetailPage() {
                       {c.phone && <span className="text-muted-foreground ml-2">{c.phone}</span>}
                     </div>
                     <div className="flex items-center gap-2">
-                      <Badge variant="outline" className="text-[10px]">{STATUS_LABELS[c.status] || c.status}</Badge>
+                      <Badge variant={c.status === 'do_not_contact' ? 'destructive' : 'outline'} className="text-[10px]">{STATUS_LABELS[c.status] || c.status}</Badge>
                       <ChevronRight size={12} className="text-muted-foreground" />
                     </div>
                   </button>
@@ -369,6 +372,15 @@ export default function CompanyDetailPage() {
               </div>
             )}
           </SectionCard>
+
+          {/* Gesprekken van alle contactpersonen */}
+          <div className="rounded-xl bg-card p-5 card-shadow space-y-3">
+            <h3 className="text-base font-bold text-foreground">Gesprekken</h3>
+            <CompanyActivityTimeline
+              contactIds={companyContacts.map((c) => c.id)}
+              contactNames={Object.fromEntries(companyContacts.map((c) => [c.id, `${c.firstName} ${c.lastName}`]))}
+            />
+          </div>
         </div>
       </div>
 
