@@ -93,7 +93,7 @@ export function CompaniesProvider({ children }: { children: ReactNode }) {
 
   const addCompany = useCallback(async (company: Omit<Company, 'id' | 'createdAt'>) => {
     if (!user) return;
-    const { error } = await (supabase as any).from('companies').insert({
+    const { error } = await (supabase as any).from('companies').upsert({
       user_id: user.id,
       name: capitalizeWords(company.name),
       email: company.email || null,
@@ -109,7 +109,7 @@ export function CompaniesProvider({ children }: { children: ReactNode }) {
       customer_number: company.customerNumber || null,
       crm_group: company.crmGroup || null,
       btw_number: company.btwNumber || null,
-    });
+    }, { ignoreDuplicates: true });
     if (error) {
       toast({ title: 'Fout bij aanmaken bedrijf', description: error.message, variant: 'destructive' });
     }
