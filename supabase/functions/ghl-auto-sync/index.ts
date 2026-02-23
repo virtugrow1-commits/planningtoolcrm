@@ -3,6 +3,11 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const GHL_API_BASE = 'https://services.leadconnectorhq.com';
 
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version',
+};
+
 /** Convert a Date to Europe/Amsterdam local components */
 function toAmsterdam(date: Date) {
   const s = date.toLocaleString('en-US', { timeZone: 'Europe/Amsterdam', hour12: false });
@@ -15,13 +20,17 @@ function toAmsterdam(date: Date) {
 }
 
 serve(async (req) => {
+  if (req.method === 'OPTIONS') {
+    return new Response(null, { headers: corsHeaders });
+  }
+
   const GHL_API_KEY = Deno.env.get('GHL_API_KEY');
   const GHL_LOCATION_ID = Deno.env.get('GHL_LOCATION_ID');
   const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
   const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 
   if (!GHL_API_KEY || !GHL_LOCATION_ID) {
-    return new Response(JSON.stringify({ error: 'GHL not configured' }), { status: 500 });
+    return new Response(JSON.stringify({ error: 'GHL not configured' }), { status: 500, headers: corsHeaders });
   }
 
   const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
@@ -40,7 +49,7 @@ serve(async (req) => {
   
   if (!userId) {
     console.log('No user found, skipping sync');
-    return new Response(JSON.stringify({ error: 'No user found' }), { status: 200 });
+    return new Response(JSON.stringify({ error: 'No user found' }), { status: 200, headers: corsHeaders });
   }
 
   const results: any = { bookings_pulled: 0, bookings_pushed: 0, contacts: 0, opportunities: 0, contacts_pushed: 0, errors: [] };
@@ -56,7 +65,7 @@ serve(async (req) => {
   await pushLocalInquiries(supabase, ghlHeaders, GHL_LOCATION_ID, userId, results);
 
   console.log('Auto-sync completed:', JSON.stringify(results));
-  return new Response(JSON.stringify({ success: true, ...results }), { headers: { 'Content-Type': 'application/json' } });
+  return new Response(JSON.stringify({ success: true, ...results }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
 });
 
 // === CALENDAR SYNC ===
