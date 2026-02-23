@@ -7,6 +7,7 @@ import { Calendar as CalendarIcon, Users, Euro, GripVertical, Repeat, Plus, X, C
 import { useToast } from '@/hooks/use-toast';
 import { useBookings } from '@/contexts/BookingsContext';
 import { useInquiriesContext } from '@/contexts/InquiriesContext';
+import { useContactsContext } from '@/contexts/ContactsContext';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
@@ -67,6 +68,7 @@ const createDateOption = (): DateOption => ({
 
 export default function InquiriesPage() {
   const { inquiries, loading: inquiriesLoading, addInquiry, updateInquiry, deleteInquiry: deleteInquiryCtx } = useInquiriesContext();
+  const { contacts } = useContactsContext();
   const [dragId, setDragId] = useState<string | null>(null);
   const [scheduleOpen, setScheduleOpen] = useState(false);
   const [selectedInquiry, setSelectedInquiry] = useState<Inquiry | null>(null);
@@ -388,43 +390,49 @@ export default function InquiriesPage() {
                     onClick={() => openDetailDialog(inq)}
                     className={`cursor-pointer rounded-lg border bg-card p-3 card-shadow hover:card-shadow-hover transition-all active:cursor-grabbing ${dragId === inq.id ? 'opacity-50 scale-95' : ''} ${selected.has(inq.id) ? 'ring-2 ring-primary' : ''}`}
                   >
-                    <div className="flex items-start gap-2">
-                      <Checkbox
-                        checked={selected.has(inq.id)}
-                        onCheckedChange={() => toggleSelect(inq.id)}
-                        onClick={(e) => e.stopPropagation()}
-                        className="mt-0.5 shrink-0"
-                      />
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-1.5">
-                          {inq.displayNumber && <span className="text-[10px] font-mono text-muted-foreground">{inq.displayNumber}</span>}
-                          <h4 className="text-sm font-medium text-card-foreground truncate">{inq.eventType}</h4>
-                        </div>
-                        <button
-                          className="text-xs text-primary hover:underline text-left truncate"
-                          onClick={(e) => { e.stopPropagation(); if (inq.contactId) navigate(`/crm/${inq.contactId}`); else openDetailDialog(inq); }}
-                        >
-                          {inq.contactName}
-                        </button>
-                        <p className="mt-1 text-xs text-muted-foreground line-clamp-1">{inq.message}</p>
-                        <div className="mt-1.5 flex flex-wrap gap-2 text-[11px] text-muted-foreground">
-                          {inq.preferredDate && <span className="flex items-center gap-1"><CalendarIcon size={10} /> {inq.preferredDate}</span>}
-                          <span className="flex items-center gap-1"><Users size={10} /> {inq.guestCount} pers.</span>
-                          {inq.roomPreference && <span className="flex items-center gap-1"><MapPin size={10} /> {inq.roomPreference}</span>}
-                          {inq.budget && <span className="flex items-center gap-1"><Euro size={10} /> €{inq.budget.toLocaleString('nl-NL')}</span>}
-                        </div>
-                        <div className="mt-1.5 flex items-center justify-between">
-                          <span className="text-[10px] text-muted-foreground/50">Bron: {inq.source === 'GHL' ? 'VirtuGrow' : inq.source}</span>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-6 px-2 text-[10px]"
-                            onClick={(e) => { e.stopPropagation(); openScheduleDialog(inq); }}
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex items-start gap-2 flex-1 min-w-0">
+                        <Checkbox
+                          checked={selected.has(inq.id)}
+                          onCheckedChange={() => toggleSelect(inq.id)}
+                          onClick={(e) => e.stopPropagation()}
+                          className="mt-1 shrink-0"
+                        />
+                        <div className="flex-1 min-w-0">
+                          <button
+                            className="text-sm font-semibold text-card-foreground hover:text-primary transition-colors text-left truncate block w-full"
+                            onClick={(e) => { e.stopPropagation(); if (inq.contactId) navigate(`/crm/${inq.contactId}`); else openDetailDialog(inq); }}
                           >
-                            <CalendarIcon size={10} className="mr-1" /> Inplannen
-                          </Button>
+                            {inq.contactName} – {inq.eventType}
+                          </button>
                         </div>
                       </div>
+                      <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center text-primary text-xs font-bold shrink-0">
+                        {inq.contactName.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase()}
+                      </div>
+                    </div>
+
+                    <div className="mt-2.5 space-y-1 text-xs">
+                      {(() => { const contact = inq.contactId ? contacts.find(c => c.id === inq.contactId) : null; return contact?.company ? (
+                        <div className="flex gap-2"><span className="text-muted-foreground w-[100px] shrink-0">Bedrijfsnaam:</span><span className="text-card-foreground font-medium truncate">{contact.company}</span></div>
+                      ) : null; })()}
+                      <div className="flex gap-2"><span className="text-muted-foreground w-[100px] shrink-0">Type:</span><span className="text-card-foreground truncate">{inq.eventType}</span></div>
+                      {inq.roomPreference && <div className="flex gap-2"><span className="text-muted-foreground w-[100px] shrink-0">Ruimte:</span><span className="text-card-foreground truncate">{inq.roomPreference}</span></div>}
+                      {inq.preferredDate && <div className="flex gap-2"><span className="text-muted-foreground w-[100px] shrink-0">Datum:</span><span className="text-card-foreground">{inq.preferredDate}</span></div>}
+                      <div className="flex gap-2"><span className="text-muted-foreground w-[100px] shrink-0">Personen:</span><span className="text-card-foreground">{inq.guestCount}</span></div>
+                      <div className="flex gap-2"><span className="text-muted-foreground w-[100px] shrink-0">Waarde:</span><span className="text-card-foreground">€{(inq.budget || 0).toLocaleString('nl-NL', { minimumFractionDigits: 2 })}</span></div>
+                    </div>
+
+                    <div className="mt-3 flex items-center justify-between border-t pt-2">
+                      <span className="text-[10px] text-muted-foreground/60">{inq.source === 'GHL' ? 'VirtuGrow' : inq.source}{inq.displayNumber ? ` · ${inq.displayNumber}` : ''}</span>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-6 px-2 text-[10px]"
+                        onClick={(e) => { e.stopPropagation(); openScheduleDialog(inq); }}
+                      >
+                        <CalendarIcon size={10} className="mr-1" /> Inplannen
+                      </Button>
                     </div>
                   </div>
                 ))}
