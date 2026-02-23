@@ -1,0 +1,1 @@
+DELETE FROM room_settings WHERE room_name = 'Ontmoeten Aan de Donge';
