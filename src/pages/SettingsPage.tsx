@@ -16,23 +16,23 @@ import { Contact } from '@/types/crm';
 
 const WEBHOOK_URL = `https://${import.meta.env.VITE_SUPABASE_PROJECT_ID}.supabase.co/functions/v1/ghl-webhook`;
 
-const GHL_WEBHOOKS = [
-  // Inbound — GHL → CRM
-  { id: 'contact_created', label: 'Contact aangemaakt', description: 'Sync nieuwe contacten van GHL → CRM', direction: 'inbound' },
+const VGW_WEBHOOKS = [
+  // Inbound — VGW → CRM
+  { id: 'contact_created', label: 'Contact aangemaakt', description: 'Sync nieuwe contacten van VirtuGrow → CRM', direction: 'inbound' },
   { id: 'contact_updated', label: 'Contact gewijzigd', description: 'Houd contactgegevens gesynchroniseerd', direction: 'inbound' },
   { id: 'opportunity_status', label: 'Opportunity Status', description: 'Sync pipeline stadia met aanvragen', direction: 'inbound' },
   { id: 'form_submission', label: 'Formulier Ingezonden', description: 'Nieuwe aanvragen vanuit website formulier', direction: 'inbound' },
-  { id: 'appointment_booked', label: 'Afspraak Geboekt', description: 'GHL kalender afspraken sync naar CRM', direction: 'inbound' },
-  { id: 'task_completed', label: 'Taak Voltooid', description: 'GHL taken status updates ontvangen', direction: 'inbound' },
-  { id: 'note_added', label: 'Notitie Toegevoegd', description: 'GHL contact notities synchroniseren', direction: 'inbound' },
-  { id: 'payment_received', label: 'Betaling Ontvangen', description: 'Stripe/GHL betalingen registreren', direction: 'inbound' },
-  // Outbound — CRM → GHL
-  { id: 'booking_created', label: 'Boeking aangemaakt', description: 'Stuur nieuwe boekingen naar GHL', direction: 'outbound' },
-  { id: 'booking_updated', label: 'Boeking gewijzigd', description: 'Sync wijzigingen in boekingen naar GHL', direction: 'outbound' },
-  { id: 'inquiry_status', label: 'Aanvraag status gewijzigd', description: 'Update GHL opportunity bij status wijziging', direction: 'outbound' },
-  { id: 'quotation_sent', label: 'Offerte verstuurd', description: 'Trigger GHL workflow bij offerte', direction: 'outbound' },
-  { id: 'quotation_accepted', label: 'Offerte geaccepteerd', description: 'Markeer GHL opportunity als gewonnen', direction: 'outbound' },
-  { id: 'recurring_created', label: 'Herhaling aangemaakt', description: 'Sync terugkerende boekingen naar GHL', direction: 'outbound' },
+  { id: 'appointment_booked', label: 'Afspraak Geboekt', description: 'VirtuGrow kalender afspraken sync naar CRM', direction: 'inbound' },
+  { id: 'task_completed', label: 'Taak Voltooid', description: 'VirtuGrow taken status updates ontvangen', direction: 'inbound' },
+  { id: 'note_added', label: 'Notitie Toegevoegd', description: 'VirtuGrow contact notities synchroniseren', direction: 'inbound' },
+  { id: 'payment_received', label: 'Betaling Ontvangen', description: 'Stripe/VirtuGrow betalingen registreren', direction: 'inbound' },
+  // Outbound — CRM → VGW
+  { id: 'booking_created', label: 'Boeking aangemaakt', description: 'Stuur nieuwe boekingen naar VirtuGrow', direction: 'outbound' },
+  { id: 'booking_updated', label: 'Boeking gewijzigd', description: 'Sync wijzigingen in boekingen naar VirtuGrow', direction: 'outbound' },
+  { id: 'inquiry_status', label: 'Aanvraag status gewijzigd', description: 'Update VirtuGrow opportunity bij status wijziging', direction: 'outbound' },
+  { id: 'quotation_sent', label: 'Offerte verstuurd', description: 'Trigger VirtuGrow workflow bij offerte', direction: 'outbound' },
+  { id: 'quotation_accepted', label: 'Offerte geaccepteerd', description: 'Markeer VirtuGrow opportunity als gewonnen', direction: 'outbound' },
+  { id: 'recurring_created', label: 'Herhaling aangemaakt', description: 'Sync terugkerende boekingen naar VirtuGrow', direction: 'outbound' },
 ];
 
 function parseCSV(text: string): Record<string, string>[] {
@@ -136,7 +136,7 @@ export default function SettingsPage() {
           // Small delay between pages to avoid rate limits
           if (hasMore) await new Promise(r => setTimeout(r, 1000));
         }
-        toast({ title: '✅ Synchronisatie voltooid', description: `${totalSynced} contacten opgehaald uit GHL (${page} pagina's)` });
+        toast({ title: '✅ Synchronisatie voltooid', description: `${totalSynced} contacten opgehaald uit VirtuGrow (${page} pagina's)` });
       } else if (action === 'full-sync') {
         // Run individual syncs sequentially
         const results: string[] = [];
@@ -199,15 +199,15 @@ export default function SettingsPage() {
         toast({
           title: '✅ Synchronisatie voltooid',
           description: action === 'sync-opportunities'
-            ? `${data.synced} opportunities/aanvragen opgehaald uit GHL`
+            ? `${data.synced} opportunities/aanvragen opgehaald uit VirtuGrow`
             : action === 'sync-calendars'
-            ? `${data.synced} boekingen opgehaald uit ${data.calendars} GHL kalenders`
+            ? `${data.synced} boekingen opgehaald uit ${data.calendars} VirtuGrow kalenders`
             : action === 'sync-tasks'
-            ? `${data.synced} taken opgehaald uit GHL`
+            ? `${data.synced} taken opgehaald uit VirtuGrow`
             : action === 'sync-companies'
-            ? `${data.synced} bedrijven opgehaald uit GHL`
+            ? `${data.synced} bedrijven opgehaald uit VirtuGrow`
             : action === 'sync-notes'
-            ? `${data.synced} gesprekken opgehaald uit GHL (${data.skipped || 0} overgeslagen)`
+            ? `${data.synced} gesprekken opgehaald uit VirtuGrow (${data.skipped || 0} overgeslagen)`
             : `${data.pushed || data.synced || 0} items gesynchroniseerd`,
         });
       }
@@ -225,14 +225,14 @@ export default function SettingsPage() {
     }
     // In production this would validate via edge function
     setConnected(true);
-    toast({ title: 'GHL Verbonden', description: 'API key geverifieerd. Webhooks kunnen nu worden ingesteld.' });
+    toast({ title: 'VirtuGrow Verbonden', description: 'API key geverifieerd. Webhooks kunnen nu worden ingesteld.' });
   };
 
   const toggleWebhook = (id: string) => {
     setWebhooks((prev) => ({ ...prev, [id]: !prev[id] }));
     toast({
       title: webhooks[id] ? 'Webhook uitgeschakeld' : 'Webhook ingeschakeld',
-      description: GHL_WEBHOOKS.find((w) => w.id === id)?.label,
+      description: VGW_WEBHOOKS.find((w) => w.id === id)?.label,
     });
   };
 
@@ -240,19 +240,19 @@ export default function SettingsPage() {
     <div className="p-6 lg:p-8 space-y-6 max-w-4xl">
       <div>
         <h1 className="text-2xl font-bold text-foreground">Instellingen</h1>
-        <p className="text-sm text-muted-foreground">GoHighLevel integratie & configuratie</p>
+        <p className="text-sm text-muted-foreground">VirtuGrow integratie & configuratie</p>
       </div>
 
-      <Tabs defaultValue="ghl" className="space-y-4">
+      <Tabs defaultValue="vgw" className="space-y-4">
         <TabsList>
-          <TabsTrigger value="ghl" className="gap-2"><Key size={14} /> GHL Verbinding</TabsTrigger>
+          <TabsTrigger value="vgw" className="gap-2"><Key size={14} /> VGW Verbinding</TabsTrigger>
           <TabsTrigger value="webhooks" className="gap-2"><Webhook size={14} /> Webhooks</TabsTrigger>
           <TabsTrigger value="mapping" className="gap-2"><ArrowRightLeft size={14} /> Veld Mapping</TabsTrigger>
           <TabsTrigger value="import" className="gap-2"><Upload size={14} /> CSV Import</TabsTrigger>
           <TabsTrigger value="legacy" className="gap-2"><Database size={14} /> Legacy Import</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="ghl" className="space-y-4">
+        <TabsContent value="vgw" className="space-y-4">
           <div className="rounded-xl border bg-card p-6 card-shadow space-y-4">
             <div className="flex items-center gap-3">
               {connected ? (
@@ -262,17 +262,17 @@ export default function SettingsPage() {
               )}
               <div>
                 <h3 className="font-semibold text-card-foreground">
-                  {connected ? 'Verbonden met GoHighLevel' : 'Niet verbonden'}
+                   {connected ? 'Verbonden met VirtuGrow' : 'Niet verbonden'}
                 </h3>
                 <p className="text-xs text-muted-foreground">
-                  {connected ? 'API key actief — webhooks beschikbaar' : 'Configureer je GHL API key om te starten'}
+                  {connected ? 'API key actief — webhooks beschikbaar' : 'Configureer je VirtuGrow API key om te starten'}
                 </p>
               </div>
             </div>
 
             <div className="space-y-3">
               <div className="space-y-1.5">
-                <Label htmlFor="apiKey">GHL API Key</Label>
+                <Label htmlFor="apiKey">VirtuGrow API Key</Label>
                 <Input
                   id="apiKey"
                   type="password"
@@ -281,11 +281,11 @@ export default function SettingsPage() {
                   onChange={(e) => setApiKey(e.target.value)}
                 />
                 <p className="text-xs text-muted-foreground">
-                  Te vinden in GHL → Settings → Business Profile → API Key
+                  Te vinden in VirtuGrow → Settings → Business Profile → API Key
                 </p>
               </div>
               <div className="space-y-1.5">
-                <Label htmlFor="locationId">GHL Location ID</Label>
+                <Label htmlFor="locationId">VirtuGrow Location ID</Label>
                 <Input
                   id="locationId"
                   placeholder="loc_xxxxxxxxxx"
@@ -293,7 +293,7 @@ export default function SettingsPage() {
                   onChange={(e) => setLocationId(e.target.value)}
                 />
                 <p className="text-xs text-muted-foreground">
-                  Te vinden in GHL → Settings → Business Profile
+                  Te vinden in VirtuGrow → Settings → Business Profile
                 </p>
               </div>
               <Button onClick={handleConnect} disabled={connected}>
@@ -306,25 +306,25 @@ export default function SettingsPage() {
               <h4 className="text-sm font-semibold text-card-foreground">Synchronisatie</h4>
               <div className="flex flex-wrap gap-2">
                 <Button variant="outline" size="sm" disabled={syncing} onClick={() => handleSync('sync-contacts')}>
-                  <RefreshCw size={14} className={`mr-1.5 ${syncing ? 'animate-spin' : ''}`} /> Contacten GHL → CRM
+                  <RefreshCw size={14} className={`mr-1.5 ${syncing ? 'animate-spin' : ''}`} /> Contacten VGW → CRM
                 </Button>
                 <Button variant="outline" size="sm" disabled={syncing} onClick={() => handleSync('sync-opportunities')}>
-                  <RefreshCw size={14} className={`mr-1.5 ${syncing ? 'animate-spin' : ''}`} /> Opportunities GHL → CRM
+                  <RefreshCw size={14} className={`mr-1.5 ${syncing ? 'animate-spin' : ''}`} /> Opportunities VGW → CRM
                 </Button>
                 <Button variant="outline" size="sm" disabled={syncing} onClick={() => handleSync('sync-calendars')}>
-                  <RefreshCw size={14} className={`mr-1.5 ${syncing ? 'animate-spin' : ''}`} /> Boekingen GHL → CRM
+                  <RefreshCw size={14} className={`mr-1.5 ${syncing ? 'animate-spin' : ''}`} /> Boekingen VGW → CRM
                 </Button>
                 <Button variant="outline" size="sm" disabled={syncing} onClick={() => handleSync('push-contacts')}>
-                  <RefreshCw size={14} className={`mr-1.5 ${syncing ? 'animate-spin' : ''}`} /> Contacten CRM → GHL
+                  <RefreshCw size={14} className={`mr-1.5 ${syncing ? 'animate-spin' : ''}`} /> Contacten CRM → VGW
                 </Button>
                 <Button variant="outline" size="sm" disabled={syncing} onClick={() => handleSync('sync-tasks')}>
-                  <RefreshCw size={14} className={`mr-1.5 ${syncing ? 'animate-spin' : ''}`} /> Taken GHL → CRM
+                  <RefreshCw size={14} className={`mr-1.5 ${syncing ? 'animate-spin' : ''}`} /> Taken VGW → CRM
                 </Button>
                 <Button variant="outline" size="sm" disabled={syncing} onClick={() => handleSync('sync-companies')}>
-                  <RefreshCw size={14} className={`mr-1.5 ${syncing ? 'animate-spin' : ''}`} /> Bedrijven GHL → CRM
+                  <RefreshCw size={14} className={`mr-1.5 ${syncing ? 'animate-spin' : ''}`} /> Bedrijven VGW → CRM
                 </Button>
                 <Button variant="outline" size="sm" disabled={syncing} onClick={() => handleSync('sync-notes')}>
-                  <RefreshCw size={14} className={`mr-1.5 ${syncing ? 'animate-spin' : ''}`} /> Gesprekken GHL → CRM
+                  <RefreshCw size={14} className={`mr-1.5 ${syncing ? 'animate-spin' : ''}`} /> Gesprekken VGW → CRM
                 </Button>
                 <Button size="sm" disabled={syncing} onClick={() => handleSync('full-sync')}>
                   <RefreshCw size={14} className={`mr-1.5 ${syncing ? 'animate-spin' : ''}`} /> Volledige Sync
@@ -335,7 +335,7 @@ export default function SettingsPage() {
                   <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-success opacity-75"></span>
                   <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-success"></span>
                 </span>
-                <span>Automatische sync actief — elke minuut worden contacten, boekingen en aanvragen uitgewisseld met GHL</span>
+                <span>Automatische sync actief — elke minuut worden contacten, boekingen en aanvragen uitgewisseld met VirtuGrow</span>
               </div>
               <p className="text-xs text-muted-foreground">
                 De API key en Location ID worden beheerd via de beveiligde backend configuratie.
@@ -349,7 +349,7 @@ export default function SettingsPage() {
                 <h4 className="text-sm font-semibold text-card-foreground">Webhook URL</h4>
               </div>
               <p className="text-xs text-muted-foreground">
-                Plak deze URL in GHL → Settings → Webhooks om realtime data te ontvangen.
+                Plak deze URL in VirtuGrow → Settings → Webhooks om realtime data te ontvangen.
               </p>
               <div className="flex items-center gap-2">
                 <code className="flex-1 rounded bg-muted px-3 py-2 text-xs font-mono text-foreground break-all">
@@ -369,7 +369,7 @@ export default function SettingsPage() {
             </div>
 
             <div className="rounded-lg bg-muted/50 p-4 text-xs text-muted-foreground space-y-2">
-              <p className="font-medium text-foreground">GHL als motor — dit CRM als cockpit</p>
+              <p className="font-medium text-foreground">VirtuGrow als motor — dit CRM als cockpit</p>
               <ul className="list-disc pl-4 space-y-1">
                 <li><strong>Contacts:</strong> 2-weg sync via API v2 (GET/POST /contacts)</li>
                 <li><strong>Opportunities:</strong> Pipeline stadia mappen naar aanvraag statussen</li>
@@ -389,7 +389,7 @@ export default function SettingsPage() {
             </div>
 
             <div className="space-y-3">
-              {GHL_WEBHOOKS.map((wh) => (
+              {VGW_WEBHOOKS.map((wh) => (
                 <div key={wh.id} className="flex items-center justify-between rounded-lg border p-3">
                   <div className="flex items-center gap-3">
                     <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${
@@ -397,7 +397,7 @@ export default function SettingsPage() {
                         ? 'bg-info/15 text-info'
                         : 'bg-success/15 text-success'
                     }`}>
-                      {wh.direction === 'inbound' ? 'GHL → CRM' : 'CRM → GHL'}
+                      {wh.direction === 'inbound' ? 'VGW → CRM' : 'CRM → VGW'}
                     </span>
                     <div>
                       <p className="text-sm font-medium text-card-foreground">{wh.label}</p>
@@ -414,7 +414,7 @@ export default function SettingsPage() {
             </div>
 
             {!connected && (
-              <p className="text-xs text-warning">Verbind eerst je GHL account om webhooks in te schakelen.</p>
+              <p className="text-xs text-warning">Verbind eerst je VirtuGrow account om webhooks in te schakelen.</p>
             )}
           </div>
         </TabsContent>
@@ -423,7 +423,7 @@ export default function SettingsPage() {
           <div className="rounded-xl border bg-card p-6 card-shadow space-y-4">
             <div>
               <h3 className="font-semibold text-card-foreground">Veld Mapping</h3>
-              <p className="text-xs text-muted-foreground">Koppel CRM velden aan GHL Custom Fields</p>
+              <p className="text-xs text-muted-foreground">Koppel CRM velden aan VirtuGrow Custom Fields</p>
             </div>
 
             <div className="overflow-x-auto">
@@ -432,7 +432,7 @@ export default function SettingsPage() {
                   <tr className="border-b">
                     <th className="py-2 text-left font-medium text-muted-foreground">CRM Veld</th>
                     <th className="py-2 text-left font-medium text-muted-foreground">→</th>
-                    <th className="py-2 text-left font-medium text-muted-foreground">GHL Custom Field</th>
+                    <th className="py-2 text-left font-medium text-muted-foreground">VGW Custom Field</th>
                     <th className="py-2 text-left font-medium text-muted-foreground">Status</th>
                   </tr>
                 </thead>
@@ -463,7 +463,7 @@ export default function SettingsPage() {
             </div>
 
             <p className="text-xs text-muted-foreground">
-              Maak deze Custom Fields eerst aan in GHL → Settings → Custom Fields voordat je de sync inschakelt.
+              Maak deze Custom Fields eerst aan in VirtuGrow → Settings → Custom Fields voordat je de sync inschakelt.
             </p>
           </div>
         </TabsContent>
