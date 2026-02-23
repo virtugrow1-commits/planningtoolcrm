@@ -47,10 +47,12 @@ export default function ReserveringenPage() {
   const todayStr = useMemo(() => new Date().toISOString().split('T')[0], []);
 
   const enrichedBookings = useMemo<EnrichedBooking[]>(() => {
-    return bookings.map(b => {
-      const contact = b.contactId ? contacts.find(c => c.id === b.contactId) : null;
-      return { ...b, company: contact?.company || '-', isPast: b.date < todayStr };
-    });
+    return bookings
+      .filter(b => b.roomName !== 'Ontmoeten Aan de Donge') // Exclude GHL-synced general events
+      .map(b => {
+        const contact = b.contactId ? contacts.find(c => c.id === b.contactId) : null;
+        return { ...b, company: contact?.company || '-', isPast: b.date < todayStr };
+      });
   }, [bookings, contacts, todayStr]);
 
   const applyFilters = (list: EnrichedBooking[]) => {

@@ -620,11 +620,18 @@ serve(async (req) => {
           }
 
           for (const evt of allEvents) {
-            const evtStart = new Date(evt.startTime || evt.start);
+          const evtStart = new Date(evt.startTime || evt.start);
             const evtEnd = new Date(evt.endTime || evt.end);
-            const dateStr = evtStart.toISOString().split('T')[0];
-            const startHour = evtStart.getHours();
-            const endHour = evtEnd.getHours() || 17;
+            // Use Amsterdam timezone for correct local time
+            const startStr = evtStart.toLocaleString('en-US', { timeZone: 'Europe/Amsterdam', hour12: false });
+            const startD = new Date(startStr);
+            const dateStr = `${startD.getFullYear()}-${String(startD.getMonth() + 1).padStart(2, '0')}-${String(startD.getDate()).padStart(2, '0')}`;
+            const startHour = startD.getHours();
+            const startMinute = startD.getMinutes();
+            const endStr = evtEnd.toLocaleString('en-US', { timeZone: 'Europe/Amsterdam', hour12: false });
+            const endD = new Date(endStr);
+            const endHour = isNaN(evtEnd.getTime()) ? 17 : endD.getHours();
+            const endMinute = isNaN(evtEnd.getTime()) ? 0 : endD.getMinutes();
             const contactName = evt.contact?.name || evt.title || 'GHL Afspraak';
             const title = evt.title || evt.calendarName || 'GHL Afspraak';
             const evtStatus = (evt.status === 'confirmed' || evt.appointmentStatus === 'confirmed') ? 'confirmed' : 'option';
@@ -640,7 +647,9 @@ serve(async (req) => {
               await supabase.from('bookings').update({
                 date: dateStr,
                 start_hour: startHour,
+                start_minute: startMinute,
                 end_hour: endHour,
+                end_minute: endMinute,
                 title,
                 contact_name: contactName,
                 status: evtStatus,
@@ -652,7 +661,9 @@ serve(async (req) => {
                 room_name: evt.calendarName || 'Vergaderzaal 100',
                 date: dateStr,
                 start_hour: startHour,
+                start_minute: startMinute,
                 end_hour: endHour,
+                end_minute: endMinute,
                 title,
                 contact_name: contactName,
                 status: evtStatus,
@@ -1507,6 +1518,11 @@ serve(async (req) => {
         html: message,
       };
 
+      // Add CC/BCC if provided
+      if (body.cc) payload.cc = Array.isArray(body.cc) ? body.cc : [body.cc];
+      if (body.bcc) payload.bcc = Array.isArray(body.bcc) ? body.bcc : [body.bcc];
+      if (body.replyToMessageId) payload.replyMessageId = body.replyToMessageId;
+
       const res = await ghlFetch(`${GHL_API_BASE}/conversations/messages`, {
         method: 'POST',
         headers: ghlHeaders,
@@ -1523,6 +1539,21 @@ serve(async (req) => {
 
       const result = await res.json();
       return new Response(JSON.stringify({ success: true, messageId: result.messageId || result.id }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    if (action === 'delete-conversation') {
+      const { conversationId } = body;
+      if (!conversationId) {
+        return new Response(JSON.stringify({ error: 'conversationId required' }), {
+          status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+      const res = await ghlFetch(`${GHL_API_BASE}/conversations/${conversationId}`, {
+        method: 'DELETE', headers: ghlHeaders,
+      });
+      return new Response(JSON.stringify({ success: res.ok }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }

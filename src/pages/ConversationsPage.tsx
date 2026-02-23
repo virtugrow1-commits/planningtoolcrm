@@ -98,7 +98,7 @@ export default function ConversationsPage() {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  const handleSendMessage = async (message: string, channel: string, subject?: string) => {
+  const handleSendMessage = async (message: string, channel: string, options?: { subject?: string; cc?: string; bcc?: string }) => {
     if (!selectedConv) return;
     try {
       const { data, error } = await supabase.functions.invoke('ghl-sync', {
@@ -108,7 +108,9 @@ export default function ConversationsPage() {
           contactId: selectedConv.contactId,
           message,
           type: 'Email',
-          subject: subject || undefined,
+          subject: options?.subject || undefined,
+          cc: options?.cc || undefined,
+          bcc: options?.bcc || undefined,
         },
       });
       if (error) throw error;
@@ -130,6 +132,23 @@ export default function ConversationsPage() {
     }
   };
 
+  const handleDeleteConversation = async (convId: string) => {
+    try {
+      const { data, error } = await supabase.functions.invoke('ghl-sync', {
+        body: { action: 'delete-conversation', conversationId: convId },
+      });
+      if (error) throw error;
+      setConversations((prev) => prev.filter((c) => c.id !== convId));
+      if (selectedConv?.id === convId) {
+        setSelectedConv(null);
+        setMessages([]);
+      }
+      toast({ title: 'Gesprek verwijderd' });
+    } catch (err: any) {
+      toast({ title: 'Fout bij verwijderen', description: err.message, variant: 'destructive' });
+    }
+  };
+
   return (
     <div className="flex h-[calc(100vh-4rem)] overflow-hidden">
       {/* Conversation List */}
@@ -141,6 +160,7 @@ export default function ConversationsPage() {
         setSearchQuery={setSearchQuery}
         onSelect={setSelectedConv}
         onRefresh={fetchConversations}
+        onDelete={handleDeleteConversation}
       />
 
       {/* Message Thread */}
@@ -239,6 +259,7 @@ export default function ConversationsPage() {
               onSend={handleSendMessage}
               sending={false}
               conversationType={selectedConv.type}
+              contactPhone={selectedConv.phone}
             />
           </>
         ) : (
