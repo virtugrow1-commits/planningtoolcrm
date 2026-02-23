@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { format } from 'date-fns';
 import { nl } from 'date-fns/locale';
 import { useBookings } from '@/contexts/BookingsContext';
-import { useContacts } from '@/hooks/useContacts';
+import { useContactsContext } from '@/contexts/ContactsContext';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { Booking, RoomName, ROOMS } from '@/types/crm';
 import { Search, Edit2, ArrowRightLeft, Calendar as CalendarIcon, Clock, MapPin, ChevronLeft, ChevronRight, History, Hash, ClipboardCheck } from 'lucide-react';
@@ -26,7 +26,8 @@ type EnrichedBooking = Booking & { company: string; isPast: boolean };
 
 export default function ReserveringenPage() {
   const { bookings, updateBooking, deleteBooking, loading } = useBookings();
-  const { contacts } = useContacts();
+  const { contacts: fullContacts } = useContactsContext();
+  const contacts = fullContacts.map(c => ({ id: c.id, firstName: c.firstName, lastName: c.lastName, email: c.email || null, company: c.company || null }));
   const { t } = useLanguage();
   const { toast } = useToast();
 
