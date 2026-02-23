@@ -3,7 +3,7 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Badge } from '@/components/ui/badge';
-import { Search, RefreshCw, MessageSquare } from 'lucide-react';
+import { Search, RefreshCw, MessageSquare, Trash2 } from 'lucide-react';
 import { format } from 'date-fns';
 import { nl } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
@@ -30,6 +30,7 @@ interface Props {
   setSearchQuery: (q: string) => void;
   onSelect: (conv: Conversation) => void;
   onRefresh: () => void;
+  onDelete?: (convId: string) => void;
 }
 
 export default function ConversationList({
@@ -40,6 +41,7 @@ export default function ConversationList({
   setSearchQuery,
   onSelect,
   onRefresh,
+  onDelete,
 }: Props) {
   return (
     <div
@@ -81,7 +83,7 @@ export default function ConversationList({
                   key={conv.id}
                   onClick={() => onSelect(conv)}
                   className={cn(
-                    'w-full text-left px-3 py-3 hover:bg-accent/50 transition-colors',
+                    'w-full text-left px-3 py-3 hover:bg-accent/50 transition-colors group',
                     isActive && 'bg-accent/50'
                   )}
                 >
@@ -112,6 +114,14 @@ export default function ConversationList({
                           <Badge className="text-[10px] px-1.5 py-0 bg-primary text-primary-foreground ml-auto">
                             {conv.unreadCount}
                           </Badge>
+                        )}
+                        {onDelete && (
+                          <button
+                            onClick={(e) => { e.stopPropagation(); onDelete(conv.id); }}
+                            className="ml-auto opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-destructive"
+                          >
+                            <Trash2 size={13} />
+                          </button>
                         )}
                       </div>
                     </div>

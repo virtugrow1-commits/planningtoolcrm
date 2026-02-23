@@ -8,6 +8,17 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+/** Convert a Date to Europe/Amsterdam local components */
+function toAmsterdam(date: Date) {
+  const s = date.toLocaleString('en-US', { timeZone: 'Europe/Amsterdam', hour12: false });
+  const d = new Date(s);
+  return {
+    dateStr: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`,
+    hours: d.getHours(),
+    minutes: d.getMinutes(),
+  };
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -52,16 +63,8 @@ serve(async (req) => {
     } else if (type.includes('appointment') || type.includes('calendar') || type.includes('event')) {
       await handleAppointmentWebhook(supabase, userId, payload);
     } else {
-      // Unknown type - trigger full sync
-      console.log('Unknown webhook type, triggering full sync:', type);
-      await fetch(`${SUPABASE_URL}/functions/v1/ghl-auto-sync`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${Deno.env.get('SUPABASE_ANON_KEY')}`,
-        },
-        body: JSON.stringify({ source: 'webhook-fallback' }),
-      });
+      // Unknown type - log and skip (no longer trigger full sync to prevent loops)
+      console.log('Unknown webhook type, skipping:', type);
     }
 
     return new Response(JSON.stringify({ success: true }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
@@ -152,9 +155,13 @@ async function handleAppointmentWebhook(supabase: any, userId: string, payload: 
   const endTime = new Date(payload.endTime || payload.end || payload.data?.endTime);
   if (isNaN(startTime.getTime())) return;
 
-  const dateStr = startTime.toISOString().split('T')[0];
-  const startHour = startTime.getHours();
-  let endHour = endTime.getHours();
+  const startLocal = toAmsterdam(startTime);
+  const endLocal = isNaN(endTime.getTime()) ? null : toAmsterdam(endTime);
+  const dateStr = startLocal.dateStr;
+  const startHour = startLocal.hours;
+  const startMinute = startLocal.minutes;
+  let endHour = endLocal ? endLocal.hours : Math.min(startHour + 1, 23);
+  const endMinute = endLocal ? endLocal.minutes : 0;
   if (isNaN(endTime.getTime()) || endHour <= startHour) endHour = Math.min(startHour + 1, 23);
 
   const title = payload.title || payload.name || 'GHL Afspraak';
@@ -165,12 +172,12 @@ async function handleAppointmentWebhook(supabase: any, userId: string, payload: 
 
   if (existing) {
     await supabase.from('bookings').update({
-      date: dateStr, start_hour: startHour, end_hour: endHour, title, contact_name: contactName, status,
+      date: dateStr, start_hour: startHour, start_minute: startMinute, end_hour: endHour, end_minute: endMinute, title, contact_name: contactName, status,
     }).eq('id', existing.id);
   } else {
     await supabase.from('bookings').insert({
       user_id: userId, ghl_event_id: eventId, room_name: 'Ontmoeten Aan de Donge',
-      date: dateStr, start_hour: startHour, end_hour: endHour, title, contact_name: contactName, status,
+      date: dateStr, start_hour: startHour, start_minute: startMinute, end_hour: endHour, end_minute: endMinute, title, contact_name: contactName, status,
     });
   }
   console.log(`Webhook: Appointment ${eventId} synced`);

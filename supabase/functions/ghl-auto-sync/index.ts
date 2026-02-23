@@ -3,6 +3,17 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const GHL_API_BASE = 'https://services.leadconnectorhq.com';
 
+/** Convert a Date to Europe/Amsterdam local components */
+function toAmsterdam(date: Date) {
+  const s = date.toLocaleString('en-US', { timeZone: 'Europe/Amsterdam', hour12: false });
+  const d = new Date(s);
+  return {
+    dateStr: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`,
+    hours: d.getHours(),
+    minutes: d.getMinutes(),
+  };
+}
+
 serve(async (req) => {
   const GHL_API_KEY = Deno.env.get('GHL_API_KEY');
   const GHL_LOCATION_ID = Deno.env.get('GHL_LOCATION_ID');
@@ -106,10 +117,14 @@ async function syncCalendar(supabase: any, ghlHeaders: any, locationId: string, 
         const evtEnd = new Date(evt.endTime || evt.end || evt.endDate);
         if (isNaN(evtStart.getTime())) continue;
 
-        const dateStr = evtStart.toISOString().split('T')[0];
-        const startHour = evtStart.getHours();
-        let endHour = evtEnd.getHours();
-        if (isNaN(evtEnd.getTime()) || endHour <= startHour) endHour = Math.min(startHour + 1, 23);
+        const startLocal = toAmsterdam(evtStart);
+        const endLocal = isNaN(evtEnd.getTime()) ? null : toAmsterdam(evtEnd);
+        const dateStr = startLocal.dateStr;
+        const startHour = startLocal.hours;
+        const startMinute = startLocal.minutes;
+        let endHour = endLocal ? endLocal.hours : Math.min(startHour + 1, 23);
+        let endMinute = endLocal ? endLocal.minutes : 0;
+        if (endHour <= startHour && endHour !== 0) endHour = Math.min(startHour + 1, 23);
 
         const contactName = evt.contact?.name || evt.title || evt.calendarName || 'GHL Afspraak';
         const title = evt.title || evt.name || evt.calendarName || 'GHL Afspraak';
