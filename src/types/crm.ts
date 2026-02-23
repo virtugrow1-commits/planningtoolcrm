@@ -24,7 +24,7 @@ export interface Inquiry {
   guestCount: number;
   budget?: number;
   message: string;
-  status: 'new' | 'contacted' | 'option' | 'quoted' | 'quote_revised' | 'reserved' | 'confirmed' | 'invoiced' | 'converted' | 'lost' | 'after_sales';
+  status: 'new' | 'contacted' | 'option' | 'quoted' | 'quote_revised' | 'reserved' | 'confirmed' | 'script' | 'invoiced' | 'converted' | 'lost' | 'after_sales';
   createdAt: string;
   source: string;
   ghlOpportunityId?: string;

@@ -217,6 +217,7 @@ async function syncOpportunities(supabase: any, ghlHeaders: any, locationId: str
       if (l.includes('offerte verzonden') || l.includes('offerte')) return 'quoted';
       if (l.includes('definitieve reservering') || l.includes('definitief')) return 'confirmed';
       if (l.includes('reservering')) return 'reserved';
+      if (l.includes('draaiboek')) return 'script';
       if (l.includes('facturatie') || l.includes('invoice')) return 'invoiced';
       if (l.includes('vervallen') || l.includes('verloren') || l.includes('lost')) return 'lost';
       if (l.includes('after sales') || l.includes('aftersales')) return 'after_sales';
@@ -228,7 +229,7 @@ async function syncOpportunities(supabase: any, ghlHeaders: any, locationId: str
       'new': 'nieuwe aanvraag', 'contacted': 'lopend contact', 'option': 'optie',
       'quoted': 'offerte verzonden', 'quote_revised': 'aangepaste offerte',
       'reserved': 'reservering', 'confirmed': 'definitieve reservering',
-      'invoiced': 'facturatie', 'lost': 'vervallen', 'after_sales': 'after sales',
+      'script': 'draaiboek', 'invoiced': 'facturatie', 'lost': 'vervallen', 'after_sales': 'after sales',
       'converted': 'definitieve reservering',
     };
 
