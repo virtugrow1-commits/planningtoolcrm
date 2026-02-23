@@ -33,7 +33,7 @@ const PAGE_SIZES = [20, 50, 100] as const;
 
 export default function CrmPage() {
   const { contacts, loading, addContact, deleteContact, updateContact } = useContactsContext();
-  const { companies, loading: companiesLoading, deleteCompany } = useCompaniesContext();
+  const { companies, loading: companiesLoading, deleteCompany, updateCompany } = useCompaniesContext();
   const [activeTab, setActiveTab] = useState<CrmTab>('contacts');
   const [search, setSearch] = useState('');
   const [newOpen, setNewOpen] = useState(false);
@@ -226,9 +226,7 @@ export default function CrmPage() {
               </div>
             </PopoverContent>
           </Popover>
-          <Button variant="outline" size="sm" onClick={activeTab === 'contacts' ? handleExportContacts : handleExportCompanies}>
-            <Download size={14} className="mr-1" /> Export
-          </Button>
+          
           <Button size="sm" onClick={() => setNewOpen(true)}><Plus size={14} className="mr-1" /> {activeTab === 'contacts' ? 'Nieuw Contact' : 'Nieuw Bedrijf'}</Button>
         </div>
       </div>
@@ -288,8 +286,19 @@ export default function CrmPage() {
                 <td className="px-4 py-3 text-muted-foreground">{c.email || '—'}</td>
                 <td className="px-4 py-3 text-muted-foreground hidden md:table-cell">{c.phone || '—'}</td>
                 <td className="px-4 py-3 text-muted-foreground hidden lg:table-cell">{c.company || '—'}</td>
-                <td className="px-4 py-3 hidden lg:table-cell">
-                  <Badge variant={c.status === 'do_not_contact' ? 'destructive' : 'outline'} className="text-xs">{STATUS_LABELS[c.status] || c.status}</Badge>
+                <td className="px-4 py-3 hidden lg:table-cell" onClick={(e) => e.stopPropagation()}>
+                  <Select value={c.status} onValueChange={async (v) => { await updateContact({ ...c, status: v as Contact['status'] }); toast({ title: 'Status bijgewerkt' }); }}>
+                    <SelectTrigger className={cn('h-7 w-[140px] text-xs border-0 bg-transparent hover:bg-muted/50', c.status === 'do_not_contact' && 'text-destructive')}>
+                      <SelectValue>{STATUS_LABELS[c.status] || c.status}</SelectValue>
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="prospect">Prospect</SelectItem>
+                      <SelectItem value="lead">Lead</SelectItem>
+                      <SelectItem value="client">Klant</SelectItem>
+                      <SelectItem value="inactive">Inactief</SelectItem>
+                      <SelectItem value="do_not_contact">Niet benaderen</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </td>
               </tr>
             ))}
@@ -311,11 +320,12 @@ export default function CrmPage() {
               <th className="px-4 py-3 text-left font-semibold text-muted-foreground">Email</th>
               <th className="px-4 py-3 text-left font-semibold text-muted-foreground hidden md:table-cell">Telefoon</th>
               <th className="px-4 py-3 text-left font-semibold text-muted-foreground hidden lg:table-cell">Plaats</th>
+              <th className="px-4 py-3 text-left font-semibold text-muted-foreground hidden lg:table-cell">Status</th>
             </tr>
           </thead>
           <tbody>
             {paginatedCompanies.length === 0 && (
-              <tr><td colSpan={6} className="px-4 py-8 text-center text-muted-foreground"><Building2 size={32} className="mx-auto mb-2 opacity-40" />Geen bedrijven gevonden</td></tr>
+              <tr><td colSpan={7} className="px-4 py-8 text-center text-muted-foreground"><Building2 size={32} className="mx-auto mb-2 opacity-40" />Geen bedrijven gevonden</td></tr>
             )}
             {paginatedCompanies.map((c) => (
               <tr
@@ -331,6 +341,20 @@ export default function CrmPage() {
                 <td className="px-4 py-3 text-muted-foreground">{c.email || '—'}</td>
                 <td className="px-4 py-3 text-muted-foreground hidden md:table-cell">{c.phone || '—'}</td>
                 <td className="px-4 py-3 text-muted-foreground hidden lg:table-cell">{c.city || '—'}</td>
+                <td className="px-4 py-3 hidden lg:table-cell" onClick={(e) => e.stopPropagation()}>
+                  <Select value={c.crmGroup || 'lead'} onValueChange={async (v) => { await updateCompany({ ...c, crmGroup: v }); toast({ title: 'Status bijgewerkt' }); }}>
+                    <SelectTrigger className="h-7 w-[140px] text-xs border-0 bg-transparent hover:bg-muted/50">
+                      <SelectValue>{STATUS_LABELS[c.crmGroup || 'lead'] || c.crmGroup || 'Lead'}</SelectValue>
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="prospect">Prospect</SelectItem>
+                      <SelectItem value="lead">Lead</SelectItem>
+                      <SelectItem value="client">Klant</SelectItem>
+                      <SelectItem value="inactive">Inactief</SelectItem>
+                      <SelectItem value="do_not_contact">Niet benaderen</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </td>
               </tr>
             ))}
           </tbody>
@@ -346,6 +370,9 @@ export default function CrmPage() {
             <SelectContent>{PAGE_SIZES.map((s) => <SelectItem key={s} value={String(s)}>{s}</SelectItem>)}</SelectContent>
           </Select>
           <span>van {currentTotal}</span>
+          <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-foreground" onClick={activeTab === 'contacts' ? handleExportContacts : handleExportCompanies} title="Exporteren als CSV">
+            <Download size={14} />
+          </Button>
         </div>
         <div className="flex items-center gap-1">
           <Button variant="outline" size="icon" className="h-8 w-8" disabled={page <= 1} onClick={() => setPage(page - 1)}><ChevronLeft size={14} /></Button>

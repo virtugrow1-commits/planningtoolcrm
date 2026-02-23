@@ -7,7 +7,8 @@ import { useContactsContext } from '@/contexts/ContactsContext';
 import { useCompaniesContext } from '@/contexts/CompaniesContext';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { Booking, RoomName, ROOMS } from '@/types/crm';
-import { Search, Edit2, ArrowRightLeft, Calendar as CalendarIcon, Clock, MapPin, ChevronLeft, ChevronRight, History, Hash, ClipboardCheck } from 'lucide-react';
+import { Search, Edit2, ArrowRightLeft, Calendar as CalendarIcon, Clock, MapPin, ChevronLeft, ChevronRight, History, Hash, ClipboardCheck, Download } from 'lucide-react';
+import { exportToCSV } from '@/lib/csvExport';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -329,6 +330,35 @@ export default function ReserveringenPage() {
               </button>
             ))}
           </div>
+          <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-foreground" title="Exporteren als CSV" onClick={() => {
+            const allItems = [...upcoming, ...past];
+            exportToCSV(allItems.map(b => ({
+              nummer: b.reservationNumber || '',
+              status: b.status === 'confirmed' ? 'Reservering' : 'Optie',
+              voorbereiding: prepStatusLabel(b.preparationStatus),
+              contact: b.contactName,
+              bedrijf: b.company,
+              evenement: b.title,
+              ruimte: b.roomName,
+              datum: b.date,
+              tijd: `${formatTime(b.startHour, b.startMinute)} – ${formatTime(b.endHour, b.endMinute)}`,
+              gasten: b.guestCount || '',
+            })), [
+              { key: 'nummer', label: '#' },
+              { key: 'status', label: 'Status' },
+              { key: 'voorbereiding', label: 'Voorbereiding' },
+              { key: 'contact', label: 'Contactpersoon' },
+              { key: 'bedrijf', label: 'Bedrijf' },
+              { key: 'evenement', label: 'Evenement' },
+              { key: 'ruimte', label: 'Ruimte' },
+              { key: 'datum', label: 'Datum' },
+              { key: 'tijd', label: 'Tijd' },
+              { key: 'gasten', label: 'Gasten' },
+            ], 'reserveringen-export');
+            toast({ title: `${allItems.length} reserveringen geëxporteerd` });
+          }}>
+            <Download size={14} />
+          </Button>
         </div>
       </div>
 

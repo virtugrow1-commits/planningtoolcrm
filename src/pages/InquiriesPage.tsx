@@ -3,7 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { format } from 'date-fns';
 import { nl } from 'date-fns/locale';
 import { Inquiry, Booking, ROOMS, RoomName } from '@/types/crm';
-import { Calendar as CalendarIcon, Users, Euro, GripVertical, Repeat, Plus, X, Check, LayoutGrid, List, Trash2, ArrowRight, AlertTriangle, Download } from 'lucide-react';
+import { Calendar as CalendarIcon, Users, Euro, GripVertical, Repeat, Plus, X, Check, LayoutGrid, List, Trash2, ArrowRight, AlertTriangle, Download, MapPin } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useBookings } from '@/contexts/BookingsContext';
 import { useInquiriesContext } from '@/contexts/InquiriesContext';
@@ -325,31 +325,6 @@ export default function InquiriesPage() {
               <List size={14} /> Lijst
             </button>
           </div>
-          <Button variant="outline" size="sm" onClick={() => {
-            const col = PIPELINE_COLUMNS;
-            exportToCSV(inquiries.map(i => ({
-              id: i.displayNumber || '',
-              type: i.eventType,
-              contact: i.contactName,
-              datum: i.preferredDate || '',
-              gasten: i.guestCount,
-              budget: i.budget ? `€${i.budget}` : '',
-              status: col.find(c => c.key === i.status)?.label || i.status,
-              bron: i.source === 'GHL' ? 'VirtuGrow' : i.source,
-            })), [
-              { key: 'id', label: 'ID' },
-              { key: 'type', label: 'Type' },
-              { key: 'contact', label: 'Contact' },
-              { key: 'datum', label: 'Datum' },
-              { key: 'gasten', label: 'Gasten' },
-              { key: 'budget', label: 'Budget' },
-              { key: 'status', label: 'Status' },
-              { key: 'bron', label: 'Bron' },
-            ], 'aanvragen-export');
-            toast({ title: `${inquiries.length} aanvragen geëxporteerd` });
-          }}>
-            <Download size={14} className="mr-1" /> Export
-          </Button>
           <Button onClick={() => setNewOpen(true)} size="sm"><Plus size={14} className="mr-1" /> Nieuwe Aanvraag</Button>
         </div>
       </div>
@@ -425,11 +400,17 @@ export default function InquiriesPage() {
                           {inq.displayNumber && <span className="text-[10px] font-mono text-muted-foreground">{inq.displayNumber}</span>}
                           <h4 className="text-sm font-medium text-card-foreground truncate">{inq.eventType}</h4>
                         </div>
-                        <p className="text-xs text-muted-foreground">{inq.contactName}</p>
-                        <p className="mt-1.5 text-xs text-muted-foreground line-clamp-2">{inq.message}</p>
-                        <div className="mt-2 flex flex-wrap gap-2 text-[11px] text-muted-foreground">
-                          <span className="flex items-center gap-1"><CalendarIcon size={10} /> {inq.preferredDate}</span>
-                          <span className="flex items-center gap-1"><Users size={10} /> {inq.guestCount}</span>
+                        <button
+                          className="text-xs text-primary hover:underline text-left truncate"
+                          onClick={(e) => { e.stopPropagation(); if (inq.contactId) navigate(`/crm/${inq.contactId}`); else openDetailDialog(inq); }}
+                        >
+                          {inq.contactName}
+                        </button>
+                        <p className="mt-1 text-xs text-muted-foreground line-clamp-1">{inq.message}</p>
+                        <div className="mt-1.5 flex flex-wrap gap-2 text-[11px] text-muted-foreground">
+                          {inq.preferredDate && <span className="flex items-center gap-1"><CalendarIcon size={10} /> {inq.preferredDate}</span>}
+                          <span className="flex items-center gap-1"><Users size={10} /> {inq.guestCount} pers.</span>
+                          {inq.roomPreference && <span className="flex items-center gap-1"><MapPin size={10} /> {inq.roomPreference}</span>}
                           {inq.budget && <span className="flex items-center gap-1"><Euro size={10} /> €{inq.budget.toLocaleString('nl-NL')}</span>}
                         </div>
                         <div className="mt-1.5 flex items-center justify-between">
@@ -490,7 +471,14 @@ export default function InquiriesPage() {
                   </td>
                   <td className="px-4 py-2.5 text-xs font-mono text-muted-foreground">{inq.displayNumber || '—'}</td>
                   <td className="px-4 py-2.5 font-medium text-card-foreground">{inq.eventType}</td>
-                  <td className="px-4 py-2.5 text-muted-foreground">{inq.contactName}</td>
+                  <td className="px-4 py-2.5">
+                    <button
+                      className="text-primary hover:underline text-left"
+                      onClick={(e) => { e.stopPropagation(); if (inq.contactId) navigate(`/crm/${inq.contactId}`); else openDetailDialog(inq); }}
+                    >
+                      {inq.contactName}
+                    </button>
+                  </td>
                   <td className="px-4 py-2.5 text-muted-foreground hidden md:table-cell">{inq.preferredDate || '—'}</td>
                   <td className="px-4 py-2.5 text-muted-foreground hidden md:table-cell">{inq.guestCount}</td>
                   <td className="px-4 py-2.5 text-muted-foreground hidden lg:table-cell">{inq.budget ? `€${inq.budget.toLocaleString('nl-NL')}` : '—'}</td>
