@@ -226,7 +226,7 @@ export default function ContactDetailPage() {
                 </thead>
                 <tbody>
                   {contactInquiries.slice(0, 5).map((inq) => (
-                    <tr key={inq.id} className="border-t border-border/50">
+                    <tr key={inq.id} className="border-t border-border/50 cursor-pointer hover:bg-muted/30" onClick={() => navigate(`/inquiries/${inq.id}`)}>
                       <td className="py-1.5">{inq.createdAt}</td>
                       <td className="py-1.5">{inq.eventType}</td>
                       <td className="py-1.5">
@@ -250,7 +250,7 @@ export default function ContactDetailPage() {
                 {confirmedBookings.slice(0, 8).map((b) => (
                   <button
                     key={b.id}
-                    onClick={() => navigate(`/calendar?date=${b.date}`)}
+                    onClick={() => navigate(`/reserveringen/${b.id}`)}
                     className="w-full flex items-center justify-between py-1.5 px-2 rounded-md hover:bg-muted/50 transition-colors text-left text-xs"
                   >
                     <div className="flex-1 min-w-0">
@@ -273,7 +273,7 @@ export default function ContactDetailPage() {
                 {optionBookings.slice(0, 8).map((b) => (
                   <button
                     key={b.id}
-                    onClick={() => navigate(`/calendar?date=${b.date}`)}
+                    onClick={() => navigate(`/reserveringen/${b.id}`)}
                     className="w-full flex items-center justify-between py-1.5 px-2 rounded-md hover:bg-muted/50 transition-colors text-left text-xs"
                   >
                     <div className="flex-1 min-w-0">
