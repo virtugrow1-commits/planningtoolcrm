@@ -17,7 +17,7 @@ import DayGridView from '@/components/calendar/DayGridView';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { useRoomSettings } from '@/hooks/useRoomSettings';
-import { useContacts } from '@/hooks/useContacts';
+import { useContactsContext } from '@/contexts/ContactsContext';
 
 type CalendarViewMode = 'day' | 'week' | 'month';
 
@@ -49,7 +49,8 @@ export default function CalendarPage() {
   const [copyDialogOpen, setCopyDialogOpen] = useState(false);
   const { toast } = useToast();
   const { settings: roomSettings, displayNames, updateRoomSettings, getMaxGuests, getDisplayName } = useRoomSettings();
-  const { contacts, loading: contactsLoading } = useContacts();
+  const { contacts: fullContacts, loading: contactsLoading } = useContactsContext();
+  const contacts = fullContacts.map(c => ({ id: c.id, firstName: c.firstName, lastName: c.lastName, email: c.email || null, company: c.company || null }));
 
   const dateStr = formatDate(currentDate);
 
