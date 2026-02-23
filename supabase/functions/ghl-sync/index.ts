@@ -766,8 +766,8 @@ serve(async (req) => {
         });
       }
 
-      const startTime = `${booking.date}T${String(booking.start_hour).padStart(2, '0')}:${String(booking.start_minute || 0).padStart(2, '0')}:00`;
-      const endTime = `${booking.date}T${String(booking.end_hour).padStart(2, '0')}:${String(booking.end_minute || 0).padStart(2, '0')}:00`;
+      const startTime = `${booking.date}T${String(booking.start_hour).padStart(2, '0')}:${String(booking.start_minute || 0).padStart(2, '0')}:00+01:00`;
+      const endTime = `${booking.date}T${String(booking.end_hour).padStart(2, '0')}:${String(booking.end_minute || 0).padStart(2, '0')}:00+01:00`;
 
       // Try to find the GHL contact ID for this booking's contact
       let ghlContactId: string | null = null;
@@ -776,35 +776,53 @@ serve(async (req) => {
         ghlContactId = contactRow?.ghl_contact_id || null;
       }
 
+      if (!ghlContactId) {
+        console.info(`Skip push booking ${booking.id}: no GHL contact linked`);
+        return new Response(JSON.stringify({ success: false, warning: 'No GHL contact linked to this booking' }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      // GHL Create Appointment API requires Version 2021-04-15 and ignoreFreeSlotValidation
+      const appointmentHeaders = { ...ghlHeaders, 'Version': '2021-04-15' };
       const eventPayload: Record<string, any> = {
         calendarId,
         locationId: GHL_LOCATION_ID,
+        contactId: ghlContactId,
         title: booking.title,
         startTime,
         endTime,
         appointmentStatus: booking.status === 'confirmed' ? 'confirmed' : 'new',
+        ignoreDateRange: true,
+        ignoreFreeSlotValidation: true,
+        toNotify: false,
       };
-      if (ghlContactId) {
-        eventPayload.contactId = ghlContactId;
-      }
+
+      console.log('GHL push-booking payload:', JSON.stringify(eventPayload));
 
       if (booking.ghl_event_id) {
         const res = await ghlFetch(`${GHL_API_BASE}/calendars/events/appointments/${booking.ghl_event_id}`, {
-          method: 'PUT', headers: ghlHeaders, body: JSON.stringify(eventPayload),
+          method: 'PUT', headers: appointmentHeaders, body: JSON.stringify(eventPayload),
         });
+        if (!res.ok) {
+          const errText = await res.text();
+          console.warn(`GHL push-booking update failed [${res.status}]: ${errText}`);
+        }
         return new Response(JSON.stringify({ success: res.ok, action: 'updated' }), {
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         });
       } else {
         const res = await ghlFetch(`${GHL_API_BASE}/calendars/events/appointments`, {
-          method: 'POST', headers: ghlHeaders, body: JSON.stringify(eventPayload),
+          method: 'POST', headers: appointmentHeaders, body: JSON.stringify(eventPayload),
         });
         if (res.ok) {
           const created = await res.json();
-          if (created.id && booking.id) {
-            await supabase.from('bookings').update({ ghl_event_id: created.id }).eq('id', booking.id);
+          const eventId = created.id || created.event?.id;
+          if (eventId && booking.id) {
+            await supabase.from('bookings').update({ ghl_event_id: eventId }).eq('id', booking.id);
           }
-          return new Response(JSON.stringify({ success: true, action: 'created', ghl_event_id: created.id }), {
+          console.log('GHL push-booking success:', JSON.stringify(created));
+          return new Response(JSON.stringify({ success: true, action: 'created', ghl_event_id: eventId }), {
             headers: { ...corsHeaders, 'Content-Type': 'application/json' },
           });
         }
