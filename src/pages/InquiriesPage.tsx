@@ -3,13 +3,15 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { format } from 'date-fns';
 import { nl } from 'date-fns/locale';
 import { Inquiry, Booking, ROOMS, RoomName } from '@/types/crm';
-import { Calendar as CalendarIcon, Users, Euro, GripVertical, Repeat, Plus, X, Check, LayoutGrid, List, Trash2, ArrowRight, AlertTriangle, Download, MapPin, MessageSquare, StickyNote, CheckSquare, Clock } from 'lucide-react';
+import { Calendar as CalendarIcon, Users, Euro, GripVertical, Repeat, Plus, X, Check, LayoutGrid, List, Trash2, ArrowRight, AlertTriangle, Download, MapPin, MessageSquare, StickyNote, CheckSquare, Clock, Building2, FileText, Pencil, Eye } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useBookings } from '@/contexts/BookingsContext';
 import { useInquiriesContext } from '@/contexts/InquiriesContext';
 import { useContactsContext } from '@/contexts/ContactsContext';
 import { useTasksContext } from '@/contexts/TasksContext';
+import { useCompaniesContext } from '@/contexts/CompaniesContext';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
@@ -72,6 +74,7 @@ export default function InquiriesPage() {
   const { contacts } = useContactsContext();
   const { bookings, addBookings } = useBookings();
   const { tasks, addTask } = useTasksContext();
+  const { companies } = useCompaniesContext();
   const [dragId, setDragId] = useState<string | null>(null);
   const [scheduleOpen, setScheduleOpen] = useState(false);
   const [selectedInquiry, setSelectedInquiry] = useState<Inquiry | null>(null);
@@ -812,99 +815,262 @@ export default function InquiriesPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Detail / Edit Dialog */}
+      {/* Detail / Edit Dialog - Comprehensive Inquiry Card */}
       <Dialog open={detailOpen} onOpenChange={setDetailOpen}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Aanvraag Bewerken</DialogTitle>
+            <DialogTitle className="flex items-center gap-2">
+              <FileText size={18} className="text-primary" />
+              Aanvraag{editInquiry?.displayNumber ? ` ${editInquiry.displayNumber}` : ''}
+            </DialogTitle>
           </DialogHeader>
-          {editInquiry && (
-            <div className="grid gap-4 py-2">
-              {/* Link to contact detail */}
-              {editInquiry.contactId && (
-                <button
-                  onClick={() => { setDetailOpen(false); navigate(`/crm/${editInquiry.contactId}`); }}
-                  className="flex items-center gap-2 rounded-lg border bg-muted/30 p-3 text-left hover:bg-muted/50 transition-colors"
-                >
-                  <Users size={16} className="text-primary shrink-0" />
-                  <div>
-                    <p className="text-sm font-medium text-foreground">{editInquiry.contactName}</p>
-                    <p className="text-xs text-primary">Bekijk klantkaart →</p>
+          {editInquiry && (() => {
+            const contact = editInquiry.contactId ? contacts.find(c => c.id === editInquiry.contactId) : null;
+            const company = contact?.companyId ? companies.find(co => co.id === contact.companyId) : null;
+            const contactInquiries = editInquiry.contactId ? inquiries.filter(i => i.contactId === editInquiry.contactId) : [];
+            const contactBookings = editInquiry.contactId ? bookings.filter(b => b.contactId === editInquiry.contactId) : [];
+            const companyContacts = company ? contacts.filter(c => c.companyId === company.id) : [];
+            const companyContactIds = companyContacts.map(c => c.id);
+            const companyInquiries = company ? inquiries.filter(i => i.contactId && companyContactIds.includes(i.contactId)) : [];
+            const companyBookings = company ? bookings.filter(b => b.contactId && companyContactIds.includes(b.contactId)) : [];
+            const relatedBookings = bookings.filter(b => b.contactName === editInquiry.contactName && b.title === editInquiry.eventType);
+            const inquiryTasks = tasks.filter(t => t.inquiryId === editInquiry.id);
+            const col = PIPELINE_COLUMNS.find(c => c.key === editInquiry.status);
+
+            return (
+            <Tabs defaultValue="overview" className="w-full">
+              <TabsList className="w-full mb-4">
+                <TabsTrigger value="overview" className="flex-1 gap-1.5"><Eye size={14} /> Overzicht</TabsTrigger>
+                <TabsTrigger value="edit" className="flex-1 gap-1.5"><Pencil size={14} /> Bewerken</TabsTrigger>
+              </TabsList>
+
+              {/* OVERVIEW TAB */}
+              <TabsContent value="overview" className="space-y-4">
+                {/* Header with status */}
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex items-center gap-3">
+                    <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center text-primary text-lg font-bold shrink-0">
+                      {editInquiry.contactName.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase()}
+                    </div>
+                    <div>
+                      <h3 className="text-lg font-semibold text-foreground">{editInquiry.eventType}</h3>
+                      <button
+                        onClick={() => { setDetailOpen(false); if (editInquiry.contactId) navigate(`/crm/${editInquiry.contactId}`); }}
+                        className="text-sm text-primary hover:underline"
+                      >
+                        {editInquiry.contactName}
+                      </button>
+                    </div>
                   </div>
-                </button>
-              )}
-              <div className="grid gap-1.5">
-                <Label>Contactpersoon *</Label>
-                <Input value={editInquiry.contactName} onChange={(e) => setEditInquiry({ ...editInquiry, contactName: e.target.value })} />
-              </div>
-              <div className="grid gap-1.5">
-                <Label>Type evenement *</Label>
-                <Input value={editInquiry.eventType} onChange={(e) => setEditInquiry({ ...editInquiry, eventType: e.target.value })} />
-              </div>
-              <div className="grid grid-cols-2 gap-3">
+                  <span className={cn('rounded-full px-3 py-1 text-xs font-semibold', col?.badgeClass)}>{col?.label}</span>
+                </div>
+
+                {/* Aanvraag details grid */}
+                <div className="rounded-lg border bg-muted/20 p-4">
+                  <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Aanvraaggegevens</h4>
+                  <div className="grid grid-cols-2 gap-x-6 gap-y-2 text-sm">
+                    <div className="flex justify-between"><span className="text-muted-foreground">Type:</span><span className="font-medium text-foreground">{editInquiry.eventType}</span></div>
+                    <div className="flex justify-between"><span className="text-muted-foreground">Status:</span><span className="font-medium text-foreground">{col?.label}</span></div>
+                    <div className="flex justify-between"><span className="text-muted-foreground">Voorkeursdatum:</span><span className="font-medium text-foreground">{editInquiry.preferredDate || '—'}</span></div>
+                    <div className="flex justify-between"><span className="text-muted-foreground">Aantal gasten:</span><span className="font-medium text-foreground">{editInquiry.guestCount}</span></div>
+                    <div className="flex justify-between"><span className="text-muted-foreground">Ruimte:</span><span className="font-medium text-foreground">{editInquiry.roomPreference || '—'}</span></div>
+                    <div className="flex justify-between"><span className="text-muted-foreground">Budget:</span><span className="font-medium text-foreground">{editInquiry.budget ? `€${editInquiry.budget.toLocaleString('nl-NL', { minimumFractionDigits: 2 })}` : '—'}</span></div>
+                    <div className="flex justify-between"><span className="text-muted-foreground">Bron:</span><span className="font-medium text-foreground">{editInquiry.source === 'GHL' ? 'VirtuGrow' : editInquiry.source}</span></div>
+                    <div className="flex justify-between"><span className="text-muted-foreground">Aangemaakt:</span><span className="font-medium text-foreground">{editInquiry.createdAt}</span></div>
+                  </div>
+                </div>
+
+                {/* Notities */}
+                {editInquiry.message && (
+                  <div className="rounded-lg border bg-muted/20 p-4">
+                    <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Notities</h4>
+                    <p className="text-sm text-foreground whitespace-pre-wrap">{editInquiry.message}</p>
+                  </div>
+                )}
+
+                {/* Ingeplande reserveringen */}
+                {relatedBookings.length > 0 && (
+                  <div className="rounded-lg border bg-muted/20 p-4">
+                    <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Ingeplande Reserveringen ({relatedBookings.length})</h4>
+                    <div className="space-y-1.5">
+                      {relatedBookings.slice(0, 5).map(b => (
+                        <div key={b.id} className="flex items-center justify-between text-sm">
+                          <div className="flex items-center gap-2">
+                            <CalendarIcon size={13} className="text-muted-foreground" />
+                            <span className="text-foreground">{format(new Date(b.date), 'd MMM yyyy', { locale: nl })}</span>
+                            <span className="text-muted-foreground">{String(b.startHour).padStart(2, '0')}:{String(b.startMinute).padStart(2, '0')} - {String(b.endHour).padStart(2, '0')}:{String(b.endMinute).padStart(2, '0')}</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs text-muted-foreground">{b.roomName}</span>
+                            <span className={cn('rounded-full px-2 py-0.5 text-[10px] font-semibold', b.status === 'option' ? 'bg-warning/15 text-warning' : 'bg-success/15 text-success')}>
+                              {b.status === 'option' ? 'Optie' : 'Bevestigd'}
+                            </span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Taken */}
+                {inquiryTasks.length > 0 && (
+                  <div className="rounded-lg border bg-muted/20 p-4">
+                    <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Taken ({inquiryTasks.length})</h4>
+                    <div className="space-y-1">
+                      {inquiryTasks.map(t => (
+                        <div key={t.id} className="flex items-center gap-2 text-sm">
+                          <CheckSquare size={13} className={t.status === 'completed' ? 'text-success' : 'text-muted-foreground'} />
+                          <span className={t.status === 'completed' ? 'line-through text-muted-foreground' : 'text-foreground'}>{t.title}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Contact & Bedrijf context */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  {/* Contact tile */}
+                  {contact && (
+                    <button
+                      onClick={() => { setDetailOpen(false); navigate(`/crm/${contact.id}`); }}
+                      className="rounded-lg border bg-muted/20 p-4 text-left hover:bg-muted/40 transition-colors"
+                    >
+                      <div className="flex items-center gap-2 mb-2">
+                        <Users size={14} className="text-primary" />
+                        <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Contactpersoon</h4>
+                      </div>
+                      <p className="text-sm font-medium text-foreground">{contact.firstName} {contact.lastName}</p>
+                      <div className="mt-2 flex items-center gap-3 text-xs text-muted-foreground">
+                        <span className="flex items-center gap-1"><FileText size={11} /> {contactInquiries.length} aanvragen</span>
+                        <span className="flex items-center gap-1"><CalendarIcon size={11} /> {contactBookings.length} reserveringen</span>
+                      </div>
+                      <p className="text-xs text-primary mt-1">Bekijk klantkaart →</p>
+                    </button>
+                  )}
+
+                  {/* Company tile */}
+                  {company && (
+                    <button
+                      onClick={() => { setDetailOpen(false); navigate(`/companies/${company.id}`); }}
+                      className="rounded-lg border bg-muted/20 p-4 text-left hover:bg-muted/40 transition-colors"
+                    >
+                      <div className="flex items-center gap-2 mb-2">
+                        <Building2 size={14} className="text-primary" />
+                        <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Bedrijf</h4>
+                      </div>
+                      <p className="text-sm font-medium text-foreground">{company.name}</p>
+                      <div className="mt-2 flex items-center gap-3 text-xs text-muted-foreground">
+                        <span className="flex items-center gap-1"><Users size={11} /> {companyContacts.length} contacten</span>
+                        <span className="flex items-center gap-1"><FileText size={11} /> {companyInquiries.length} aanvragen</span>
+                        <span className="flex items-center gap-1"><CalendarIcon size={11} /> {companyBookings.length} reserveringen</span>
+                      </div>
+                      <p className="text-xs text-primary mt-1">Bekijk bedrijf →</p>
+                    </button>
+                  )}
+                </div>
+
+                {/* Action buttons */}
+                <div className="flex items-center justify-between pt-2 border-t">
+                  <Button variant="destructive" size="sm" onClick={handleDeleteInquiry}>
+                    <Trash2 size={14} className="mr-1" /> Verwijderen
+                  </Button>
+                  <div className="flex gap-2">
+                    <Button variant="outline" size="sm" onClick={(e) => { openScheduleDialog(editInquiry); setDetailOpen(false); }}>
+                      <CalendarIcon size={14} className="mr-1" /> Inplannen
+                    </Button>
+                    <Button variant="outline" size="sm" onClick={() => setDetailOpen(false)}>Sluiten</Button>
+                  </div>
+                </div>
+              </TabsContent>
+
+              {/* EDIT TAB */}
+              <TabsContent value="edit" className="space-y-4">
+                {editInquiry.contactId && (
+                  <button
+                    onClick={() => { setDetailOpen(false); navigate(`/crm/${editInquiry.contactId}`); }}
+                    className="flex items-center gap-2 rounded-lg border bg-muted/30 p-3 text-left hover:bg-muted/50 transition-colors w-full"
+                  >
+                    <Users size={16} className="text-primary shrink-0" />
+                    <div>
+                      <p className="text-sm font-medium text-foreground">{editInquiry.contactName}</p>
+                      <p className="text-xs text-primary">Bekijk klantkaart →</p>
+                    </div>
+                  </button>
+                )}
                 <div className="grid gap-1.5">
-                  <Label>Voorkeursdatum</Label>
-                  <Input type="date" value={editInquiry.preferredDate || ''} onChange={(e) => setEditInquiry({ ...editInquiry, preferredDate: e.target.value })} />
+                  <Label>Contactpersoon *</Label>
+                  <Input value={editInquiry.contactName} onChange={(e) => setEditInquiry({ ...editInquiry, contactName: e.target.value })} />
                 </div>
                 <div className="grid gap-1.5">
-                  <Label>Aantal gasten</Label>
-                  <Input type="number" min="1" value={editInquiry.guestCount} onChange={(e) => setEditInquiry({ ...editInquiry, guestCount: Number(e.target.value) || 0 })} />
+                  <Label>Type evenement *</Label>
+                  <Input value={editInquiry.eventType} onChange={(e) => setEditInquiry({ ...editInquiry, eventType: e.target.value })} />
                 </div>
-              </div>
-              <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="grid gap-1.5">
+                    <Label>Voorkeursdatum</Label>
+                    <Input type="date" value={editInquiry.preferredDate || ''} onChange={(e) => setEditInquiry({ ...editInquiry, preferredDate: e.target.value })} />
+                  </div>
+                  <div className="grid gap-1.5">
+                    <Label>Aantal gasten</Label>
+                    <Input type="number" min="1" value={editInquiry.guestCount} onChange={(e) => setEditInquiry({ ...editInquiry, guestCount: Number(e.target.value) || 0 })} />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="grid gap-1.5">
+                    <Label>Ruimte voorkeur</Label>
+                    <Select value={editInquiry.roomPreference || ''} onValueChange={(v) => setEditInquiry({ ...editInquiry, roomPreference: v || undefined })}>
+                      <SelectTrigger className="text-sm"><SelectValue placeholder="Optioneel" /></SelectTrigger>
+                      <SelectContent>
+                        {ROOMS.map((r) => <SelectItem key={r} value={r}>{r}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="grid gap-1.5">
+                    <Label>Budget (€)</Label>
+                    <Input type="number" min="0" value={editInquiry.budget || ''} onChange={(e) => setEditInquiry({ ...editInquiry, budget: Number(e.target.value) || undefined })} />
+                  </div>
+                </div>
                 <div className="grid gap-1.5">
-                  <Label>Ruimte voorkeur</Label>
-                  <Select value={editInquiry.roomPreference || ''} onValueChange={(v) => setEditInquiry({ ...editInquiry, roomPreference: v || undefined })}>
-                    <SelectTrigger className="text-sm"><SelectValue placeholder="Optioneel" /></SelectTrigger>
+                  <Label>Status</Label>
+                  <Select value={editInquiry.status} onValueChange={(v: Inquiry['status']) => setEditInquiry({ ...editInquiry, status: v })}>
+                    <SelectTrigger className="text-sm"><SelectValue /></SelectTrigger>
                     <SelectContent>
-                      {ROOMS.map((r) => <SelectItem key={r} value={r}>{r}</SelectItem>)}
+                      {PIPELINE_COLUMNS.map((col) => (
+                        <SelectItem key={col.key} value={col.key}>{col.label}</SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </div>
                 <div className="grid gap-1.5">
-                  <Label>Budget (€)</Label>
-                  <Input type="number" min="0" value={editInquiry.budget || ''} onChange={(e) => setEditInquiry({ ...editInquiry, budget: Number(e.target.value) || undefined })} />
+                  <Label>Bron</Label>
+                  <Select value={editInquiry.source} onValueChange={(v) => setEditInquiry({ ...editInquiry, source: v })}>
+                    <SelectTrigger className="text-sm"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Handmatig">Handmatig</SelectItem>
+                      <SelectItem value="Website">Website</SelectItem>
+                      <SelectItem value="Telefoon">Telefoon</SelectItem>
+                      <SelectItem value="Email">Email</SelectItem>
+                      <SelectItem value="GHL">VirtuGrow</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
-              </div>
-              <div className="grid gap-1.5">
-                <Label>Status</Label>
-                <Select value={editInquiry.status} onValueChange={(v: Inquiry['status']) => setEditInquiry({ ...editInquiry, status: v })}>
-                  <SelectTrigger className="text-sm"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    {PIPELINE_COLUMNS.map((col) => (
-                      <SelectItem key={col.key} value={col.key}>{col.label}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="grid gap-1.5">
-                <Label>Bron</Label>
-                <Select value={editInquiry.source} onValueChange={(v) => setEditInquiry({ ...editInquiry, source: v })}>
-                  <SelectTrigger className="text-sm"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="Handmatig">Handmatig</SelectItem>
-                    <SelectItem value="Website">Website</SelectItem>
-                    <SelectItem value="Telefoon">Telefoon</SelectItem>
-                    <SelectItem value="Email">Email</SelectItem>
-                    <SelectItem value="GHL">VirtuGrow</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="grid gap-1.5">
-                <Label>Bericht / Notities</Label>
-                <Textarea value={editInquiry.message || ''} onChange={(e) => setEditInquiry({ ...editInquiry, message: e.target.value })} />
-              </div>
-            </div>
-          )}
-          <DialogFooter className="flex !justify-between">
-            <Button variant="destructive" size="sm" onClick={handleDeleteInquiry}>
-              <Trash2 size={14} className="mr-1" /> Verwijderen
-            </Button>
-            <div className="flex gap-2">
-              <Button variant="outline" onClick={() => setDetailOpen(false)}>Annuleren</Button>
-              <Button onClick={handleSaveEdit}>Opslaan</Button>
-            </div>
-          </DialogFooter>
+                <div className="grid gap-1.5">
+                  <Label>Bericht / Notities</Label>
+                  <Textarea value={editInquiry.message || ''} onChange={(e) => setEditInquiry({ ...editInquiry, message: e.target.value })} />
+                </div>
+                <DialogFooter className="flex !justify-between">
+                  <Button variant="destructive" size="sm" onClick={handleDeleteInquiry}>
+                    <Trash2 size={14} className="mr-1" /> Verwijderen
+                  </Button>
+                  <div className="flex gap-2">
+                    <Button variant="outline" onClick={() => setDetailOpen(false)}>Annuleren</Button>
+                    <Button onClick={handleSaveEdit}>Opslaan</Button>
+                  </div>
+                </DialogFooter>
+              </TabsContent>
+            </Tabs>
+            );
+          })()}
         </DialogContent>
       </Dialog>
 
