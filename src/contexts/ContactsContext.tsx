@@ -86,7 +86,7 @@ export function ContactsProvider({ children }: { children: ReactNode }) {
 
   const addContact = useCallback(async (contact: Omit<Contact, 'id' | 'createdAt'>) => {
     if (!user) return;
-    const { data, error } = await supabase.from('contacts').insert({
+    const { data, error } = await supabase.from('contacts').upsert({
       user_id: user.id,
       first_name: capitalizeWords(contact.firstName),
       last_name: capitalizeWords(contact.lastName),
@@ -97,7 +97,7 @@ export function ContactsProvider({ children }: { children: ReactNode }) {
       status: contact.status,
       notes: contact.notes || null,
       ghl_contact_id: contact.ghlContactId || null,
-    } as any).select().single();
+    } as any, { onConflict: 'user_id,lower(trim(first_name)),lower(trim(last_name)),lower(trim(COALESCE(email,\'\')))' as any, ignoreDuplicates: true }).select().single();
     if (error) {
       toast({ title: 'Fout bij aanmaken contact', description: error.message, variant: 'destructive' });
       return;
