@@ -3,7 +3,7 @@ import { useContactsContext } from '@/contexts/ContactsContext';
 import { useInquiriesContext } from '@/contexts/InquiriesContext';
 import { useBookings } from '@/contexts/BookingsContext';
 import { useCompaniesContext } from '@/contexts/CompaniesContext';
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
@@ -11,6 +11,8 @@ import { useToast } from '@/hooks/use-toast';
 import { ArrowLeft, Pencil, Check, X, Plus, ChevronRight, Calendar, FileText, Mail, Phone, Building2, User } from 'lucide-react';
 import ActivityTimeline from '@/components/contact/ActivityTimeline';
 import { Contact, ROOMS } from '@/types/crm';
+import { mockQuotations } from '@/data/mockData';
+import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
@@ -32,6 +34,12 @@ export default function ContactDetailPage() {
   const [inquiryOpen, setInquiryOpen] = useState(false);
   const [inquiryForm, setInquiryForm] = useState({ eventType: '', preferredDate: '', guestCount: '', budget: '', message: '', roomPreference: '' });
 
+  const contactInquiries = useMemo(() => contact ? inquiries.filter((i) => i.contactId === contact.id) : [], [inquiries, contact]);
+  const contactBookings = useMemo(() => contact ? bookings.filter((b) => b.contactId === contact.id) : [], [bookings, contact]);
+  const confirmedBookings = useMemo(() => contactBookings.filter((b) => b.status !== 'option'), [contactBookings]);
+  const optionBookings = useMemo(() => contactBookings.filter((b) => b.status === 'option'), [contactBookings]);
+  const contactQuotations = useMemo(() => contact ? mockQuotations.filter((q) => q.contactId === contact.id) : [], [contact]);
+
   if (!contact) {
     return (
       <div className="flex min-h-[50vh] items-center justify-center">
@@ -44,9 +52,6 @@ export default function ContactDetailPage() {
       </div>
     );
   }
-
-  const contactInquiries = inquiries.filter((i) => i.contactId === contact.id);
-  const contactBookings = bookings.filter((b) => b.contactId === contact.id);
 
   const startEdit = () => {
     setForm({ ...contact });
@@ -238,36 +243,74 @@ export default function ContactDetailPage() {
 
           {/* Reserveringen */}
           <SectionCard title="Reserveringen" linkLabel="Bekijk agenda" onLink={() => navigate('/calendar')}>
-            {contactBookings.length === 0 ? (
+            {confirmedBookings.length === 0 ? (
               <p className="text-xs text-muted-foreground">Geen reserveringen</p>
             ) : (
-              <table className="w-full text-xs">
-                <thead>
-                  <tr className="text-muted-foreground">
-                    <th className="text-left pb-2 font-medium">Datum</th>
-                    <th className="text-left pb-2 font-medium">Ruimte</th>
-                    <th className="text-left pb-2 font-medium">Tijd</th>
-                    <th className="text-left pb-2 font-medium">Status</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {contactBookings.slice(0, 8).map((b) => (
-                    <tr key={b.id} className="border-t border-border/50">
-                      <td className="py-1.5">{b.date}</td>
-                      <td className="py-1.5">{b.roomName}</td>
-                      <td className="py-1.5">{String(b.startHour).padStart(2, '0')}:{String(b.startMinute || 0).padStart(2, '0')} - {String(b.endHour).padStart(2, '0')}:{String(b.endMinute || 0).padStart(2, '0')}</td>
-                      <td className="py-1.5">
-                        <span className={`inline-flex rounded-md px-1.5 py-0.5 text-[10px] font-medium border ${b.status === 'option' ? 'bg-warning/10 text-warning border-warning/30' : 'bg-success/10 text-success border-success/30'}`}>
-                          {b.status === 'option' ? 'Optie' : 'Bevestigd'}
-                        </span>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+              <div className="space-y-1">
+                {confirmedBookings.slice(0, 8).map((b) => (
+                  <button
+                    key={b.id}
+                    onClick={() => navigate(`/calendar?date=${b.date}`)}
+                    className="w-full flex items-center justify-between py-1.5 px-2 rounded-md hover:bg-muted/50 transition-colors text-left text-xs"
+                  >
+                    <div className="flex-1 min-w-0">
+                      <span className="font-medium text-foreground">{b.title}</span>
+                      <span className="text-muted-foreground ml-2">{b.roomName}</span>
+                    </div>
+                    <span className="text-muted-foreground shrink-0">{b.date} · {String(b.startHour).padStart(2, '0')}:{String(b.startMinute || 0).padStart(2, '0')}–{String(b.endHour).padStart(2, '0')}:{String(b.endMinute || 0).padStart(2, '0')}</span>
+                  </button>
+                ))}
+              </div>
             )}
           </SectionCard>
 
+          {/* Opties */}
+          <SectionCard title="Opties" linkLabel="Bekijk agenda" onLink={() => navigate('/calendar')}>
+            {optionBookings.length === 0 ? (
+              <p className="text-xs text-muted-foreground">Geen opties</p>
+            ) : (
+              <div className="space-y-1">
+                {optionBookings.slice(0, 8).map((b) => (
+                  <button
+                    key={b.id}
+                    onClick={() => navigate(`/calendar?date=${b.date}`)}
+                    className="w-full flex items-center justify-between py-1.5 px-2 rounded-md hover:bg-muted/50 transition-colors text-left text-xs"
+                  >
+                    <div className="flex-1 min-w-0">
+                      <span className="font-medium text-foreground">{b.title}</span>
+                      <span className="text-muted-foreground ml-2">{b.roomName}</span>
+                    </div>
+                    <span className="text-muted-foreground shrink-0">{b.date} · {String(b.startHour).padStart(2, '0')}:{String(b.startMinute || 0).padStart(2, '0')} – {String(b.endHour).padStart(2, '0')}:{String(b.endMinute || 0).padStart(2, '0')}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </SectionCard>
+
+          {/* Offertes */}
+          <SectionCard title="Offertes" linkLabel="Bekijk offertes" onLink={() => navigate('/quotations')}>
+            {contactQuotations.length === 0 ? (
+              <p className="text-xs text-muted-foreground">Geen offertes</p>
+            ) : (
+              <div className="space-y-1">
+                {contactQuotations.slice(0, 8).map((q) => (
+                  <button
+                    key={q.id}
+                    onClick={() => navigate('/quotations')}
+                    className="w-full flex items-center justify-between py-1.5 px-2 rounded-md hover:bg-muted/50 transition-colors text-left text-xs"
+                  >
+                    <div>
+                      <span className="font-medium text-foreground">{q.title}</span>
+                      <span className="text-muted-foreground ml-2">€{q.totalAmount.toLocaleString()}</span>
+                    </div>
+                    <Badge variant="outline" className="text-[10px]">
+                      {q.status === 'draft' ? 'Concept' : q.status === 'sent' ? 'Verzonden' : q.status === 'accepted' ? 'Geaccepteerd' : q.status === 'declined' ? 'Afgewezen' : 'Verlopen'}
+                    </Badge>
+                  </button>
+                ))}
+              </div>
+            )}
+          </SectionCard>
 
           {/* Gesprekken */}
           <div className="rounded-xl bg-card p-5 card-shadow">
