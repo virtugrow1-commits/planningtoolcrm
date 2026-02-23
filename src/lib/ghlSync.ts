@@ -1,7 +1,7 @@
 import { supabase } from '@/integrations/supabase/client';
 
 /**
- * Fire-and-forget push to GHL via edge function.
+ * Fire-and-forget push to VirtuGrow via edge function.
  * Errors are logged but never block the UI.
  */
 export async function pushToGHL(action: string, data: Record<string, any>) {
@@ -10,6 +10,6 @@ export async function pushToGHL(action: string, data: Record<string, any>) {
       body: { action, ...data },
     });
   } catch (err) {
-    console.warn(`[GHL Sync] ${action} failed:`, err);
+    console.warn(`[VGW Sync] ${action} failed:`, err);
   }
 }

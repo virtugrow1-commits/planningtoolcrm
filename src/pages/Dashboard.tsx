@@ -47,7 +47,7 @@ export default function Dashboard() {
   const { toast } = useToast();
 
   const today = new Date().toISOString().split('T')[0];
-  // Exclude "Ontmoeten Aan de Donge" from counts - these are GHL-synced general events
+  // Exclude "Ontmoeten Aan de Donge" from counts - these are VirtuGrow-synced general events
   const countableBookings = useMemo(() => bookings.filter((b) => b.roomName !== 'Ontmoeten Aan de Donge'), [bookings]);
   const todayBookings = useMemo(() => countableBookings.filter((b) => b.date === today), [countableBookings, today]);
   const openInquiries = useMemo(() => inquiries.filter((i) => i.status === 'new' || i.status === 'contacted'), [inquiries]);

@@ -52,17 +52,17 @@ const translations: Record<string, Record<Language, string>> = {
 
   // Settings
   'settings.title': { nl: 'Instellingen', en: 'Settings' },
-  'settings.subtitle': { nl: 'GoHighLevel integratie & configuratie', en: 'GoHighLevel integration & configuration' },
-  'settings.ghlConnection': { nl: 'GHL Verbinding', en: 'GHL Connection' },
+  'settings.subtitle': { nl: 'VirtuGrow integratie & configuratie', en: 'VirtuGrow integration & configuration' },
+  'settings.ghlConnection': { nl: 'VGW Verbinding', en: 'VGW Connection' },
   'settings.webhooks': { nl: 'Webhooks', en: 'Webhooks' },
   'settings.fieldMapping': { nl: 'Veld Mapping', en: 'Field Mapping' },
   'settings.csvImport': { nl: 'CSV Import', en: 'CSV Import' },
-  'settings.connected': { nl: 'Verbonden met GoHighLevel', en: 'Connected to GoHighLevel' },
+  'settings.connected': { nl: 'Verbonden met VirtuGrow', en: 'Connected to VirtuGrow' },
   'settings.notConnected': { nl: 'Niet verbonden', en: 'Not connected' },
   'settings.sync': { nl: 'Synchronisatie', en: 'Synchronization' },
   'settings.fullSync': { nl: 'Volledige Sync', en: 'Full Sync' },
   'settings.webhookUrl': { nl: 'Webhook URL', en: 'Webhook URL' },
-  'settings.webhookUrlDesc': { nl: 'Plak deze URL in GHL → Settings → Webhooks om realtime data te ontvangen.', en: 'Paste this URL in GHL → Settings → Webhooks to receive realtime data.' },
+  'settings.webhookUrlDesc': { nl: 'Plak deze URL in VirtuGrow → Settings → Webhooks om realtime data te ontvangen.', en: 'Paste this URL in VirtuGrow → Settings → Webhooks to receive realtime data.' },
   'settings.webhookUrlCopied': { nl: 'Webhook URL gekopieerd!', en: 'Webhook URL copied!' },
   'settings.connect': { nl: 'Verbinden', en: 'Connect' },
 

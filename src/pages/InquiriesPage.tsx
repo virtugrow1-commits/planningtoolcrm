@@ -406,7 +406,7 @@ export default function InquiriesPage() {
                           {inq.budget && <span className="flex items-center gap-1"><Euro size={10} /> €{inq.budget.toLocaleString('nl-NL')}</span>}
                         </div>
                         <div className="mt-1.5 flex items-center justify-between">
-                          <span className="text-[10px] text-muted-foreground/50">Bron: {inq.source}</span>
+                          <span className="text-[10px] text-muted-foreground/50">Bron: {inq.source === 'GHL' ? 'VirtuGrow' : inq.source}</span>
                           <Button
                             variant="ghost"
                             size="sm"
@@ -470,7 +470,7 @@ export default function InquiriesPage() {
                   <td className="px-4 py-2.5">
                     <span className={cn('inline-block rounded-full px-2.5 py-0.5 text-[11px] font-semibold', col?.badgeClass)}>{col?.label}</span>
                   </td>
-                  <td className="px-4 py-2.5 text-muted-foreground hidden lg:table-cell">{inq.source}</td>
+                  <td className="px-4 py-2.5 text-muted-foreground hidden lg:table-cell">{inq.source === 'GHL' ? 'VirtuGrow' : inq.source}</td>
                   <td className="px-4 py-2.5 text-right">
                     <Button
                       variant="ghost"
@@ -697,7 +697,7 @@ export default function InquiriesPage() {
                   <SelectItem value="Website">Website</SelectItem>
                   <SelectItem value="Telefoon">Telefoon</SelectItem>
                   <SelectItem value="Email">Email</SelectItem>
-                  <SelectItem value="GHL">GHL</SelectItem>
+                  <SelectItem value="GHL">VirtuGrow</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -785,7 +785,7 @@ export default function InquiriesPage() {
                     <SelectItem value="Website">Website</SelectItem>
                     <SelectItem value="Telefoon">Telefoon</SelectItem>
                     <SelectItem value="Email">Email</SelectItem>
-                    <SelectItem value="GHL">GHL</SelectItem>
+                    <SelectItem value="GHL">VirtuGrow</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
