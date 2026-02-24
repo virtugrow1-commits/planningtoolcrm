@@ -323,13 +323,66 @@ async function handleOpportunityFromWebhookPayload(supabase: any, ghlHeaders: an
       contactId = nameMatch?.id || null;
     }
 
-    await supabase.from('inquiries').insert({
+    const { data: newInq } = await supabase.from('inquiries').insert({
       user_id: userId, ghl_opportunity_id: ghlOppId, contact_name: contactName,
       event_type: eventType, status, guest_count: 0,
       budget: monetaryValue, source: 'GHL', contact_id: contactId,
       is_read: false,
-    });
+    }).select('id').single();
     console.log(`Webhook: Inserted new opp ${ghlOppId} -> ${status}`);
+
+    // Auto-enrich: fetch custom fields from GHL opportunity
+    if (newInq?.id && ghlOppId) {
+      try {
+        const oppRes = await fetch(`${GHL_API_BASE}/opportunities/${ghlOppId}`, { headers: ghlHeaders });
+        if (oppRes.ok) {
+          const oppData = await oppRes.json();
+          const opp = oppData.opportunity || oppData;
+          const customFields = opp.customFields || opp.custom_fields || [];
+          const fieldMap: Record<string, string> = {};
+          for (const cf of customFields) {
+            const name = (cf.name || cf.fieldName || cf.key || '').toLowerCase();
+            const value = cf.value || cf.fieldValue || '';
+            if (value) fieldMap[name] = String(value);
+          }
+
+          const guestCount = parseInt(fieldMap['aantal gasten'] || fieldMap['guest_count'] || '0', 10) || 0;
+          const preferredDate = fieldMap['selecteer de gewenste datum'] || fieldMap['preferred_date'] || fieldMap['datum'] || null;
+          const roomPreference = fieldMap['gewenste zaalopstelling'] || fieldMap['room_preference'] || null;
+          const enrichedBudget = fieldMap['budget'] ? Number(fieldMap['budget']) : (opp.monetaryValue ? Number(opp.monetaryValue) : monetaryValue);
+          const enrichedEventType = fieldMap['type evenement'] || fieldMap['soort evenement'] || eventType;
+
+          const messageParts = [
+            fieldMap['kies je dagdeel'] ? `Dagdeel: ${fieldMap['kies je dagdeel']}` : '',
+            fieldMap['gewenste catering'] ? `Catering: ${fieldMap['gewenste catering']}` : '',
+            fieldMap['speciale benodigdheden'] ? `Speciale benodigdheden: ${fieldMap['speciale benodigdheden']}` : '',
+            fieldMap['na-zit gewenst?'] ? `Na-zit: ${fieldMap['na-zit gewenst?']}` : '',
+            fieldMap['extra informatie'] ? `Extra: ${fieldMap['extra informatie']}` : '',
+            fieldMap['opmerkingen'] ? `Opmerkingen: ${fieldMap['opmerkingen']}` : '',
+          ].filter(Boolean);
+
+          // Add any extra custom fields
+          const knownKeys = new Set(['aantal gasten', 'guest_count', 'selecteer de gewenste datum', 'preferred_date', 'datum', 'gewenste zaalopstelling', 'room_preference', 'budget', 'kies je dagdeel', 'gewenste catering', 'speciale benodigdheden', 'na-zit gewenst?', 'extra informatie', 'opmerkingen', 'type evenement', 'soort evenement', 'service type']);
+          for (const [key, value] of Object.entries(fieldMap)) {
+            if (!knownKeys.has(key) && value) messageParts.push(`${key}: ${value}`);
+          }
+
+          if (guestCount || preferredDate || roomPreference || messageParts.length > 0) {
+            await supabase.from('inquiries').update({
+              event_type: enrichedEventType,
+              guest_count: guestCount || 0,
+              preferred_date: preferredDate,
+              room_preference: roomPreference,
+              budget: enrichedBudget,
+              message: messageParts.join('\n') || null,
+            }).eq('id', newInq.id);
+            console.log(`Webhook: Auto-enriched opp ${ghlOppId} with ${Object.keys(fieldMap).length} custom fields`);
+          }
+        }
+      } catch (enrichErr) {
+        console.error('Webhook: Auto-enrich failed (non-fatal):', enrichErr);
+      }
+    }
   }
 }
 
