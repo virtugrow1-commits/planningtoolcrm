@@ -130,11 +130,12 @@ export default function ConversationList({
             {conversations.map((conv) => {
               const isActive = selectedConv?.id === conv.id;
               const isSelected = selectedIds.has(conv.id);
-              return (
+                return (
                 <div
                   key={conv.id}
+                  onClick={() => onSelect(conv)}
                   className={cn(
-                    'w-full text-left px-3 py-3 hover:bg-accent/50 transition-colors group flex items-start gap-2',
+                    'w-full text-left px-3 py-3 hover:bg-accent/50 transition-colors group flex items-start gap-2 cursor-pointer',
                     isActive && 'bg-accent/50',
                     isSelected && 'bg-accent/30'
                   )}
@@ -142,12 +143,10 @@ export default function ConversationList({
                   <Checkbox
                     checked={isSelected}
                     onCheckedChange={() => toggleSelect(conv.id)}
+                    onClick={(e) => e.stopPropagation()}
                     className="mt-1.5 h-3.5 w-3.5 shrink-0"
                   />
-                  <button
-                    onClick={() => onSelect(conv)}
-                    className="flex-1 min-w-0 text-left"
-                  >
+                  <div className="flex-1 min-w-0 text-left">
                     <div className="flex items-start gap-2.5">
                       <div className="mt-0.5 rounded-full bg-muted p-1.5 shrink-0">
                         <MessageSquare size={14} className="text-muted-foreground" />
@@ -187,7 +186,7 @@ export default function ConversationList({
                         </div>
                       </div>
                     </div>
-                  </button>
+                  </div>
                 </div>
               );
             })}
