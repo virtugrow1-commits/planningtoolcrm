@@ -52,14 +52,15 @@ serve(async (req) => {
     return new Response(JSON.stringify({ error: 'No user found' }), { status: 200, headers: corsHeaders });
   }
 
-  const results: any = { bookings_pulled: 0, bookings_pushed: 0, contacts: 0, opportunities: 0, contacts_pushed: 0, errors: [] };
+  const results: any = { bookings_pulled: 0, bookings_pushed: 0, contacts: 0, opportunities: 0, contacts_pushed: 0, tasks_pulled: 0, tasks_pushed: 0, errors: [] };
 
-  // Run all 3 syncs in PARALLEL to avoid timeout
+  // Run all 4 syncs in PARALLEL to avoid timeout
   const calendarSync = syncCalendar(supabase, ghlHeaders, GHL_LOCATION_ID, userId, results);
   const opportunitiesSync = syncOpportunities(supabase, ghlHeaders, GHL_LOCATION_ID, userId, results);
   const contactsSync = syncContacts(supabase, ghlHeaders, GHL_LOCATION_ID, userId, results);
+  const tasksSync = syncTasks(supabase, ghlHeaders, GHL_LOCATION_ID, userId, results);
 
-  await Promise.allSettled([calendarSync, opportunitiesSync, contactsSync]);
+  await Promise.allSettled([calendarSync, opportunitiesSync, contactsSync, tasksSync]);
 
   // Push local inquiries without GHL opportunity ID
   await pushLocalInquiries(supabase, ghlHeaders, GHL_LOCATION_ID, userId, results);
@@ -530,4 +531,134 @@ async function pushLocalInquiries(supabase: any, ghlHeaders: any, locationId: st
       } catch (e) { console.error('Push inquiry error:', inq.id, e); }
     }
   } catch (e) { console.error('Push local inquiries error:', e); }
+}
+
+// === BIDIRECTIONAL TASK SYNC ===
+async function syncTasks(supabase: any, ghlHeaders: any, locationId: string, userId: string, results: any) {
+  try {
+    // 1. Get all contacts with GHL IDs
+    const { data: contacts } = await supabase
+      .from('contacts')
+      .select('id, ghl_contact_id')
+      .not('ghl_contact_id', 'is', null);
+
+    if (!contacts || contacts.length === 0) {
+      console.log('No contacts with GHL IDs for task sync');
+      return;
+    }
+
+    const recentThreshold = new Date(Date.now() - 2 * 60 * 1000).toISOString();
+
+    // 2. Pull tasks from GHL for each contact
+    for (const contact of contacts) {
+      try {
+        const res = await fetch(`${GHL_API_BASE}/contacts/${contact.ghl_contact_id}/tasks`, { headers: ghlHeaders });
+        if (!res.ok) continue;
+        const data = await res.json();
+
+        for (const ghlTask of data.tasks || []) {
+          const { data: existing } = await supabase
+            .from('tasks')
+            .select('id, status, title, description, updated_at')
+            .eq('ghl_task_id', ghlTask.id)
+            .maybeSingle();
+
+          const ghlStatus = ghlTask.completed ? 'completed' : 'open';
+          const ghlTitle = ghlTask.title || 'GHL Taak';
+          const ghlDescription = ghlTask.body || null;
+          const ghlDueDate = ghlTask.dueDate ? ghlTask.dueDate.split('T')[0] : null;
+
+          if (existing) {
+            const crmRecentlyUpdated = existing.updated_at > recentThreshold;
+            const crmDiffers = existing.status !== ghlStatus || existing.title !== ghlTitle;
+
+            if (crmRecentlyUpdated && crmDiffers) {
+              // CRM wins → push to GHL
+              const pushPayload: any = {
+                title: existing.title,
+                body: existing.description || '',
+                completed: existing.status === 'completed',
+              };
+              const pushRes = await fetch(`${GHL_API_BASE}/contacts/${contact.ghl_contact_id}/tasks/${ghlTask.id}`, {
+                method: 'PUT', headers: ghlHeaders, body: JSON.stringify(pushPayload),
+              });
+              if (pushRes.ok) {
+                console.log(`Task CRM -> GHL: ${existing.id} (CRM wins)`);
+                results.tasks_pushed++;
+              }
+            } else {
+              // GHL wins → update CRM
+              await supabase.from('tasks').update({
+                title: ghlTitle,
+                description: ghlDescription,
+                status: ghlStatus,
+                due_date: ghlDueDate,
+                completed_at: ghlTask.completed ? (ghlTask.completedDate || new Date().toISOString()) : null,
+              }).eq('id', existing.id);
+              results.tasks_pulled++;
+            }
+          } else {
+            // New from GHL → insert into CRM
+            await supabase.from('tasks').insert({
+              user_id: userId,
+              title: ghlTitle,
+              description: ghlDescription,
+              status: ghlStatus,
+              priority: 'normal',
+              due_date: ghlDueDate,
+              contact_id: contact.id,
+              ghl_task_id: ghlTask.id,
+              completed_at: ghlTask.completed ? (ghlTask.completedDate || new Date().toISOString()) : null,
+            });
+            console.log(`Task GHL -> CRM: ${ghlTask.id} (new)`);
+            results.tasks_pulled++;
+          }
+        }
+      } catch (e) {
+        console.error(`Task sync error for contact ${contact.ghl_contact_id}:`, e);
+      }
+    }
+
+    // 3. Push local tasks without GHL ID (that have a linked contact with GHL ID)
+    const { data: localTasks } = await supabase
+      .from('tasks')
+      .select('*')
+      .eq('user_id', userId)
+      .is('ghl_task_id', null)
+      .not('contact_id', 'is', null)
+      .limit(20);
+
+    for (const task of localTasks || []) {
+      let ghlContactId: string | null = null;
+      if (task.contact_id) {
+        const { data: contactRow } = await supabase.from('contacts').select('ghl_contact_id').eq('id', task.contact_id).maybeSingle();
+        ghlContactId = contactRow?.ghl_contact_id || null;
+      }
+      if (!ghlContactId) continue;
+
+      try {
+        const ghlPayload = {
+          title: task.title,
+          body: task.description || '',
+          dueDate: task.due_date || new Date().toISOString(),
+          completed: task.status === 'completed',
+        };
+        const res = await fetch(`${GHL_API_BASE}/contacts/${ghlContactId}/tasks`, {
+          method: 'POST', headers: ghlHeaders, body: JSON.stringify(ghlPayload),
+        });
+        if (res.ok) {
+          const created = await res.json();
+          if (created.task?.id) {
+            await supabase.from('tasks').update({ ghl_task_id: created.task.id }).eq('id', task.id);
+            console.log(`Task CRM -> GHL: ${task.id} -> ${created.task.id} (pushed)`);
+          }
+          results.tasks_pushed++;
+        } else {
+          console.error(`Push task ${task.id} failed: ${await res.text()}`);
+        }
+      } catch (e) {
+        console.error('Push task error:', task.id, e);
+      }
+    }
+  } catch (e) { console.error('Task sync error:', e); }
 }
