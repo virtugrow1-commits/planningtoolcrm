@@ -216,28 +216,36 @@ export default function ContactDetailPage() {
             {contactInquiries.length === 0 ? (
               <p className="text-xs text-muted-foreground">Geen aanvragen</p>
             ) : (
-              <table className="w-full text-xs">
-                <thead>
-                  <tr className="text-muted-foreground">
-                    <th className="text-left pb-2 font-medium">Datum</th>
-                    <th className="text-left pb-2 font-medium">Type</th>
-                    <th className="text-left pb-2 font-medium">Status</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {contactInquiries.slice(0, 5).map((inq) => (
-                    <tr key={inq.id} className="border-t border-border/50 cursor-pointer hover:bg-muted/30" onClick={() => navigate(`/inquiries/${inq.id}`)}>
-                      <td className="py-1.5">{inq.createdAt}</td>
-                      <td className="py-1.5">{inq.eventType}</td>
-                      <td className="py-1.5">
+              <div className="space-y-3">
+                {contactInquiries.slice(0, 5).map((inq) => (
+                  <button
+                    key={inq.id}
+                    onClick={() => navigate(`/inquiries/${inq.id}`)}
+                    className="w-full text-left rounded-lg border border-border/50 p-3 hover:bg-muted/30 transition-colors space-y-1.5"
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-xs font-medium text-foreground">{inq.eventType}</span>
+                      <div className="flex items-center gap-2">
+                        {!inq.isRead && <span className="inline-flex rounded-md px-1.5 py-0.5 text-[10px] font-bold bg-destructive text-destructive-foreground">New</span>}
                         <span className="inline-flex rounded-md px-1.5 py-0.5 text-[10px] font-medium bg-accent/15 text-accent-foreground border border-accent/30">
                           {statusLabels[inq.status] || inq.status}
                         </span>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+                      </div>
+                    </div>
+                    <div className="flex flex-wrap gap-x-4 gap-y-0.5 text-[11px] text-muted-foreground">
+                      <span>{inq.createdAt}</span>
+                      {inq.guestCount > 0 && <span>{inq.guestCount} gasten</span>}
+                      {inq.roomPreference && <span>{inq.roomPreference}</span>}
+                      {inq.source && inq.source !== 'Handmatig' && inq.source !== 'CRM' && (
+                        <span className="text-primary">Bron: {inq.source === 'GHL' ? 'VirtuGrow' : inq.source}</span>
+                      )}
+                    </div>
+                    {inq.message && (
+                      <p className="text-[11px] text-muted-foreground line-clamp-2 whitespace-pre-wrap">{inq.message}</p>
+                    )}
+                  </button>
+                ))}
+              </div>
             )}
           </SectionCard>
 
