@@ -448,6 +448,7 @@ export default function InquiriesPage() {
                           <button className="text-card-foreground font-medium truncate hover:text-primary transition-colors text-left" onClick={(e) => { e.stopPropagation(); navigate(`/companies/${company.id}`); }}>{contact.company}</button>
                         ) : (<span className="text-card-foreground font-medium truncate">{contact.company}</span>)}</div>
                       ) : null; })()}
+                      {inq.source && inq.source !== 'Handmatig' && inq.source !== 'CRM' && <div className="flex gap-2"><span className="text-muted-foreground w-[100px] shrink-0">Bron gelegenheid:</span><span className="text-card-foreground truncate">{inq.source === 'GHL' ? 'VirtuGrow' : inq.source}</span></div>}
                       {inq.roomPreference && <div className="flex gap-2"><span className="text-muted-foreground w-[100px] shrink-0">Ruimte:</span><span className="text-card-foreground truncate">{inq.roomPreference}</span></div>}
                       {inq.preferredDate && <div className="flex gap-2"><span className="text-muted-foreground w-[100px] shrink-0">Datum:</span><span className="text-card-foreground">{inq.preferredDate}</span></div>}
                       <div className="flex gap-2"><span className="text-muted-foreground w-[100px] shrink-0">Personen:</span><span className="text-card-foreground">{inq.guestCount}</span></div>

@@ -107,6 +107,7 @@ async function handleFormSubmission(supabase: any, userId: string, payload: any)
   const message = payload['Extra informatie'] || payload.message || payload.Opmerkingen || '';
   const budget = payload.budget || payload.Budget ? Number(payload.budget || payload.Budget) : null;
   const ghlContactId = payload.contact_id || payload.contactId || null;
+  const formSource = payload.form_name || payload.formName || payload.workflow_name || payload.workflowName || payload['Form Name'] || payload.source || null;
 
   // Build full message with dagdeel info
   const fullMessage = [
@@ -230,7 +231,7 @@ async function handleFormSubmission(supabase: any, userId: string, payload: any)
       budget: budget,
       message: fullMessage || null,
       status: 'new',
-      source: 'GHL',
+      source: formSource || 'VirtuGrow',
       is_read: false,
     })
     .select('id')
