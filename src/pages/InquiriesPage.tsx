@@ -403,7 +403,10 @@ export default function InquiriesPage() {
               </div>
               <div className="space-y-2">
                 {items.map((inq) => {
-                  const relatedBookings = bookings.filter(b => b.contactName === inq.contactName && b.title === inq.eventType);
+                  const relatedBookings = bookings.filter(b =>
+                    (inq.contactId && b.contactId === inq.contactId && b.title === inq.eventType) ||
+                    (b.contactName === inq.contactName && b.title === inq.eventType)
+                  ).sort((a, b) => a.date.localeCompare(b.date));
                   const firstBooking = relatedBookings.length > 0 ? relatedBookings[0] : null;
                   const inquiryTaskCount = taskCountByInquiry[inq.id] || 0;
                   const hasMessage = inq.message && inq.message.trim().length > 0;
@@ -456,19 +459,22 @@ export default function InquiriesPage() {
                       <div className="flex gap-2"><span className="text-muted-foreground w-[100px] shrink-0">Personen:</span><span className="text-card-foreground">{inq.guestCount}</span></div>
                       <div className="flex gap-2"><span className="text-muted-foreground w-[100px] shrink-0">Waarde:</span><span className="text-card-foreground">€{(inq.budget || 0).toLocaleString('nl-NL', { minimumFractionDigits: 2 })}</span></div>
                       
-                      {firstBooking && (
-                        <>
-                          <div className="flex gap-2">
-                            <span className="text-muted-foreground w-[100px] shrink-0">Ingepland:</span>
-                            <span className="text-card-foreground">
-                              {format(new Date(firstBooking.date), 'd MMM yyyy', { locale: nl })} · {String(firstBooking.startHour).padStart(2, '0')}:{String(firstBooking.startMinute).padStart(2, '0')} - {String(firstBooking.endHour).padStart(2, '0')}:{String(firstBooking.endMinute).padStart(2, '0')}
+                      {relatedBookings.length > 0 && relatedBookings.map((rb, idx) => (
+                        <div key={rb.id} className="flex gap-2 items-center">
+                          <span className="text-muted-foreground w-[100px] shrink-0">{idx === 0 ? 'Ingepland:' : ''}</span>
+                          <span className="text-card-foreground flex items-center gap-1.5">
+                            {format(new Date(rb.date), 'd MMM yyyy', { locale: nl })} · {String(rb.startHour).padStart(2, '0')}:{String(rb.startMinute).padStart(2, '0')}-{String(rb.endHour).padStart(2, '0')}:{String(rb.endMinute).padStart(2, '0')}
+                            <span className={cn('text-[9px] font-semibold px-1.5 py-0.5 rounded-full', rb.status === 'confirmed' ? 'bg-success/15 text-success' : 'bg-warning/15 text-warning')}>
+                              {rb.status === 'confirmed' ? 'Bevestigd' : 'Optie'}
                             </span>
-                          </div>
-                          <div className="flex gap-2">
-                            <span className="text-muted-foreground w-[100px] shrink-0">Zaal:</span>
-                            <span className="text-card-foreground truncate">{firstBooking.roomName}</span>
-                          </div>
-                        </>
+                          </span>
+                        </div>
+                      ))}
+                      {relatedBookings.length > 0 && (
+                        <div className="flex gap-2">
+                          <span className="text-muted-foreground w-[100px] shrink-0">Zaal:</span>
+                          <span className="text-card-foreground truncate">{relatedBookings[0].roomName}</span>
+                        </div>
                       )}
                     </div>
 
