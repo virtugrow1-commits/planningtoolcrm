@@ -158,31 +158,15 @@ serve(async (req) => {
     const roomPreference = fieldMap['gewenste zaalopstelling'] || fieldMap['room_preference'] || fieldMap['zaal'] || inquiry.room_preference;
     const budget = fieldMap['budget'] ? Number(fieldMap['budget']) : (opp.monetaryValue ? Number(opp.monetaryValue) : inquiry.budget);
 
-    // Build message from custom fields
-    const messageParts = [
-      inquiry.message || '',
-      fieldMap['kies je dagdeel'] ? `Dagdeel: ${fieldMap['kies je dagdeel']}` : '',
-      fieldMap['gewenste catering'] ? `Catering: ${fieldMap['gewenste catering']}` : '',
-      fieldMap['speciale benodigdheden'] ? `Speciale benodigdheden: ${fieldMap['speciale benodigdheden']}` : '',
-      fieldMap['na-zit gewenst?'] ? `Na-zit: ${fieldMap['na-zit gewenst?']}` : '',
-      fieldMap['service type'] ? `Service: ${fieldMap['service type']}` : '',
-      fieldMap['extra informatie'] ? `Extra: ${fieldMap['extra informatie']}` : '',
-      fieldMap['opmerkingen'] ? `Opmerkingen: ${fieldMap['opmerkingen']}` : '',
-    ].filter(Boolean);
-
-    // Add any remaining custom fields not already captured
-    const knownKeys = new Set([
-      'aantal gasten', 'guest_count', 'guests',
-      'selecteer de gewenste datum', 'preferred_date', 'datum',
-      'gewenste zaalopstelling', 'room_preference', 'zaal',
-      'budget', 'kies je dagdeel', 'gewenste catering',
-      'speciale benodigdheden', 'na-zit gewenst?', 'service type',
-      'extra informatie', 'opmerkingen',
-      'type evenement', 'event_type', 'soort evenement',
-    ]);
+    // Build message from ALL custom fields so everything is visible in Klantinvoer
+    const messageParts: string[] = [];
+    
+    // Capitalize first letter of field name for display
+    const capitalize = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
+    
     for (const [key, value] of Object.entries(fieldMap)) {
-      if (!knownKeys.has(key) && value) {
-        messageParts.push(`${key}: ${value}`);
+      if (value) {
+        messageParts.push(`${capitalize(key)}: ${value}`);
       }
     }
 
