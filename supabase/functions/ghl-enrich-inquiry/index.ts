@@ -83,6 +83,9 @@ serve(async (req) => {
       return { name: name.toLowerCase(), value: String(value) };
     };
 
+    // Custom fields can be on opportunity OR on the contact — fetch both
+    const fieldMap: Record<string, string> = {};
+
     // Fetch opportunity from GHL
     let opp: any = {};
     let ghlContactId: string | null = null;
