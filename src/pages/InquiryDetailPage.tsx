@@ -9,13 +9,14 @@ import { useBookings } from '@/contexts/BookingsContext';
 import { useTasksContext } from '@/contexts/TasksContext';
 import { Inquiry, ROOMS } from '@/types/crm';
 import { useToast } from '@/hooks/use-toast';
+import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { ArrowLeft, ChevronRight, Pencil, Check, X, Calendar as CalendarIcon, Users, Euro, User, Building2, FileText, CheckSquare, MapPin, Clock, Trash2 } from 'lucide-react';
+import { ArrowLeft, ChevronRight, Pencil, Check, X, Calendar as CalendarIcon, Users, Euro, User, Building2, FileText, CheckSquare, MapPin, Clock, Trash2, RefreshCw } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
 
@@ -37,7 +38,7 @@ const PIPELINE_COLUMNS: { key: Inquiry['status']; label: string; badgeClass: str
 export default function InquiryDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { inquiries, loading: inquiriesLoading, updateInquiry, deleteInquiry, markAsRead } = useInquiriesContext();
+  const { inquiries, loading: inquiriesLoading, updateInquiry, deleteInquiry, markAsRead, refetch } = useInquiriesContext();
   const { contacts } = useContactsContext();
   const { companies } = useCompaniesContext();
   const { bookings } = useBookings();
@@ -47,6 +48,7 @@ export default function InquiryDetailPage() {
   const inquiry = inquiries.find((i) => i.id === id);
   const [editing, setEditing] = useState(false);
   const [form, setForm] = useState<Inquiry | null>(null);
+  const [enriching, setEnriching] = useState(false);
 
   // Mark as read when opening
   useEffect(() => {
@@ -201,9 +203,35 @@ export default function InquiryDetailPage() {
                 {inquiry.roomPreference && <InfoRow icon={<MapPin size={14} />} label="Ruimte voorkeur" value={inquiry.roomPreference} />}
                 <InfoRow icon={<FileText size={14} />} label="Bron" value={inquiry.source === 'GHL' ? 'VirtuGrow' : inquiry.source} />
                 <p className="text-xs text-muted-foreground pt-2">Aangemaakt: {inquiry.createdAt}</p>
+                {inquiry.ghlOpportunityId && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="w-full mt-2"
+                    disabled={enriching}
+                    onClick={async () => {
+                      setEnriching(true);
+                      try {
+                        const { data, error } = await supabase.functions.invoke('ghl-enrich-inquiry', {
+                          body: { inquiry_id: inquiry.id },
+                        });
+                        if (error) throw error;
+                        await refetch();
+                        toast({ title: 'Formuliergegevens opgehaald', description: `${(data?.fieldsFound || []).length} velden gevonden` });
+                      } catch (e: any) {
+                        toast({ title: 'Fout bij ophalen', description: e.message, variant: 'destructive' });
+                      } finally {
+                        setEnriching(false);
+                      }
+                    }}
+                  >
+                    <RefreshCw size={14} className={cn("mr-1", enriching && "animate-spin")} />
+                    {enriching ? 'Ophalen...' : 'Formuliergegevens ophalen uit VirtuGrow'}
+                  </Button>
+                )}
                 {inquiry.message && (
                   <div>
-                    <p className="text-xs font-semibold text-muted-foreground mb-0.5">Notities</p>
+                    <p className="text-xs font-semibold text-muted-foreground mb-0.5">Formuliergegevens / Notities</p>
                     <p className="text-foreground whitespace-pre-wrap">{inquiry.message}</p>
                   </div>
                 )}
