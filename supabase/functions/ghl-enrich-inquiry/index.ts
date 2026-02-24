@@ -44,10 +44,43 @@ serve(async (req) => {
       return new Response(JSON.stringify({ error: 'No GHL opportunity linked' }), { status: 400, headers: corsHeaders });
     }
 
+    const GHL_LOCATION_ID = Deno.env.get('GHL_LOCATION_ID');
     const ghlHeaders = {
       'Authorization': `Bearer ${GHL_API_KEY}`,
       'Content-Type': 'application/json',
       'Version': '2021-07-28',
+    };
+
+    // Fetch custom field definitions to map IDs to human-readable names
+    const fieldDefsMap: Record<string, string> = {};
+    if (GHL_LOCATION_ID) {
+      try {
+        const cfRes = await fetch(`${GHL_API_BASE}/locations/${GHL_LOCATION_ID}/customFields`, { headers: ghlHeaders });
+        if (cfRes.ok) {
+          const cfData = await cfRes.json();
+          const fields = cfData.customFields || cfData || [];
+          for (const f of fields) {
+            if (f.id && f.name) {
+              fieldDefsMap[f.id] = f.name;
+            }
+          }
+          console.log('Custom field definitions loaded:', Object.keys(fieldDefsMap).length, 'fields:', JSON.stringify(fieldDefsMap));
+        } else {
+          console.error('Failed to fetch custom field defs:', cfRes.status, await cfRes.text());
+        }
+      } catch (e) {
+        console.error('Error fetching custom field defs:', e);
+      }
+    } else {
+      console.warn('GHL_LOCATION_ID not set — cannot resolve custom field names');
+    }
+
+    // Helper: resolve a custom field entry to {name, value}
+    const resolveCustomField = (cf: any): { name: string; value: string } => {
+      // Try cf.name first (some endpoints include it), then look up cf.id in definitions
+      const name = cf.name || cf.fieldName || cf.key || fieldDefsMap[cf.id] || cf.id || '';
+      const value = cf.value || cf.fieldValue || '';
+      return { name: name.toLowerCase(), value: String(value) };
     };
 
     // Fetch opportunity from GHL
@@ -67,9 +100,8 @@ serve(async (req) => {
     // 1. Opportunity custom fields
     const oppCustomFields = opp.customFields || opp.custom_fields || [];
     for (const cf of oppCustomFields) {
-      const name = (cf.name || cf.fieldName || cf.key || '').toLowerCase();
-      const value = cf.value || cf.fieldValue || '';
-      if (value) fieldMap[name] = String(value);
+      const { name, value } = resolveCustomField(cf);
+      if (value) fieldMap[name] = value;
     }
 
     // 2. Fetch contact custom fields from GHL (form data lives here)
@@ -85,9 +117,8 @@ serve(async (req) => {
           // Contact custom fields
           const contactCustomFields = ghlContact.customFields || ghlContact.custom_fields || ghlContact.customField || [];
           for (const cf of contactCustomFields) {
-            const name = (cf.name || cf.fieldName || cf.key || '').toLowerCase();
-            const value = cf.value || cf.fieldValue || '';
-            if (value && !fieldMap[name]) fieldMap[name] = String(value);
+            const { name, value } = resolveCustomField(cf);
+            if (value && !fieldMap[name]) fieldMap[name] = value;
           }
 
           // Also check top-level contact fields that might contain form data
