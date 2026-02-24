@@ -448,32 +448,40 @@ export default function InquiriesPage() {
                     </div>
 
                     <div className="mt-2.5 space-y-1 text-xs">
+                      {inq.displayNumber && <div className="flex gap-2"><span className="text-muted-foreground w-[100px] shrink-0">Nummer:</span><span className="text-card-foreground font-mono">{inq.displayNumber}</span></div>}
                       {(() => { const contact = inq.contactId ? contacts.find(c => c.id === inq.contactId) : null; const company = contact?.companyId ? companies.find(co => co.id === contact.companyId) : null; return contact?.company ? (
                         <div className="flex gap-2"><span className="text-muted-foreground w-[100px] shrink-0">Bedrijfsnaam:</span>{company ? (
                           <button className="text-card-foreground font-medium truncate hover:text-primary transition-colors text-left" onClick={(e) => { e.stopPropagation(); navigate(`/companies/${company.id}`); }}>{contact.company}</button>
                         ) : (<span className="text-card-foreground font-medium truncate">{contact.company}</span>)}</div>
                       ) : null; })()}
-                      {inq.source && inq.source !== 'Handmatig' && inq.source !== 'CRM' && <div className="flex gap-2"><span className="text-muted-foreground w-[100px] shrink-0">Bron gelegenheid:</span><span className="text-card-foreground truncate">{inq.source === 'GHL' ? 'VirtuGrow' : inq.source}</span></div>}
-                      {inq.roomPreference && <div className="flex gap-2"><span className="text-muted-foreground w-[100px] shrink-0">Ruimte:</span><span className="text-card-foreground truncate">{inq.roomPreference}</span></div>}
-                      {inq.preferredDate && <div className="flex gap-2"><span className="text-muted-foreground w-[100px] shrink-0">Datum:</span><span className="text-card-foreground">{inq.preferredDate}</span></div>}
-                      <div className="flex gap-2"><span className="text-muted-foreground w-[100px] shrink-0">Personen:</span><span className="text-card-foreground">{inq.guestCount}</span></div>
-                      <div className="flex gap-2"><span className="text-muted-foreground w-[100px] shrink-0">Waarde:</span><span className="text-card-foreground">€{(inq.budget || 0).toLocaleString('nl-NL', { minimumFractionDigits: 2 })}</span></div>
+                      {inq.source && inq.source !== 'Handmatig' && inq.source !== 'CRM' && <div className="flex gap-2"><span className="text-muted-foreground w-[100px] shrink-0">Bron:</span><span className="text-card-foreground truncate">{inq.source === 'GHL' ? 'VirtuGrow' : inq.source}</span></div>}
+                      {inq.roomPreference && <div className="flex gap-2"><span className="text-muted-foreground w-[100px] shrink-0">Voorkeur zaal:</span><span className="text-card-foreground truncate">{inq.roomPreference}</span></div>}
+                      {inq.preferredDate && <div className="flex gap-2"><span className="text-muted-foreground w-[100px] shrink-0">Voorkeur datum:</span><span className="text-card-foreground">{inq.preferredDate}</span></div>}
+                      {inq.guestCount > 0 && <div className="flex gap-2"><span className="text-muted-foreground w-[100px] shrink-0">Personen:</span><span className="text-card-foreground">{inq.guestCount}</span></div>}
+                      {(inq.budget ?? 0) > 0 && <div className="flex gap-2"><span className="text-muted-foreground w-[100px] shrink-0">Waarde:</span><span className="text-card-foreground font-medium">€{inq.budget!.toLocaleString('nl-NL', { minimumFractionDigits: 2 })}</span></div>}
+                      <div className="flex gap-2"><span className="text-muted-foreground w-[100px] shrink-0">Aangemaakt:</span><span className="text-card-foreground">{inq.createdAt}</span></div>
                       
-                      {relatedBookings.length > 0 && relatedBookings.map((rb, idx) => (
-                        <div key={rb.id} className="flex gap-2 items-center">
-                          <span className="text-muted-foreground w-[100px] shrink-0">{idx === 0 ? 'Ingepland:' : ''}</span>
-                          <span className="text-card-foreground flex items-center gap-1.5">
-                            {format(new Date(rb.date), 'd MMM yyyy', { locale: nl })} · {String(rb.startHour).padStart(2, '0')}:{String(rb.startMinute).padStart(2, '0')}-{String(rb.endHour).padStart(2, '0')}:{String(rb.endMinute).padStart(2, '0')}
-                            <span className={cn('text-[9px] font-semibold px-1.5 py-0.5 rounded-full', rb.status === 'confirmed' ? 'bg-success/15 text-success' : 'bg-warning/15 text-warning')}>
-                              {rb.status === 'confirmed' ? 'Bevestigd' : 'Optie'}
-                            </span>
-                          </span>
-                        </div>
-                      ))}
                       {relatedBookings.length > 0 && (
-                        <div className="flex gap-2">
-                          <span className="text-muted-foreground w-[100px] shrink-0">Zaal:</span>
-                          <span className="text-card-foreground truncate">{relatedBookings[0].roomName}</span>
+                        <div className="mt-1.5 pt-1.5 border-t border-border/50 space-y-1">
+                          <span className="text-muted-foreground text-[10px] uppercase tracking-wide font-semibold">Reserveringen ({relatedBookings.length})</span>
+                          {relatedBookings.map((rb) => (
+                            <div key={rb.id} className="flex flex-col gap-0.5 py-1 px-2 rounded-md bg-muted/30">
+                              <div className="flex items-center justify-between gap-1">
+                                <span className="text-card-foreground font-medium">
+                                  {format(new Date(rb.date), 'd MMM yyyy', { locale: nl })}
+                                </span>
+                                <span className={cn('text-[9px] font-semibold px-1.5 py-0.5 rounded-full', rb.status === 'confirmed' ? 'bg-success/15 text-success' : 'bg-warning/15 text-warning')}>
+                                  {rb.status === 'confirmed' ? 'Bevestigd' : 'Optie'}
+                                </span>
+                              </div>
+                              <span className="text-muted-foreground">
+                                {String(rb.startHour).padStart(2, '0')}:{String(rb.startMinute).padStart(2, '0')}–{String(rb.endHour).padStart(2, '0')}:{String(rb.endMinute).padStart(2, '0')} · {rb.roomName}
+                              </span>
+                              {rb.reservationNumber && <span className="text-muted-foreground font-mono text-[10px]">{rb.reservationNumber}</span>}
+                              {rb.roomSetup && <span className="text-muted-foreground">Opstelling: {rb.roomSetup}</span>}
+                              {(rb.guestCount ?? 0) > 0 && <span className="text-muted-foreground">{rb.guestCount} gasten</span>}
+                            </div>
+                          ))}
                         </div>
                       )}
                     </div>
