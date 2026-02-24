@@ -54,24 +54,69 @@ serve(async (req) => {
     const oppRes = await fetch(`${GHL_API_BASE}/opportunities/${inquiry.ghl_opportunity_id}`, { headers: ghlHeaders });
     if (!oppRes.ok) {
       console.error('GHL API error:', oppRes.status, await oppRes.text());
-      return new Response(JSON.stringify({ error: 'Failed to fetch from GHL' }), { status: 502, headers: corsHeaders });
+      return new Response(JSON.stringify({ error: 'Failed to fetch opportunity from GHL' }), { status: 502, headers: corsHeaders });
     }
 
     const oppData = await oppRes.json();
     const opp = oppData.opportunity || oppData;
     console.log('GHL opportunity data:', JSON.stringify(opp).substring(0, 1000));
 
-    // Extract custom fields and contact info
-    const customFields = opp.customFields || opp.custom_fields || [];
-    const contact = opp.contact || {};
-
-    // Build enrichment data from custom fields
+    // Custom fields can be on opportunity OR on the contact — fetch both
     const fieldMap: Record<string, string> = {};
-    for (const cf of customFields) {
+
+    // 1. Opportunity custom fields
+    const oppCustomFields = opp.customFields || opp.custom_fields || [];
+    for (const cf of oppCustomFields) {
       const name = (cf.name || cf.fieldName || cf.key || '').toLowerCase();
       const value = cf.value || cf.fieldValue || '';
       if (value) fieldMap[name] = String(value);
     }
+
+    // 2. Fetch contact custom fields from GHL (form data lives here)
+    const ghlContactId = opp.contactId || opp.contact?.id;
+    if (ghlContactId) {
+      try {
+        const contactRes = await fetch(`${GHL_API_BASE}/contacts/${ghlContactId}`, { headers: ghlHeaders });
+        if (contactRes.ok) {
+          const contactData = await contactRes.json();
+          const ghlContact = contactData.contact || contactData;
+          console.log('GHL contact data:', JSON.stringify(ghlContact).substring(0, 1500));
+
+          // Contact custom fields
+          const contactCustomFields = ghlContact.customFields || ghlContact.custom_fields || ghlContact.customField || [];
+          for (const cf of contactCustomFields) {
+            const name = (cf.name || cf.fieldName || cf.key || '').toLowerCase();
+            const value = cf.value || cf.fieldValue || '';
+            if (value && !fieldMap[name]) fieldMap[name] = String(value);
+          }
+
+          // Also check top-level contact fields that might contain form data
+          const contactTopFields: Record<string, string | undefined> = {
+            'aantal gasten': ghlContact.numberOfGuests || ghlContact.guest_count,
+            'type evenement': ghlContact.eventType || ghlContact.event_type,
+            'gewenste datum': ghlContact.preferredDate || ghlContact.preferred_date,
+          };
+          for (const [key, val] of Object.entries(contactTopFields)) {
+            if (val && !fieldMap[key]) fieldMap[key] = val;
+          }
+
+          // Update local contact with any new info
+          if (inquiry.contact_id) {
+            const updateData: Record<string, any> = {};
+            if (ghlContact.email) updateData.email = ghlContact.email;
+            if (ghlContact.phone) updateData.phone = ghlContact.phone;
+            if (ghlContact.companyName) updateData.company = ghlContact.companyName;
+            if (Object.keys(updateData).length > 0) {
+              await supabase.from('contacts').update(updateData).eq('id', inquiry.contact_id);
+            }
+          }
+        }
+      } catch (contactErr) {
+        console.error('Failed to fetch GHL contact (non-fatal):', contactErr);
+      }
+    }
+
+    const contact = opp.contact || {};
 
     // Map known fields
     const guestCount = parseInt(
@@ -115,20 +160,8 @@ serve(async (req) => {
     // Also get event type from custom fields if available
     const eventType = fieldMap['type evenement'] || fieldMap['event_type'] || fieldMap['soort evenement'] || opp.name || inquiry.event_type;
 
-    // Update contact info if available from opportunity contact
-    let contactUpdated = false;
-    if (contact.id && inquiry.contact_id) {
-      const updateData: Record<string, any> = {};
-      if (contact.email) updateData.email = contact.email;
-      if (contact.phone) updateData.phone = contact.phone;
-      if (contact.companyName) {
-        updateData.company = contact.companyName;
-      }
-      if (Object.keys(updateData).length > 0) {
-        await supabase.from('contacts').update(updateData).eq('id', inquiry.contact_id);
-        contactUpdated = true;
-      }
-    }
+    // Use opportunity source (e.g. "Snel een offerte (Klaar)") as inquiry source if available
+    const enrichedSource = opp.source && opp.source !== 'GHL' ? opp.source : inquiry.source;
 
     // Update the inquiry with enriched data
     const { error: updateErr } = await supabase.from('inquiries').update({
@@ -138,6 +171,7 @@ serve(async (req) => {
       room_preference: roomPreference || null,
       budget: budget || null,
       message: fullMessage,
+      source: enrichedSource,
     }).eq('id', inquiry_id);
 
     if (updateErr) {
@@ -145,12 +179,12 @@ serve(async (req) => {
       return new Response(JSON.stringify({ error: updateErr.message }), { status: 500, headers: corsHeaders });
     }
 
-    console.log(`Enriched inquiry ${inquiry_id} with GHL opportunity data. Fields found: ${Object.keys(fieldMap).join(', ')}`);
+    console.log(`Enriched inquiry ${inquiry_id} with GHL data. Fields found: ${Object.keys(fieldMap).join(', ')}`);
 
     return new Response(JSON.stringify({
       success: true,
       fieldsFound: Object.keys(fieldMap),
-      contactUpdated,
+      source: enrichedSource,
     }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
 
   } catch (e) {
