@@ -12,6 +12,7 @@ import { useRoomSettings } from '@/hooks/useRoomSettings';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { ArrowLeft, ChevronRight, History, CheckSquare } from 'lucide-react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
 import InquiryDetailsTab, { PIPELINE_COLUMNS } from '@/components/inquiry/InquiryDetailsTab';
@@ -118,9 +119,24 @@ export default function InquiryDetailPage() {
       </div>
 
       {/* Header */}
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-3 flex-wrap">
         <h1 className="text-xl font-bold text-foreground">{inquiry.eventType}</h1>
-        <Badge variant="secondary" className={cn('text-[11px] font-medium', col?.badgeClass)}>{col?.label}</Badge>
+        <Select
+          value={inquiry.status}
+          onValueChange={async (v: Inquiry['status']) => {
+            await updateInquiry({ ...inquiry, status: v });
+            toast({ title: 'Status gewijzigd', description: PIPELINE_COLUMNS.find(c => c.key === v)?.label });
+          }}
+        >
+          <SelectTrigger className={cn('w-auto h-7 text-[11px] font-medium rounded-full px-3 border-0', col?.badgeClass)}>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {PIPELINE_COLUMNS.map(c => (
+              <SelectItem key={c.key} value={c.key} className="text-xs">{c.label}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
         {!inquiry.isRead && <Badge className="bg-destructive text-destructive-foreground text-[10px]">Nieuw</Badge>}
       </div>
 
@@ -192,6 +208,9 @@ export default function InquiryDetailPage() {
             guestCount: resForm.guestCount,
             roomSetup: resForm.roomSetup || undefined,
           });
+          // Update inquiry status based on booking type
+          const newStatus: Inquiry['status'] = resForm.status === 'confirmed' ? 'reserved' : 'option';
+          await updateInquiry({ ...inquiry, status: newStatus });
           setShowReservationDialog(false);
           toast({ title: 'Reservering aangemaakt' });
         }}

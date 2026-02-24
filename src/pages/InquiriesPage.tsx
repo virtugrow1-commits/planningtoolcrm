@@ -295,9 +295,11 @@ export default function InquiriesPage() {
 
     addBookings(newBookings);
 
-    // Update inquiry status to converted
+    // Update inquiry status based on booking status
     if (selectedInquiry) {
-      await updateInquiry({ ...selectedInquiry, status: 'converted' });
+      const hasConfirmed = validOptions.some(o => o.status === 'confirmed');
+      const newStatus: Inquiry['status'] = hasConfirmed ? 'reserved' : 'option';
+      await updateInquiry({ ...selectedInquiry, status: newStatus });
     }
 
     const descriptions = validOptions.map((o) => {
