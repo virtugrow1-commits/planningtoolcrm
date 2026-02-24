@@ -29,6 +29,7 @@ interface Conversation {
   type: string;
   phone?: string;
   email?: string;
+  ghlConversationId?: string;
 }
 
 interface Message {
@@ -53,15 +54,37 @@ export default function ConversationsPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
+  // Fetch conversations from database
   const fetchConversations = useCallback(async () => {
     if (!user) return;
     setLoading(true);
     try {
-      const { data, error } = await supabase.functions.invoke('ghl-sync', {
-        body: { action: 'get-conversations', query: searchQuery || undefined },
-      });
+      let query = supabase
+        .from('conversations')
+        .select('*')
+        .order('last_message_date', { ascending: false, nullsFirst: false });
+
+      if (searchQuery) {
+        query = query.ilike('contact_name', `%${searchQuery}%`);
+      }
+
+      const { data, error } = await query;
       if (error) throw error;
-      setConversations(data.conversations || []);
+
+      setConversations((data || []).map((c: any) => ({
+        id: c.id,
+        contactId: c.contact_id || c.ghl_conversation_id || '',
+        contactName: c.contact_name,
+        lastMessageBody: c.last_message_body || '',
+        lastMessageDate: c.last_message_date || c.updated_at,
+        lastMessageType: c.channel || 'chat',
+        lastMessageDirection: c.last_message_direction || 'inbound',
+        unreadCount: c.unread ? 1 : 0,
+        type: c.channel || 'chat',
+        phone: c.phone,
+        email: c.email,
+        ghlConversationId: c.ghl_conversation_id,
+      })));
     } catch (err: any) {
       toast({ title: 'Fout bij laden gesprekken', description: err.message, variant: 'destructive' });
     } finally {
@@ -73,14 +96,58 @@ export default function ConversationsPage() {
     fetchConversations();
   }, [fetchConversations]);
 
+  // Realtime subscription for new conversations/messages
+  useEffect(() => {
+    const channel = supabase
+      .channel('conversations-realtime')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'conversations' }, () => {
+        fetchConversations();
+      })
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, (payload) => {
+        // If this message belongs to the selected conversation, add it
+        if (selectedConv && payload.new && (payload.new as any).conversation_id === selectedConv.id) {
+          const msg = payload.new as any;
+          setMessages((prev) => {
+            if (prev.some(m => m.id === msg.id)) return prev;
+            return [...prev, {
+              id: msg.id,
+              body: msg.body || '',
+              direction: msg.direction as 'inbound' | 'outbound',
+              dateAdded: msg.date_added || msg.created_at,
+              type: msg.message_type || 'TYPE_SMS',
+              status: msg.status,
+            }];
+          });
+        }
+      })
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
+  }, [selectedConv?.id]);
+
+  // Fetch messages from database
   const fetchMessages = useCallback(async (conversationId: string) => {
     setLoadingMessages(true);
     try {
-      const { data, error } = await supabase.functions.invoke('ghl-sync', {
-        body: { action: 'get-messages', conversationId },
-      });
+      const { data, error } = await supabase
+        .from('messages')
+        .select('*')
+        .eq('conversation_id', conversationId)
+        .order('date_added', { ascending: true });
+
       if (error) throw error;
-      setMessages((data.messages || []).reverse());
+
+      setMessages((data || []).map((m: any) => ({
+        id: m.id,
+        body: m.body || '',
+        direction: m.direction as 'inbound' | 'outbound',
+        dateAdded: m.date_added || m.created_at,
+        type: m.message_type || 'TYPE_SMS',
+        status: m.status,
+      })));
+
+      // Mark conversation as read
+      await supabase.from('conversations').update({ unread: false }).eq('id', conversationId);
     } catch (err: any) {
       toast({ title: 'Fout bij laden berichten', description: err.message, variant: 'destructive' });
     } finally {
@@ -101,10 +168,12 @@ export default function ConversationsPage() {
   const handleSendMessage = async (message: string, channel: string, options?: { subject?: string; cc?: string; bcc?: string }) => {
     if (!selectedConv) return;
     try {
+      // Send via GHL if we have a GHL conversation ID
+      const ghlConvId = selectedConv.ghlConversationId || selectedConv.id;
       const { data, error } = await supabase.functions.invoke('ghl-sync', {
         body: {
           action: 'send-message',
-          conversationId: selectedConv.id,
+          conversationId: ghlConvId,
           contactId: selectedConv.contactId,
           message,
           type: 'Email',
@@ -115,6 +184,26 @@ export default function ConversationsPage() {
       });
       if (error) throw error;
       if (!data.success) throw new Error(data.error || 'Verzenden mislukt');
+
+      // Also save to local database
+      const newMsg = {
+        user_id: user!.id,
+        conversation_id: selectedConv.id,
+        ghl_message_id: data.messageId || null,
+        body: message,
+        direction: 'outbound',
+        message_type: 'Email',
+        status: 'sent',
+        date_added: new Date().toISOString(),
+      };
+      await supabase.from('messages').insert(newMsg);
+
+      // Update conversation
+      await supabase.from('conversations').update({
+        last_message_body: message,
+        last_message_date: new Date().toISOString(),
+        last_message_direction: 'outbound',
+      }).eq('id', selectedConv.id);
 
       setMessages((prev) => [
         ...prev,
@@ -134,10 +223,15 @@ export default function ConversationsPage() {
 
   const handleDeleteConversation = async (convId: string) => {
     try {
-      const { data, error } = await supabase.functions.invoke('ghl-sync', {
-        body: { action: 'delete-conversation', conversationId: convId },
-      });
-      if (error) throw error;
+      // Delete from GHL too
+      const conv = conversations.find(c => c.id === convId);
+      if (conv?.ghlConversationId) {
+        await supabase.functions.invoke('ghl-sync', {
+          body: { action: 'delete-conversation', conversationId: conv.ghlConversationId },
+        });
+      }
+      // Delete from local DB (cascade deletes messages)
+      await supabase.from('conversations').delete().eq('id', convId);
       setConversations((prev) => prev.filter((c) => c.id !== convId));
       if (selectedConv?.id === convId) {
         setSelectedConv(null);
@@ -150,13 +244,13 @@ export default function ConversationsPage() {
   };
 
   const handleBulkDelete = async (ids: string[]) => {
-    let deleted = 0;
     for (const id of ids) {
       try {
-        await supabase.functions.invoke('ghl-sync', {
-          body: { action: 'delete-conversation', conversationId: id },
-        });
-        deleted++;
+        const conv = conversations.find(c => c.id === id);
+        if (conv?.ghlConversationId) {
+          await supabase.functions.invoke('ghl-sync', { body: { action: 'delete-conversation', conversationId: conv.ghlConversationId } });
+        }
+        await supabase.from('conversations').delete().eq('id', id);
       } catch {}
     }
     setConversations((prev) => prev.filter((c) => !ids.includes(c.id)));
@@ -164,12 +258,25 @@ export default function ConversationsPage() {
       setSelectedConv(null);
       setMessages([]);
     }
-    toast({ title: `${deleted} gesprek${deleted !== 1 ? 'ken' : ''} verwijderd` });
+    toast({ title: `${ids.length} gesprek${ids.length !== 1 ? 'ken' : ''} verwijderd` });
+  };
+
+  // Force sync from GHL (manual refresh)
+  const handleRefresh = async () => {
+    setLoading(true);
+    try {
+      await supabase.functions.invoke('ghl-auto-sync');
+      await fetchConversations();
+      toast({ title: 'Gesprekken gesynchroniseerd' });
+    } catch (err: any) {
+      toast({ title: 'Sync mislukt', description: err.message, variant: 'destructive' });
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
     <div className="flex h-[calc(100vh-4rem)] overflow-hidden">
-      {/* Conversation List */}
       <ConversationList
         conversations={conversations}
         selectedConv={selectedConv}
@@ -177,92 +284,51 @@ export default function ConversationsPage() {
         searchQuery={searchQuery}
         setSearchQuery={setSearchQuery}
         onSelect={setSelectedConv}
-        onRefresh={fetchConversations}
+        onRefresh={handleRefresh}
         onDelete={handleDeleteConversation}
         onBulkDelete={handleBulkDelete}
       />
 
       {/* Message Thread */}
-      <div
-        className={cn(
-          'flex-1 flex flex-col min-w-0',
-          !selectedConv && 'hidden md:flex'
-        )}
-      >
+      <div className={cn('flex-1 flex flex-col min-w-0', !selectedConv && 'hidden md:flex')}>
         {selectedConv ? (
           <>
-            {/* Thread header */}
             <div className="px-4 py-3 border-b flex items-center gap-3 bg-card">
-              <button
-                onClick={() => setSelectedConv(null)}
-                className="md:hidden text-muted-foreground hover:text-foreground"
-              >
+              <button onClick={() => setSelectedConv(null)} className="md:hidden text-muted-foreground hover:text-foreground">
                 <ArrowLeft size={18} />
               </button>
               <div className="rounded-full bg-muted p-2">
                 <User size={16} className="text-muted-foreground" />
               </div>
               <div className="flex-1 min-w-0">
-                <h2 className="font-semibold text-sm text-foreground truncate">
-                  {selectedConv.contactName}
-                </h2>
-                <p className="text-xs text-muted-foreground">
-                  {selectedConv.phone || selectedConv.email || selectedConv.type}
-                </p>
+                <h2 className="font-semibold text-sm text-foreground truncate">{selectedConv.contactName}</h2>
+                <p className="text-xs text-muted-foreground">{selectedConv.phone || selectedConv.email || selectedConv.type}</p>
               </div>
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => fetchMessages(selectedConv.id)}
-                disabled={loadingMessages}
-                className="h-8 w-8"
-              >
+              <Button variant="ghost" size="icon" onClick={() => fetchMessages(selectedConv.id)} disabled={loadingMessages} className="h-8 w-8">
                 <RefreshCw size={14} className={loadingMessages ? 'animate-spin' : ''} />
               </Button>
             </div>
 
-            {/* Messages */}
             <ScrollArea className="flex-1 p-4">
               {loadingMessages ? (
-                <div className="text-center text-sm text-muted-foreground py-8">
-                  Berichten laden...
-                </div>
+                <div className="text-center text-sm text-muted-foreground py-8">Berichten laden...</div>
               ) : messages.length === 0 ? (
-                <div className="text-center text-sm text-muted-foreground py-8">
-                  Geen berichten in dit gesprek
-                </div>
+                <div className="text-center text-sm text-muted-foreground py-8">Geen berichten in dit gesprek</div>
               ) : (
                 <div className="space-y-3 max-w-2xl mx-auto">
                   {messages.map((msg) => (
-                    <div
-                      key={msg.id}
-                      className={cn(
-                        'flex',
-                        msg.direction === 'outbound' ? 'justify-end' : 'justify-start'
-                      )}
-                    >
-                      <div
-                        className={cn(
-                          'max-w-[80%] rounded-2xl px-3.5 py-2 text-sm',
-                          msg.direction === 'outbound'
-                            ? 'bg-primary text-primary-foreground rounded-br-md'
-                            : 'bg-muted text-foreground rounded-bl-md'
-                        )}
-                      >
+                    <div key={msg.id} className={cn('flex', msg.direction === 'outbound' ? 'justify-end' : 'justify-start')}>
+                      <div className={cn(
+                        'max-w-[80%] rounded-2xl px-3.5 py-2 text-sm',
+                        msg.direction === 'outbound'
+                          ? 'bg-primary text-primary-foreground rounded-br-md'
+                          : 'bg-muted text-foreground rounded-bl-md'
+                      )}>
                         <p className="whitespace-pre-wrap break-words">{msg.body}</p>
-                        <p
-                          className={cn(
-                            'text-[10px] mt-1',
-                            msg.direction === 'outbound'
-                              ? 'text-primary-foreground/70'
-                              : 'text-muted-foreground'
-                          )}
-                        >
+                        <p className={cn('text-[10px] mt-1', msg.direction === 'outbound' ? 'text-primary-foreground/70' : 'text-muted-foreground')}>
                           {format(new Date(msg.dateAdded), 'd MMM HH:mm', { locale: nl })}
                           {msg.status && msg.direction === 'outbound' && (
-                            <span className="ml-1.5">
-                              {msg.status === 'delivered' ? '✓✓' : msg.status === 'sent' ? '✓' : ''}
-                            </span>
+                            <span className="ml-1.5">{msg.status === 'delivered' ? '✓✓' : msg.status === 'sent' ? '✓' : ''}</span>
                           )}
                         </p>
                       </div>
@@ -273,13 +339,7 @@ export default function ConversationsPage() {
               )}
             </ScrollArea>
 
-            {/* Compose area with channel tabs */}
-            <MessageComposer
-              onSend={handleSendMessage}
-              sending={false}
-              conversationType={selectedConv.type}
-              contactPhone={selectedConv.phone}
-            />
+            <MessageComposer onSend={handleSendMessage} sending={false} conversationType={selectedConv.type} contactPhone={selectedConv.phone} />
           </>
         ) : (
           <div className="flex-1 flex items-center justify-center text-muted-foreground">
@@ -291,7 +351,6 @@ export default function ConversationsPage() {
         )}
       </div>
 
-      {/* Contact Details Panel */}
       {selectedConv && (
         <ContactDetailsPanel
           contactId={selectedConv.contactId}

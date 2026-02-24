@@ -60,9 +60,12 @@ serve(async (req) => {
     const hasContactData = payload.contact_id && (payload.first_name || payload.last_name || payload.full_name);
     const hasAppointmentData = payload.startTime || payload.appointmentId || payload.calendarId;
     const hasFormData = payload['Type Evenement'] !== undefined || payload['Aantal gasten'] !== undefined || payload['Selecteer de gewenste datum'] !== undefined || payload['Kies je dagdeel'] !== undefined;
+    const hasMessageData = type.includes('InboundMessage') || type.includes('inbound') || type.includes('message') || (payload.body && payload.conversationId);
 
     // Handle different webhook types
-    if (hasFormData) {
+    if (hasMessageData) {
+      await handleInboundMessage(supabase, ghlHeaders, userId, payload);
+    } else if (hasFormData) {
       await handleFormSubmission(supabase, userId, payload);
     } else if (type.includes('opportunity') || type.includes('OpportunityStatus') || type.includes('pipeline') || (hasPipelineData && !hasAppointmentData)) {
       await handleOpportunityFromWebhookPayload(supabase, ghlHeaders, GHL_LOCATION_ID, userId, payload);
@@ -72,7 +75,6 @@ serve(async (req) => {
       await handleAppointmentWebhook(supabase, userId, payload);
     } else {
       console.log('Unknown webhook type, trying form handler as fallback:', type);
-      // Try form handler as fallback if there are Dutch field names
       const keys = Object.keys(payload);
       const hasDutchFields = keys.some(k => /[a-zà-ÿ]/i.test(k) && k.includes(' '));
       if (hasDutchFields) {
@@ -577,4 +579,63 @@ function stageToStatus(s: string): string {
   if (l.includes('after sales') || l.includes('aftersales')) return 'after_sales';
   if (l.includes('evenement')) return 'confirmed';
   return 'new';
+}
+
+async function handleInboundMessage(supabase: any, ghlHeaders: any, userId: string, payload: any) {
+  const conversationId = payload.conversationId || payload.conversation_id || payload.data?.conversationId;
+  const messageBody = payload.body || payload.message || payload.text || '';
+  const messageId = payload.messageId || payload.id || payload.data?.id;
+  const contactId = payload.contactId || payload.contact_id || payload.data?.contactId;
+  const contactName = payload.contactName || payload.contact_name || payload.full_name || payload.name || 'Onbekend';
+  const direction = payload.direction === 'outbound' || payload.direction === 1 ? 'outbound' : 'inbound';
+  const messageType = payload.type || payload.messageType || 'TYPE_SMS';
+  const phone = payload.phone || null;
+  const email = payload.email || null;
+
+  if (!conversationId) {
+    console.log('Inbound message: no conversationId, skipping');
+    return;
+  }
+
+  // Link to local contact if possible
+  let localContactId: string | null = null;
+  if (contactId) {
+    const { data: contactMatch } = await supabase.from('contacts').select('id').eq('ghl_contact_id', contactId).maybeSingle();
+    localContactId = contactMatch?.id || null;
+  }
+
+  // Upsert conversation (create or update)
+  const { data: dbConv } = await supabase.from('conversations').upsert({
+    user_id: userId,
+    ghl_conversation_id: conversationId,
+    contact_id: localContactId,
+    contact_name: contactName,
+    phone, email,
+    last_message_body: messageBody,
+    last_message_date: new Date().toISOString(),
+    last_message_direction: direction,
+    unread: direction === 'inbound',
+    channel: messageType.toLowerCase().includes('email') ? 'email' : 'chat',
+  }, { onConflict: 'ghl_conversation_id' }).select('id').single();
+
+  if (!dbConv) {
+    console.error('Inbound message: failed to upsert conversation');
+    return;
+  }
+
+  // Insert message
+  if (messageId) {
+    await supabase.from('messages').upsert({
+      user_id: userId,
+      conversation_id: dbConv.id,
+      ghl_message_id: messageId,
+      body: messageBody,
+      direction,
+      message_type: messageType,
+      status: 'delivered',
+      date_added: new Date().toISOString(),
+    }, { onConflict: 'ghl_message_id' });
+  }
+
+  console.log(`Webhook: Inbound message in conv ${conversationId} from ${contactName}: "${messageBody.substring(0, 50)}"`);
 }
