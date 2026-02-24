@@ -310,6 +310,19 @@ async function handleOpportunityFromWebhookPayload(supabase: any, ghlHeaders: an
       contactId = contactMatch?.id || null;
     }
     
+    // Also try matching by name if no GHL contact ID match
+    if (!contactId && contactName && contactName !== 'Onbekend') {
+      const { data: nameMatch } = await supabase
+        .from('contacts')
+        .select('id')
+        .eq('user_id', userId)
+        .ilike('first_name', contactName.split(' ')[0] || '')
+        .ilike('last_name', contactName.split(' ').slice(1).join(' ') || '')
+        .limit(1)
+        .maybeSingle();
+      contactId = nameMatch?.id || null;
+    }
+
     await supabase.from('inquiries').insert({
       user_id: userId, ghl_opportunity_id: ghlOppId, contact_name: contactName,
       event_type: eventType, status, guest_count: 0,
@@ -343,6 +356,29 @@ async function handleContactWebhook(supabase: any, userId: string, payload: any)
       company: payload.companyName || payload.company || null, status: 'lead',
     });
   }
+  // Retroactively link orphaned inquiries to this contact by name match
+  const contactFullName = `${firstName} ${lastName}`.trim();
+  if (contactFullName && contactFullName !== 'Onbekend') {
+    const resolvedContactId = existing?.id || (await supabase.from('contacts').select('id').eq('ghl_contact_id', contactId).maybeSingle())?.data?.id;
+    if (resolvedContactId) {
+      const { data: orphanedInquiries } = await supabase
+        .from('inquiries')
+        .select('id')
+        .eq('user_id', userId)
+        .is('contact_id', null)
+        .ilike('contact_name', contactFullName);
+      if (orphanedInquiries && orphanedInquiries.length > 0) {
+        await supabase
+          .from('inquiries')
+          .update({ contact_id: resolvedContactId })
+          .eq('user_id', userId)
+          .is('contact_id', null)
+          .ilike('contact_name', contactFullName);
+        console.log(`Webhook: Retroactively linked ${orphanedInquiries.length} orphaned inquiries to contact ${resolvedContactId}`);
+      }
+    }
+  }
+
   console.log(`Webhook: Contact ${contactId} synced`);
 }
 

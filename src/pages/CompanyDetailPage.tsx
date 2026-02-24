@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Building2, ChevronRight, Mail, Phone, Globe, MapPin, Plus, Pencil, Check, X, Search, UserPlus, Download } from 'lucide-react';
+import { ArrowLeft, Building2, ChevronRight, Mail, Phone, Globe, MapPin, Plus, Pencil, Check, X, Search, UserPlus, Download, CheckSquare } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
@@ -13,6 +13,7 @@ import { useCompaniesContext, Company } from '@/contexts/CompaniesContext';
 import { useContactsContext } from '@/contexts/ContactsContext';
 import { useBookings } from '@/contexts/BookingsContext';
 import { useInquiriesContext } from '@/contexts/InquiriesContext';
+import { useTasksContext } from '@/contexts/TasksContext';
 import { useToast } from '@/hooks/use-toast';
 import { mockQuotations } from '@/data/mockData';
 
@@ -104,6 +105,7 @@ export default function CompanyDetailPage() {
   const { contacts, loading: contactsLoading, updateContact, addContact } = useContactsContext();
   const { bookings, loading: bookingsLoading } = useBookings();
   const { inquiries } = useInquiriesContext();
+  const { tasks } = useTasksContext();
   const { toast } = useToast();
 
   const [editing, setEditing] = useState<string | null>(null);
@@ -128,6 +130,7 @@ export default function CompanyDetailPage() {
   const companyBookings = useMemo(() => bookings.filter((b) => b.contactId && contactIds.has(b.contactId)), [bookings, contactIds]);
   const optionBookings = useMemo(() => companyBookings.filter((b) => b.status === 'option'), [companyBookings]);
   const companyInquiries = useMemo(() => inquiries.filter((i) => i.contactId && contactIds.has(i.contactId)), [inquiries, contactIds]);
+  const companyTasks = useMemo(() => tasks.filter((t) => (t.contactId && contactIds.has(t.contactId)) || (t.companyId === company?.id)), [tasks, contactIds, company]);
 
   const visibleContacts = showAllContacts ? companyContacts : companyContacts.slice(0, 4);
 
@@ -257,18 +260,32 @@ export default function CompanyDetailPage() {
             {companyInquiries.length === 0 ? (
               <p className="text-xs text-muted-foreground">Geen aanvragen</p>
             ) : (
-              <div className="space-y-1">
+              <div className="space-y-3">
                 {companyInquiries.slice(0, 8).map((inq) => (
                   <button
                     key={inq.id}
-                    onClick={() => navigate('/inquiries')}
-                    className="w-full flex items-center justify-between py-1.5 px-2 rounded-md hover:bg-muted/50 transition-colors text-left text-xs"
+                    onClick={() => navigate(`/inquiries/${inq.id}`)}
+                    className="w-full text-left rounded-lg border border-border/50 p-3 hover:bg-muted/30 transition-colors space-y-1.5"
                   >
-                    <div>
-                      <span className="font-medium text-foreground">{inq.eventType}</span>
-                      <span className="text-muted-foreground ml-2">{inq.preferredDate || inq.createdAt}</span>
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-xs font-medium text-foreground">{inq.eventType}</span>
+                      <div className="flex items-center gap-2">
+                        {!inq.isRead && <span className="inline-flex rounded-md px-1.5 py-0.5 text-[10px] font-bold bg-destructive text-destructive-foreground">New</span>}
+                        <Badge variant="outline" className="text-[10px]">{INQUIRY_STATUS[inq.status] || inq.status}</Badge>
+                      </div>
                     </div>
-                    <Badge variant="outline" className="text-[10px]">{INQUIRY_STATUS[inq.status] || inq.status}</Badge>
+                    <div className="flex flex-wrap gap-x-4 gap-y-0.5 text-[11px] text-muted-foreground">
+                      <span>{inq.createdAt}</span>
+                      <span>{inq.contactName}</span>
+                      {inq.guestCount > 0 && <span>{inq.guestCount} gasten</span>}
+                      {inq.roomPreference && <span>{inq.roomPreference}</span>}
+                      {inq.source && inq.source !== 'Handmatig' && inq.source !== 'CRM' && (
+                        <span className="text-primary">Bron: {inq.source === 'GHL' ? 'VirtuGrow' : inq.source}</span>
+                      )}
+                    </div>
+                    {inq.message && (
+                      <p className="text-[11px] text-muted-foreground line-clamp-2 whitespace-pre-wrap">{inq.message}</p>
+                    )}
                   </button>
                 ))}
               </div>
@@ -287,7 +304,7 @@ export default function CompanyDetailPage() {
                   .map((b) => (
                     <button
                       key={b.id}
-                      onClick={() => navigate(`/calendar?date=${b.date}`)}
+                      onClick={() => navigate(`/reserveringen/${b.id}`)}
                       className="w-full flex items-center justify-between py-1.5 px-2 rounded-md hover:bg-muted/50 transition-colors text-left text-xs"
                     >
                       <div className="flex-1 min-w-0">
@@ -318,7 +335,7 @@ export default function CompanyDetailPage() {
                   .map((b) => (
                     <button
                       key={b.id}
-                      onClick={() => navigate(`/calendar?date=${b.date}`)}
+                      onClick={() => navigate(`/reserveringen/${b.id}`)}
                       className="w-full flex items-center justify-between py-1.5 px-2 rounded-md hover:bg-muted/50 transition-colors text-left text-xs"
                     >
                       <div className="flex-1 min-w-0">
@@ -328,6 +345,23 @@ export default function CompanyDetailPage() {
                       <span className="text-muted-foreground shrink-0">{b.date} · {String(b.startHour).padStart(2, '0')}:{String(b.startMinute).padStart(2, '0')} – {String(b.endHour).padStart(2, '0')}:{String(b.endMinute).padStart(2, '0')}</span>
                     </button>
                   ))}
+              </div>
+            )}
+          </SectionCard>
+
+          {/* Taken */}
+          <SectionCard title="Taken" count={companyTasks.length}>
+            {companyTasks.length === 0 ? (
+              <p className="text-xs text-muted-foreground">Geen taken</p>
+            ) : (
+              <div className="space-y-1">
+                {companyTasks.slice(0, 8).map((t) => (
+                  <div key={t.id} className="flex items-center gap-2 text-xs py-1.5 px-2">
+                    <CheckSquare size={12} className={t.status === 'completed' ? 'text-success' : 'text-muted-foreground'} />
+                    <span className={t.status === 'completed' ? 'line-through text-muted-foreground' : 'text-foreground'}>{t.title}</span>
+                    {t.dueDate && <span className="text-muted-foreground ml-auto">{t.dueDate}</span>}
+                  </div>
+                ))}
               </div>
             )}
           </SectionCard>

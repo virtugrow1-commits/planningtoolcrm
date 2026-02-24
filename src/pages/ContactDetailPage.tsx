@@ -3,12 +3,13 @@ import { useContactsContext } from '@/contexts/ContactsContext';
 import { useInquiriesContext } from '@/contexts/InquiriesContext';
 import { useBookings } from '@/contexts/BookingsContext';
 import { useCompaniesContext } from '@/contexts/CompaniesContext';
+import { useTasksContext } from '@/contexts/TasksContext';
 import { useState, useMemo } from 'react';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
-import { ArrowLeft, Pencil, Check, X, Plus, ChevronRight, Calendar, FileText, Mail, Phone, Building2, User } from 'lucide-react';
+import { ArrowLeft, Pencil, Check, X, Plus, ChevronRight, Calendar, FileText, Mail, Phone, Building2, User, CheckSquare } from 'lucide-react';
 import ActivityTimeline from '@/components/contact/ActivityTimeline';
 import { Contact, ROOMS } from '@/types/crm';
 import { mockQuotations } from '@/data/mockData';
@@ -24,6 +25,7 @@ export default function ContactDetailPage() {
   const { inquiries } = useInquiriesContext();
   const { companies } = useCompaniesContext();
   const { bookings } = useBookings();
+  const { tasks } = useTasksContext();
   const { toast } = useToast();
 
   const contact = contacts.find((c) => c.id === id);
@@ -39,6 +41,7 @@ export default function ContactDetailPage() {
   const confirmedBookings = useMemo(() => contactBookings.filter((b) => b.status !== 'option'), [contactBookings]);
   const optionBookings = useMemo(() => contactBookings.filter((b) => b.status === 'option'), [contactBookings]);
   const contactQuotations = useMemo(() => contact ? mockQuotations.filter((q) => q.contactId === contact.id) : [], [contact]);
+  const contactTasks = useMemo(() => contact ? tasks.filter((t) => t.contactId === contact.id) : [], [tasks, contact]);
 
   if (!contact) {
     return (
@@ -315,6 +318,23 @@ export default function ContactDetailPage() {
                       {q.status === 'draft' ? 'Concept' : q.status === 'sent' ? 'Verzonden' : q.status === 'accepted' ? 'Geaccepteerd' : q.status === 'declined' ? 'Afgewezen' : 'Verlopen'}
                     </Badge>
                   </button>
+                ))}
+              </div>
+            )}
+          </SectionCard>
+
+          {/* Taken */}
+          <SectionCard title="Taken">
+            {contactTasks.length === 0 ? (
+              <p className="text-xs text-muted-foreground">Geen taken</p>
+            ) : (
+              <div className="space-y-1">
+                {contactTasks.slice(0, 8).map((t) => (
+                  <div key={t.id} className="flex items-center gap-2 text-xs py-1.5 px-2">
+                    <CheckSquare size={12} className={t.status === 'completed' ? 'text-success' : 'text-muted-foreground'} />
+                    <span className={t.status === 'completed' ? 'line-through text-muted-foreground' : 'text-foreground'}>{t.title}</span>
+                    {t.dueDate && <span className="text-muted-foreground ml-auto">{t.dueDate}</span>}
+                  </div>
                 ))}
               </div>
             )}
