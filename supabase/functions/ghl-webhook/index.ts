@@ -55,20 +55,31 @@ serve(async (req) => {
       'Version': '2021-07-28',
     };
 
-    // Detect webhook type - GHL sometimes sends pipeline/opportunity data without a type field
+    // Detect webhook type
     const hasPipelineData = payload.pipeline_id || payload.pipleline_stage || payload.pipeline_name || payload.opportunity_name;
     const hasContactData = payload.contact_id && (payload.first_name || payload.last_name || payload.full_name);
     const hasAppointmentData = payload.startTime || payload.appointmentId || payload.calendarId;
+    const hasFormData = payload['Type Evenement'] !== undefined || payload['Aantal gasten'] !== undefined || payload['Selecteer de gewenste datum'] !== undefined || payload['Kies je dagdeel'] !== undefined;
 
     // Handle different webhook types
-    if (type.includes('opportunity') || type.includes('OpportunityStatus') || type.includes('pipeline') || (hasPipelineData && !hasAppointmentData)) {
+    if (hasFormData) {
+      await handleFormSubmission(supabase, userId, payload);
+    } else if (type.includes('opportunity') || type.includes('OpportunityStatus') || type.includes('pipeline') || (hasPipelineData && !hasAppointmentData)) {
       await handleOpportunityFromWebhookPayload(supabase, ghlHeaders, GHL_LOCATION_ID, userId, payload);
     } else if (type.includes('contact') || type.includes('Contact') || (hasContactData && !hasPipelineData && !hasAppointmentData)) {
       await handleContactWebhook(supabase, userId, payload);
     } else if (type.includes('appointment') || type.includes('calendar') || type.includes('event') || hasAppointmentData) {
       await handleAppointmentWebhook(supabase, userId, payload);
     } else {
-      console.log('Unknown webhook type, skipping:', type);
+      console.log('Unknown webhook type, trying form handler as fallback:', type);
+      // Try form handler as fallback if there are Dutch field names
+      const keys = Object.keys(payload);
+      const hasDutchFields = keys.some(k => /[a-zà-ÿ]/i.test(k) && k.includes(' '));
+      if (hasDutchFields) {
+        await handleFormSubmission(supabase, userId, payload);
+      } else {
+        console.log('Skipping unknown webhook type:', type);
+      }
     }
 
     return new Response(JSON.stringify({ success: true }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
@@ -77,6 +88,160 @@ serve(async (req) => {
     return new Response(JSON.stringify({ error: String(e) }), { status: 500, headers: corsHeaders });
   }
 });
+
+async function handleFormSubmission(supabase: any, userId: string, payload: any) {
+  // Extract contact info from GHL form payload
+  const email = payload.email || payload.Email || payload['E-mail'] || payload['E-mailadres'] || null;
+  const phone = payload.phone || payload.Phone || payload.Telefoon || payload.Telefoonnummer || null;
+  const fullName = payload.full_name || payload.contact_name || payload.name || payload.Naam || payload['Volledige naam'] || '';
+  const firstName = payload.first_name || payload.firstName || fullName.split(' ')[0] || 'Onbekend';
+  const lastName = payload.last_name || payload.lastName || fullName.split(' ').slice(1).join(' ') || '';
+  const companyName = payload.company || payload.companyName || payload.Bedrijf || payload.Bedrijfsnaam || payload['Naam bedrijf'] || null;
+
+  // Extract inquiry data from Dutch form fields
+  const eventType = payload['Type Evenement'] || payload.event_type || payload['Soort evenement'] || 'Aanvraag via formulier';
+  const guestCount = parseInt(payload['Aantal gasten'] || payload.guest_count || '0', 10) || 0;
+  const preferredDate = payload['Selecteer de gewenste datum'] || payload.preferred_date || null;
+  const dagdeel = payload['Kies je dagdeel'] || '';
+  const roomPreference = payload['Gewenste zaalopstelling'] || payload.room_preference || null;
+  const message = payload['Extra informatie'] || payload.message || payload.Opmerkingen || '';
+  const budget = payload.budget || payload.Budget ? Number(payload.budget || payload.Budget) : null;
+  const ghlContactId = payload.contact_id || payload.contactId || null;
+
+  // Build full message with dagdeel info
+  const fullMessage = [
+    message,
+    dagdeel ? `Dagdeel: ${dagdeel}` : '',
+    payload['Gewenste catering'] ? `Catering: ${payload['Gewenste catering']}` : '',
+    payload['Speciale Benodigdheden'] ? `Speciale benodigdheden: ${payload['Speciale Benodigdheden']}` : '',
+    payload['Na-zit gewenst?'] ? `Na-zit: ${payload['Na-zit gewenst?']}` : '',
+    payload['Service Type'] ? `Service: ${payload['Service Type']}` : '',
+  ].filter(Boolean).join('\n');
+
+
+  const contactName = `${firstName} ${lastName}`.trim() || 'Onbekend';
+
+  // Step 1: Find or create contact
+  let contactId: string | null = null;
+  let companyId: string | null = null;
+
+  if (email) {
+    // Try to match by email first
+    const { data: existingContact } = await supabase
+      .from('contacts')
+      .select('id, company_id')
+      .eq('email', email)
+      .limit(1)
+      .maybeSingle();
+
+    if (existingContact) {
+      contactId = existingContact.id;
+      companyId = existingContact.company_id;
+      console.log(`Form: Found existing contact by email: ${email} -> ${contactId}`);
+    }
+  }
+
+  if (!contactId && ghlContactId) {
+    // Try match by GHL contact ID
+    const { data: ghlMatch } = await supabase
+      .from('contacts')
+      .select('id, company_id')
+      .eq('ghl_contact_id', ghlContactId)
+      .maybeSingle();
+    if (ghlMatch) {
+      contactId = ghlMatch.id;
+      companyId = ghlMatch.company_id;
+      console.log(`Form: Found existing contact by GHL ID: ${ghlContactId} -> ${contactId}`);
+    }
+  }
+
+  // Step 2: Create company if needed
+  if (!companyId && companyName) {
+    // Try find existing company by name
+    const { data: existingCompany } = await supabase
+      .from('companies')
+      .select('id')
+      .ilike('name', companyName.trim())
+      .limit(1)
+      .maybeSingle();
+
+    if (existingCompany) {
+      companyId = existingCompany.id;
+      console.log(`Form: Found existing company: ${companyName} -> ${companyId}`);
+    } else {
+      const { data: newCompany } = await supabase
+        .from('companies')
+        .insert({
+          user_id: userId,
+          name: companyName.trim(),
+          kvk: payload['KVK'] || null,
+          btw_number: payload['BTW'] || null,
+        })
+        .select('id')
+        .single();
+      if (newCompany) {
+        companyId = newCompany.id;
+        console.log(`Form: Created new company: ${companyName} -> ${companyId}`);
+      }
+    }
+  }
+
+  // Step 3: Create contact if needed
+  if (!contactId) {
+    const { data: newContact } = await supabase
+      .from('contacts')
+      .insert({
+        user_id: userId,
+        first_name: firstName,
+        last_name: lastName || '',
+        email: email,
+        phone: phone,
+        company: companyName,
+        company_id: companyId,
+        ghl_contact_id: ghlContactId,
+        status: 'lead',
+      })
+      .select('id')
+      .single();
+    if (newContact) {
+      contactId = newContact.id;
+      console.log(`Form: Created new contact: ${contactName} -> ${contactId}`);
+    }
+  } else if (companyId) {
+    // Update existing contact with company if not set
+    await supabase
+      .from('contacts')
+      .update({ company_id: companyId, company: companyName })
+      .eq('id', contactId)
+      .is('company_id', null);
+  }
+
+  // Step 4: Create inquiry linked to contact & company
+  const { data: newInquiry, error } = await supabase
+    .from('inquiries')
+    .insert({
+      user_id: userId,
+      contact_id: contactId,
+      contact_name: contactName,
+      event_type: eventType,
+      preferred_date: preferredDate,
+      room_preference: roomPreference,
+      guest_count: guestCount,
+      budget: budget,
+      message: fullMessage || null,
+      status: 'new',
+      source: 'GHL',
+      is_read: false,
+    })
+    .select('id')
+    .single();
+
+  if (error) {
+    console.error('Form: Failed to create inquiry:', error.message);
+  } else {
+    console.log(`Form: Created inquiry ${newInquiry.id} for ${contactName} (contact: ${contactId}, company: ${companyId})`);
+  }
+}
 
 async function handleOpportunityFromWebhookPayload(supabase: any, ghlHeaders: any, locationId: string, userId: string, payload: any) {
   // GHL sends pipeline webhooks in two formats:
@@ -148,6 +313,7 @@ async function handleOpportunityFromWebhookPayload(supabase: any, ghlHeaders: an
       user_id: userId, ghl_opportunity_id: ghlOppId, contact_name: contactName,
       event_type: eventType, status, guest_count: 0,
       budget: monetaryValue, source: 'GHL', contact_id: contactId,
+      is_read: false,
     });
     console.log(`Webhook: Inserted new opp ${ghlOppId} -> ${status}`);
   }

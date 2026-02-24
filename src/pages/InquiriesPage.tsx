@@ -70,7 +70,7 @@ const createDateOption = (): DateOption => ({
 });
 
 export default function InquiriesPage() {
-  const { inquiries, loading: inquiriesLoading, addInquiry, updateInquiry, deleteInquiry: deleteInquiryCtx } = useInquiriesContext();
+  const { inquiries, loading: inquiriesLoading, addInquiry, updateInquiry, deleteInquiry: deleteInquiryCtx, markAsRead } = useInquiriesContext();
   const { contacts } = useContactsContext();
   const { bookings, addBookings } = useBookings();
   const { tasks, addTask } = useTasksContext();
@@ -166,6 +166,7 @@ export default function InquiriesPage() {
   }, []);
 
   const openDetailDialog = (inq: Inquiry) => {
+    if (!inq.isRead) markAsRead(inq.id);
     navigate(`/inquiries/${inq.id}`);
   };
 
@@ -226,6 +227,7 @@ export default function InquiriesPage() {
     if (!id) return;
     const inq = inquiries.find((i) => i.id === id);
     if (inq) {
+      if (!inq.isRead) markAsRead(inq.id);
       await updateInquiry({ ...inq, status: newStatus });
     }
     setDragId(null);
@@ -410,8 +412,13 @@ export default function InquiriesPage() {
                     draggable
                     onDragStart={(e) => handleDragStart(e, inq.id)}
                     onClick={() => openDetailDialog(inq)}
-                    className={`cursor-pointer rounded-lg border bg-card p-3 card-shadow hover:card-shadow-hover transition-all active:cursor-grabbing ${dragId === inq.id ? 'opacity-50 scale-95' : ''} ${selected.has(inq.id) ? 'ring-2 ring-primary' : ''}`}
+                    className={`relative cursor-pointer rounded-lg border bg-card p-3 card-shadow hover:card-shadow-hover transition-all active:cursor-grabbing ${dragId === inq.id ? 'opacity-50 scale-95' : ''} ${selected.has(inq.id) ? 'ring-2 ring-primary' : ''} ${!inq.isRead ? 'border-l-4 border-l-destructive' : ''}`}
                   >
+                    {!inq.isRead && (
+                      <span className="absolute -top-2 -right-2 rounded-full bg-destructive text-destructive-foreground text-[9px] font-bold px-1.5 py-0.5 shadow-sm z-10">
+                        New
+                      </span>
+                    )}
                     <div className="flex items-start justify-between gap-2">
                       <div className="flex items-start gap-2 flex-1 min-w-0">
                         <Checkbox
@@ -547,7 +554,12 @@ export default function InquiriesPage() {
                     <Checkbox checked={selected.has(inq.id)} onCheckedChange={() => toggleSelect(inq.id)} />
                   </td>
                   <td className="px-4 py-2.5 text-xs font-mono text-muted-foreground">{inq.displayNumber || '—'}</td>
-                  <td className="px-4 py-2.5 font-medium text-card-foreground">{inq.eventType}</td>
+                  <td className="px-4 py-2.5 font-medium text-card-foreground">
+                    <span className="flex items-center gap-1.5">
+                      {inq.eventType}
+                      {!inq.isRead && <span className="rounded-full bg-destructive text-destructive-foreground text-[9px] font-bold px-1.5 py-0.5">New</span>}
+                    </span>
+                  </td>
                   <td className="px-4 py-2.5">
                     <button
                       className="text-primary hover:underline text-left"

@@ -19,6 +19,7 @@ import { useState } from 'react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
+import { useInquiriesContext } from '@/contexts/InquiriesContext';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import {
@@ -45,6 +46,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const { toast } = useToast();
+  const { unreadCount } = useInquiriesContext();
 
   const handleFullSync = async () => {
     if (syncing) return;
@@ -68,6 +70,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         <nav className="hidden md:flex items-center gap-0.5">
           {navItemDefs.map((item) => {
             const isActive = location.pathname === item.to;
+            const showBadge = item.to === '/inquiries' && unreadCount > 0;
             return (
               <NavLink
                 key={item.to}
@@ -81,6 +84,11 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
               >
                 <item.icon size={17} className="shrink-0" />
                 <span>{t(item.key)}</span>
+                {showBadge && (
+                  <span className="absolute -top-1 -right-1 h-4.5 min-w-4.5 rounded-full bg-destructive text-[9px] font-bold text-destructive-foreground flex items-center justify-center px-1 animate-pulse">
+                    {unreadCount}
+                  </span>
+                )}
                 {isActive && (
                   <span className="absolute bottom-0 left-3 right-3 h-0.5 rounded-full bg-sidebar-primary" />
                 )}
@@ -163,13 +171,14 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         <nav className="md:hidden sidebar-gradient border-t border-white/10 px-2 py-2 space-y-0.5 animate-slide-down shadow-lg">
           {navItemDefs.map((item) => {
             const isActive = location.pathname === item.to;
+            const showBadge = item.to === '/inquiries' && unreadCount > 0;
             return (
               <NavLink
                 key={item.to}
                 to={item.to}
                 onClick={() => setMobileOpen(false)}
                 className={cn(
-                  'flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all duration-200',
+                  'relative flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all duration-200',
                   isActive
                     ? 'bg-white/15 text-white'
                     : 'text-white/70 hover:bg-white/10 hover:text-white'
@@ -177,6 +186,11 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
               >
                 <item.icon size={18} className="shrink-0" />
                 <span>{t(item.key)}</span>
+                {showBadge && (
+                  <span className="ml-auto h-5 min-w-5 rounded-full bg-destructive text-[10px] font-bold text-destructive-foreground flex items-center justify-center px-1">
+                    {unreadCount}
+                  </span>
+                )}
               </NavLink>
             );
           })}
