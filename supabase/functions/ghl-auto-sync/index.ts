@@ -665,6 +665,16 @@ async function syncTasks(supabase: any, ghlHeaders: any, locationId: string, use
 }
 
 // === CONVERSATIONS SYNC ===
+function toISODate(val: any): string | null {
+  if (!val) return null;
+  if (typeof val === 'string' && val.includes('T')) return val; // already ISO
+  const n = Number(val);
+  if (!isNaN(n) && n > 1e12) return new Date(n).toISOString(); // unix ms
+  if (!isNaN(n) && n > 1e9) return new Date(n * 1000).toISOString(); // unix sec
+  if (typeof val === 'string') { const d = new Date(val); if (!isNaN(d.getTime())) return d.toISOString(); }
+  return null;
+}
+
 async function syncConversations(supabase: any, ghlHeaders: any, locationId: string, userId: string, results: any) {
   try {
     const searchParams = new URLSearchParams({ locationId, limit: '100', sortBy: 'last_message_date', sortOrder: 'desc' });
@@ -679,7 +689,7 @@ async function syncConversations(supabase: any, ghlHeaders: any, locationId: str
       try {
         const contactName = conv.contactName || conv.fullName || conv.contact?.name || 'Onbekend';
         const lastMsg = conv.lastMessageBody || conv.lastMessage?.body || '';
-        const lastMsgDate = conv.lastMessageDate || conv.dateUpdated || conv.dateAdded || null;
+        const lastMsgDate = toISODate(conv.lastMessageDate || conv.dateUpdated || conv.dateAdded);
         const lastMsgDir = conv.lastMessageDirection || 'inbound';
         const phone = conv.phone || conv.contact?.phone || null;
         const email = conv.email || conv.contact?.email || null;
@@ -733,7 +743,7 @@ async function syncConversations(supabase: any, ghlHeaders: any, locationId: str
               direction: msg.direction === 1 || msg.direction === 'outbound' ? 'outbound' : 'inbound',
               message_type: msg.type || msg.messageType || 'TYPE_SMS',
               status: msg.status || 'delivered',
-              date_added: msg.dateAdded || msg.createdAt || new Date().toISOString(),
+              date_added: toISODate(msg.dateAdded || msg.createdAt) || new Date().toISOString(),
             }, { onConflict: 'ghl_message_id' });
           }
         } catch (_) { /* non-fatal */ }
