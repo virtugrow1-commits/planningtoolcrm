@@ -217,30 +217,79 @@ async function handleFormSubmission(supabase: any, userId: string, payload: any)
       .is('company_id', null);
   }
 
-  // Step 4: Create inquiry linked to contact & company
-  const { data: newInquiry, error } = await supabase
-    .from('inquiries')
-    .insert({
-      user_id: userId,
-      contact_id: contactId,
-      contact_name: contactName,
-      event_type: eventType,
-      preferred_date: preferredDate,
-      room_preference: roomPreference,
-      guest_count: guestCount,
-      budget: budget,
-      message: fullMessage || null,
-      status: 'new',
-      source: formSource || 'VirtuGrow',
-      is_read: false,
-    })
-    .select('id')
-    .single();
+  // Step 4: Check for duplicate before creating inquiry
+  // Dedup: check if an inquiry with same contact + event_type was created in last 10 minutes
+  const recentCutoff = new Date(Date.now() - 10 * 60 * 1000).toISOString();
+  let duplicateFound = false;
 
-  if (error) {
-    console.error('Form: Failed to create inquiry:', error.message);
-  } else {
-    console.log(`Form: Created inquiry ${newInquiry.id} for ${contactName} (contact: ${contactId}, company: ${companyId})`);
+  if (contactId) {
+    const { data: existingByContact } = await supabase
+      .from('inquiries')
+      .select('id')
+      .eq('user_id', userId)
+      .eq('contact_id', contactId)
+      .eq('event_type', eventType)
+      .gt('created_at', recentCutoff)
+      .limit(1)
+      .maybeSingle();
+    if (existingByContact) {
+      console.log(`Form: Duplicate detected by contact_id+event_type, updating existing ${existingByContact.id}`);
+      await supabase.from('inquiries').update({
+        preferred_date: preferredDate, room_preference: roomPreference,
+        guest_count: guestCount, budget: budget,
+        message: fullMessage || null,
+      }).eq('id', existingByContact.id);
+      duplicateFound = true;
+    }
+  }
+
+  if (!duplicateFound) {
+    // Also check by contact_name if no contact_id match
+    const { data: existingByName } = await supabase
+      .from('inquiries')
+      .select('id')
+      .eq('user_id', userId)
+      .ilike('contact_name', contactName)
+      .eq('event_type', eventType)
+      .gt('created_at', recentCutoff)
+      .limit(1)
+      .maybeSingle();
+    if (existingByName) {
+      console.log(`Form: Duplicate detected by contact_name+event_type, updating existing ${existingByName.id}`);
+      await supabase.from('inquiries').update({
+        contact_id: contactId, preferred_date: preferredDate, room_preference: roomPreference,
+        guest_count: guestCount, budget: budget,
+        message: fullMessage || null,
+      }).eq('id', existingByName.id);
+      duplicateFound = true;
+    }
+  }
+
+  if (!duplicateFound) {
+    const { data: newInquiry, error } = await supabase
+      .from('inquiries')
+      .insert({
+        user_id: userId,
+        contact_id: contactId,
+        contact_name: contactName,
+        event_type: eventType,
+        preferred_date: preferredDate,
+        room_preference: roomPreference,
+        guest_count: guestCount,
+        budget: budget,
+        message: fullMessage || null,
+        status: 'new',
+        source: formSource || 'VirtuGrow',
+        is_read: false,
+      })
+      .select('id')
+      .single();
+
+    if (error) {
+      console.error('Form: Failed to create inquiry:', error.message);
+    } else {
+      console.log(`Form: Created inquiry ${newInquiry.id} for ${contactName} (contact: ${contactId}, company: ${companyId})`);
+    }
   }
 }
 
@@ -323,16 +372,54 @@ async function handleOpportunityFromWebhookPayload(supabase: any, ghlHeaders: an
       contactId = nameMatch?.id || null;
     }
 
-    const { data: newInq } = await supabase.from('inquiries').insert({
-      user_id: userId, ghl_opportunity_id: ghlOppId, contact_name: contactName,
-      event_type: eventType, status, guest_count: 0,
-      budget: monetaryValue, source: 'GHL', contact_id: contactId,
-      is_read: false,
-    }).select('id').single();
-    console.log(`Webhook: Inserted new opp ${ghlOppId} -> ${status}`);
+    // Before inserting, try to find a recent inquiry from form submission for the same contact
+    const recentCutoff = new Date(Date.now() - 10 * 60 * 1000).toISOString();
+    let mergedExisting = null;
+
+    if (contactId) {
+      const { data: formMatch } = await supabase.from('inquiries')
+        .select('id')
+        .eq('user_id', userId)
+        .eq('contact_id', contactId)
+        .is('ghl_opportunity_id', null)
+        .gt('created_at', recentCutoff)
+        .limit(1)
+        .maybeSingle();
+      mergedExisting = formMatch;
+    }
+    if (!mergedExisting && contactName && contactName !== 'Onbekend') {
+      const { data: nameMatch } = await supabase.from('inquiries')
+        .select('id')
+        .eq('user_id', userId)
+        .ilike('contact_name', contactName)
+        .is('ghl_opportunity_id', null)
+        .gt('created_at', recentCutoff)
+        .limit(1)
+        .maybeSingle();
+      mergedExisting = nameMatch;
+    }
+
+    if (mergedExisting) {
+      // Merge: link existing form inquiry to this GHL opportunity
+      await supabase.from('inquiries').update({
+        ghl_opportunity_id: ghlOppId, status, budget: monetaryValue,
+        event_type: eventType, contact_id: contactId,
+      }).eq('id', mergedExisting.id);
+      console.log(`Webhook: Merged form inquiry ${mergedExisting.id} with GHL opp ${ghlOppId}`);
+    } else {
+      const { data: newInq } = await supabase.from('inquiries').insert({
+        user_id: userId, ghl_opportunity_id: ghlOppId, contact_name: contactName,
+        event_type: eventType, status, guest_count: 0,
+        budget: monetaryValue, source: 'GHL', contact_id: contactId,
+        is_read: false,
+      }).select('id').single();
+      console.log(`Webhook: Inserted new opp ${ghlOppId} -> ${status}`);
+      mergedExisting = newInq; // use for auto-enrich below
+    }
 
     // Auto-enrich: fetch custom fields from GHL opportunity
-    if (newInq?.id && ghlOppId) {
+    const enrichTargetId = mergedExisting?.id;
+    if (enrichTargetId && ghlOppId) {
       try {
         const oppRes = await fetch(`${GHL_API_BASE}/opportunities/${ghlOppId}`, { headers: ghlHeaders });
         if (oppRes.ok) {
@@ -375,7 +462,7 @@ async function handleOpportunityFromWebhookPayload(supabase: any, ghlHeaders: an
               room_preference: roomPreference,
               budget: enrichedBudget,
               message: messageParts.join('\n') || null,
-            }).eq('id', newInq.id);
+            }).eq('id', enrichTargetId);
             console.log(`Webhook: Auto-enriched opp ${ghlOppId} with ${Object.keys(fieldMap).length} custom fields`);
           }
         }
