@@ -34,6 +34,15 @@ export interface NewReservationForm {
   notes: string;
 }
 
+export interface ReservationPrefill {
+  title?: string;
+  contactName?: string;
+  contactId?: string;
+  date?: string;
+  roomName?: string;
+  guestCount?: number;
+}
+
 interface NewReservationDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -45,6 +54,7 @@ interface NewReservationDialogProps {
   initialStartHour?: number;
   initialRoom?: RoomName;
   initialDate?: string;
+  prefill?: ReservationPrefill;
 }
 
 const ROOM_SETUPS = [
@@ -60,7 +70,7 @@ const ROOM_SETUPS = [
 
 export default function NewReservationDialog({
   open, onOpenChange, onSubmit, contacts, contactsLoading, conflictAlert, getRoomDisplayName,
-  initialStartHour, initialRoom, initialDate
+  initialStartHour, initialRoom, initialDate, prefill
 }: NewReservationDialogProps) {
   const today = (() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; })();
   const [form, setForm] = useState<NewReservationForm>({
@@ -86,27 +96,28 @@ export default function NewReservationDialog({
   // Reset form when dialog opens with new initial values
   useEffect(() => {
     if (open) {
+      const prefillRoom = prefill?.roomName && ROOMS.includes(prefill.roomName as RoomName) ? prefill.roomName as RoomName : undefined;
       setForm({
-        contactId: '',
-        contactName: '',
-        room: initialRoom || ROOMS[0],
-        date: initialDate || today,
+        contactId: prefill?.contactId || '',
+        contactName: prefill?.contactName || '',
+        room: prefillRoom || initialRoom || ROOMS[0],
+        date: prefill?.date || initialDate || today,
         startHour: initialStartHour ?? 9,
         startMinute: 0,
         endHour: Math.min((initialStartHour ?? 9) + 3, 25),
         endMinute: 0,
-        title: '',
+        title: prefill?.title || '',
         status: 'confirmed',
         repeatType: 'eenmalig',
         repeatCount: 1,
         specificDates: [],
-        guestCount: 0,
+        guestCount: prefill?.guestCount || 0,
         roomSetup: '',
         notes: '',
       });
       setContactSearch('');
     }
-  }, [open, initialStartHour, initialRoom, initialDate]);
+  }, [open, initialStartHour, initialRoom, initialDate, prefill]);
 
   const filteredContacts = contacts.filter((c) =>
     `${c.firstName} ${c.lastName} ${c.email || ''} ${c.company || ''}`.toLowerCase().includes(contactSearch.toLowerCase())
