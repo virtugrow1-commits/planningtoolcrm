@@ -5,14 +5,13 @@ import { useContactsContext } from '@/contexts/ContactsContext';
 import { useCompaniesContext } from '@/contexts/CompaniesContext';
 import { useBookings } from '@/contexts/BookingsContext';
 import { useTasksContext } from '@/contexts/TasksContext';
-import { Inquiry, RoomName, ROOMS } from '@/types/crm';
+import { Inquiry } from '@/types/crm';
 import { useToast } from '@/hooks/use-toast';
 import { useContacts } from '@/hooks/useContacts';
 import { useRoomSettings } from '@/hooks/useRoomSettings';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { ArrowLeft, ChevronRight, FileText, History, CheckSquare } from 'lucide-react';
+import { ArrowLeft, ChevronRight, History, CheckSquare } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
 import InquiryDetailsTab, { PIPELINE_COLUMNS } from '@/components/inquiry/InquiryDetailsTab';
@@ -107,7 +106,7 @@ export default function InquiryDetailPage() {
   };
 
   return (
-    <div className="p-6 lg:p-8 space-y-4 animate-fade-in">
+    <div className="p-6 lg:p-8 space-y-6 animate-fade-in">
       {/* Breadcrumb */}
       <div className="flex items-center gap-2 text-sm text-muted-foreground">
         <button onClick={() => navigate('/inquiries')} className="hover:text-foreground transition-colors">Aanvragen</button>
@@ -125,61 +124,53 @@ export default function InquiryDetailPage() {
         {!inquiry.isRead && <Badge className="bg-destructive text-destructive-foreground text-[10px]">Nieuw</Badge>}
       </div>
 
-      {/* Tabs */}
-      <Tabs defaultValue="details" className="w-full">
-        <TabsList>
-          <TabsTrigger value="details" className="gap-1.5">
-            <FileText size={14} /> Details
-          </TabsTrigger>
-          <TabsTrigger value="history" className="gap-1.5">
-            <History size={14} /> Historie
-            {(contactBookings.length + contactInquiries.length) > 0 && (
-              <Badge variant="secondary" className="text-[10px] ml-1 h-4 px-1">{contactBookings.length + contactInquiries.length}</Badge>
-            )}
-          </TabsTrigger>
-          <TabsTrigger value="tasks" className="gap-1.5">
-            <CheckSquare size={14} /> Taken
-            {openTaskCount > 0 && (
-              <Badge variant="secondary" className="text-[10px] ml-1 h-4 px-1 bg-warning/15 text-warning">{openTaskCount}</Badge>
-            )}
-          </TabsTrigger>
-        </TabsList>
+      {/* Details */}
+      <InquiryDetailsTab
+        inquiry={inquiry}
+        editing={editing}
+        form={form}
+        setForm={setForm}
+        contact={contact}
+        company={company}
+        onSave={saveEdit}
+        onCancel={cancelEdit}
+        onDelete={handleDelete}
+        onStartEdit={startEdit}
+        onConvert={() => setShowReservationDialog(true)}
+        refetch={refetch}
+      />
 
-        <TabsContent value="details">
-          <InquiryDetailsTab
-            inquiry={inquiry}
-            editing={editing}
-            form={form}
-            setForm={setForm}
-            contact={contact}
-            company={company}
-            onSave={saveEdit}
-            onCancel={cancelEdit}
-            onDelete={handleDelete}
-            onStartEdit={startEdit}
-            onConvert={() => setShowReservationDialog(true)}
-            refetch={refetch}
-          />
-        </TabsContent>
+      {/* Historie */}
+      <div className="space-y-3">
+        <h2 className="text-lg font-bold text-foreground flex items-center gap-2">
+          <History size={16} /> Historie
+          {(contactBookings.length + contactInquiries.length) > 0 && (
+            <Badge variant="secondary" className="text-[10px] h-4 px-1">{contactBookings.length + contactInquiries.length}</Badge>
+          )}
+        </h2>
+        <InquiryHistoryTab
+          inquiry={inquiry}
+          contactBookings={contactBookings}
+          companyBookings={companyBookings}
+          contactInquiries={contactInquiries}
+        />
+      </div>
 
-        <TabsContent value="history">
-          <InquiryHistoryTab
-            inquiry={inquiry}
-            contactBookings={contactBookings}
-            companyBookings={companyBookings}
-            contactInquiries={contactInquiries}
-          />
-        </TabsContent>
-
-        <TabsContent value="tasks">
-          <InquiryTasksTab
-            inquiry={inquiry}
-            tasks={inquiryTasks}
-            contactId={contact?.id}
-            companyId={company?.id}
-          />
-        </TabsContent>
-      </Tabs>
+      {/* Taken */}
+      <div className="space-y-3">
+        <h2 className="text-lg font-bold text-foreground flex items-center gap-2">
+          <CheckSquare size={16} /> Taken
+          {openTaskCount > 0 && (
+            <Badge variant="secondary" className="text-[10px] h-4 px-1 bg-warning/15 text-warning">{openTaskCount}</Badge>
+          )}
+        </h2>
+        <InquiryTasksTab
+          inquiry={inquiry}
+          tasks={inquiryTasks}
+          contactId={contact?.id}
+          companyId={company?.id}
+        />
+      </div>
 
       {/* Convert to Reservation dialog */}
       <NewReservationDialog

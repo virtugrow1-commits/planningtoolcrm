@@ -201,8 +201,38 @@ export default function InquiryDetailsTab({ inquiry, editing, form, setForm, con
       <div className="space-y-5">
         <div className="rounded-xl bg-card p-5 card-shadow space-y-3">
           <h3 className="text-base font-bold text-foreground">Klantinvoer (Formuliergegevens)</h3>
-          {structuredFields.length > 0 ? (
-            <div className="space-y-2">
+          
+          {/* Show dedicated fields that might not be in message */}
+          <div className="space-y-2">
+            {inquiry.preferredDate && (
+              <div className="flex items-start gap-2 text-sm">
+                <span className="font-semibold text-muted-foreground min-w-[120px] shrink-0">Gewenste datum:</span>
+                <span className="text-foreground">{inquiry.preferredDate}</span>
+              </div>
+            )}
+            {inquiry.guestCount > 0 && (
+              <div className="flex items-start gap-2 text-sm">
+                <span className="font-semibold text-muted-foreground min-w-[120px] shrink-0">Aantal gasten:</span>
+                <span className="text-foreground">{inquiry.guestCount}</span>
+              </div>
+            )}
+            {inquiry.roomPreference && (
+              <div className="flex items-start gap-2 text-sm">
+                <span className="font-semibold text-muted-foreground min-w-[120px] shrink-0">Ruimte voorkeur:</span>
+                <span className="text-foreground">{inquiry.roomPreference}</span>
+              </div>
+            )}
+            {inquiry.budget && (
+              <div className="flex items-start gap-2 text-sm">
+                <span className="font-semibold text-muted-foreground min-w-[120px] shrink-0">Budget:</span>
+                <span className="text-foreground">€{inquiry.budget.toLocaleString('nl-NL', { minimumFractionDigits: 2 })}</span>
+              </div>
+            )}
+          </div>
+
+          {/* Structured fields from message */}
+          {structuredFields.length > 0 && (
+            <div className="space-y-2 pt-2 border-t border-border">
               {structuredFields.map((f, i) => (
                 <div key={i} className="flex items-start gap-2 text-sm">
                   <span className="font-semibold text-muted-foreground min-w-[120px] shrink-0">{f.label}:</span>
@@ -210,7 +240,8 @@ export default function InquiryDetailsTab({ inquiry, editing, form, setForm, con
                 </div>
               ))}
             </div>
-          ) : (
+          )}
+          {structuredFields.length === 0 && !inquiry.preferredDate && !inquiry.roomPreference && (
             <p className="text-xs text-muted-foreground">Geen gestructureerde formulierdata beschikbaar.</p>
           )}
           {freeText.length > 0 && (
@@ -219,7 +250,7 @@ export default function InquiryDetailsTab({ inquiry, editing, form, setForm, con
               <p className="text-sm text-foreground whitespace-pre-wrap">{freeText.join('\n')}</p>
             </div>
           )}
-          {!inquiry.message && (
+          {!inquiry.message && !inquiry.preferredDate && !inquiry.roomPreference && (
             <p className="text-xs text-muted-foreground italic">Nog geen formuliergegevens beschikbaar. {inquiry.ghlOpportunityId ? 'Gebruik de knop hiernaast om data op te halen.' : ''}</p>
           )}
         </div>
