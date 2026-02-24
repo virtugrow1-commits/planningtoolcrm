@@ -16,6 +16,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ArrowLeft, ChevronRight, Pencil, Check, X, Calendar as CalendarIcon, Users, Euro, User, Building2, FileText, CheckSquare, MapPin, Clock, Trash2 } from 'lucide-react';
+import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
 
 const PIPELINE_COLUMNS: { key: Inquiry['status']; label: string; badgeClass: string }[] = [
@@ -36,7 +37,7 @@ const PIPELINE_COLUMNS: { key: Inquiry['status']; label: string; badgeClass: str
 export default function InquiryDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { inquiries, updateInquiry, deleteInquiry } = useInquiriesContext();
+  const { inquiries, loading: inquiriesLoading, updateInquiry, deleteInquiry } = useInquiriesContext();
   const { contacts } = useContactsContext();
   const { companies } = useCompaniesContext();
   const { bookings } = useBookings();
@@ -54,6 +55,30 @@ export default function InquiryDetailPage() {
   const contactBookings = useMemo(() => inquiry?.contactId ? bookings.filter(b => b.contactId === inquiry.contactId) : [], [bookings, inquiry]);
   const inquiryTasks = useMemo(() => inquiry ? tasks.filter(t => t.inquiryId === inquiry.id) : [], [tasks, inquiry]);
   const col = useMemo(() => inquiry ? PIPELINE_COLUMNS.find(c => c.key === inquiry.status) : null, [inquiry]);
+
+  if (inquiriesLoading) {
+    return (
+      <div className="p-6 lg:p-8 space-y-4 animate-fade-in">
+        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+          <Skeleton className="h-4 w-20" />
+          <ChevronRight size={14} />
+          <Skeleton className="h-4 w-32" />
+        </div>
+        <div className="flex flex-col lg:flex-row gap-6">
+          <div className="w-full lg:w-80 shrink-0 space-y-5">
+            <Skeleton className="h-7 w-48" />
+            <Skeleton className="h-5 w-24" />
+            <div className="space-y-3">
+              {[...Array(5)].map((_, i) => <Skeleton key={i} className="h-10 w-full" />)}
+            </div>
+          </div>
+          <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-4">
+            {[...Array(3)].map((_, i) => <Skeleton key={i} className="h-32 rounded-xl" />)}
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   if (!inquiry) {
     return (
