@@ -260,6 +260,57 @@ export type Database = {
           },
         ]
       }
+      conversations: {
+        Row: {
+          channel: string | null
+          contact_id: string | null
+          contact_name: string
+          created_at: string
+          email: string | null
+          ghl_conversation_id: string | null
+          id: string
+          last_message_body: string | null
+          last_message_date: string | null
+          last_message_direction: string | null
+          phone: string | null
+          unread: boolean
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          channel?: string | null
+          contact_id?: string | null
+          contact_name?: string
+          created_at?: string
+          email?: string | null
+          ghl_conversation_id?: string | null
+          id?: string
+          last_message_body?: string | null
+          last_message_date?: string | null
+          last_message_direction?: string | null
+          phone?: string | null
+          unread?: boolean
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          channel?: string | null
+          contact_id?: string | null
+          contact_name?: string
+          created_at?: string
+          email?: string | null
+          ghl_conversation_id?: string | null
+          id?: string
+          last_message_body?: string | null
+          last_message_date?: string | null
+          last_message_direction?: string | null
+          phone?: string | null
+          unread?: boolean
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       inquiries: {
         Row: {
           budget: number | null
@@ -324,6 +375,53 @@ export type Database = {
             columns: ["contact_id"]
             isOneToOne: false
             referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      messages: {
+        Row: {
+          body: string
+          conversation_id: string | null
+          created_at: string
+          date_added: string
+          direction: string
+          ghl_message_id: string | null
+          id: string
+          message_type: string | null
+          status: string | null
+          user_id: string
+        }
+        Insert: {
+          body?: string
+          conversation_id?: string | null
+          created_at?: string
+          date_added?: string
+          direction?: string
+          ghl_message_id?: string | null
+          id?: string
+          message_type?: string | null
+          status?: string | null
+          user_id: string
+        }
+        Update: {
+          body?: string
+          conversation_id?: string | null
+          created_at?: string
+          date_added?: string
+          direction?: string
+          ghl_message_id?: string | null
+          id?: string
+          message_type?: string | null
+          status?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "messages_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "conversations"
             referencedColumns: ["id"]
           },
         ]

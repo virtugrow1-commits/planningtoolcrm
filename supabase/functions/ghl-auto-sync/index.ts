@@ -52,15 +52,16 @@ serve(async (req) => {
     return new Response(JSON.stringify({ error: 'No user found' }), { status: 200, headers: corsHeaders });
   }
 
-  const results: any = { bookings_pulled: 0, bookings_pushed: 0, contacts: 0, opportunities: 0, contacts_pushed: 0, tasks_pulled: 0, tasks_pushed: 0, errors: [] };
+  const results: any = { bookings_pulled: 0, bookings_pushed: 0, contacts: 0, opportunities: 0, contacts_pushed: 0, tasks_pulled: 0, tasks_pushed: 0, conversations_synced: 0, errors: [] };
 
-  // Run all 4 syncs in PARALLEL to avoid timeout
+  // Run all 5 syncs in PARALLEL to avoid timeout
   const calendarSync = syncCalendar(supabase, ghlHeaders, GHL_LOCATION_ID, userId, results);
   const opportunitiesSync = syncOpportunities(supabase, ghlHeaders, GHL_LOCATION_ID, userId, results);
   const contactsSync = syncContacts(supabase, ghlHeaders, GHL_LOCATION_ID, userId, results);
   const tasksSync = syncTasks(supabase, ghlHeaders, GHL_LOCATION_ID, userId, results);
+  const conversationsSync = syncConversations(supabase, ghlHeaders, GHL_LOCATION_ID, userId, results);
 
-  await Promise.allSettled([calendarSync, opportunitiesSync, contactsSync, tasksSync]);
+  await Promise.allSettled([calendarSync, opportunitiesSync, contactsSync, tasksSync, conversationsSync]);
 
   // Push local inquiries without GHL opportunity ID
   await pushLocalInquiries(supabase, ghlHeaders, GHL_LOCATION_ID, userId, results);
@@ -661,4 +662,84 @@ async function syncTasks(supabase: any, ghlHeaders: any, locationId: string, use
       }
     }
   } catch (e) { console.error('Task sync error:', e); }
+}
+
+// === CONVERSATIONS SYNC ===
+async function syncConversations(supabase: any, ghlHeaders: any, locationId: string, userId: string, results: any) {
+  try {
+    const searchParams = new URLSearchParams({ locationId, limit: '100', sortBy: 'last_message_date', sortOrder: 'desc' });
+    const res = await fetch(`${GHL_API_BASE}/conversations/search?${searchParams.toString()}`, { headers: ghlHeaders });
+    if (!res.ok) { console.error('Conversations fetch error:', res.status); return; }
+
+    const data = await res.json();
+    const conversations = data.conversations || [];
+    console.log(`Fetched ${conversations.length} conversations from GHL`);
+
+    for (const conv of conversations) {
+      try {
+        const contactName = conv.contactName || conv.fullName || conv.contact?.name || 'Onbekend';
+        const lastMsg = conv.lastMessageBody || conv.lastMessage?.body || '';
+        const lastMsgDate = conv.lastMessageDate || conv.dateUpdated || conv.dateAdded || null;
+        const lastMsgDir = conv.lastMessageDirection || 'inbound';
+        const phone = conv.phone || conv.contact?.phone || null;
+        const email = conv.email || conv.contact?.email || null;
+        const ghlContactId = conv.contactId || conv.contact?.id || null;
+
+        let localContactId: string | null = null;
+        if (ghlContactId) {
+          const { data: contactMatch } = await supabase.from('contacts').select('id').eq('ghl_contact_id', ghlContactId).maybeSingle();
+          localContactId = contactMatch?.id || null;
+        }
+
+        const isUnread = lastMsgDir === 'inbound' && (conv.unreadCount > 0 || false);
+
+        const { error: upsertErr } = await supabase.from('conversations').upsert({
+          user_id: userId,
+          ghl_conversation_id: conv.id,
+          contact_id: localContactId,
+          contact_name: contactName,
+          phone, email,
+          last_message_body: lastMsg,
+          last_message_date: lastMsgDate,
+          last_message_direction: lastMsgDir,
+          unread: isUnread,
+          channel: conv.type || 'chat',
+        }, { onConflict: 'ghl_conversation_id' });
+
+        if (upsertErr) {
+          console.error(`Conv upsert error for ${conv.id}:`, upsertErr.message);
+        } else {
+          results.conversations_synced++;
+        }
+
+        // Fetch recent messages for this conversation
+        try {
+          const msgRes = await fetch(`${GHL_API_BASE}/conversations/${conv.id}/messages?limit=20`, { headers: ghlHeaders });
+          if (!msgRes.ok) continue;
+          const msgData = await msgRes.json();
+          const rawMessages = Array.isArray(msgData.messages) ? msgData.messages
+            : Array.isArray(msgData.data?.messages) ? msgData.data.messages : [];
+
+          const { data: dbConv } = await supabase.from('conversations').select('id').eq('ghl_conversation_id', conv.id).maybeSingle();
+          if (!dbConv) continue;
+
+          for (const msg of rawMessages) {
+            if (!msg.id) continue;
+            await supabase.from('messages').upsert({
+              user_id: userId,
+              conversation_id: dbConv.id,
+              ghl_message_id: msg.id,
+              body: msg.body || msg.message || msg.text || '',
+              direction: msg.direction === 1 || msg.direction === 'outbound' ? 'outbound' : 'inbound',
+              message_type: msg.type || msg.messageType || 'TYPE_SMS',
+              status: msg.status || 'delivered',
+              date_added: msg.dateAdded || msg.createdAt || new Date().toISOString(),
+            }, { onConflict: 'ghl_message_id' });
+          }
+        } catch (_) { /* non-fatal */ }
+      } catch (convErr) {
+        console.error('Conv sync error:', conv.id, convErr);
+      }
+    }
+  } catch (e) { console.error('Conversations sync error:', e); }
 }

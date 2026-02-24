@@ -15,7 +15,7 @@ import {
   ChevronDown,
   RefreshCw,
 } from 'lucide-react';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
@@ -47,6 +47,29 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const [syncing, setSyncing] = useState(false);
   const { toast } = useToast();
   const { unreadCount } = useInquiriesContext();
+  const [unreadConversations, setUnreadConversations] = useState(0);
+
+  // Fetch unread conversations count
+  useEffect(() => {
+    const fetchUnread = async () => {
+      const { count } = await supabase
+        .from('conversations')
+        .select('id', { count: 'exact', head: true })
+        .eq('unread', true);
+      setUnreadConversations(count || 0);
+    };
+    fetchUnread();
+
+    // Subscribe to realtime changes
+    const channel = supabase
+      .channel('unread-conversations')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'conversations' }, () => {
+        fetchUnread();
+      })
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
+  }, []);
 
   const handleFullSync = async () => {
     if (syncing) return;
@@ -70,7 +93,8 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         <nav className="hidden md:flex items-center gap-0.5">
           {navItemDefs.map((item) => {
             const isActive = location.pathname === item.to;
-            const showBadge = item.to === '/inquiries' && unreadCount > 0;
+            const showBadge = (item.to === '/inquiries' && unreadCount > 0) || (item.to === '/conversations' && unreadConversations > 0);
+            const badgeCount = item.to === '/inquiries' ? unreadCount : item.to === '/conversations' ? unreadConversations : 0;
             return (
               <NavLink
                 key={item.to}
@@ -86,7 +110,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                 <span>{t(item.key)}</span>
                 {showBadge && (
                   <span className="absolute -top-1 -right-1 h-4.5 min-w-4.5 rounded-full bg-destructive text-[9px] font-bold text-destructive-foreground flex items-center justify-center px-1 animate-pulse">
-                    {unreadCount}
+                    {badgeCount}
                   </span>
                 )}
                 {isActive && (
@@ -171,7 +195,8 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         <nav className="md:hidden sidebar-gradient border-t border-white/10 px-2 py-2 space-y-0.5 animate-slide-down shadow-lg">
           {navItemDefs.map((item) => {
             const isActive = location.pathname === item.to;
-            const showBadge = item.to === '/inquiries' && unreadCount > 0;
+            const showBadge = (item.to === '/inquiries' && unreadCount > 0) || (item.to === '/conversations' && unreadConversations > 0);
+            const badgeCount = item.to === '/inquiries' ? unreadCount : item.to === '/conversations' ? unreadConversations : 0;
             return (
               <NavLink
                 key={item.to}
@@ -188,7 +213,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                 <span>{t(item.key)}</span>
                 {showBadge && (
                   <span className="ml-auto h-5 min-w-5 rounded-full bg-destructive text-[10px] font-bold text-destructive-foreground flex items-center justify-center px-1">
-                    {unreadCount}
+                    {badgeCount}
                   </span>
                 )}
               </NavLink>
