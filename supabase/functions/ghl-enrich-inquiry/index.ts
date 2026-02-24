@@ -84,28 +84,31 @@ serve(async (req) => {
     };
 
     // Fetch opportunity from GHL
+    let opp: any = {};
+    let ghlContactId: string | null = null;
     const oppRes = await fetch(`${GHL_API_BASE}/opportunities/${inquiry.ghl_opportunity_id}`, { headers: ghlHeaders });
-    if (!oppRes.ok) {
-      console.error('GHL API error:', oppRes.status, await oppRes.text());
-      return new Response(JSON.stringify({ error: 'Failed to fetch opportunity from GHL' }), { status: 502, headers: corsHeaders });
-    }
+    if (oppRes.ok) {
+      const oppData = await oppRes.json();
+      opp = oppData.opportunity || oppData;
+      console.log('GHL opportunity data:', JSON.stringify(opp).substring(0, 1000));
+      ghlContactId = opp.contactId || opp.contact?.id;
 
-    const oppData = await oppRes.json();
-    const opp = oppData.opportunity || oppData;
-    console.log('GHL opportunity data:', JSON.stringify(opp).substring(0, 1000));
-
-    // Custom fields can be on opportunity OR on the contact — fetch both
-    const fieldMap: Record<string, string> = {};
-
-    // 1. Opportunity custom fields
-    const oppCustomFields = opp.customFields || opp.custom_fields || [];
-    for (const cf of oppCustomFields) {
-      const { name, value } = resolveCustomField(cf);
-      if (value) fieldMap[name] = value;
+      // 1. Opportunity custom fields
+      const oppCustomFields = opp.customFields || opp.custom_fields || [];
+      for (const cf of oppCustomFields) {
+        const { name, value } = resolveCustomField(cf);
+        if (value) fieldMap[name] = value;
+      }
+    } else {
+      // Opportunity deleted or invalid — try to get contactId from local contact record
+      console.warn('GHL opportunity not found (deleted?), falling back to contact-only enrichment:', oppRes.status);
+      if (inquiry.contact_id) {
+        const { data: localContact } = await supabase.from('contacts').select('ghl_contact_id').eq('id', inquiry.contact_id).maybeSingle();
+        ghlContactId = localContact?.ghl_contact_id || null;
+      }
     }
 
     // 2. Fetch contact custom fields from GHL (form data lives here)
-    const ghlContactId = opp.contactId || opp.contact?.id;
     if (ghlContactId) {
       try {
         const contactRes = await fetch(`${GHL_API_BASE}/contacts/${ghlContactId}`, { headers: ghlHeaders });
