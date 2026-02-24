@@ -6,6 +6,7 @@ export interface Task {
   priority: 'low' | 'normal' | 'high' | 'urgent';
   dueDate?: string;
   assignedTo?: string;
+  companyId?: string;
   contactId?: string;
   inquiryId?: string;
   bookingId?: string;

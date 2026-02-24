@@ -15,6 +15,8 @@ import KpiDetailDialog from '@/components/dashboard/KpiDetailDialog';
 import { useBookings } from '@/contexts/BookingsContext';
 import { useInquiriesContext } from '@/contexts/InquiriesContext';
 import { useTasksContext } from '@/contexts/TasksContext';
+import { useContactsContext } from '@/contexts/ContactsContext';
+import { useCompaniesContext } from '@/contexts/CompaniesContext';
 import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -30,6 +32,8 @@ import { Task, TASK_STATUSES, TASK_PRIORITIES } from '@/types/task';
 export default function Dashboard() {
   const { bookings, loading: bookingsLoading } = useBookings();
   const { inquiries, loading: inquiriesLoading } = useInquiriesContext();
+  const { contacts } = useContactsContext();
+  const { companies } = useCompaniesContext();
   const { tasks, loading: tasksLoading, addTask, updateTask, deleteTask, deleteTasks } = useTasksContext();
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [newOpen, setNewOpen] = useState(false);
@@ -40,6 +44,8 @@ export default function Dashboard() {
     status: 'open' as Task['status'],
     priority: 'normal' as Task['priority'],
     dueDate: '',
+    companyId: '',
+    contactId: '',
   });
   const [filter, setFilter] = useState<'all' | 'open' | 'in_progress' | 'completed'>('all');
   const [kpiDialog, setKpiDialog] = useState<{ open: boolean; type: 'tasks' | 'inquiries' | 'bookings' }>({ open: false, type: 'tasks' });
@@ -75,7 +81,7 @@ export default function Dashboard() {
   };
 
   const resetForm = () => {
-    setForm({ title: '', description: '', status: 'open', priority: 'normal', dueDate: '' });
+    setForm({ title: '', description: '', status: 'open', priority: 'normal', dueDate: '', companyId: '', contactId: '' });
   };
 
   const openNew = () => {
@@ -91,6 +97,8 @@ export default function Dashboard() {
       status: task.status,
       priority: task.priority,
       dueDate: task.dueDate || '',
+      companyId: task.companyId || '',
+      contactId: task.contactId || '',
     });
     setEditTask(task);
     setNewOpen(true);
@@ -109,6 +117,8 @@ export default function Dashboard() {
         status: form.status,
         priority: form.priority,
         dueDate: form.dueDate || undefined,
+        companyId: form.companyId || undefined,
+        contactId: form.contactId || undefined,
       });
       toast({ title: 'Taak bijgewerkt' });
     } else {
@@ -118,6 +128,8 @@ export default function Dashboard() {
         status: form.status,
         priority: form.priority,
         dueDate: form.dueDate || undefined,
+        companyId: form.companyId || undefined,
+        contactId: form.contactId || undefined,
       });
       toast({ title: 'Taak aangemaakt' });
     }
@@ -398,6 +410,35 @@ export default function Dashboard() {
                   <SelectContent>
                     {TASK_PRIORITIES.map((p) => (
                       <SelectItem key={p.value} value={p.value}>{p.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="grid gap-1.5">
+                <Label>Bedrijf</Label>
+                <Select value={form.companyId} onValueChange={(v) => setForm({ ...form, companyId: v === '__none__' ? '' : v })}>
+                  <SelectTrigger><SelectValue placeholder="Optioneel" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">— Geen —</SelectItem>
+                    {companies.map((c) => (
+                      <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="grid gap-1.5">
+                <Label>Contactpersoon</Label>
+                <Select value={form.contactId} onValueChange={(v) => setForm({ ...form, contactId: v === '__none__' ? '' : v })}>
+                  <SelectTrigger><SelectValue placeholder="Optioneel" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">— Geen —</SelectItem>
+                    {(form.companyId
+                      ? contacts.filter(c => c.companyId === form.companyId)
+                      : contacts
+                    ).slice(0, 50).map((c) => (
+                      <SelectItem key={c.id} value={c.id}>{c.firstName} {c.lastName}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
