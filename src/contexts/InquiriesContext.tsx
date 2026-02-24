@@ -8,9 +8,11 @@ import { useToast } from '@/hooks/use-toast';
 interface InquiriesContextType {
   inquiries: Inquiry[];
   loading: boolean;
+  unreadCount: number;
   addInquiry: (inquiry: Omit<Inquiry, 'id' | 'createdAt'>) => Promise<void>;
   updateInquiry: (inquiry: Inquiry) => Promise<void>;
   deleteInquiry: (id: string) => Promise<void>;
+  markAsRead: (id: string) => Promise<void>;
   refetch: () => Promise<void>;
 }
 
@@ -50,6 +52,7 @@ export function InquiriesProvider({ children }: { children: ReactNode }) {
         createdAt: i.created_at.split('T')[0],
         source: i.source,
         ghlOpportunityId: (i as any).ghl_opportunity_id || undefined,
+        isRead: (i as any).is_read ?? true,
       })));
     }
     setLoading(false);
@@ -135,8 +138,15 @@ export function InquiriesProvider({ children }: { children: ReactNode }) {
     }
   }, [toast]);
 
+  const markAsRead = useCallback(async (id: string) => {
+    await supabase.from('inquiries').update({ is_read: true } as any).eq('id', id);
+    setInquiries(prev => prev.map(i => i.id === id ? { ...i, isRead: true } : i));
+  }, []);
+
+  const unreadCount = inquiries.filter(i => !i.isRead).length;
+
   return (
-    <InquiriesContext.Provider value={{ inquiries, loading, addInquiry, updateInquiry, deleteInquiry, refetch: fetchInquiries }}>
+    <InquiriesContext.Provider value={{ inquiries, loading, unreadCount, addInquiry, updateInquiry, deleteInquiry, markAsRead, refetch: fetchInquiries }}>
       {children}
     </InquiriesContext.Provider>
   );

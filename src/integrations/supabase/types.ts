@@ -271,6 +271,7 @@ export type Database = {
           ghl_opportunity_id: string | null
           guest_count: number
           id: string
+          is_read: boolean
           message: string | null
           preferred_date: string | null
           room_preference: string | null
@@ -289,6 +290,7 @@ export type Database = {
           ghl_opportunity_id?: string | null
           guest_count?: number
           id?: string
+          is_read?: boolean
           message?: string | null
           preferred_date?: string | null
           room_preference?: string | null
@@ -307,6 +309,7 @@ export type Database = {
           ghl_opportunity_id?: string | null
           guest_count?: number
           id?: string
+          is_read?: boolean
           message?: string | null
           preferred_date?: string | null
           room_preference?: string | null

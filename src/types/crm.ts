@@ -28,6 +28,7 @@ export interface Inquiry {
   createdAt: string;
   source: string;
   ghlOpportunityId?: string;
+  isRead?: boolean;
 }
 
 export interface Quotation {

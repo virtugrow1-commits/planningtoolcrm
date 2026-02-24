@@ -1,5 +1,5 @@
 import { useParams, useNavigate } from 'react-router-dom';
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { format } from 'date-fns';
 import { nl } from 'date-fns/locale';
 import { useInquiriesContext } from '@/contexts/InquiriesContext';
@@ -37,7 +37,7 @@ const PIPELINE_COLUMNS: { key: Inquiry['status']; label: string; badgeClass: str
 export default function InquiryDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { inquiries, loading: inquiriesLoading, updateInquiry, deleteInquiry } = useInquiriesContext();
+  const { inquiries, loading: inquiriesLoading, updateInquiry, deleteInquiry, markAsRead } = useInquiriesContext();
   const { contacts } = useContactsContext();
   const { companies } = useCompaniesContext();
   const { bookings } = useBookings();
@@ -47,6 +47,13 @@ export default function InquiryDetailPage() {
   const inquiry = inquiries.find((i) => i.id === id);
   const [editing, setEditing] = useState(false);
   const [form, setForm] = useState<Inquiry | null>(null);
+
+  // Mark as read when opening
+  useEffect(() => {
+    if (inquiry && !inquiry.isRead) {
+      markAsRead(inquiry.id);
+    }
+  }, [inquiry?.id]);
 
   const contact = useMemo(() => inquiry?.contactId ? contacts.find(c => c.id === inquiry.contactId) : null, [inquiry, contacts]);
   const company = useMemo(() => contact?.companyId ? companies.find(co => co.id === contact.companyId) : null, [contact, companies]);
