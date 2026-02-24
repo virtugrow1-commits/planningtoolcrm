@@ -412,6 +412,7 @@ export type Database = {
         Row: {
           assigned_to: string | null
           booking_id: string | null
+          company_id: string | null
           completed_at: string | null
           contact_id: string | null
           created_at: string
@@ -429,6 +430,7 @@ export type Database = {
         Insert: {
           assigned_to?: string | null
           booking_id?: string | null
+          company_id?: string | null
           completed_at?: string | null
           contact_id?: string | null
           created_at?: string
@@ -446,6 +448,7 @@ export type Database = {
         Update: {
           assigned_to?: string | null
           booking_id?: string | null
+          company_id?: string | null
           completed_at?: string | null
           contact_id?: string | null
           created_at?: string
@@ -460,7 +463,15 @@ export type Database = {
           updated_at?: string
           user_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "tasks_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       user_roles: {
         Row: {
