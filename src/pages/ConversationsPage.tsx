@@ -97,6 +97,8 @@ export default function ConversationsPage() {
   }, [fetchConversations]);
 
   // Realtime subscription for new conversations/messages
+  const selectedConvId = selectedConv?.id ?? null;
+
   useEffect(() => {
     const channel = supabase
       .channel('conversations-realtime')
@@ -104,9 +106,8 @@ export default function ConversationsPage() {
         fetchConversations();
       })
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, (payload) => {
-        // If this message belongs to the selected conversation, add it
-        if (selectedConv && payload.new && (payload.new as any).conversation_id === selectedConv.id) {
-          const msg = payload.new as any;
+        const msg = payload.new as any;
+        if (selectedConvId && msg?.conversation_id === selectedConvId) {
           setMessages((prev) => {
             if (prev.some(m => m.id === msg.id)) return prev;
             return [...prev, {
@@ -123,7 +124,7 @@ export default function ConversationsPage() {
       .subscribe();
 
     return () => { supabase.removeChannel(channel); };
-  }, [selectedConv?.id]);
+  }, [selectedConvId, fetchConversations]);
 
   // Fetch messages from database
   const fetchMessages = useCallback(async (conversationId: string) => {
@@ -275,6 +276,10 @@ export default function ConversationsPage() {
     }
   };
 
+  const handleSelectConv = useCallback((conv: Conversation) => {
+    setSelectedConv(conv);
+  }, []);
+
   return (
     <div className="flex h-[calc(100vh-4rem)] overflow-hidden">
       <ConversationList
@@ -283,7 +288,7 @@ export default function ConversationsPage() {
         loading={loading}
         searchQuery={searchQuery}
         setSearchQuery={setSearchQuery}
-        onSelect={setSelectedConv}
+        onSelect={handleSelectConv}
         onRefresh={handleRefresh}
         onDelete={handleDeleteConversation}
         onBulkDelete={handleBulkDelete}

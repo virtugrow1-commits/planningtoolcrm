@@ -677,13 +677,16 @@ function toISODate(val: any): string | null {
 
 async function syncConversations(supabase: any, ghlHeaders: any, locationId: string, userId: string, results: any) {
   try {
-    const searchParams = new URLSearchParams({ locationId, limit: '100', sortBy: 'last_message_date', sortOrder: 'desc' });
+    const searchParams = new URLSearchParams({ locationId, limit: '50', sortBy: 'last_message_date', sortOrder: 'desc' });
     const res = await fetch(`${GHL_API_BASE}/conversations/search?${searchParams.toString()}`, { headers: ghlHeaders });
     if (!res.ok) { console.error('Conversations fetch error:', res.status); return; }
 
     const data = await res.json();
     const conversations = data.conversations || [];
     console.log(`Fetched ${conversations.length} conversations from GHL`);
+    
+    let messagesSyncCount = 0;
+    const MAX_MESSAGE_SYNCS = 10;
 
     for (const conv of conversations) {
       try {
@@ -722,20 +725,34 @@ async function syncConversations(supabase: any, ghlHeaders: any, locationId: str
           results.conversations_synced++;
         }
 
-        // Fetch recent messages for this conversation
+        // Fetch recent messages for this conversation (limited to avoid timeout)
+        if (messagesSyncCount >= MAX_MESSAGE_SYNCS) continue;
         try {
-          const msgRes = await fetch(`${GHL_API_BASE}/conversations/${conv.id}/messages?limit=20`, { headers: ghlHeaders });
-          if (!msgRes.ok) continue;
+          messagesSyncCount++;
+          const msgRes = await fetch(`${GHL_API_BASE}/conversations/${conv.id}/messages`, {
+            headers: ghlHeaders,
+          });
+          console.log(`Messages fetch for conv ${conv.id}: status=${msgRes.status}`);
+          if (!msgRes.ok) {
+            console.error(`Messages fetch failed for ${conv.id}: ${msgRes.status} ${await msgRes.text()}`);
+            continue;
+          }
           const msgData = await msgRes.json();
+          console.log(`Messages response keys for ${conv.id}:`, Object.keys(msgData));
+          
           const rawMessages = Array.isArray(msgData.messages) ? msgData.messages
-            : Array.isArray(msgData.data?.messages) ? msgData.data.messages : [];
+            : Array.isArray(msgData) ? msgData
+            : msgData.messages?.messages ? msgData.messages.messages
+            : [];
+          
+          console.log(`Found ${rawMessages.length} messages for conv ${conv.id}`);
 
           const { data: dbConv } = await supabase.from('conversations').select('id').eq('ghl_conversation_id', conv.id).maybeSingle();
-          if (!dbConv) continue;
+          if (!dbConv) { console.log(`No local conv found for GHL ${conv.id}`); continue; }
 
           for (const msg of rawMessages) {
             if (!msg.id) continue;
-            await supabase.from('messages').upsert({
+            const { error: msgErr } = await supabase.from('messages').upsert({
               user_id: userId,
               conversation_id: dbConv.id,
               ghl_message_id: msg.id,
@@ -745,8 +762,9 @@ async function syncConversations(supabase: any, ghlHeaders: any, locationId: str
               status: msg.status || 'delivered',
               date_added: toISODate(msg.dateAdded || msg.createdAt) || new Date().toISOString(),
             }, { onConflict: 'ghl_message_id' });
+            if (msgErr) console.error(`Message upsert error:`, msgErr.message);
           }
-        } catch (_) { /* non-fatal */ }
+        } catch (msgFetchErr) { console.error(`Messages sync error for ${conv.id}:`, msgFetchErr); }
       } catch (convErr) {
         console.error('Conv sync error:', conv.id, convErr);
       }
