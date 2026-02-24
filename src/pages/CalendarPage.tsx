@@ -162,19 +162,24 @@ export default function CalendarPage() {
   }, [bookings, toast, getDisplayName]);
 
   const handleNewReservation = async (form: NewReservationForm) => {
-    const allDates: string[] = [form.date];
-    if (form.repeatType !== 'eenmalig' && form.repeatCount > 0) {
-      const intervalDays = { week: 7, '2weken': 14, maand: 0, kwartaal: 0 }[form.repeatType];
-      for (let i = 1; i <= form.repeatCount; i++) {
-        const d = new Date(form.date + 'T12:00:00');
-        if (form.repeatType === 'maand') {
-          d.setMonth(d.getMonth() + i);
-        } else if (form.repeatType === 'kwartaal') {
-          d.setMonth(d.getMonth() + i * 3);
-        } else {
-          d.setDate(d.getDate() + i * intervalDays);
+    const allDates: string[] = [];
+    if (form.repeatType === 'specifiek') {
+      allDates.push(...form.specificDates);
+    } else {
+      allDates.push(form.date);
+      if (form.repeatType !== 'eenmalig' && form.repeatCount > 0) {
+        const intervalDays = { week: 7, '2weken': 14, maand: 0, kwartaal: 0 }[form.repeatType] ?? 0;
+        for (let i = 1; i <= form.repeatCount; i++) {
+          const d = new Date(form.date + 'T12:00:00');
+          if (form.repeatType === 'maand') {
+            d.setMonth(d.getMonth() + i);
+          } else if (form.repeatType === 'kwartaal') {
+            d.setMonth(d.getMonth() + i * 3);
+          } else {
+            d.setDate(d.getDate() + i * intervalDays);
+          }
+          allDates.push(formatDate(d));
         }
-        allDates.push(formatDate(d));
       }
     }
 

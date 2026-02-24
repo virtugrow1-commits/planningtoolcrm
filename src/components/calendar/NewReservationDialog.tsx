@@ -6,9 +6,14 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
-import { AlertTriangle, Search } from 'lucide-react';
+import { AlertTriangle, Search, X } from 'lucide-react';
 import { ContactOption } from '@/hooks/useContacts';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Calendar } from '@/components/ui/calendar';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { cn } from '@/lib/utils';
+import { format } from 'date-fns';
+import { nl } from 'date-fns/locale';
 
 export interface NewReservationForm {
   contactId: string;
@@ -21,8 +26,9 @@ export interface NewReservationForm {
   endMinute: number;
   title: string;
   status: 'confirmed' | 'option';
-  repeatType: 'eenmalig' | 'week' | '2weken' | 'maand' | 'kwartaal';
+  repeatType: 'eenmalig' | 'week' | '2weken' | 'maand' | 'kwartaal' | 'specifiek';
   repeatCount: number;
+  specificDates: string[];
   guestCount: number;
   roomSetup: string;
   notes: string;
@@ -70,6 +76,7 @@ export default function NewReservationDialog({
     status: 'confirmed',
     repeatType: 'eenmalig',
     repeatCount: 1,
+    specificDates: [],
     guestCount: 0,
     roomSetup: '',
     notes: '',
@@ -92,6 +99,7 @@ export default function NewReservationDialog({
         status: 'confirmed',
         repeatType: 'eenmalig',
         repeatCount: 1,
+        specificDates: [],
         guestCount: 0,
         roomSetup: '',
         notes: '',
@@ -286,6 +294,7 @@ export default function NewReservationDialog({
               <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="eenmalig">Eenmalig</SelectItem>
+                <SelectItem value="specifiek">Specifieke datums</SelectItem>
                 <SelectItem value="week">Elke week</SelectItem>
                 <SelectItem value="2weken">Om de 2 weken</SelectItem>
                 <SelectItem value="maand">Elke maand</SelectItem>
@@ -293,7 +302,54 @@ export default function NewReservationDialog({
               </SelectContent>
             </Select>
           </div>
-          {form.repeatType !== 'eenmalig' && (
+          {form.repeatType === 'specifiek' && (
+            <div className="grid gap-1.5">
+              <Label>Selecteer datums</Label>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" className="justify-start text-left font-normal">
+                    {form.specificDates.length > 0
+                      ? `${form.specificDates.length} datum(s) geselecteerd`
+                      : 'Kies datums...'}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <Calendar
+                    mode="multiple"
+                    selected={form.specificDates.map((d) => {
+                      const [y, m, day] = d.split('-').map(Number);
+                      return new Date(y, m - 1, day);
+                    })}
+                    onSelect={(dates) => {
+                      const formatted = (dates || []).map((d) =>
+                        `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+                      ).sort();
+                      setForm({ ...form, specificDates: formatted });
+                    }}
+                    locale={nl}
+                    className={cn("p-3 pointer-events-auto")}
+                  />
+                </PopoverContent>
+              </Popover>
+              {form.specificDates.length > 0 && (
+                <div className="flex flex-wrap gap-1.5 mt-1">
+                  {form.specificDates.map((d) => (
+                    <span key={d} className="inline-flex items-center gap-1 rounded-md bg-muted px-2 py-0.5 text-xs">
+                      {format(new Date(d + 'T12:00:00'), 'd MMM yyyy', { locale: nl })}
+                      <button
+                        type="button"
+                        onClick={() => setForm({ ...form, specificDates: form.specificDates.filter((x) => x !== d) })}
+                        className="hover:text-destructive"
+                      >
+                        <X size={12} />
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+          {form.repeatType !== 'eenmalig' && form.repeatType !== 'specifiek' && (
             <div className="grid gap-1.5">
               <Label>Aantal herhalingen</Label>
               <Input
