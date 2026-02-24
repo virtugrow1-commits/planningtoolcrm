@@ -1508,12 +1508,25 @@ serve(async (req) => {
         });
       }
 
+      // Resolve the GHL contact ID from the local contact UUID
+      let ghlContactId = contactId;
+      if (contactId) {
+        const { data: contactRow } = await supabase
+          .from('contacts')
+          .select('ghl_contact_id')
+          .eq('id', contactId)
+          .maybeSingle();
+        if (contactRow?.ghl_contact_id) {
+          ghlContactId = contactRow.ghl_contact_id;
+        }
+      }
+
       // Only Email is supported for now
       const msgType = 'Email';
       
       const payload: any = {
         type: msgType,
-        contactId,
+        contactId: ghlContactId,
         message,
         subject: body.subject || 'Re:',
         html: message,
