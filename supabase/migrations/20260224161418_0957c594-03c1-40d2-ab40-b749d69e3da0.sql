@@ -1,0 +1,2 @@
+ALTER TABLE public.conversations ADD CONSTRAINT conversations_ghl_conversation_id_key UNIQUE (ghl_conversation_id);
+ALTER TABLE public.messages ADD CONSTRAINT messages_ghl_message_id_key UNIQUE (ghl_message_id);
