@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Building2, ChevronRight, Mail, Phone, Globe, MapPin, Plus, Pencil, Check, X, Search, UserPlus, Download, CheckSquare } from 'lucide-react';
+import { ArrowLeft, Building2, ChevronRight, Mail, Phone, Globe, MapPin, Plus, Pencil, Check, X, Search, UserPlus, Download, CheckSquare, Unlink } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
@@ -14,6 +14,7 @@ import { useContactsContext } from '@/contexts/ContactsContext';
 import { useBookings } from '@/contexts/BookingsContext';
 import { useInquiriesContext } from '@/contexts/InquiriesContext';
 import { useTasksContext } from '@/contexts/TasksContext';
+import { useContactCompanies } from '@/hooks/useContactCompanies';
 import { useToast } from '@/hooks/use-toast';
 import { mockQuotations } from '@/data/mockData';
 
@@ -106,6 +107,7 @@ export default function CompanyDetailPage() {
   const { bookings, loading: bookingsLoading } = useBookings();
   const { inquiries } = useInquiriesContext();
   const { tasks } = useTasksContext();
+  const { getCompanyContacts, linkContact, unlinkContact, loading: linksLoading } = useContactCompanies();
   const { toast } = useToast();
 
   const [editing, setEditing] = useState<string | null>(null);
@@ -118,12 +120,14 @@ export default function CompanyDetailPage() {
 
   const company = companies.find((c) => c.id === id);
 
+  // Get contacts from junction table + legacy company_id
   const companyContacts = useMemo(() => {
     if (!company) return [];
+    const junctionContactIds = new Set(getCompanyContacts(company.id).map((l) => l.contactId));
     return contacts.filter(
-      (c) => c.companyId === company.id || (!c.companyId && c.company && c.company.toLowerCase() === company.name.toLowerCase())
+      (c) => junctionContactIds.has(c.id) || c.companyId === company.id || (!c.companyId && c.company && c.company.toLowerCase() === company.name.toLowerCase())
     );
-  }, [contacts, company]);
+  }, [contacts, company, getCompanyContacts]);
 
   const contactIds = useMemo(() => new Set(companyContacts.map((c) => c.id)), [companyContacts]);
 
@@ -191,10 +195,26 @@ export default function CompanyDetailPage() {
   const handleLinkContact = async (contactId: string) => {
     const c = contacts.find((ct) => ct.id === contactId);
     if (!c || !company) return;
-    await updateContact({ ...c, company: company.name, companyId: company.id });
+    // Add to junction table
+    await linkContact(contactId, company.id);
+    // Also set primary company_id if contact has none
+    if (!c.companyId) {
+      await updateContact({ ...c, company: company.name, companyId: company.id });
+    }
     toast({ title: `${c.firstName} ${c.lastName} gekoppeld aan ${company.name}` });
     setAddContactOpen(false);
     setLinkSearch('');
+  };
+
+  const handleUnlinkContact = async (contactId: string) => {
+    const c = contacts.find((ct) => ct.id === contactId);
+    if (!c || !company) return;
+    await unlinkContact(contactId, company.id);
+    // If this was the primary company, clear it
+    if (c.companyId === company.id) {
+      await updateContact({ ...c, company: undefined, companyId: undefined });
+    }
+    toast({ title: `${c.firstName} ${c.lastName} ontkoppeld van ${company.name}` });
   };
 
   const handleCreateContact = async () => {
@@ -211,6 +231,9 @@ export default function CompanyDetailPage() {
       companyId: company.id,
       status: 'lead',
     });
+    // The addContact sets company_id, the auto_link trigger + junction table seed will handle it
+    // But also add to junction table explicitly
+    // We need the new contact ID - refetch will handle it via realtime
     toast({ title: `${newContactForm.firstName} ${newContactForm.lastName} aangemaakt en gekoppeld` });
     setAddContactOpen(false);
     setNewContactForm({ firstName: '', lastName: '', email: '', phone: '' });
@@ -376,20 +399,32 @@ export default function CompanyDetailPage() {
             ) : (
               <div className="space-y-1">
                 {visibleContacts.map((c) => (
-                  <button
+                  <div
                     key={c.id}
-                    onClick={() => navigate(`/crm/${c.id}`)}
-                    className="w-full flex items-center justify-between py-1.5 px-2 rounded-md hover:bg-muted/50 transition-colors text-left text-xs"
+                    className="flex items-center justify-between py-1.5 px-2 rounded-md hover:bg-muted/50 transition-colors text-xs"
                   >
-                    <div>
+                    <button
+                      onClick={() => navigate(`/crm/${c.id}`)}
+                      className="flex-1 text-left min-w-0"
+                    >
                       <span className="font-medium text-foreground">{c.firstName} {c.lastName}</span>
                       {c.phone && <span className="text-muted-foreground ml-2">{c.phone}</span>}
-                    </div>
-                    <div className="flex items-center gap-2">
+                    </button>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      {c.companyId !== company?.id && (
+                        <Badge variant="outline" className="text-[9px] px-1">Secundair</Badge>
+                      )}
                       <Badge variant={c.status === 'do_not_contact' ? 'destructive' : 'outline'} className="text-[10px]">{STATUS_LABELS[c.status] || c.status}</Badge>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); handleUnlinkContact(c.id); }}
+                        className="p-0.5 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors"
+                        title="Ontkoppelen"
+                      >
+                        <Unlink size={11} />
+                      </button>
                       <ChevronRight size={12} className="text-muted-foreground" />
                     </div>
-                  </button>
+                  </div>
                 ))}
                 {companyContacts.length > 4 && !showAllContacts && (
                   <button
