@@ -17,7 +17,7 @@ import { mockQuotations } from '@/data/mockData';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 
 export default function ContactDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -356,7 +356,8 @@ export default function ContactDetailPage() {
       <Dialog open={inquiryOpen} onOpenChange={setInquiryOpen}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>Aanvraag indienen</DialogTitle>
+           <DialogTitle>Aanvraag indienen</DialogTitle>
+            <DialogDescription>Maak een nieuwe aanvraag aan voor dit contact.</DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-2">
             <div className="rounded-lg border bg-muted/30 p-3">

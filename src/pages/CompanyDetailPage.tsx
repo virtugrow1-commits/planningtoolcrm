@@ -6,7 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useCompaniesContext, Company } from '@/contexts/CompaniesContext';
@@ -461,7 +461,8 @@ export default function CompanyDetailPage() {
       <Dialog open={addContactOpen} onOpenChange={setAddContactOpen}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>Contactpersoon toevoegen aan {company.name}</DialogTitle>
+           <DialogTitle>Contactpersoon toevoegen aan {company.name}</DialogTitle>
+            <DialogDescription>Koppel een bestaand contact of maak een nieuw contact aan.</DialogDescription>
           </DialogHeader>
           <Tabs value={addContactTab} onValueChange={setAddContactTab}>
             <TabsList className="w-full">
