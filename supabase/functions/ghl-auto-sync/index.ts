@@ -327,26 +327,68 @@ async function syncOpportunities(supabase: any, ghlHeaders: any, locationId: str
             }
           }
         } else {
-          // New from GHL → upsert into CRM (prevent duplicates via unique ghl_opportunity_id)
-          const { error: insertErr } = await supabase.from('inquiries').upsert({
-            user_id: userId,
-            ghl_opportunity_id: opp.id,
-            contact_name: contactName,
-            contact_id: null,
-            event_type: opp.name || 'Onbekend',
-            status: ghlStatus,
-            guest_count: 0,
-            budget: monetaryValue,
-            source: 'GHL',
-            message: opp.notes || null,
-            preferred_date: opp.date || null,
-            room_preference: null,
-          }, { onConflict: 'ghl_opportunity_id', ignoreDuplicates: true });
-          if (insertErr) {
-            console.error(`Opp insert error for ${opp.id}:`, insertErr.message);
-            results.errors.push(`insert:${opp.id}:${insertErr.message}`);
+          // New from GHL → check for recent form-created inquiry to merge (prevent duplicates)
+          const recentMergeCutoff = new Date(Date.now() - 30 * 60 * 1000).toISOString(); // 30-min window
+          let mergedExisting = null;
+
+          // Try to find by contact name match (form inquiries often lack ghl_opportunity_id)
+          if (contactName && contactName !== 'Onbekend') {
+            const { data: nameMatch } = await supabase.from('inquiries')
+              .select('id')
+              .eq('user_id', userId)
+              .ilike('contact_name', contactName)
+              .is('ghl_opportunity_id', null)
+              .gt('created_at', recentMergeCutoff)
+              .limit(1)
+              .maybeSingle();
+            mergedExisting = nameMatch;
+          }
+
+          // Also try matching by contact_id via GHL contact
+          if (!mergedExisting && opp.contact?.id) {
+            const { data: contactMatch } = await supabase.from('contacts').select('id').eq('ghl_contact_id', opp.contact.id).maybeSingle();
+            if (contactMatch) {
+              const { data: contactInqMatch } = await supabase.from('inquiries')
+                .select('id')
+                .eq('user_id', userId)
+                .eq('contact_id', contactMatch.id)
+                .is('ghl_opportunity_id', null)
+                .gt('created_at', recentMergeCutoff)
+                .limit(1)
+                .maybeSingle();
+              mergedExisting = contactInqMatch;
+            }
+          }
+
+          if (mergedExisting) {
+            // Merge: link existing form inquiry to this GHL opportunity
+            await supabase.from('inquiries').update({
+              ghl_opportunity_id: opp.id, status: ghlStatus, budget: monetaryValue,
+              event_type: opp.name || 'Onbekend',
+            }).eq('id', mergedExisting.id);
+            console.log(`Auto-sync: Merged form inquiry ${mergedExisting.id} with GHL opp ${opp.id}`);
           } else {
-            console.log(`Inserted GHL opp ${opp.id} -> ${ghlStatus} (stage: ${stageName})`);
+            // No merge candidate → upsert new (prevent duplicates via unique ghl_opportunity_id)
+            const { error: insertErr } = await supabase.from('inquiries').upsert({
+              user_id: userId,
+              ghl_opportunity_id: opp.id,
+              contact_name: contactName,
+              contact_id: null,
+              event_type: opp.name || 'Onbekend',
+              status: ghlStatus,
+              guest_count: 0,
+              budget: monetaryValue,
+              source: 'GHL',
+              message: opp.notes || null,
+              preferred_date: opp.date || null,
+              room_preference: null,
+            }, { onConflict: 'ghl_opportunity_id', ignoreDuplicates: true });
+            if (insertErr) {
+              console.error(`Opp insert error for ${opp.id}:`, insertErr.message);
+              results.errors.push(`insert:${opp.id}:${insertErr.message}`);
+            } else {
+              console.log(`Inserted GHL opp ${opp.id} -> ${ghlStatus} (stage: ${stageName})`);
+            }
           }
         }
         results.opportunities++;
