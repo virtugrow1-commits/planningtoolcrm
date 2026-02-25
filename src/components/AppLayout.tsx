@@ -6,6 +6,7 @@ import {
   InboxIcon,
   MessageSquare,
   CalendarDays,
+  FileText,
   ClipboardList,
   Settings,
   LogOut,
@@ -37,6 +38,7 @@ const navItemDefs = [
   { to: '/inquiries', icon: InboxIcon, key: 'nav.inquiries' },
   { to: '/reserveringen', icon: ClipboardList, key: 'nav.reserveringen' },
   { to: '/calendar', icon: CalendarDays, key: 'nav.calendar' },
+  { to: '/documents', icon: FileText, key: 'nav.documents' },
 ];
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {

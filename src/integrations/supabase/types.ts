@@ -353,6 +353,88 @@ export type Database = {
         }
         Relationships: []
       }
+      documents: {
+        Row: {
+          amount: number | null
+          company_id: string | null
+          contact_id: string | null
+          contact_name: string
+          created_at: string
+          document_type: string
+          external_url: string | null
+          ghl_document_id: string | null
+          id: string
+          inquiry_id: string | null
+          sent_at: string
+          signed_at: string | null
+          status: string
+          title: string
+          updated_at: string
+          user_id: string
+          viewed_at: string | null
+        }
+        Insert: {
+          amount?: number | null
+          company_id?: string | null
+          contact_id?: string | null
+          contact_name?: string
+          created_at?: string
+          document_type?: string
+          external_url?: string | null
+          ghl_document_id?: string | null
+          id?: string
+          inquiry_id?: string | null
+          sent_at?: string
+          signed_at?: string | null
+          status?: string
+          title?: string
+          updated_at?: string
+          user_id: string
+          viewed_at?: string | null
+        }
+        Update: {
+          amount?: number | null
+          company_id?: string | null
+          contact_id?: string | null
+          contact_name?: string
+          created_at?: string
+          document_type?: string
+          external_url?: string | null
+          ghl_document_id?: string | null
+          id?: string
+          inquiry_id?: string | null
+          sent_at?: string
+          signed_at?: string | null
+          status?: string
+          title?: string
+          updated_at?: string
+          user_id?: string
+          viewed_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "documents_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "documents_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "documents_inquiry_id_fkey"
+            columns: ["inquiry_id"]
+            isOneToOne: false
+            referencedRelation: "inquiries"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       inquiries: {
         Row: {
           budget: number | null

@@ -10,10 +10,11 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
-import { ArrowLeft, Pencil, Check, X, Plus, ChevronRight, Calendar, FileText, Mail, Phone, Building2, User, CheckSquare } from 'lucide-react';
+import { ArrowLeft, Pencil, Check, X, Plus, ChevronRight, Calendar, FileText, Mail, Phone, Building2, User, CheckSquare, Send, Eye, CheckCircle2 } from 'lucide-react';
 import ActivityTimeline from '@/components/contact/ActivityTimeline';
 import { Contact, ROOMS } from '@/types/crm';
 import { mockQuotations } from '@/data/mockData';
+import { useDocuments } from '@/hooks/useDocuments';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
@@ -28,6 +29,7 @@ export default function ContactDetailPage() {
   const { bookings } = useBookings();
   const { tasks } = useTasksContext();
   const { getContactCompanies, linkContact, unlinkContact } = useContactCompanies();
+  const { documents } = useDocuments();
   const { toast } = useToast();
 
   const contact = contacts.find((c) => c.id === id);
@@ -44,6 +46,7 @@ export default function ContactDetailPage() {
   const optionBookings = useMemo(() => contactBookings.filter((b) => b.status === 'option'), [contactBookings]);
   const contactQuotations = useMemo(() => contact ? mockQuotations.filter((q) => q.contactId === contact.id) : [], [contact]);
   const contactTasks = useMemo(() => contact ? tasks.filter((t) => t.contactId === contact.id) : [], [tasks, contact]);
+  const contactDocuments = useMemo(() => contact ? documents.filter((d) => d.contactId === contact.id) : [], [documents, contact]);
 
   if (!contact) {
     return (
@@ -324,6 +327,33 @@ export default function ContactDetailPage() {
                     </Badge>
                   </button>
                 ))}
+              </div>
+            )}
+          </SectionCard>
+
+          {/* Documenten */}
+          <SectionCard title="Documenten" linkLabel="Alle documenten" onLink={() => navigate('/documents')}>
+            {contactDocuments.length === 0 ? (
+              <p className="text-xs text-muted-foreground">Geen documenten</p>
+            ) : (
+              <div className="space-y-1">
+                {contactDocuments.slice(0, 8).map((d) => {
+                  const statusIcon = d.status === 'signed' ? <CheckCircle2 size={12} className="text-success" /> : d.status === 'viewed' ? <Eye size={12} className="text-warning" /> : <Send size={12} className="text-info" />;
+                  const statusLabel = d.status === 'signed' ? 'Ondertekend' : d.status === 'viewed' ? 'Bekeken' : d.status === 'declined' ? 'Afgewezen' : 'Verzonden';
+                  return (
+                    <div key={d.id} className="flex items-center justify-between py-1.5 px-2 rounded-md text-xs">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <FileText size={12} className="text-muted-foreground shrink-0" />
+                        <span className="font-medium text-foreground truncate">{d.title}</span>
+                        {d.amount && <span className="text-muted-foreground">€{d.amount.toLocaleString('nl-NL')}</span>}
+                      </div>
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        {statusIcon}
+                        <span className="text-muted-foreground">{statusLabel}</span>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             )}
           </SectionCard>

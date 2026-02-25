@@ -61,9 +61,12 @@ serve(async (req) => {
     const hasAppointmentData = payload.startTime || payload.appointmentId || payload.calendarId;
     const hasFormData = payload['Type Evenement'] !== undefined || payload['Aantal gasten'] !== undefined || payload['Selecteer de gewenste datum'] !== undefined || payload['Kies je dagdeel'] !== undefined;
     const hasMessageData = type.includes('InboundMessage') || type.includes('inbound') || type.includes('message') || (payload.body && payload.conversationId);
+    const hasDocumentData = type.includes('Document') || type.includes('document') || type.includes('Proposal') || type.includes('proposal') || type.includes('Invoice') || type.includes('invoice') || type.includes('Estimate') || type.includes('estimate') || payload.documentId || payload.proposalId || payload.estimateId;
 
     // Handle different webhook types
-    if (hasMessageData) {
+    if (hasDocumentData) {
+      await handleDocumentWebhook(supabase, ghlHeaders, userId, payload, type);
+    } else if (hasMessageData) {
       await handleInboundMessage(supabase, ghlHeaders, userId, payload);
     } else if (hasFormData) {
       await handleFormSubmission(supabase, userId, payload);
@@ -635,7 +638,97 @@ async function handleInboundMessage(supabase: any, ghlHeaders: any, userId: stri
       status: 'delivered',
       date_added: new Date().toISOString(),
     }, { onConflict: 'ghl_message_id' });
+}
+
+// === DOCUMENT / PROPOSAL WEBHOOK ===
+async function handleDocumentWebhook(supabase: any, ghlHeaders: any, userId: string, payload: any, type: string) {
+  const docId = payload.documentId || payload.proposalId || payload.estimateId || payload.invoiceId || payload.id || payload.data?.id;
+  const title = payload.title || payload.name || payload.documentName || payload.proposalName || payload.data?.title || 'Document';
+  const contactId = payload.contact_id || payload.contactId || payload.data?.contactId;
+  const contactName = payload.contact_name || payload.full_name || payload.contactName || payload.data?.contactName || 'Onbekend';
+  const amount = payload.amount || payload.total || payload.monetaryValue || payload.data?.amount ? Number(payload.amount || payload.total || payload.monetaryValue || payload.data?.amount) : null;
+  const externalUrl = payload.url || payload.documentUrl || payload.link || payload.data?.url || null;
+
+  // Determine document type from webhook event type
+  let documentType = 'proposal';
+  const typeLower = type.toLowerCase();
+  if (typeLower.includes('invoice')) documentType = 'invoice';
+  else if (typeLower.includes('estimate')) documentType = 'estimate';
+  else if (typeLower.includes('contract')) documentType = 'contract';
+  else if (typeLower.includes('document')) documentType = 'document';
+
+  // Determine status from event
+  let status = 'sent';
+  if (typeLower.includes('signed') || typeLower.includes('accepted') || typeLower.includes('completed')) status = 'signed';
+  else if (typeLower.includes('viewed') || typeLower.includes('opened')) status = 'viewed';
+  else if (typeLower.includes('declined') || typeLower.includes('rejected')) status = 'declined';
+  else if (typeLower.includes('paid')) status = 'paid';
+
+  // Try to find matching contact in DB
+  let dbContactId: string | null = null;
+  let dbInquiryId: string | null = null;
+
+  if (contactId) {
+    const { data: contactMatch } = await supabase.from('contacts').select('id, company_id').eq('ghl_contact_id', contactId).maybeSingle();
+    if (contactMatch) {
+      dbContactId = contactMatch.id;
+
+      // Try to find related inquiry for this contact
+      const { data: inqMatch } = await supabase.from('inquiries')
+        .select('id')
+        .eq('contact_id', contactMatch.id)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      dbInquiryId = inqMatch?.id || null;
+    }
   }
+
+  const now = new Date().toISOString();
+  const upsertData: any = {
+    user_id: userId,
+    ghl_document_id: docId,
+    title,
+    document_type: documentType,
+    status,
+    contact_name: contactName,
+    contact_id: dbContactId,
+    inquiry_id: dbInquiryId,
+    amount,
+    external_url: externalUrl,
+  };
+
+  // Set timestamp fields based on status
+  if (status === 'sent') upsertData.sent_at = now;
+  if (status === 'viewed') upsertData.viewed_at = now;
+  if (status === 'signed') upsertData.signed_at = now;
+
+  if (docId) {
+    // Upsert: if document already exists, update status
+    const { data: existing } = await supabase.from('documents').select('id, status').eq('ghl_document_id', docId).maybeSingle();
+    if (existing) {
+      // Only update if status progresses (sent -> viewed -> signed)
+      const statusOrder: Record<string, number> = { sent: 0, viewed: 1, signed: 2, paid: 3, declined: -1 };
+      const currentOrder = statusOrder[existing.status] ?? 0;
+      const newOrder = statusOrder[status] ?? 0;
+      if (newOrder > currentOrder || status === 'declined') {
+        const updatePayload: any = { status };
+        if (status === 'viewed') updatePayload.viewed_at = now;
+        if (status === 'signed') updatePayload.signed_at = now;
+        if (amount) updatePayload.amount = amount;
+        await supabase.from('documents').update(updatePayload).eq('id', existing.id);
+        console.log(`Webhook: Updated document ${docId} status to ${status}`);
+      }
+    } else {
+      await supabase.from('documents').insert(upsertData);
+      console.log(`Webhook: Created document ${docId} (${documentType}) for ${contactName}`);
+    }
+  } else {
+    // No docId, just insert
+    await supabase.from('documents').insert(upsertData);
+    console.log(`Webhook: Created document without GHL ID for ${contactName}`);
+  }
+}
 
   console.log(`Webhook: Inbound message in conv ${conversationId} from ${contactName}: "${messageBody.substring(0, 50)}"`);
 }
