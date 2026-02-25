@@ -4,6 +4,7 @@ import { useInquiriesContext } from '@/contexts/InquiriesContext';
 import { useBookings } from '@/contexts/BookingsContext';
 import { useCompaniesContext } from '@/contexts/CompaniesContext';
 import { useTasksContext } from '@/contexts/TasksContext';
+import { useContactCompanies } from '@/hooks/useContactCompanies';
 import { useState, useMemo } from 'react';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -26,6 +27,7 @@ export default function ContactDetailPage() {
   const { companies } = useCompaniesContext();
   const { bookings } = useBookings();
   const { tasks } = useTasksContext();
+  const { getContactCompanies, linkContact, unlinkContact } = useContactCompanies();
   const { toast } = useToast();
 
   const contact = contacts.find((c) => c.id === id);
@@ -172,6 +174,9 @@ export default function ContactDetailPage() {
               form={form}
               setForm={setForm}
               navigate={navigate}
+              contactCompanyLinks={id ? getContactCompanies(id) : []}
+              linkContact={linkContact}
+              unlinkContact={unlinkContact}
             />
 
             {editing && (
@@ -422,32 +427,57 @@ function InfoField({ icon, label, value, editing, type, onChange }: {
   );
 }
 
-function CompanyField({ current, editing, companies, form, setForm, navigate }: {
+function CompanyField({ current, editing, companies, form, setForm, navigate, contactCompanyLinks, linkContact, unlinkContact }: {
   current: Contact;
   editing: boolean;
   companies: { id: string; name: string }[];
   form: Contact | null;
   setForm: (f: Contact) => void;
   navigate: (path: string) => void;
+  contactCompanyLinks: { contactId: string; companyId: string; isPrimary: boolean }[];
+  linkContact: (contactId: string, companyId: string, isPrimary?: boolean) => Promise<void>;
+  unlinkContact: (contactId: string, companyId: string) => Promise<void>;
 }) {
   const [companySearch, setCompanySearch] = useState('');
   const [showDropdown, setShowDropdown] = useState(false);
+  const [showAddCompany, setShowAddCompany] = useState(false);
+
+  // All linked companies (from junction table)
+  const linkedCompanies = useMemo(() => {
+    return contactCompanyLinks.map((l) => {
+      const co = companies.find((c) => c.id === l.companyId);
+      return co ? { ...co, isPrimary: l.isPrimary } : null;
+    }).filter(Boolean) as (typeof companies[number] & { isPrimary: boolean })[];
+  }, [contactCompanyLinks, companies]);
+
+  // Also include the legacy company_id if not already in junction
+  const allCompanies = useMemo(() => {
+    const ids = new Set(linkedCompanies.map((c) => c.id));
+    if (current.companyId && !ids.has(current.companyId)) {
+      const co = companies.find((c) => c.id === current.companyId);
+      if (co) return [...linkedCompanies, { ...co, isPrimary: true }];
+    }
+    return linkedCompanies;
+  }, [linkedCompanies, current.companyId, companies]);
 
   if (!editing) {
     return (
       <div>
-        <p className="text-xs font-semibold text-muted-foreground mb-0.5 flex items-center gap-1.5"><Building2 size={14} /> Bedrijf</p>
-        {current.company ? (
-          <button
-            onClick={() => {
-              const match = companies.find((c) => c.name.toLowerCase() === current.company!.toLowerCase());
-              if (match) navigate(`/companies/${match.id}`);
-              else if (current.companyId) navigate(`/companies/${current.companyId}`);
-            }}
-            className="text-primary hover:underline font-medium text-sm"
-          >
-            {current.company}
-          </button>
+        <p className="text-xs font-semibold text-muted-foreground mb-1 flex items-center gap-1.5"><Building2 size={14} /> Bedrijven</p>
+        {allCompanies.length > 0 ? (
+          <div className="space-y-1">
+            {allCompanies.map((co) => (
+              <div key={co.id} className="flex items-center gap-2">
+                <button
+                  onClick={() => navigate(`/companies/${co.id}`)}
+                  className="text-primary hover:underline font-medium text-sm"
+                >
+                  {co.name}
+                </button>
+                {co.isPrimary && <Badge variant="outline" className="text-[9px] px-1 h-4">Primair</Badge>}
+              </div>
+            ))}
+          </div>
         ) : (
           <p className="text-sm text-foreground">—</p>
         )}
@@ -455,53 +485,87 @@ function CompanyField({ current, editing, companies, form, setForm, navigate }: 
     );
   }
 
-  const searchValue = companySearch || form?.company || '';
+  const searchValue = companySearch || '';
   const filtered = searchValue.trim()
-    ? companies.filter((c) => c.name.toLowerCase().includes(searchValue.toLowerCase())).slice(0, 8)
+    ? companies.filter((c) => {
+        const alreadyLinked = allCompanies.some((lc) => lc.id === c.id);
+        return !alreadyLinked && c.name.toLowerCase().includes(searchValue.toLowerCase());
+      }).slice(0, 8)
     : [];
 
   return (
-    <div className="relative">
-      <p className="text-xs font-semibold text-muted-foreground mb-0.5 flex items-center gap-1.5"><Building2 size={14} /> Bedrijf</p>
-      <Input
-        className="h-8 text-sm"
-        value={searchValue}
-        placeholder="Zoek of typ bedrijfsnaam..."
-        onChange={(e) => {
-          setCompanySearch(e.target.value);
-          setForm({ ...form!, company: e.target.value || undefined, companyId: undefined });
-          setShowDropdown(true);
-        }}
-        onFocus={() => setShowDropdown(true)}
-        onBlur={() => setTimeout(() => setShowDropdown(false), 200)}
-      />
-      {showDropdown && filtered.length > 0 && (
-        <div className="absolute z-50 w-full mt-1 bg-popover border rounded-md shadow-md max-h-40 overflow-y-auto">
-          {filtered.map((c) => (
+    <div>
+      <p className="text-xs font-semibold text-muted-foreground mb-1 flex items-center gap-1.5"><Building2 size={14} /> Bedrijven</p>
+      {/* Current linked companies */}
+      <div className="space-y-1 mb-2">
+        {allCompanies.map((co) => (
+          <div key={co.id} className="flex items-center justify-between py-1 px-2 rounded bg-muted/30 text-sm">
+            <div className="flex items-center gap-2">
+              <span className="font-medium">{co.name}</span>
+              {co.isPrimary && <Badge variant="outline" className="text-[9px] px-1 h-4">Primair</Badge>}
+            </div>
             <button
-              key={c.id}
-              type="button"
-              className="w-full text-left px-3 py-1.5 text-sm hover:bg-muted/50 transition-colors"
-              onMouseDown={(e) => {
-                e.preventDefault();
-                setForm({ ...form!, company: c.name, companyId: c.id });
-                setCompanySearch('');
-                setShowDropdown(false);
+              onClick={() => {
+                unlinkContact(current.id, co.id);
+                if (current.companyId === co.id && form) {
+                  setForm({ ...form, company: undefined, companyId: undefined });
+                }
               }}
+              className="text-muted-foreground hover:text-destructive transition-colors"
+              title="Ontkoppelen"
             >
-              {c.name}
+              <X size={12} />
             </button>
-          ))}
-        </div>
-      )}
-      {form?.company && (
+          </div>
+        ))}
+      </div>
+      {/* Add company */}
+      {!showAddCompany ? (
         <button
-          type="button"
-          className="absolute right-2 top-7 text-muted-foreground hover:text-foreground"
-          onClick={() => { setForm({ ...form!, company: undefined, companyId: undefined }); setCompanySearch(''); }}
+          onClick={() => setShowAddCompany(true)}
+          className="flex items-center gap-1 text-xs text-primary hover:text-primary/80 transition-colors"
         >
-          <X size={12} />
+          <Plus size={12} /> Bedrijf koppelen
         </button>
+      ) : (
+        <div className="relative">
+          <Input
+            className="h-8 text-sm"
+            value={searchValue}
+            placeholder="Zoek bedrijf..."
+            onChange={(e) => {
+              setCompanySearch(e.target.value);
+              setShowDropdown(true);
+            }}
+            autoFocus
+            onFocus={() => setShowDropdown(true)}
+            onBlur={() => setTimeout(() => { setShowDropdown(false); }, 200)}
+            onKeyDown={(e) => { if (e.key === 'Escape') { setShowAddCompany(false); setCompanySearch(''); } }}
+          />
+          {showDropdown && filtered.length > 0 && (
+            <div className="absolute z-50 w-full mt-1 bg-popover border rounded-md shadow-md max-h-40 overflow-y-auto">
+              {filtered.map((c) => (
+                <button
+                  key={c.id}
+                  type="button"
+                  className="w-full text-left px-3 py-1.5 text-sm hover:bg-muted/50 transition-colors"
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    linkContact(current.id, c.id, allCompanies.length === 0);
+                    // Set as primary company_id if first company
+                    if (allCompanies.length === 0 && form) {
+                      setForm({ ...form, company: c.name, companyId: c.id });
+                    }
+                    setCompanySearch('');
+                    setShowAddCompany(false);
+                  }}
+                >
+                  {c.name}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
       )}
     </div>
   );
