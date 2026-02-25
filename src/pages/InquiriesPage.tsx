@@ -489,16 +489,7 @@ export default function InquiriesPage() {
                     {/* Icon row + Inplannen */}
                     <div className="mt-3 flex items-center justify-between border-t pt-2">
                       <div className="flex items-center gap-1.5">
-                        <button
-                          onClick={(e) => { e.stopPropagation(); navigate('/conversations'); }}
-                          className="relative p-1 rounded hover:bg-muted transition-colors"
-                          title="Gesprekken"
-                        >
-                          <MessageSquare size={13} className="text-muted-foreground" />
-                          {hasMessage && (
-                            <span className="absolute -top-1 -right-1 h-3.5 w-3.5 rounded-full bg-success text-[8px] font-bold text-primary-foreground flex items-center justify-center">1</span>
-                          )}
-                        </button>
+                        
                         <button
                           onClick={(e) => { e.stopPropagation(); setNoteDialogInquiry(inq); setNoteText(''); }}
                           className="p-1 rounded hover:bg-muted transition-colors"
