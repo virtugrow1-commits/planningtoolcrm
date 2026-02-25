@@ -638,6 +638,9 @@ async function handleInboundMessage(supabase: any, ghlHeaders: any, userId: stri
       status: 'delivered',
       date_added: new Date().toISOString(),
     }, { onConflict: 'ghl_message_id' });
+  }
+
+  console.log(`Webhook: Inbound message in conv ${conversationId} from ${contactName}: "${messageBody.substring(0, 50)}"`);
 }
 
 // === DOCUMENT / PROPOSAL WEBHOOK ===
@@ -730,5 +733,3 @@ async function handleDocumentWebhook(supabase: any, ghlHeaders: any, userId: str
   }
 }
 
-  console.log(`Webhook: Inbound message in conv ${conversationId} from ${contactName}: "${messageBody.substring(0, 50)}"`);
-}
