@@ -7,11 +7,12 @@ import { useBookings } from '@/contexts/BookingsContext';
 import { useTasksContext } from '@/contexts/TasksContext';
 import { Inquiry } from '@/types/crm';
 import { useToast } from '@/hooks/use-toast';
+import { useDocuments } from '@/hooks/useDocuments';
 import { useContacts } from '@/hooks/useContacts';
 import { useRoomSettings } from '@/hooks/useRoomSettings';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { ArrowLeft, ChevronRight, History, CheckSquare } from 'lucide-react';
+import { ArrowLeft, ChevronRight, History, CheckSquare, FileText, Send, Eye, CheckCircle2 } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
@@ -32,6 +33,7 @@ export default function InquiryDetailPage() {
   const { toast } = useToast();
   const { contacts: contactOptions, loading: contactsLoading } = useContacts();
   const { getDisplayName } = useRoomSettings();
+  const { documents } = useDocuments();
 
   const inquiry = inquiries.find((i) => i.id === id);
   const [editing, setEditing] = useState(false);
@@ -54,6 +56,7 @@ export default function InquiryDetailPage() {
   }) : [], [bookings, company, contacts]);
   const contactInquiries = useMemo(() => inquiry?.contactId ? inquiries.filter(i => i.contactId === inquiry.contactId && i.id !== id) : [], [inquiries, inquiry, id]);
   const inquiryTasks = useMemo(() => inquiry ? tasks.filter(t => t.inquiryId === inquiry.id) : [], [tasks, inquiry]);
+  const inquiryDocuments = useMemo(() => inquiry ? documents.filter(d => d.inquiryId === inquiry.id || (d.contactId && d.contactId === inquiry.contactId)) : [], [documents, inquiry]);
   const col = useMemo(() => inquiry ? PIPELINE_COLUMNS.find(c => c.key === inquiry.status) : null, [inquiry]);
 
   const openTaskCount = inquiryTasks.filter(t => t.status !== 'completed').length;
@@ -171,6 +174,36 @@ export default function InquiryDetailPage() {
           contactInquiries={contactInquiries}
         />
       </div>
+
+      {/* Documenten */}
+      {inquiryDocuments.length > 0 && (
+        <div className="space-y-3">
+          <h2 className="text-lg font-bold text-foreground flex items-center gap-2">
+            <FileText size={16} /> Documenten
+            <Badge variant="secondary" className="text-[10px] h-4 px-1">{inquiryDocuments.length}</Badge>
+          </h2>
+          <div className="rounded-xl border bg-card p-4 card-shadow space-y-2">
+            {inquiryDocuments.map((d) => {
+              const statusIcon = d.status === 'signed' ? <CheckCircle2 size={12} className="text-success" /> : d.status === 'viewed' ? <Eye size={12} className="text-warning" /> : <Send size={12} className="text-info" />;
+              const statusLabel = d.status === 'signed' ? 'Ondertekend' : d.status === 'viewed' ? 'Bekeken' : d.status === 'declined' ? 'Afgewezen' : 'Verzonden';
+              return (
+                <div key={d.id} className="flex items-center justify-between py-2 px-3 rounded-lg border border-border/50 text-sm">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <FileText size={14} className="text-muted-foreground shrink-0" />
+                    <span className="font-medium text-foreground">{d.title}</span>
+                    {d.amount && <span className="text-muted-foreground text-xs">€{d.amount.toLocaleString('nl-NL')}</span>}
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    {statusIcon}
+                    <span className="text-xs text-muted-foreground">{statusLabel}</span>
+                    <span className="text-xs text-muted-foreground">{d.sentAt}</span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* Taken */}
       <div className="space-y-3">
