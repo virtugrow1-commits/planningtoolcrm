@@ -132,11 +132,18 @@ export function InquiriesProvider({ children }: { children: ReactNode }) {
   }, [toast]);
 
   const deleteInquiry = useCallback(async (id: string) => {
+    // Find the inquiry first to get ghlOpportunityId before deleting
+    const target = inquiries.find(i => i.id === id);
     const { error } = await supabase.from('inquiries').delete().eq('id', id);
     if (error) {
       toast({ title: 'Fout bij verwijderen aanvraag', description: error.message, variant: 'destructive' });
+      return;
     }
-  }, [toast]);
+    // Also delete from GHL if linked
+    if (target?.ghlOpportunityId) {
+      pushToGHL('delete-inquiry', { ghl_opportunity_id: target.ghlOpportunityId });
+    }
+  }, [toast, inquiries]);
 
   const markAsRead = useCallback(async (id: string) => {
     await supabase.from('inquiries').update({ is_read: true } as any).eq('id', id);
