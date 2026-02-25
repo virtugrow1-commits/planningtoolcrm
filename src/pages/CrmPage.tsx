@@ -3,7 +3,7 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
@@ -384,7 +384,7 @@ export default function CrmPage() {
       {/* New Contact Dialog */}
       <Dialog open={newOpen} onOpenChange={setNewOpen}>
         <DialogContent className="max-w-md">
-          <DialogHeader><DialogTitle>Nieuw Contact</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle>Nieuw Contact</DialogTitle><DialogDescription>Voeg een nieuw contact toe aan het CRM.</DialogDescription></DialogHeader>
           <div className="grid gap-4 py-2">
             <div className="grid grid-cols-2 gap-3">
               <div className="grid gap-1.5"><Label>Voornaam *</Label><Input value={newContact.firstName} onChange={(e) => setNewContact({ ...newContact, firstName: e.target.value })} /></div>
@@ -404,7 +404,7 @@ export default function CrmPage() {
       {/* Bulk Edit Dialog */}
       <Dialog open={bulkEditOpen} onOpenChange={setBulkEditOpen}>
         <DialogContent className="sm:max-w-md">
-          <DialogHeader><DialogTitle>Bulk status wijzigen ({selected.size} contacten)</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle>Bulk status wijzigen ({selected.size} contacten)</DialogTitle><DialogDescription>Wijzig de status van alle geselecteerde contacten.</DialogDescription></DialogHeader>
           <div className="space-y-4 py-2">
             <div>
               <Label>Nieuwe status</Label>

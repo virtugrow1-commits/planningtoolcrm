@@ -343,9 +343,11 @@ serve(async (req) => {
         if (lower.includes('offerte verzonden') || lower.includes('offerte')) return 'quoted';
         if (lower.includes('definitieve reservering') || lower.includes('definitief')) return 'confirmed';
         if (lower.includes('reservering')) return 'reserved';
+        if (lower.includes('draaiboek')) return 'script';
         if (lower.includes('facturatie') || lower.includes('invoice')) return 'invoiced';
         if (lower.includes('vervallen') || lower.includes('verloren') || lower.includes('lost')) return 'lost';
         if (lower.includes('after sales') || lower.includes('aftersales')) return 'after_sales';
+        if (lower.includes('evenement')) return 'confirmed';
         return 'new';
       };
 
@@ -528,9 +530,11 @@ serve(async (req) => {
             if (lower.includes('offerte verzonden') || lower.includes('offerte')) return 'quoted';
             if (lower.includes('definitieve reservering') || lower.includes('definitief')) return 'confirmed';
             if (lower.includes('reservering')) return 'reserved';
+            if (lower.includes('draaiboek')) return 'script';
             if (lower.includes('facturatie') || lower.includes('invoice')) return 'invoiced';
             if (lower.includes('vervallen') || lower.includes('verloren') || lower.includes('lost')) return 'lost';
             if (lower.includes('after sales') || lower.includes('aftersales')) return 'after_sales';
+            if (lower.includes('evenement')) return 'confirmed';
             return 'new';
           };
 
