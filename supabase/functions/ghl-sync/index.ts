@@ -1036,6 +1036,24 @@ serve(async (req) => {
       });
     }
 
+    if (action === 'delete-inquiry') {
+      const { ghl_opportunity_id } = body;
+      if (!ghl_opportunity_id) {
+        return new Response(JSON.stringify({ success: true, skipped: true }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      const res = await ghlFetch(`${GHL_API_BASE}/opportunities/${ghl_opportunity_id}`, {
+        method: 'DELETE', headers: ghlHeaders,
+      });
+
+      console.log(`Delete opportunity ${ghl_opportunity_id}: ${res.status}`);
+      return new Response(JSON.stringify({ success: res.ok, action: 'deleted' }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
     // ── Task sync actions ──
     if (action === 'push-task') {
       const { task } = body;
