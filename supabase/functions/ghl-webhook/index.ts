@@ -59,7 +59,14 @@ serve(async (req) => {
     const hasPipelineData = payload.pipeline_id || payload.pipleline_stage || payload.pipeline_name || payload.opportunity_name;
     const hasContactData = payload.contact_id && (payload.first_name || payload.last_name || payload.full_name);
     const hasAppointmentData = payload.startTime || payload.appointmentId || payload.calendarId;
-    const hasFormData = payload['Type Evenement'] !== undefined || payload['Aantal gasten'] !== undefined || payload['Selecteer de gewenste datum'] !== undefined || payload['Kies je dagdeel'] !== undefined;
+    // CRITICAL: Check that form fields have actual non-empty VALUES, not just that keys exist.
+    // GHL sends contact-sync payloads with all Dutch field names present but empty strings.
+    const hasFormData = !!(
+      (payload['Type Evenement'] && payload['Type Evenement'].trim()) ||
+      (payload['Aantal gasten'] && String(payload['Aantal gasten']).trim()) ||
+      (payload['Selecteer de gewenste datum'] && payload['Selecteer de gewenste datum'].trim()) ||
+      (payload['Kies je dagdeel'] && payload['Kies je dagdeel'].trim())
+    );
     const hasMessageData = type.includes('InboundMessage') || type.includes('inbound') || type.includes('message') || (payload.body && payload.conversationId);
     const hasDocumentData = type.includes('Document') || type.includes('document') || type.includes('Proposal') || type.includes('proposal') || type.includes('Invoice') || type.includes('invoice') || type.includes('Estimate') || type.includes('estimate') || payload.documentId || payload.proposalId || payload.estimateId;
 

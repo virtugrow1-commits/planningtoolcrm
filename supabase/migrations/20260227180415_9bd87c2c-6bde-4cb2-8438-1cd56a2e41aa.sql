@@ -1,0 +1,1 @@
+DELETE FROM inquiries WHERE event_type = 'Aanvraag via formulier' AND source = 'VirtuGrow' AND guest_count = 0 AND (message IS NULL OR message = '')
