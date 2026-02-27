@@ -62,6 +62,7 @@ export default function ConversationsPage() {
       let query = supabase
         .from('conversations')
         .select('*')
+        .not('ghl_conversation_id', 'is', null)
         .order('last_message_date', { ascending: false, nullsFirst: false });
 
       if (searchQuery) {
