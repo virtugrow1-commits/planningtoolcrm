@@ -1,5 +1,6 @@
 import { useState, useRef } from 'react';
 import LegacyImport from '@/components/LegacyImport';
+import MasterImport from '@/components/MasterImport';
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -247,6 +248,7 @@ export default function SettingsPage() {
           <TabsTrigger value="mapping" className="gap-2"><ArrowRightLeft size={14} /> Veld Mapping</TabsTrigger>
           <TabsTrigger value="import" className="gap-2"><Upload size={14} /> CSV Import</TabsTrigger>
           <TabsTrigger value="legacy" className="gap-2"><Database size={14} /> Legacy Import</TabsTrigger>
+          <TabsTrigger value="master" className="gap-2"><Database size={14} /> Master Import</TabsTrigger>
         </TabsList>
 
         <TabsContent value="vgw" className="space-y-4">
