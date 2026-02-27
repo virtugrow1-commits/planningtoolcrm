@@ -1,0 +1,1 @@
+ALTER TABLE public.contacts ADD COLUMN departed boolean NOT NULL DEFAULT false;
