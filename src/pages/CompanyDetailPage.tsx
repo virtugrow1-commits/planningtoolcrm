@@ -408,7 +408,8 @@ export default function CompanyDetailPage() {
                       onClick={() => navigate(`/crm/${c.id}`)}
                       className="flex-1 text-left min-w-0"
                     >
-                      <span className="font-medium text-foreground">{c.firstName} {c.lastName}</span>
+                      <span className={`font-medium ${c.departed ? 'text-muted-foreground/50' : 'text-foreground'}`}>{c.firstName} {c.lastName}</span>
+                      {c.departed && <span className="text-[10px] text-muted-foreground/50 ml-1.5">(uit dienst)</span>}
                       {c.phone && <span className="text-muted-foreground ml-2">{c.phone}</span>}
                     </button>
                     <div className="flex items-center gap-1.5 shrink-0">
