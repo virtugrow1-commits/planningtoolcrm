@@ -136,6 +136,27 @@ export default function OudCrmImport() {
     setAnalyzing(false);
   };
 
+  /* ── Batch helper: insert in chunks with retry ── */
+  const batchInsert = async (table: string, records: any[], batchSize = 50, delayMs = 500) => {
+    let inserted = 0;
+    for (let i = 0; i < records.length; i += batchSize) {
+      const batch = records.slice(i, i + batchSize);
+      const { error, data } = await (supabase as any).from(table).insert(batch).select('id');
+      if (error) {
+        // Fallback: insert one by one
+        for (const item of batch) {
+          const { error: e2 } = await (supabase as any).from(table).insert(item);
+          if (!e2) inserted++;
+          else if (e2.code !== '23505') console.error(`${table} error:`, e2.message);
+        }
+      } else {
+        inserted += data?.length || batch.length;
+      }
+      if (i + batchSize < records.length) await new Promise(r => setTimeout(r, delayMs));
+    }
+    return inserted;
+  };
+
   /* ═══ IMPORT ═══ */
   const handleImport = async () => {
     if (!user) return;
@@ -148,7 +169,6 @@ export default function OudCrmImport() {
     setProgress(0);
     setResult(null);
     const counts: Record<string, number> = {};
-    const errors: string[] = [];
 
     try {
       const getFile = (key: string) => analyses.find(a => a.key === key);
@@ -158,25 +178,26 @@ export default function OudCrmImport() {
       await supabase.from('contact_companies').delete().neq('id', '00000000-0000-0000-0000-000000000000');
       await supabase.from('contacts').delete().neq('id', '00000000-0000-0000-0000-000000000000');
       await supabase.from('companies').delete().neq('id', '00000000-0000-0000-0000-000000000000');
-      // Don't clear inquiries, bookings, tasks, conversations - they may have GHL links
       setProgress(5);
 
-      // ═══ STEP 2: Import Bedrijven ═══
+      // ═══ STEP 2: Import Bedrijven (batch) ═══
       setStatus('Bedrijven importeren...');
       const bedrijvenFile = getFile('bedrijven');
       const companyNameToId: Record<string, string> = {};
       counts.bedrijven = 0;
 
       if (bedrijvenFile && bedrijvenFile.rows.length > 0) {
-        for (let i = 0; i < bedrijvenFile.rows.length; i++) {
-          const row = bedrijvenFile.rows[i];
+        const seen = new Set<string>();
+        const companyRecords: any[] = [];
+
+        for (const row of bedrijvenFile.rows) {
           const name = findCol(row, 'Bedrijfsnaam', 'bedrijf', 'naam', 'name', 'company');
           if (!name || name === '0') continue;
-
           const nameKey = name.toLowerCase().trim();
-          if (companyNameToId[nameKey]) continue; // skip duplicates
+          if (seen.has(nameKey)) continue;
+          seen.add(nameKey);
 
-          const record: any = {
+          companyRecords.push({
             user_id: user.id,
             name,
             customer_number: findCol(row, 'Klantnummer', 'klantnummer', 'customer_number') || null,
@@ -191,43 +212,33 @@ export default function OudCrmImport() {
             website: findCol(row, 'Website', 'website', 'url') || null,
             crm_group: findCol(row, 'CRM Groep', 'crm groep', 'doelgroep', 'groep') || null,
             notes: findCol(row, 'Notities', 'notities', 'notes', 'opmerkingen') || null,
-          };
+          });
+        }
 
-          const { data: inserted, error } = await supabase
-            .from('companies')
-            .insert(record)
-            .select('id, name')
-            .single();
+        setStatus(`${companyRecords.length} bedrijven invoegen...`);
+        counts.bedrijven = await batchInsert('companies', companyRecords);
+        console.log(`[Import] ${counts.bedrijven} bedrijven geïmporteerd`);
 
-          if (error) {
-            if (error.code !== '23505') {
-              console.error('Bedrijf error:', name, error.message);
-              errors.push(`Bedrijf: ${name}: ${error.message}`);
-            }
-          } else if (inserted) {
-            companyNameToId[nameKey] = inserted.id;
-            counts.bedrijven!++;
-          }
-
-          if (i % 50 === 0) {
-            setProgress(5 + Math.round((i / bedrijvenFile.rows.length) * 15));
-            setStatus(`Bedrijven: ${i}/${bedrijvenFile.rows.length}...`);
-            await new Promise(r => setTimeout(r, 100));
-          }
+        // Fetch all company IDs for linking
+        const { data: allCompanies } = await supabase
+          .from('companies').select('id, name').eq('user_id', user.id).limit(2000);
+        for (const c of allCompanies || []) {
+          companyNameToId[c.name.toLowerCase().trim()] = c.id;
         }
       }
       setProgress(20);
-      console.log(`[Import] ${counts.bedrijven} bedrijven geïmporteerd`);
 
-      // ═══ STEP 3: Import Contactpersonen (linked to companies) ═══
+      // ═══ STEP 3: Import Contactpersonen (batch) ═══
       setStatus('Contactpersonen importeren...');
       const contactFile = getFile('contactpersonen');
       const contactNameToId: Record<string, string> = {};
       counts.contactpersonen = 0;
 
       if (contactFile && contactFile.rows.length > 0) {
-        for (let i = 0; i < contactFile.rows.length; i++) {
-          const row = contactFile.rows[i];
+        const contactRecords: any[] = [];
+        const seen = new Set<string>();
+
+        for (const row of contactFile.rows) {
           let firstName = findCol(row, 'Voornaam', 'voornaam', 'first_name', 'firstname');
           let lastName = findCol(row, 'Achternaam', 'achternaam', 'last_name', 'lastname');
           const fullName = findCol(row, 'Naam', 'naam', 'name', 'contactpersoon');
@@ -241,13 +252,14 @@ export default function OudCrmImport() {
           firstName = firstName || '—';
           lastName = lastName || '—';
 
+          const dedupKey = `${firstName.toLowerCase()}|${lastName.toLowerCase()}`;
+          if (seen.has(dedupKey)) continue;
+          seen.add(dedupKey);
+
           const companyName = findCol(row, 'Bedrijf', 'bedrijf', 'company', 'organisatie', 'bedrijfsnaam');
           const companyId = companyName ? companyNameToId[companyName.toLowerCase().trim()] || null : null;
 
-          const dedupKey = `${firstName.toLowerCase()}|${lastName.toLowerCase()}`;
-          if (contactNameToId[dedupKey]) continue;
-
-          const record: any = {
+          contactRecords.push({
             user_id: user.id,
             first_name: firstName,
             last_name: lastName,
@@ -257,40 +269,29 @@ export default function OudCrmImport() {
             company_id: companyId,
             status: 'lead',
             notes: findCol(row, 'Notities', 'notities', 'notes', 'opmerkingen', 'Functie', 'functie') || null,
-          };
-
-          const { data: inserted, error } = await supabase
-            .from('contacts')
-            .insert(record)
-            .select('id')
-            .single();
-
-          if (error) {
-            if (error.code !== '23505') {
-              console.error('Contact error:', firstName, lastName, error.message);
-            }
-          } else if (inserted) {
-            contactNameToId[dedupKey] = inserted.id;
-            counts.contactpersonen!++;
-          }
-
-          if (i % 50 === 0) {
-            setProgress(20 + Math.round((i / contactFile.rows.length) * 15));
-            setStatus(`Contactpersonen: ${i}/${contactFile.rows.length}...`);
-            await new Promise(r => setTimeout(r, 100));
-          }
+          });
         }
+
+        setStatus(`${contactRecords.length} contactpersonen invoegen...`);
+        counts.contactpersonen = await batchInsert('contacts', contactRecords);
       }
       setProgress(35);
 
-      // ═══ STEP 4: Import Particulieren (individual contacts) ═══
+      // ═══ STEP 4: Import Particulieren (batch) ═══
       setStatus('Particulieren importeren...');
       const partFile = getFile('particulieren');
       counts.particulieren = 0;
 
       if (partFile && partFile.rows.length > 0) {
-        for (let i = 0; i < partFile.rows.length; i++) {
-          const row = partFile.rows[i];
+        const partRecords: any[] = [];
+        // Re-fetch existing contact names to avoid duplicates
+        const { data: existingContacts } = await supabase
+          .from('contacts').select('first_name, last_name').eq('user_id', user.id).limit(5000);
+        const existingNames = new Set((existingContacts || []).map(
+          c => `${c.first_name?.toLowerCase()}|${c.last_name?.toLowerCase()}`
+        ));
+
+        for (const row of partFile.rows) {
           let firstName = findCol(row, 'Voornaam', 'voornaam', 'first_name');
           let lastName = findCol(row, 'Achternaam', 'achternaam', 'last_name');
           const fullName = findCol(row, 'Naam', 'naam', 'name', 'klant');
@@ -305,9 +306,10 @@ export default function OudCrmImport() {
           lastName = lastName || '—';
 
           const dedupKey = `${firstName.toLowerCase()}|${lastName.toLowerCase()}`;
-          if (contactNameToId[dedupKey]) continue;
+          if (existingNames.has(dedupKey)) continue;
+          existingNames.add(dedupKey);
 
-          const record: any = {
+          partRecords.push({
             user_id: user.id,
             first_name: firstName,
             last_name: lastName,
@@ -317,28 +319,11 @@ export default function OudCrmImport() {
             company_id: null,
             status: 'lead',
             notes: findCol(row, 'Notities', 'notities', 'notes') || null,
-          };
-
-          const { data: inserted, error } = await supabase
-            .from('contacts')
-            .insert(record)
-            .select('id')
-            .single();
-
-          if (error) {
-            if (error.code !== '23505') {
-              console.error('Particulier error:', firstName, lastName, error.message);
-            }
-          } else if (inserted) {
-            contactNameToId[dedupKey] = inserted.id;
-            counts.particulieren!++;
-          }
-
-          if (i % 50 === 0) {
-            setProgress(35 + Math.round((i / partFile.rows.length) * 10));
-            await new Promise(r => setTimeout(r, 100));
-          }
+          });
         }
+
+        setStatus(`${partRecords.length} particulieren invoegen...`);
+        counts.particulieren = await batchInsert('contacts', partRecords);
       }
       setProgress(45);
 
@@ -346,7 +331,7 @@ export default function OudCrmImport() {
       const { data: allContacts } = await supabase
         .from('contacts')
         .select('id, first_name, last_name, email, company')
-        .eq('user_id', user.id);
+        .eq('user_id', user.id).limit(5000);
       
       const contactLookup: Record<string, string> = {};
       for (const c of allContacts || []) {
@@ -355,22 +340,20 @@ export default function OudCrmImport() {
         if (c.email) contactLookup[c.email.toLowerCase()] = c.id;
       }
 
-      // ═══ STEP 5: Import Aanvragen ═══
+      // ═══ STEP 5: Import Aanvragen (batch) ═══
       setStatus('Aanvragen importeren...');
       const aanvragenFile = getFile('aanvragen');
       counts.aanvragen = 0;
 
       if (aanvragenFile && aanvragenFile.rows.length > 0) {
-        for (let i = 0; i < aanvragenFile.rows.length; i++) {
-          const row = aanvragenFile.rows[i];
+        const records: any[] = [];
+        for (const row of aanvragenFile.rows) {
           const contactName = findCol(row, 'Contactpersoon', 'contactpersoon', 'naam', 'klant', 'contact', 'Naam');
           const eventType = findCol(row, 'Type evenement', 'evenement', 'event_type', 'type', 'soort');
-
           if (!contactName && !eventType) continue;
 
           const contactId = contactLookup[contactName?.toLowerCase()?.trim() || ''] || null;
-
-          const record: any = {
+          records.push({
             user_id: user.id,
             contact_name: contactName || 'Onbekend',
             contact_id: contactId,
@@ -383,44 +366,31 @@ export default function OudCrmImport() {
             source: findCol(row, 'Bron', 'bron', 'source') || 'Oud CRM',
             budget: parseFloat(findCol(row, 'Budget', 'budget')) || null,
             is_read: true,
-          };
-
-          const { error } = await supabase.from('inquiries').insert(record);
-          if (error) {
-            if (error.code !== '23505') {
-              console.error('Aanvraag error:', contactName, error.message);
-            }
-          } else {
-            counts.aanvragen!++;
-          }
-
-          if (i % 50 === 0) {
-            setProgress(45 + Math.round((i / aanvragenFile.rows.length) * 10));
-            await new Promise(r => setTimeout(r, 100));
-          }
+          });
         }
+        setStatus(`${records.length} aanvragen invoegen...`);
+        counts.aanvragen = await batchInsert('inquiries', records);
       }
       setProgress(55);
 
-      // ═══ STEP 6: Import Reserveringen ═══
+      // ═══ STEP 6: Import Reserveringen (batch) ═══
       setStatus('Reserveringen importeren...');
       const resFile = getFile('reserveringen');
       counts.reserveringen = 0;
 
       if (resFile && resFile.rows.length > 0) {
-        for (let i = 0; i < resFile.rows.length; i++) {
-          const row = resFile.rows[i];
+        const records: any[] = [];
+        for (const row of resFile.rows) {
           const title = findCol(row, 'Titel', 'titel', 'title', 'naam', 'evenement');
           const contactName = findCol(row, 'Contactpersoon', 'contactpersoon', 'klant', 'naam', 'contact');
           const dateVal = findCol(row, 'Datum', 'datum', 'date');
           const roomName = findCol(row, 'Zaal', 'zaal', 'ruimte', 'room', 'locatie');
-
           if (!title && !contactName && !dateVal) continue;
 
           const contactId = contactLookup[contactName?.toLowerCase()?.trim() || ''] || null;
           const dateStr = excelDateToString(dateVal) || new Date().toISOString().slice(0, 10);
 
-          const record: any = {
+          records.push({
             user_id: user.id,
             title: title || contactName || 'Reservering',
             contact_name: contactName || 'Onbekend',
@@ -429,73 +399,48 @@ export default function OudCrmImport() {
             room_name: roomName || 'Onbekend',
             start_hour: parseInt(findCol(row, 'Start uur', 'start', 'begintijd', 'start_hour')) || 9,
             end_hour: parseInt(findCol(row, 'Eind uur', 'eind', 'eindtijd', 'end_hour')) || 17,
-            start_minute: parseInt(findCol(row, 'Start minuut', 'start_minute')) || 0,
-            end_minute: parseInt(findCol(row, 'Eind minuut', 'end_minute')) || 0,
+            start_minute: 0,
+            end_minute: 0,
             guest_count: parseInt(findCol(row, 'Aantal gasten', 'gasten', 'guest_count', 'aantal')) || 0,
             status: findCol(row, 'Status', 'status') || 'confirmed',
             notes: findCol(row, 'Notities', 'notities', 'notes', 'opmerkingen') || null,
-          };
-
-          const { error } = await supabase.from('bookings').insert(record);
-          if (error) {
-            if (error.code !== '23505') {
-              console.error('Reservering error:', title, error.message);
-            }
-          } else {
-            counts.reserveringen!++;
-          }
-
-          if (i % 50 === 0) {
-            setProgress(55 + Math.round((i / resFile.rows.length) * 10));
-            await new Promise(r => setTimeout(r, 100));
-          }
+          });
         }
+        setStatus(`${records.length} reserveringen invoegen...`);
+        counts.reserveringen = await batchInsert('bookings', records);
       }
       setProgress(65);
 
-      // ═══ STEP 7: Import Taken ═══
+      // ═══ STEP 7: Import Taken (batch) ═══
       setStatus('Taken importeren...');
       const takenFile = getFile('taken');
       counts.taken = 0;
 
       if (takenFile && takenFile.rows.length > 0) {
-        for (let i = 0; i < takenFile.rows.length; i++) {
-          const row = takenFile.rows[i];
+        const records: any[] = [];
+        for (const row of takenFile.rows) {
           const title = findCol(row, 'Titel', 'titel', 'title', 'taak', 'naam');
           if (!title) continue;
 
           const contactName = findCol(row, 'Contact', 'contact', 'contactpersoon', 'naam');
           const contactId = contactLookup[contactName?.toLowerCase()?.trim() || ''] || null;
+          const statusVal = findCol(row, 'Status', 'status') || 'open';
+          const isCompleted = ['voltooid', 'completed', 'done'].includes(statusVal.toLowerCase());
 
-          const record: any = {
+          records.push({
             user_id: user.id,
             title,
             description: findCol(row, 'Beschrijving', 'beschrijving', 'description', 'omschrijving') || null,
             contact_id: contactId,
-            status: findCol(row, 'Status', 'status') || 'open',
+            status: isCompleted ? 'completed' : statusVal,
             priority: findCol(row, 'Prioriteit', 'prioriteit', 'priority') || 'normal',
             due_date: excelDateToString(findCol(row, 'Deadline', 'deadline', 'due_date', 'vervaldatum')),
             assigned_to: findCol(row, 'Toegewezen aan', 'toegewezen', 'assigned_to') || null,
-          };
-
-          const statusLower = record.status?.toLowerCase();
-          if (statusLower === 'voltooid' || statusLower === 'completed' || statusLower === 'done') {
-            record.status = 'completed';
-            record.completed_at = new Date().toISOString();
-          }
-
-          const { error } = await supabase.from('tasks').insert(record);
-          if (error) {
-            console.error('Taak error:', title, error.message);
-          } else {
-            counts.taken!++;
-          }
-
-          if (i % 50 === 0) {
-            setProgress(65 + Math.round((i / takenFile.rows.length) * 10));
-            await new Promise(r => setTimeout(r, 100));
-          }
+            completed_at: isCompleted ? new Date().toISOString() : null,
+          });
         }
+        setStatus(`${records.length} taken invoegen...`);
+        counts.taken = await batchInsert('tasks', records);
       }
       setProgress(75);
 
