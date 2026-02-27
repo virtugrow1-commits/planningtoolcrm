@@ -1,6 +1,6 @@
 import { useState, useRef } from 'react';
 import LegacyImport from '@/components/LegacyImport';
-import { Navigate } from 'react-router-dom';
+
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -11,7 +11,7 @@ import { Webhook, Key, ArrowRightLeft, CheckCircle2, AlertCircle, RefreshCw, Upl
 import { supabase } from '@/integrations/supabase/client';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { useContactsContext } from '@/contexts/ContactsContext';
-import { useAuth } from '@/contexts/AuthContext';
+
 import { Contact } from '@/types/crm';
 
 const WEBHOOK_URL = `https://${import.meta.env.VITE_SUPABASE_PROJECT_ID}.supabase.co/functions/v1/ghl-webhook`;
@@ -66,7 +66,7 @@ function mapRow(row: Record<string, string>): Omit<Contact, 'id' | 'createdAt'> 
 }
 
 export default function SettingsPage() {
-  const { isAdmin } = useAuth();
+  
   const [apiKey, setApiKey] = useState('');
   const [locationId, setLocationId] = useState('');
   const [connected, setConnected] = useState(false);
@@ -79,10 +79,7 @@ export default function SettingsPage() {
   const { toast } = useToast();
   const { addContact } = useContactsContext();
 
-  // Non-admins should not access settings
-  if (!isAdmin) {
-    return <Navigate to="/" replace />;
-  }
+  // All users can access settings
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];

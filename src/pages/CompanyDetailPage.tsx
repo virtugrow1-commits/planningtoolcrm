@@ -132,8 +132,8 @@ export default function CompanyDetailPage() {
 
   const contactIds = useMemo(() => new Set(companyContacts.map((c) => c.id)), [companyContacts]);
 
-  const companyBookings = useMemo(() => bookings.filter((b) => b.contactId && contactIds.has(b.contactId)), [bookings, contactIds]);
-  const optionBookings = useMemo(() => companyBookings.filter((b) => b.status === 'option'), [companyBookings]);
+  const confirmedBookings = useMemo(() => bookings.filter((b) => b.contactId && contactIds.has(b.contactId) && b.status !== 'option'), [bookings, contactIds]);
+  const optionBookings = useMemo(() => bookings.filter((b) => b.contactId && contactIds.has(b.contactId) && b.status === 'option'), [bookings, contactIds]);
   const companyInquiries = useMemo(() => inquiries.filter((i) => i.contactId && contactIds.has(i.contactId)), [inquiries, contactIds]);
   const companyTasks = useMemo(() => tasks.filter((t) => (t.contactId && contactIds.has(t.contactId)) || (t.companyId === company?.id)), [tasks, contactIds, company]);
 
@@ -317,12 +317,12 @@ export default function CompanyDetailPage() {
           </SectionCard>
 
           {/* Reserveringen */}
-          <SectionCard title="Reserveringen" count={companyBookings.length} linkLabel="Bekijk agenda" onLink={() => navigate('/calendar')} onAdd={() => navigate('/calendar?new=true')}>
-            {companyBookings.length === 0 ? (
+          <SectionCard title="Reserveringen" count={confirmedBookings.length} linkLabel="Bekijk agenda" onLink={() => navigate('/calendar')} onAdd={() => navigate('/calendar?new=true')}>
+            {confirmedBookings.length === 0 ? (
               <p className="text-xs text-muted-foreground">Geen reserveringen</p>
             ) : (
               <div className="space-y-1">
-                {companyBookings
+                {confirmedBookings
                   .sort((a, b) => b.date.localeCompare(a.date))
                   .slice(0, 8)
                   .map((b) => (
