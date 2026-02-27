@@ -1,6 +1,7 @@
 import { useState, useRef } from 'react';
 import LegacyImport from '@/components/LegacyImport';
 import MasterImport from '@/components/MasterImport';
+import OudCrmImport from '@/components/OudCrmImport';
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -249,6 +250,7 @@ export default function SettingsPage() {
           <TabsTrigger value="import" className="gap-2"><Upload size={14} /> CSV Import</TabsTrigger>
           <TabsTrigger value="legacy" className="gap-2"><Database size={14} /> Legacy Import</TabsTrigger>
           <TabsTrigger value="master" className="gap-2"><Database size={14} /> Master Import</TabsTrigger>
+          <TabsTrigger value="oud-crm" className="gap-2"><Database size={14} /> Oud CRM</TabsTrigger>
         </TabsList>
 
         <TabsContent value="vgw" className="space-y-4">
@@ -506,6 +508,10 @@ export default function SettingsPage() {
 
         <TabsContent value="master">
           <MasterImport />
+        </TabsContent>
+
+        <TabsContent value="oud-crm">
+          <OudCrmImport />
         </TabsContent>
       </Tabs>
 
