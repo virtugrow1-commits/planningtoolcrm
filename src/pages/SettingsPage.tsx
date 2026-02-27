@@ -1,6 +1,6 @@
 import { useState, useRef } from 'react';
 import LegacyImport from '@/components/LegacyImport';
-import { Navigate } from 'react-router-dom';
+
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -66,7 +66,7 @@ function mapRow(row: Record<string, string>): Omit<Contact, 'id' | 'createdAt'> 
 }
 
 export default function SettingsPage() {
-  const { isAdmin } = useAuth();
+  const { } = useAuth();
   const [apiKey, setApiKey] = useState('');
   const [locationId, setLocationId] = useState('');
   const [connected, setConnected] = useState(false);
