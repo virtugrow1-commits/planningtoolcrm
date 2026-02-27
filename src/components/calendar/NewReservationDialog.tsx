@@ -63,6 +63,7 @@ const ROOM_SETUPS = [
   'Boardroom',
   'Cabaret',
   'Schoolopstelling',
+  'Blokopstelling',
   'Receptie / staand',
   'Diner',
   'Anders',
