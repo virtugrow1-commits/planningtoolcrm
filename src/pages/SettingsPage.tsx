@@ -503,6 +503,10 @@ export default function SettingsPage() {
         <TabsContent value="legacy">
           <LegacyImport />
         </TabsContent>
+
+        <TabsContent value="master">
+          <MasterImport />
+        </TabsContent>
       </Tabs>
 
       {/* CSV Import Preview Dialog */}
