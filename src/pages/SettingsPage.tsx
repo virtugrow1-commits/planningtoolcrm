@@ -79,10 +79,7 @@ export default function SettingsPage() {
   const { toast } = useToast();
   const { addContact } = useContactsContext();
 
-  // Non-admins should not access settings
-  if (!isAdmin) {
-    return <Navigate to="/" replace />;
-  }
+  // All users can access settings
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];

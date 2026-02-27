@@ -317,12 +317,12 @@ export default function CompanyDetailPage() {
           </SectionCard>
 
           {/* Reserveringen */}
-          <SectionCard title="Reserveringen" count={companyBookings.length} linkLabel="Bekijk agenda" onLink={() => navigate('/calendar')} onAdd={() => navigate('/calendar?new=true')}>
-            {companyBookings.length === 0 ? (
+          <SectionCard title="Reserveringen" count={confirmedBookings.length} linkLabel="Bekijk agenda" onLink={() => navigate('/calendar')} onAdd={() => navigate('/calendar?new=true')}>
+            {confirmedBookings.length === 0 ? (
               <p className="text-xs text-muted-foreground">Geen reserveringen</p>
             ) : (
               <div className="space-y-1">
-                {companyBookings
+                {confirmedBookings
                   .sort((a, b) => b.date.localeCompare(a.date))
                   .slice(0, 8)
                   .map((b) => (
