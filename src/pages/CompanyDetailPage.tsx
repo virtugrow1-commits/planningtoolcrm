@@ -21,6 +21,7 @@ import { mockQuotations } from '@/data/mockData';
 import CompanyActivityTimeline from '@/components/company/CompanyActivityTimeline';
 import { SectionCard } from '@/components/detail/DetailPageComponents';
 import TasksSection from '@/components/detail/TasksSection';
+import HistorySection from '@/components/detail/HistorySection';
 
 const STATUS_LABELS: Record<string, string> = {
   lead: 'Lead',
@@ -378,6 +379,14 @@ export default function CompanyDetailPage() {
           <TasksSection
             tasks={companyTasks}
             defaults={{ companyId: company.id }}
+          />
+
+          {/* Historie */}
+          <HistorySection
+            bookings={bookings.filter((b) => b.contactId && contactIds.has(b.contactId))}
+            inquiries={companyInquiries}
+            inquiriesLabel="Aanvragen"
+            inquiriesEmptyText="Geen aanvragen van dit bedrijf."
           />
 
           {/* Offertes */}

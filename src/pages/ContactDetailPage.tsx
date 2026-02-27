@@ -14,6 +14,7 @@ import { ArrowLeft, Pencil, Check, X, Plus, ChevronRight, Calendar, FileText, Ma
 import { Checkbox } from '@/components/ui/checkbox';
 import ActivityTimeline from '@/components/contact/ActivityTimeline';
 import TasksSection from '@/components/detail/TasksSection';
+import HistorySection from '@/components/detail/HistorySection';
 import { Contact, ROOMS } from '@/types/crm';
 import { InfoField, SectionCard } from '@/components/detail/DetailPageComponents';
 import { mockQuotations } from '@/data/mockData';
@@ -382,6 +383,14 @@ export default function ContactDetailPage() {
           <TasksSection
             tasks={contactTasks}
             defaults={{ contactId: contact.id, companyId: contact.companyId }}
+          />
+
+          {/* Historie */}
+          <HistorySection
+            bookings={contactBookings}
+            inquiries={contactInquiries}
+            inquiriesLabel="Aanvragen"
+            inquiriesEmptyText="Geen aanvragen van dit contact."
           />
 
           {/* Gesprekken */}
