@@ -1,0 +1,1 @@
+DELETE FROM inquiries WHERE id IN ('d46d3892-c14e-49bf-a181-809c967dcb67', '37416021-f213-4320-9cc8-fa8137e9cc16')
