@@ -106,7 +106,7 @@ export default function InquiryHistoryTab({ inquiry, contactBookings, companyBoo
       <div className="rounded-xl bg-card p-5 card-shadow space-y-3">
         <h3 className="text-base font-bold text-foreground">Andere Aanvragen ({contactInquiries.length})</h3>
         {contactInquiries.length === 0 ? (
-          <p className="text-xs text-muted-foreground">Geen andere aanvragen van dit contact.</p>
+          <p className="text-xs text-muted-foreground">Geen andere aanvragen van deze contactpersoon.</p>
         ) : (
           <div className="space-y-1 max-h-[400px] overflow-y-auto">
             {contactInquiries.map(inq => {
