@@ -619,24 +619,21 @@ async function syncCompanies(supabase: any, ghlHeaders: any, locationId: string,
 
     // 1. Pull ALL GHL companies (paginate)
     const ghlCompanies: any[] = [];
-    let companyPage = 1;
     let companyHasMore = true;
-    while (companyHasMore && companyPage <= 20) {
-      const res = await fetch(`${GHL_API_BASE}/companies/search`, {
-        method: 'POST',
+    let skip = 0;
+    while (companyHasMore) {
+      const res = await fetch(`${GHL_API_BASE}/businesses/?locationId=${locationId}&limit=100&skip=${skip}`, {
         headers: ghlHeaders,
-        body: JSON.stringify({ locationId, page: companyPage, limit: 100 }),
       });
       if (!res.ok) {
-        // If companies endpoint not available, fall back to contact-based company sync
-        console.warn('Companies search endpoint not available:', res.status);
+        console.warn('Businesses endpoint not available:', res.status);
         break;
       }
       const data = await res.json();
-      const batch = data.companies || [];
+      const batch = data.businesses || [];
       ghlCompanies.push(...batch);
       companyHasMore = batch.length === 100;
-      companyPage++;
+      skip += batch.length;
     }
     console.log(`Fetched ${ghlCompanies.length} companies from GHL`);
 
@@ -673,7 +670,7 @@ async function syncCompanies(supabase: any, ghlHeaders: any, locationId: string,
           if (existing.address) pushPayload.address = existing.address;
           if (existing.city) pushPayload.city = existing.city;
 
-          const pushRes = await fetch(`${GHL_API_BASE}/companies/${ghlCompany.id}`, {
+          const pushRes = await fetch(`${GHL_API_BASE}/businesses/${ghlCompany.id}`, {
             method: 'PUT', headers: ghlHeaders, body: JSON.stringify(pushPayload),
           });
           if (pushRes.ok) {
@@ -739,17 +736,15 @@ async function syncCompanies(supabase: any, ghlHeaders: any, locationId: string,
 
     for (const company of localCompanies || []) {
       // First search GHL by name to avoid duplicates
-      const searchRes = await fetch(`${GHL_API_BASE}/companies/search`, {
-        method: 'POST',
+      const searchRes = await fetch(`${GHL_API_BASE}/businesses/?locationId=${locationId}&limit=100&skip=0`, {
         headers: ghlHeaders,
-        body: JSON.stringify({ locationId, name: company.name, limit: 5 }),
       });
 
       let ghlCompanyId: string | null = null;
 
       if (searchRes.ok) {
         const searchData = await searchRes.json();
-        const match = (searchData.companies || []).find((c: any) =>
+        const match = (searchData.businesses || []).find((c: any) =>
           c.name && c.name.toLowerCase() === company.name.toLowerCase()
         );
         if (match) {
@@ -768,7 +763,7 @@ async function syncCompanies(supabase: any, ghlHeaders: any, locationId: string,
         if (company.website) pushPayload.website = company.website;
         if (company.address) pushPayload.address = company.address;
         if (company.city) pushPayload.city = company.city;
-        await fetch(`${GHL_API_BASE}/companies/${ghlCompanyId}`, {
+        await fetch(`${GHL_API_BASE}/businesses/${ghlCompanyId}`, {
           method: 'PUT', headers: ghlHeaders, body: JSON.stringify(pushPayload),
         });
       } else {
@@ -780,12 +775,12 @@ async function syncCompanies(supabase: any, ghlHeaders: any, locationId: string,
         if (company.address) createPayload.address = company.address;
         if (company.city) createPayload.city = company.city;
 
-        const createRes = await fetch(`${GHL_API_BASE}/companies/`, {
+        const createRes = await fetch(`${GHL_API_BASE}/businesses/`, {
           method: 'POST', headers: ghlHeaders, body: JSON.stringify(createPayload),
         });
         if (createRes.ok) {
           const created = await createRes.json();
-          const newId = created.company?.id || created.id;
+          const newId = created.business?.id || created.id;
           if (newId) {
             await supabase.from('companies').update({ ghl_company_id: newId }).eq('id', company.id);
             console.log(`Company pushed to GHL: ${company.id} -> ${newId} (${company.name})`);
