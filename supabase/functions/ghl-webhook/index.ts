@@ -63,6 +63,13 @@ serve(async (req) => {
     const hasMessageData = type.includes('InboundMessage') || type.includes('inbound') || type.includes('message') || (payload.body && payload.conversationId);
     const hasDocumentData = type.includes('Document') || type.includes('document') || type.includes('Proposal') || type.includes('proposal') || type.includes('Invoice') || type.includes('invoice') || type.includes('Estimate') || type.includes('estimate') || payload.documentId || payload.proposalId || payload.estimateId;
 
+    // Detect if this is a contact sync echo (contact created/updated by our own sync)
+    // These payloads typically have contact fields but NO form-specific fields
+    const isContactSyncEcho = (
+      (type.includes('contact') || type.includes('Contact') || hasContactData) &&
+      !hasFormData && !hasPipelineData && !hasAppointmentData && !hasMessageData && !hasDocumentData
+    );
+
     // Handle different webhook types
     if (hasDocumentData) {
       await handleDocumentWebhook(supabase, ghlHeaders, userId, payload, type);
@@ -72,19 +79,14 @@ serve(async (req) => {
       await handleFormSubmission(supabase, userId, payload);
     } else if (type.includes('opportunity') || type.includes('OpportunityStatus') || type.includes('pipeline') || (hasPipelineData && !hasAppointmentData)) {
       await handleOpportunityFromWebhookPayload(supabase, ghlHeaders, GHL_LOCATION_ID, userId, payload);
-    } else if (type.includes('contact') || type.includes('Contact') || (hasContactData && !hasPipelineData && !hasAppointmentData)) {
+    } else if (isContactSyncEcho || type.includes('contact') || type.includes('Contact') || (hasContactData && !hasPipelineData && !hasAppointmentData)) {
       await handleContactWebhook(supabase, userId, payload);
     } else if (type.includes('appointment') || type.includes('calendar') || type.includes('event') || hasAppointmentData) {
       await handleAppointmentWebhook(supabase, userId, payload);
     } else {
-      console.log('Unknown webhook type, trying form handler as fallback:', type);
-      const keys = Object.keys(payload);
-      const hasDutchFields = keys.some(k => /[a-zà-ÿ]/i.test(k) && k.includes(' '));
-      if (hasDutchFields) {
-        await handleFormSubmission(supabase, userId, payload);
-      } else {
-        console.log('Skipping unknown webhook type:', type);
-      }
+      // IMPORTANT: Do NOT fall back to form handler for unknown types.
+      // This was causing contact sync events to create false inquiries.
+      console.log('Unknown webhook type, skipping:', type, 'Keys:', Object.keys(payload).join(', '));
     }
 
     return new Response(JSON.stringify({ success: true }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
