@@ -181,12 +181,9 @@ export default function CrmPage() {
   return (
     <div className="p-6 lg:p-8 space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-foreground">CRM</h1>
-          <p className="text-sm text-muted-foreground">
-            {activeTab === 'contacts' ? `${filtered.length} van ${contacts.length} contacten` : `${filteredCompanies.length} van ${companies.length} bedrijven`}
-          </p>
-        </div>
+        <p className="text-sm text-muted-foreground">
+          {activeTab === 'contacts' ? `${filtered.length} van ${contacts.length} contacten` : `${filteredCompanies.length} van ${companies.length} bedrijven`}
+        </p>
         <div className="flex items-center gap-2">
           <div className="relative w-64">
             <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
