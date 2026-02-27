@@ -424,16 +424,21 @@ export default function OudCrmImport() {
 
           const contactName = findCol(row, 'Contact', 'contact', 'contactpersoon', 'naam');
           const contactId = contactLookup[contactName?.toLowerCase()?.trim() || ''] || null;
-          const statusVal = findCol(row, 'Status', 'status') || 'open';
-          const isCompleted = ['voltooid', 'completed', 'done'].includes(statusVal.toLowerCase());
+          const statusVal = (findCol(row, 'Status', 'status') || 'open').toLowerCase().trim();
+          const isCompleted = ['voltooid', 'completed', 'done', 'afgerond'].includes(statusVal);
+          const isInProgress = ['in_progress', 'bezig', 'lopend', 'in behandeling'].includes(statusVal);
+          const mappedStatus = isCompleted ? 'completed' : isInProgress ? 'in_progress' : 'open';
+
+          const priorityVal = (findCol(row, 'Prioriteit', 'prioriteit', 'priority') || 'normal').toLowerCase().trim();
+          const mappedPriority = ['low', 'normal', 'high', 'urgent'].includes(priorityVal) ? priorityVal : 'normal';
 
           records.push({
             user_id: user.id,
             title,
             description: findCol(row, 'Beschrijving', 'beschrijving', 'description', 'omschrijving') || null,
             contact_id: contactId,
-            status: isCompleted ? 'completed' : statusVal,
-            priority: findCol(row, 'Prioriteit', 'prioriteit', 'priority') || 'normal',
+            status: mappedStatus,
+            priority: mappedPriority,
             due_date: excelDateToString(findCol(row, 'Deadline', 'deadline', 'due_date', 'vervaldatum')),
             assigned_to: findCol(row, 'Toegewezen aan', 'toegewezen', 'assigned_to') || null,
             completed_at: isCompleted ? new Date().toISOString() : null,
