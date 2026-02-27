@@ -143,8 +143,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             <span className="text-[11px] font-semibold uppercase tracking-wider">{language === 'nl' ? 'EN' : 'NL'}</span>
           </Button>
 
-          {isAdmin && (
-            <NavLink
+          <NavLink
               to="/settings"
               className={cn(
                 'flex items-center gap-2 rounded-lg px-3 py-2 text-[13px] font-medium text-white/75 hover:text-white hover:bg-white/10 transition-all duration-200',
@@ -154,7 +153,6 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
               <Settings size={17} />
               <span className="hidden md:inline">{t('nav.settings')}</span>
             </NavLink>
-          )}
 
           <Button
             variant="ghost"

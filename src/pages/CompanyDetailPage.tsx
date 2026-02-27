@@ -132,8 +132,8 @@ export default function CompanyDetailPage() {
 
   const contactIds = useMemo(() => new Set(companyContacts.map((c) => c.id)), [companyContacts]);
 
-  const companyBookings = useMemo(() => bookings.filter((b) => b.contactId && contactIds.has(b.contactId)), [bookings, contactIds]);
-  const optionBookings = useMemo(() => companyBookings.filter((b) => b.status === 'option'), [companyBookings]);
+  const confirmedBookings = useMemo(() => bookings.filter((b) => b.contactId && contactIds.has(b.contactId) && b.status !== 'option'), [bookings, contactIds]);
+  const optionBookings = useMemo(() => bookings.filter((b) => b.contactId && contactIds.has(b.contactId) && b.status === 'option'), [bookings, contactIds]);
   const companyInquiries = useMemo(() => inquiries.filter((i) => i.contactId && contactIds.has(i.contactId)), [inquiries, contactIds]);
   const companyTasks = useMemo(() => tasks.filter((t) => (t.contactId && contactIds.has(t.contactId)) || (t.companyId === company?.id)), [tasks, contactIds, company]);
 
