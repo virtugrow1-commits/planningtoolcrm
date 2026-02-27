@@ -52,16 +52,17 @@ serve(async (req) => {
     return new Response(JSON.stringify({ error: 'No user found' }), { status: 200, headers: corsHeaders });
   }
 
-  const results: any = { bookings_pulled: 0, bookings_pushed: 0, contacts: 0, opportunities: 0, contacts_pushed: 0, tasks_pulled: 0, tasks_pushed: 0, conversations_synced: 0, errors: [] };
+  const results: any = { bookings_pulled: 0, bookings_pushed: 0, contacts: 0, opportunities: 0, contacts_pushed: 0, companies_synced: 0, companies_pushed: 0, tasks_pulled: 0, tasks_pushed: 0, conversations_synced: 0, errors: [] };
 
-  // Run all 5 syncs in PARALLEL to avoid timeout
+  // Run all 6 syncs in PARALLEL to avoid timeout
   const calendarSync = syncCalendar(supabase, ghlHeaders, GHL_LOCATION_ID, userId, results);
   const opportunitiesSync = syncOpportunities(supabase, ghlHeaders, GHL_LOCATION_ID, userId, results);
   const contactsSync = syncContacts(supabase, ghlHeaders, GHL_LOCATION_ID, userId, results);
+  const companiesSync = syncCompanies(supabase, ghlHeaders, GHL_LOCATION_ID, userId, results);
   const tasksSync = syncTasks(supabase, ghlHeaders, GHL_LOCATION_ID, userId, results);
   const conversationsSync = syncConversations(supabase, ghlHeaders, GHL_LOCATION_ID, userId, results);
 
-  await Promise.allSettled([calendarSync, opportunitiesSync, contactsSync, tasksSync, conversationsSync]);
+  await Promise.allSettled([calendarSync, opportunitiesSync, contactsSync, companiesSync, tasksSync, conversationsSync]);
 
   // Push local inquiries without GHL opportunity ID
   await pushLocalInquiries(supabase, ghlHeaders, GHL_LOCATION_ID, userId, results);
