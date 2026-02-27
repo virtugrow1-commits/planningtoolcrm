@@ -795,6 +795,81 @@ serve(async (req) => {
       });
     }
 
+    if (action === 'push-company') {
+      const { company } = body;
+      if (!company) {
+        return new Response(JSON.stringify({ error: 'company data required' }), {
+          status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      const ghlPayload: any = {
+        name: company.name,
+        locationId: GHL_LOCATION_ID,
+      };
+      if (company.email) ghlPayload.email = company.email;
+      if (company.phone) ghlPayload.phone = company.phone;
+      if (company.website) ghlPayload.website = company.website;
+      if (company.address) ghlPayload.address = company.address;
+      if (company.city) ghlPayload.city = company.city;
+
+      if (company.ghl_company_id) {
+        // Update existing
+        const res = await ghlFetch(`${GHL_API_BASE}/companies/${company.ghl_company_id}`, {
+          method: 'PUT', headers: ghlHeaders, body: JSON.stringify(ghlPayload),
+        });
+        return new Response(JSON.stringify({ success: res.ok, action: 'updated' }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      } else {
+        // Search first to avoid duplicates
+        let existingGhlId: string | null = null;
+        try {
+          const searchRes = await ghlFetch(`${GHL_API_BASE}/companies/search`, {
+            method: 'POST', headers: ghlHeaders,
+            body: JSON.stringify({ locationId: GHL_LOCATION_ID, name: company.name, limit: 5 }),
+          });
+          if (searchRes.ok) {
+            const searchData = await searchRes.json();
+            const match = (searchData.companies || []).find((c: any) =>
+              c.name && c.name.toLowerCase() === company.name.toLowerCase()
+            );
+            if (match) existingGhlId = match.id;
+          }
+        } catch (e) { console.warn('Company search failed:', e); }
+
+        if (existingGhlId) {
+          const res = await ghlFetch(`${GHL_API_BASE}/companies/${existingGhlId}`, {
+            method: 'PUT', headers: ghlHeaders, body: JSON.stringify(ghlPayload),
+          });
+          if (company.id) {
+            await supabase.from('companies').update({ ghl_company_id: existingGhlId }).eq('id', company.id);
+          }
+          return new Response(JSON.stringify({ success: res.ok, action: 'linked', ghl_company_id: existingGhlId }), {
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
+        }
+
+        // Create new
+        const res = await ghlFetch(`${GHL_API_BASE}/companies/`, {
+          method: 'POST', headers: ghlHeaders, body: JSON.stringify(ghlPayload),
+        });
+        if (res.ok) {
+          const created = await res.json();
+          const newId = created.company?.id || created.id;
+          if (newId && company.id) {
+            await supabase.from('companies').update({ ghl_company_id: newId }).eq('id', company.id);
+          }
+          return new Response(JSON.stringify({ success: true, action: 'created', ghl_company_id: newId }), {
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
+        }
+        return new Response(JSON.stringify({ success: false, error: await res.text() }), {
+          status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+    }
+
     if (action === 'push-booking') {
       const { booking } = body;
       if (!booking) {
