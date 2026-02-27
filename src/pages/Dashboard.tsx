@@ -9,6 +9,9 @@ import {
   Check,
   AlertTriangle,
   Flag,
+  CheckCircle2,
+  CalendarIcon,
+  Search,
 } from 'lucide-react';
 import KpiCard from '@/components/KpiCard';
 import KpiDetailDialog from '@/components/dashboard/KpiDetailDialog';
@@ -17,17 +20,21 @@ import { useInquiriesContext } from '@/contexts/InquiriesContext';
 import { useTasksContext } from '@/contexts/TasksContext';
 import { useContactsContext } from '@/contexts/ContactsContext';
 import { useCompaniesContext } from '@/contexts/CompaniesContext';
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
+import { useAuth } from '@/contexts/AuthContext';
+import { supabase } from '@/integrations/supabase/client';
 import { Task, TASK_STATUSES, TASK_PRIORITIES } from '@/types/task';
+import { cn } from '@/lib/utils';
 
 export default function Dashboard() {
   const { bookings, loading: bookingsLoading } = useBookings();
@@ -35,6 +42,7 @@ export default function Dashboard() {
   const { contacts } = useContactsContext();
   const { companies } = useCompaniesContext();
   const { tasks, loading: tasksLoading, addTask, updateTask, deleteTask, deleteTasks } = useTasksContext();
+  const { user } = useAuth();
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [newOpen, setNewOpen] = useState(false);
   const [editTask, setEditTask] = useState<Task | null>(null);
@@ -46,9 +54,28 @@ export default function Dashboard() {
     dueDate: '',
     companyId: '',
     contactId: '',
+    report: '',
   });
   const [filter, setFilter] = useState<'all' | 'open' | 'in_progress' | 'completed'>('all');
   const [kpiDialog, setKpiDialog] = useState<{ open: boolean; type: 'tasks' | 'inquiries' | 'bookings' }>({ open: false, type: 'tasks' });
+
+  // Searchable selectors
+  const [companySearch, setCompanySearch] = useState('');
+  const [contactSearch, setContactSearch] = useState('');
+  const [companyPopoverOpen, setCompanyPopoverOpen] = useState(false);
+  const [contactPopoverOpen, setContactPopoverOpen] = useState(false);
+
+  // Follow-up dialog
+  const [showFollowUp, setShowFollowUp] = useState(false);
+  const [completedTaskTitle, setCompletedTaskTitle] = useState('');
+  const [completedTaskContactId, setCompletedTaskContactId] = useState<string | undefined>();
+  const [followTitle, setFollowTitle] = useState('');
+  const [followPriority, setFollowPriority] = useState<Task['priority']>('normal');
+  const [followDueDate, setFollowDueDate] = useState('');
+  const [followReport, setFollowReport] = useState('');
+  const [followAdding, setFollowAdding] = useState(false);
+  const [followDefaults, setFollowDefaults] = useState<Record<string, string | undefined>>({});
+
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -62,6 +89,32 @@ export default function Dashboard() {
   }, [tasks, filter]);
 
   const openTaskCount = useMemo(() => tasks.filter((t) => t.status !== 'completed').length, [tasks]);
+
+  const filteredCompanies = useMemo(() => {
+    if (!companySearch.trim()) return companies.slice(0, 50);
+    const q = companySearch.toLowerCase();
+    return companies.filter(c => c.name.toLowerCase().includes(q)).slice(0, 50);
+  }, [companies, companySearch]);
+
+  const filteredContacts = useMemo(() => {
+    let pool = form.companyId ? contacts.filter(c => c.companyId === form.companyId) : contacts;
+    if (contactSearch.trim()) {
+      const q = contactSearch.toLowerCase();
+      pool = pool.filter(c => `${c.firstName} ${c.lastName}`.toLowerCase().includes(q));
+    }
+    return pool.slice(0, 50);
+  }, [contacts, form.companyId, contactSearch]);
+
+  const selectedCompanyName = useMemo(() => {
+    if (!form.companyId) return '';
+    return companies.find(c => c.id === form.companyId)?.name || '';
+  }, [form.companyId, companies]);
+
+  const selectedContactName = useMemo(() => {
+    if (!form.contactId) return '';
+    const c = contacts.find(c => c.id === form.contactId);
+    return c ? `${c.firstName} ${c.lastName}` : '';
+  }, [form.contactId, contacts]);
 
   const toggleSelect = (id: string) => {
     setSelected((prev) => {
@@ -81,7 +134,9 @@ export default function Dashboard() {
   };
 
   const resetForm = () => {
-    setForm({ title: '', description: '', status: 'open', priority: 'normal', dueDate: '', companyId: '', contactId: '' });
+    setForm({ title: '', description: '', status: 'open', priority: 'normal', dueDate: '', companyId: '', contactId: '', report: '' });
+    setCompanySearch('');
+    setContactSearch('');
   };
 
   const openNew = () => {
@@ -99,9 +154,21 @@ export default function Dashboard() {
       dueDate: task.dueDate || '',
       companyId: task.companyId || '',
       contactId: task.contactId || '',
+      report: '',
     });
     setEditTask(task);
     setNewOpen(true);
+  };
+
+  const saveReport = async (report: string, contactId: string) => {
+    if (!report.trim() || !user || !contactId) return;
+    await (supabase as any).from('contact_activities').insert({
+      user_id: user.id,
+      contact_id: contactId,
+      type: 'note',
+      subject: 'Gesprekverslag',
+      body: report.trim(),
+    });
   };
 
   const handleSave = async () => {
@@ -131,6 +198,9 @@ export default function Dashboard() {
         companyId: form.companyId || undefined,
         contactId: form.contactId || undefined,
       });
+      if (form.report.trim() && form.contactId) {
+        await saveReport(form.report, form.contactId);
+      }
       toast({ title: 'Taak aangemaakt' });
     }
     setNewOpen(false);
@@ -159,6 +229,51 @@ export default function Dashboard() {
     }
     setSelected(new Set());
     toast({ title: `${ids.length} taken bijgewerkt` });
+  };
+
+  const handleStatusChange = async (task: Task, newStatus: Task['status']) => {
+    await updateTask({ ...task, status: newStatus });
+    if (newStatus === 'completed') {
+      setCompletedTaskTitle(task.title);
+      setCompletedTaskContactId(task.contactId);
+      setFollowTitle('');
+      setFollowPriority('normal');
+      setFollowDueDate('');
+      setFollowReport('');
+      setFollowDefaults({
+        companyId: task.companyId,
+        contactId: task.contactId,
+        inquiryId: task.inquiryId,
+        bookingId: task.bookingId,
+      });
+      setShowFollowUp(true);
+    }
+  };
+
+  const handleFollowUp = async () => {
+    setFollowAdding(true);
+    if (followTitle.trim()) {
+      await addTask({
+        title: followTitle.trim(),
+        status: 'open',
+        priority: followPriority,
+        dueDate: followDueDate || undefined,
+        companyId: followDefaults.companyId || undefined,
+        contactId: followDefaults.contactId || undefined,
+        inquiryId: followDefaults.inquiryId || undefined,
+        bookingId: followDefaults.bookingId || undefined,
+      });
+    }
+    if (followReport.trim() && completedTaskContactId) {
+      await saveReport(followReport, completedTaskContactId);
+    }
+    setFollowAdding(false);
+    setShowFollowUp(false);
+    if (followTitle.trim()) {
+      toast({ title: 'Vervolgtaak aangemaakt' });
+    } else if (followReport.trim()) {
+      toast({ title: 'Gesprekverslag opgeslagen' });
+    }
   };
 
   const priorityIcon = (p: Task['priority']) => {
@@ -298,7 +413,7 @@ export default function Dashboard() {
                   </span>
                   <Select
                     value={task.status}
-                    onValueChange={(v) => updateTask({ ...task, status: v as Task['status'] })}
+                    onValueChange={(v) => handleStatusChange(task, v as Task['status'])}
                   >
                     <SelectTrigger className="h-7 w-32 text-xs shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
                       <SelectValue />
@@ -416,46 +531,188 @@ export default function Dashboard() {
               </div>
             </div>
             <div className="grid grid-cols-2 gap-3">
+              {/* Searchable Company selector */}
               <div className="grid gap-1.5">
                 <Label>Bedrijf</Label>
-                <Select value={form.companyId} onValueChange={(v) => setForm({ ...form, companyId: v === '__none__' ? '' : v })}>
-                  <SelectTrigger><SelectValue placeholder="Optioneel" /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="__none__">— Geen —</SelectItem>
-                    {companies.map((c) => (
-                      <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <Popover open={companyPopoverOpen} onOpenChange={setCompanyPopoverOpen}>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" className="w-full justify-start font-normal h-10 text-sm">
+                      {form.companyId ? (
+                        <span className="truncate">{selectedCompanyName}</span>
+                      ) : (
+                        <span className="text-muted-foreground">Selecteer...</span>
+                      )}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-[220px] p-0" align="start">
+                    <div className="p-2 border-b">
+                      <div className="flex items-center gap-2 px-2">
+                        <Search size={14} className="text-muted-foreground shrink-0" />
+                        <input
+                          className="w-full text-sm bg-transparent outline-none placeholder:text-muted-foreground"
+                          placeholder="Zoek bedrijf..."
+                          value={companySearch}
+                          onChange={(e) => setCompanySearch(e.target.value)}
+                          autoFocus
+                        />
+                      </div>
+                    </div>
+                    <div className="max-h-48 overflow-y-auto p-1">
+                      <button
+                        className="w-full text-left text-sm px-3 py-1.5 rounded hover:bg-muted/50 text-muted-foreground"
+                        onClick={() => { setForm({ ...form, companyId: '', contactId: '' }); setCompanyPopoverOpen(false); setCompanySearch(''); }}
+                      >
+                        — Geen —
+                      </button>
+                      {filteredCompanies.map((c) => (
+                        <button
+                          key={c.id}
+                          className={cn("w-full text-left text-sm px-3 py-1.5 rounded hover:bg-muted/50", form.companyId === c.id && "bg-primary/10 text-primary")}
+                          onClick={() => { setForm({ ...form, companyId: c.id, contactId: '' }); setCompanyPopoverOpen(false); setCompanySearch(''); }}
+                        >
+                          {c.name}
+                        </button>
+                      ))}
+                    </div>
+                  </PopoverContent>
+                </Popover>
               </div>
+              {/* Searchable Contact selector */}
               <div className="grid gap-1.5">
                 <Label>Contactpersoon</Label>
-                <Select value={form.contactId} onValueChange={(v) => setForm({ ...form, contactId: v === '__none__' ? '' : v })}>
-                  <SelectTrigger><SelectValue placeholder="Optioneel" /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="__none__">— Geen —</SelectItem>
-                    {(form.companyId
-                      ? contacts.filter(c => c.companyId === form.companyId)
-                      : contacts
-                    ).slice(0, 50).map((c) => (
-                      <SelectItem key={c.id} value={c.id}>{c.firstName} {c.lastName}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <Popover open={contactPopoverOpen} onOpenChange={setContactPopoverOpen}>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" className="w-full justify-start font-normal h-10 text-sm">
+                      {form.contactId ? (
+                        <span className="truncate">{selectedContactName}</span>
+                      ) : (
+                        <span className="text-muted-foreground">Selecteer...</span>
+                      )}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-[220px] p-0" align="start">
+                    <div className="p-2 border-b">
+                      <div className="flex items-center gap-2 px-2">
+                        <Search size={14} className="text-muted-foreground shrink-0" />
+                        <input
+                          className="w-full text-sm bg-transparent outline-none placeholder:text-muted-foreground"
+                          placeholder="Zoek contact..."
+                          value={contactSearch}
+                          onChange={(e) => setContactSearch(e.target.value)}
+                          autoFocus
+                        />
+                      </div>
+                    </div>
+                    <div className="max-h-48 overflow-y-auto p-1">
+                      <button
+                        className="w-full text-left text-sm px-3 py-1.5 rounded hover:bg-muted/50 text-muted-foreground"
+                        onClick={() => { setForm({ ...form, contactId: '' }); setContactPopoverOpen(false); setContactSearch(''); }}
+                      >
+                        — Geen —
+                      </button>
+                      {filteredContacts.map((c) => (
+                        <button
+                          key={c.id}
+                          className={cn("w-full text-left text-sm px-3 py-1.5 rounded hover:bg-muted/50", form.contactId === c.id && "bg-primary/10 text-primary")}
+                          onClick={() => { setForm({ ...form, contactId: c.id }); setContactPopoverOpen(false); setContactSearch(''); }}
+                        >
+                          {c.firstName} {c.lastName}
+                        </button>
+                      ))}
+                    </div>
+                  </PopoverContent>
+                </Popover>
               </div>
             </div>
             <div className="grid gap-1.5">
-              <Label>Deadline</Label>
+              <Label>Datum</Label>
               <Input
                 type="date"
                 value={form.dueDate}
                 onChange={(e) => setForm({ ...form, dueDate: e.target.value })}
               />
             </div>
+            {/* Gesprekverslag - only for new tasks with a contact */}
+            {!editTask && form.contactId && (
+              <div className="grid gap-1.5">
+                <Label>Gesprekverslag</Label>
+                <Textarea
+                  value={form.report}
+                  onChange={(e) => setForm({ ...form, report: e.target.value })}
+                  placeholder="Wordt opgeslagen bij de contactpersoon..."
+                  rows={3}
+                  className="text-xs"
+                />
+              </div>
+            )}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setNewOpen(false)}>Annuleren</Button>
             <Button onClick={handleSave}>{editTask ? 'Opslaan' : 'Aanmaken'}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Follow-up dialog after completing a task */}
+      <Dialog open={showFollowUp} onOpenChange={setShowFollowUp}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <CheckCircle2 size={18} className="text-success" />
+              Taak afgerond
+            </DialogTitle>
+            <DialogDescription>
+              "{completedTaskTitle}" is afgerond. Wil je een vervolgtaak aanmaken of een gesprekverslag toevoegen?
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 py-2">
+            <Input
+              placeholder="Vervolgtaak (optioneel)..."
+              value={followTitle}
+              onChange={(e) => setFollowTitle(e.target.value)}
+              autoFocus
+            />
+            {followTitle.trim() && (
+              <div className="flex flex-wrap gap-2 items-center">
+                <Select value={followPriority} onValueChange={(v: Task['priority']) => setFollowPriority(v)}>
+                  <SelectTrigger className="w-[120px] h-8 text-xs">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {TASK_PRIORITIES.map(p => (
+                      <SelectItem key={p.value} value={p.value} className="text-xs">{p.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Input
+                  type="date"
+                  value={followDueDate}
+                  onChange={(e) => setFollowDueDate(e.target.value)}
+                  className="h-8 w-auto text-xs"
+                />
+              </div>
+            )}
+            {completedTaskContactId && (
+              <Textarea
+                placeholder="Gesprekverslag (optioneel, wordt opgeslagen bij contactpersoon)..."
+                value={followReport}
+                onChange={(e) => setFollowReport(e.target.value)}
+                rows={3}
+                className="text-xs"
+              />
+            )}
+          </div>
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button variant="ghost" size="sm" onClick={() => setShowFollowUp(false)}>
+              Sluiten
+            </Button>
+            <Button
+              size="sm"
+              onClick={handleFollowUp}
+              disabled={followAdding || (!followTitle.trim() && !followReport.trim())}
+            >
+              Opslaan
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
