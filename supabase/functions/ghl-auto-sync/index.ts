@@ -435,16 +435,23 @@ async function syncContacts(supabase: any, ghlHeaders: any, locationId: string, 
   try {
     const recentThreshold = new Date(Date.now() - 2 * 60 * 1000).toISOString();
 
-    // 1. Pull GHL contacts
-    const res = await fetch(`${GHL_API_BASE}/contacts/?locationId=${locationId}&limit=100`, { headers: ghlHeaders });
-    if (!res.ok) {
-      console.error('Contacts error:', res.status, await res.text());
-      return;
+    // 1. Pull ALL GHL contacts (paginate)
+    const ghlContacts: any[] = [];
+    let contactPage = 1;
+    let contactHasMore = true;
+    while (contactHasMore && contactPage <= 20) {
+      const res = await fetch(`${GHL_API_BASE}/contacts/?locationId=${locationId}&limit=100&page=${contactPage}`, { headers: ghlHeaders });
+      if (!res.ok) {
+        console.error('Contacts error:', res.status, await res.text());
+        break;
+      }
+      const data = await res.json();
+      const batch = data.contacts || [];
+      ghlContacts.push(...batch);
+      contactHasMore = batch.length === 100;
+      contactPage++;
     }
-
-    const data = await res.json();
-    const ghlContacts = data.contacts || [];
-    console.log(`Fetched ${ghlContacts.length} contacts from GHL`);
+    console.log(`Fetched ${ghlContacts.length} contacts from GHL (${contactPage - 1} pages)`);
 
     const seenGhlContactIds = new Set<string>();
 
@@ -554,8 +561,8 @@ async function syncContacts(supabase: any, ghlHeaders: any, locationId: string, 
       }
     }
 
-    // 3. Push local contacts without GHL ID (max 10 per run)
-    const { data: localOnly } = await supabase.from('contacts').select('*').eq('user_id', userId).is('ghl_contact_id', null).limit(10);
+    // 3. Push ALL local contacts without GHL ID
+    const { data: localOnly } = await supabase.from('contacts').select('*').eq('user_id', userId).is('ghl_contact_id', null).limit(500);
     for (const contact of localOnly || []) {
       // Build company name from company text or lookup company entity
       let companyName = contact.company || null;
@@ -607,8 +614,8 @@ async function syncContacts(supabase: any, ghlHeaders: any, locationId: string, 
 // === PUSH LOCAL INQUIRIES TO GHL ===
 async function pushLocalInquiries(supabase: any, ghlHeaders: any, locationId: string, userId: string, results: any) {
   try {
-    // Get local inquiries without ghl_opportunity_id (max 10 per run to avoid timeout)
-    const { data: localInquiries } = await supabase.from('inquiries').select('*').eq('user_id', userId).is('ghl_opportunity_id', null).limit(10);
+    // Get local inquiries without ghl_opportunity_id
+    const { data: localInquiries } = await supabase.from('inquiries').select('*').eq('user_id', userId).is('ghl_opportunity_id', null).limit(200);
     if (!localInquiries || localInquiries.length === 0) return;
 
     // Get pipeline info
