@@ -19,6 +19,7 @@ import { useToast } from '@/hooks/use-toast';
 import { mockQuotations } from '@/data/mockData';
 
 import CompanyActivityTimeline from '@/components/company/CompanyActivityTimeline';
+import { SectionCard } from '@/components/detail/DetailPageComponents';
 
 const STATUS_LABELS: Record<string, string> = {
   lead: 'Lead',
@@ -565,39 +566,4 @@ function OffertesSection({ contactIds, navigate }: { contactIds: Set<string>; na
   );
 }
 
-function SectionCard({ title, count, children, linkLabel, onLink, onAdd }: {
-  title: string;
-  count?: number;
-  children: React.ReactNode;
-  linkLabel?: string;
-  onLink?: () => void;
-  onAdd?: () => void;
-}) {
-  return (
-    <div className="rounded-xl bg-card p-5 card-shadow space-y-3">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <h3 className="text-base font-bold text-foreground">{title}</h3>
-          {count !== undefined && (
-            <span className="text-xs text-muted-foreground">({count})</span>
-          )}
-          {onAdd && (
-            <button
-              onClick={onAdd}
-              className="flex items-center justify-center h-5 w-5 rounded bg-primary/10 text-primary hover:bg-primary/20 transition-colors"
-              title={`Nieuwe ${title.toLowerCase()} toevoegen`}
-            >
-              <Plus size={12} />
-            </button>
-          )}
-        </div>
-        {linkLabel && onLink && (
-          <button onClick={onLink} className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-0.5 transition-colors">
-            {linkLabel} <ChevronRight size={12} />
-          </button>
-        )}
-      </div>
-      {children}
-    </div>
-  );
-}
+/* SectionCard is now imported from @/components/detail/DetailPageComponents */

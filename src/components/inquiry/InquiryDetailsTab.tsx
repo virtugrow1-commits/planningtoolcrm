@@ -13,6 +13,7 @@ import { cn } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { useState } from 'react';
+import { InfoRow } from '@/components/detail/DetailPageComponents';
 
 const PIPELINE_COLUMNS: { key: Inquiry['status']; label: string; badgeClass: string }[] = [
   { key: 'new', label: 'Nieuwe Aanvraag', badgeClass: 'status-new' },
@@ -46,18 +47,7 @@ interface Props {
   refetch: () => Promise<void>;
 }
 
-function InfoRow({ icon, label, value, onClick }: { icon: React.ReactNode; label: string; value: string; onClick?: () => void }) {
-  return (
-    <div>
-      <p className="text-xs font-semibold text-muted-foreground mb-0.5 flex items-center gap-1.5">{icon} {label}</p>
-      {onClick ? (
-        <button onClick={onClick} className="text-primary hover:underline font-medium text-sm">{value}</button>
-      ) : (
-        <p className="text-foreground">{value}</p>
-      )}
-    </div>
-  );
-}
+/* InfoRow is now imported from @/components/detail/DetailPageComponents */
 
 export default function InquiryDetailsTab({ inquiry, editing, form, setForm, contact, company, onSave, onCancel, onDelete, onStartEdit, onConvert, refetch }: Props) {
   const navigate = useNavigate();

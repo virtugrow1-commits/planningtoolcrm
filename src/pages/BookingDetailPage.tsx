@@ -17,6 +17,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ArrowLeft, ChevronRight, Pencil, Check, X, MapPin, Calendar as CalendarIcon, Clock, Users, ClipboardList, Package, User, Building2, FileText, CheckSquare, Trash2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { InfoRow, SectionCard } from '@/components/detail/DetailPageComponents';
 
 export default function BookingDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -278,31 +279,4 @@ export default function BookingDetailPage() {
   );
 }
 
-function InfoRow({ icon, label, value, onClick }: { icon: React.ReactNode; label: string; value: string; onClick?: () => void }) {
-  return (
-    <div>
-      <p className="text-xs font-semibold text-muted-foreground mb-0.5 flex items-center gap-1.5">{icon} {label}</p>
-      {onClick ? (
-        <button onClick={onClick} className="text-primary hover:underline font-medium text-sm">{value}</button>
-      ) : (
-        <p className="text-foreground">{value}</p>
-      )}
-    </div>
-  );
-}
-
-function SectionCard({ title, children, linkLabel, onLink }: { title: string; children: React.ReactNode; linkLabel?: string; onLink?: () => void }) {
-  return (
-    <div className="rounded-xl bg-card p-5 card-shadow space-y-3">
-      <div className="flex items-center justify-between">
-        <h3 className="text-base font-bold text-foreground">{title}</h3>
-        {linkLabel && onLink && (
-          <button onClick={onLink} className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-0.5 transition-colors">
-            {linkLabel} <ChevronRight size={12} />
-          </button>
-        )}
-      </div>
-      {children}
-    </div>
-  );
-}
+/* InfoRow and SectionCard are now imported from @/components/detail/DetailPageComponents */
