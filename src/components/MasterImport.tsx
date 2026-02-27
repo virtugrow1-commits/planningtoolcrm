@@ -27,8 +27,38 @@ interface ParsedContact {
   mobile: string | null;
   function_title: string | null;
   department: string | null;
-  companyOldId: string | null; // null = Persoon
-  customerName: string; // for reference
+  companyOldId: string | null;
+  customerName: string;
+}
+
+/* ── Helpers ────────────────────────────────────────────── */
+
+function normalizeHeader(h: string): string {
+  return h
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[_\s]+/g, ' ')
+    .trim();
+}
+
+/** Find column value by trying multiple possible header names */
+function findCol(row: Record<string, any>, ...candidates: string[]): string {
+  // Try exact key match first
+  for (const c of candidates) {
+    if (row[c] !== undefined) return String(row[c] ?? '').trim();
+  }
+  // Then try normalized match
+  const normalizedCandidates = candidates.map(normalizeHeader);
+  for (const key of Object.keys(row)) {
+    const nk = normalizeHeader(key);
+    for (const nc of normalizedCandidates) {
+      if (nk === nc || nk.includes(nc) || nc.includes(nk)) {
+        return String(row[key] ?? '').trim();
+      }
+    }
+  }
+  return '';
 }
 
 function splitPipe(val: string | undefined): string[] {
@@ -39,8 +69,7 @@ function splitPipe(val: string | undefined): string[] {
 function splitName(fullName: string): { first: string; last: string } {
   const parts = fullName.trim().split(/\s+/);
   if (parts.length <= 1) return { first: parts[0] || '—', last: '—' };
-  // Common Dutch prefixes
-  const prefixes = ['van', 'de', 'den', 'der', 'het', 'ten', 'ter', 'op', "'t", 'in', 'het'];
+  const prefixes = ['van', 'de', 'den', 'der', 'het', 'ten', 'ter', 'op', "'t", 'in'];
   let splitIdx = 1;
   for (let i = 1; i < parts.length; i++) {
     if (prefixes.includes(parts[i].toLowerCase())) {
@@ -60,6 +89,8 @@ function cleanPhone(phone: string | undefined): string | null {
   const cleaned = phone.trim();
   return cleaned || null;
 }
+
+/* ── Component ──────────────────────────────────────────── */
 
 export default function MasterImport() {
   const { user } = useAuth();
@@ -87,6 +118,12 @@ export default function MasterImport() {
       const rows: Record<string, any>[] = XLSX.utils.sheet_to_json(sheet, { defval: '' });
       setProgress(10);
 
+      console.log(`[MasterImport] ${rows.length} rijen gelezen`);
+      if (rows.length > 0) {
+        console.log('[MasterImport] Kolommen:', Object.keys(rows[0]));
+        console.log('[MasterImport] Eerste rij:', JSON.stringify(rows[0]).substring(0, 500));
+      }
+
       // Step 2: Parse into companies & contacts
       setStatus(`${rows.length} rijen verwerken...`);
       const companies: ParsedCompany[] = [];
@@ -94,28 +131,29 @@ export default function MasterImport() {
       const companyNames = new Set<string>();
 
       for (const row of rows) {
-        const type = String(row.klant_type || '').trim();
-        const name = String(row.klant_of_bedrijf || '').trim();
-        const oldId = String(row.customer_id || '');
-        
+        const type = findCol(row, 'klant_type', 'type', 'klanttype', 'customer_type');
+        const name = findCol(row, 'klant_of_bedrijf', 'klant', 'bedrijf', 'naam', 'name', 'company', 'customer', 'klant of bedrijf');
+        const oldId = findCol(row, 'customer_id', 'id', 'klant_id', 'klantnummer');
+
         if (!name || name === 'Naam niet bepaald' || name === '0') continue;
 
-        const contactPersons = splitPipe(String(row.contactpersonen || ''));
-        const emails = splitPipe(String(row.emails || ''));
-        const phones = splitPipe(String(row.telefoon || ''));
-        const mobiles = splitPipe(String(row.mobiel || ''));
-        const functions = splitPipe(String(row.functies || ''));
-        const departments = splitPipe(String(row.afdelingen || ''));
+        const contactPersons = splitPipe(findCol(row, 'contactpersonen', 'contactpersoon', 'contact', 'contacts', 'contact_persons'));
+        const emails = splitPipe(findCol(row, 'emails', 'email', 'e-mail', 'e_mail', 'emailadres'));
+        const phones = splitPipe(findCol(row, 'telefoon', 'phone', 'tel', 'telefoonnummer'));
+        const mobiles = splitPipe(findCol(row, 'mobiel', 'mobile', 'gsm', 'mobielnummer'));
+        const functions = splitPipe(findCol(row, 'functies', 'functie', 'function', 'functietitel'));
+        const departments = splitPipe(findCol(row, 'afdelingen', 'afdeling', 'department'));
 
-        if (type === 'Bedrijf') {
-          // Create company
+        const isBedrijf = type.toLowerCase() === 'bedrijf' || type.toLowerCase() === 'company';
+        const isPersoon = type.toLowerCase() === 'persoon' || type.toLowerCase() === 'person' || type === '';
+
+        if (isBedrijf) {
           const nameKey = name.toLowerCase().trim();
           if (!companyNames.has(nameKey)) {
             companies.push({ name, oldId });
             companyNames.add(nameKey);
           }
 
-          // Create contacts for each contact person
           if (contactPersons.length > 0) {
             for (let i = 0; i < contactPersons.length; i++) {
               const cpName = contactPersons[i];
@@ -134,8 +172,8 @@ export default function MasterImport() {
               });
             }
           }
-        } else if (type === 'Persoon') {
-          // Create contacts directly
+        } else if (isPersoon || !isBedrijf) {
+          // Treat as person (including empty type)
           if (contactPersons.length > 0) {
             for (let i = 0; i < contactPersons.length; i++) {
               const cpName = contactPersons[i];
@@ -149,12 +187,11 @@ export default function MasterImport() {
                 mobile: cleanPhone(mobiles[i]) || (i === 0 ? cleanPhone(mobiles[0]) : null),
                 function_title: functions[i] || null,
                 department: departments[i] || null,
-                companyOldId: null, // Persoon = no company
+                companyOldId: null,
                 customerName: name,
               });
             }
           } else {
-            // No contactpersonen listed, use klant_of_bedrijf as name
             const { first, last } = splitName(name);
             contacts.push({
               firstName: first,
@@ -172,11 +209,23 @@ export default function MasterImport() {
       }
 
       setProgress(20);
+      console.log(`[MasterImport] Parsed: ${companies.length} bedrijven, ${contacts.length} contacten`);
       setStatus(`Gevonden: ${companies.length} bedrijven, ${contacts.length} contactpersonen`);
+
+      // Safety check: don't delete if nothing was parsed
+      if (companies.length === 0 && contacts.length === 0) {
+        toast({
+          title: 'Import gestopt',
+          description: `Geen data gevonden in het bestand. Controleer of de kolommen correct zijn (verwacht: klant_type, klant_of_bedrijf, contactpersonen, emails, etc.).\n\nGevonden kolommen: ${rows.length > 0 ? Object.keys(rows[0]).join(', ') : 'geen'}`,
+          variant: 'destructive',
+        });
+        setImporting(false);
+        setStatus('Geen data gevonden');
+        return;
+      }
 
       // Step 3: Clear existing data
       setStatus('Bestaande contacten en bedrijven verwijderen...');
-      // Order matters: contact_companies → contacts → companies (FK constraints)
       await supabase.from('contact_companies').delete().neq('id', '00000000-0000-0000-0000-000000000000');
       setProgress(25);
       await supabase.from('contacts').delete().neq('id', '00000000-0000-0000-0000-000000000000');
@@ -224,8 +273,6 @@ export default function MasterImport() {
       let contactsCreated = 0;
       let linked = 0;
       const errors: string[] = [];
-
-      // Deduplicate contacts by first_name + last_name + company
       const seenContacts = new Set<string>();
 
       for (let i = 0; i < contacts.length; i += 50) {
@@ -233,7 +280,7 @@ export default function MasterImport() {
         const insertBatch: any[] = [];
 
         for (const c of batch) {
-          // Skip if we've already seen this exact name+company combination
+          // Deduplicate by name + company
           const dedupKey = `${c.firstName.toLowerCase().trim()}|${c.lastName.toLowerCase().trim()}|${(c.customerName || '').toLowerCase().trim()}`;
           if (seenContacts.has(dedupKey)) continue;
           seenContacts.add(dedupKey);
@@ -293,10 +340,7 @@ export default function MasterImport() {
   const handleGHLSync = async () => {
     setSyncingGHL(true);
     try {
-      // Run full sync to match imported contacts with GHL
       const results: string[] = [];
-
-      // 1. Contacts sync (paginated)
       let totalContacts = 0;
       let nextPageUrl: string | null = null;
       let hasMore = true;
@@ -312,7 +356,6 @@ export default function MasterImport() {
       }
       results.push(`${totalContacts} contacten`);
 
-      // 2. Companies
       await new Promise(r => setTimeout(r, 1500));
       try {
         const { data } = await supabase.functions.invoke('ghl-sync', { body: { action: 'sync-companies' } });
@@ -358,7 +401,7 @@ export default function MasterImport() {
         ) : (
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
             <Upload size={16} />
-            <span>Klik om CRM_master_overzicht.xlsx te uploaden</span>
+            <span>Klik om CRM overzicht (.xlsx) te uploaden</span>
           </div>
         )}
       </div>
