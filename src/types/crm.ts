@@ -11,6 +11,7 @@ export interface Contact {
   createdAt: string;
   notes?: string;
   ghlContactId?: string;
+  departed?: boolean;
 }
 
 export interface Inquiry {

@@ -248,6 +248,7 @@ export type Database = {
           company: string | null
           company_id: string | null
           created_at: string
+          departed: boolean
           display_number: string | null
           email: string | null
           first_name: string
@@ -264,6 +265,7 @@ export type Database = {
           company?: string | null
           company_id?: string | null
           created_at?: string
+          departed?: boolean
           display_number?: string | null
           email?: string | null
           first_name: string
@@ -280,6 +282,7 @@ export type Database = {
           company?: string | null
           company_id?: string | null
           created_at?: string
+          departed?: boolean
           display_number?: string | null
           email?: string | null
           first_name?: string

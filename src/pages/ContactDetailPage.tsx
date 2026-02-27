@@ -11,6 +11,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { ArrowLeft, Pencil, Check, X, Plus, ChevronRight, Calendar, FileText, Mail, Phone, Building2, User, CheckSquare, Send, Eye, CheckCircle2 } from 'lucide-react';
+import { Checkbox } from '@/components/ui/checkbox';
 import ActivityTimeline from '@/components/contact/ActivityTimeline';
 import { Contact, ROOMS } from '@/types/crm';
 import { InfoField, SectionCard } from '@/components/detail/DetailPageComponents';
@@ -198,6 +199,23 @@ export default function ContactDetailPage() {
                 </Select>
               </div>
             )}
+
+            {/* Uit dienst checkbox */}
+            {editing ? (
+              <div className="flex items-center gap-2">
+                <Checkbox
+                  id="departed"
+                  checked={form!.departed || false}
+                  onCheckedChange={(checked) => setForm({ ...form!, departed: checked === true })}
+                />
+                <label htmlFor="departed" className="text-sm text-foreground cursor-pointer">Uit dienst</label>
+              </div>
+            ) : current.departed ? (
+              <div className="flex items-center gap-2">
+                <Checkbox id="departed-ro" checked disabled />
+                <label htmlFor="departed-ro" className="text-sm text-muted-foreground">Uit dienst</label>
+              </div>
+            ) : null}
 
             <div>
               <p className="text-xs font-semibold text-muted-foreground mb-1">Notities</p>
