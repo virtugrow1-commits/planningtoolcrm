@@ -13,6 +13,7 @@ import { useToast } from '@/hooks/use-toast';
 import { ArrowLeft, Pencil, Check, X, Plus, ChevronRight, Calendar, FileText, Mail, Phone, Building2, User, CheckSquare, Send, Eye, CheckCircle2 } from 'lucide-react';
 import { Checkbox } from '@/components/ui/checkbox';
 import ActivityTimeline from '@/components/contact/ActivityTimeline';
+import TasksSection from '@/components/detail/TasksSection';
 import { Contact, ROOMS } from '@/types/crm';
 import { InfoField, SectionCard } from '@/components/detail/DetailPageComponents';
 import { mockQuotations } from '@/data/mockData';
@@ -378,21 +379,10 @@ export default function ContactDetailPage() {
           </SectionCard>
 
           {/* Taken */}
-          <SectionCard title="Taken">
-            {contactTasks.length === 0 ? (
-              <p className="text-xs text-muted-foreground">Geen taken</p>
-            ) : (
-              <div className="space-y-1">
-                {contactTasks.slice(0, 8).map((t) => (
-                  <div key={t.id} className="flex items-center gap-2 text-xs py-1.5 px-2">
-                    <CheckSquare size={12} className={t.status === 'completed' ? 'text-success' : 'text-muted-foreground'} />
-                    <span className={t.status === 'completed' ? 'line-through text-muted-foreground' : 'text-foreground'}>{t.title}</span>
-                    {t.dueDate && <span className="text-muted-foreground ml-auto">{t.dueDate}</span>}
-                  </div>
-                ))}
-              </div>
-            )}
-          </SectionCard>
+          <TasksSection
+            tasks={contactTasks}
+            defaults={{ contactId: contact.id, companyId: contact.companyId }}
+          />
 
           {/* Gesprekken */}
           <div className="rounded-xl bg-card p-5 card-shadow">

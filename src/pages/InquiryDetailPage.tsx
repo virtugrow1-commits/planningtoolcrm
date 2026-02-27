@@ -18,7 +18,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
 import InquiryDetailsTab, { PIPELINE_COLUMNS } from '@/components/inquiry/InquiryDetailsTab';
 import InquiryHistoryTab from '@/components/inquiry/InquiryHistoryTab';
-import InquiryTasksTab from '@/components/inquiry/InquiryTasksTab';
+import TasksSection from '@/components/detail/TasksSection';
 import NewReservationDialog from '@/components/calendar/NewReservationDialog';
 
 
@@ -213,11 +213,9 @@ export default function InquiryDetailPage() {
             <Badge variant="secondary" className="text-[10px] h-4 px-1 bg-warning/15 text-warning">{openTaskCount}</Badge>
           )}
         </h2>
-        <InquiryTasksTab
-          inquiry={inquiry}
+        <TasksSection
           tasks={inquiryTasks}
-          contactId={contact?.id}
-          companyId={company?.id}
+          defaults={{ inquiryId: inquiry.id, contactId: contact?.id, companyId: company?.id }}
         />
       </div>
 

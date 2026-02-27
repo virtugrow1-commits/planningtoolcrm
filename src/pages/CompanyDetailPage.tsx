@@ -20,6 +20,7 @@ import { mockQuotations } from '@/data/mockData';
 
 import CompanyActivityTimeline from '@/components/company/CompanyActivityTimeline';
 import { SectionCard } from '@/components/detail/DetailPageComponents';
+import TasksSection from '@/components/detail/TasksSection';
 
 const STATUS_LABELS: Record<string, string> = {
   lead: 'Lead',
@@ -374,21 +375,10 @@ export default function CompanyDetailPage() {
           </SectionCard>
 
           {/* Taken */}
-          <SectionCard title="Taken" count={companyTasks.length}>
-            {companyTasks.length === 0 ? (
-              <p className="text-xs text-muted-foreground">Geen taken</p>
-            ) : (
-              <div className="space-y-1">
-                {companyTasks.slice(0, 8).map((t) => (
-                  <div key={t.id} className="flex items-center gap-2 text-xs py-1.5 px-2">
-                    <CheckSquare size={12} className={t.status === 'completed' ? 'text-success' : 'text-muted-foreground'} />
-                    <span className={t.status === 'completed' ? 'line-through text-muted-foreground' : 'text-foreground'}>{t.title}</span>
-                    {t.dueDate && <span className="text-muted-foreground ml-auto">{t.dueDate}</span>}
-                  </div>
-                ))}
-              </div>
-            )}
-          </SectionCard>
+          <TasksSection
+            tasks={companyTasks}
+            defaults={{ companyId: company.id }}
+          />
 
           {/* Offertes */}
           <OffertesSection contactIds={contactIds} navigate={navigate} />

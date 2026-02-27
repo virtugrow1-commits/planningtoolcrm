@@ -18,6 +18,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { ArrowLeft, ChevronRight, Pencil, Check, X, MapPin, Calendar as CalendarIcon, Clock, Users, ClipboardList, Package, User, Building2, FileText, CheckSquare, Trash2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { InfoRow, SectionCard } from '@/components/detail/DetailPageComponents';
+import TasksSection from '@/components/detail/TasksSection';
 
 export default function BookingDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -259,20 +260,10 @@ export default function BookingDetailPage() {
           </SectionCard>
 
           {/* Tasks */}
-          <SectionCard title="Taken">
-            {bookingTasks.length === 0 ? (
-              <p className="text-xs text-muted-foreground">Geen gekoppelde taken</p>
-            ) : (
-              <div className="space-y-1">
-                {bookingTasks.map(t => (
-                  <div key={t.id} className="flex items-center gap-2 text-xs py-1">
-                    <CheckSquare size={12} className={t.status === 'completed' ? 'text-success' : 'text-muted-foreground'} />
-                    <span className={cn('text-foreground', t.status === 'completed' && 'line-through text-muted-foreground')}>{t.title}</span>
-                  </div>
-                ))}
-              </div>
-            )}
-          </SectionCard>
+          <TasksSection
+            tasks={bookingTasks}
+            defaults={{ bookingId: booking.id, contactId: contact?.id, companyId: company?.id }}
+          />
         </div>
       </div>
     </div>
