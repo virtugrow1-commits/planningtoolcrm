@@ -13,6 +13,7 @@ import { useToast } from '@/hooks/use-toast';
 import { ArrowLeft, Pencil, Check, X, Plus, ChevronRight, Calendar, FileText, Mail, Phone, Building2, User, CheckSquare, Send, Eye, CheckCircle2 } from 'lucide-react';
 import ActivityTimeline from '@/components/contact/ActivityTimeline';
 import { Contact, ROOMS } from '@/types/crm';
+import { InfoField, SectionCard } from '@/components/detail/DetailPageComponents';
 import { mockQuotations } from '@/data/mockData';
 import { useDocuments } from '@/hooks/useDocuments';
 import { Badge } from '@/components/ui/badge';
@@ -438,25 +439,7 @@ export default function ContactDetailPage() {
   );
 }
 
-function InfoField({ icon, label, value, editing, type, onChange }: {
-  icon: React.ReactNode;
-  label: string;
-  value: string;
-  editing: boolean;
-  type?: string;
-  onChange: (v: string) => void;
-}) {
-  return (
-    <div>
-      <p className="text-xs font-semibold text-muted-foreground mb-0.5 flex items-center gap-1.5">{icon} {label}</p>
-      {editing ? (
-        <Input className="h-8 text-sm" type={type} value={value} onChange={(e) => onChange(e.target.value)} />
-      ) : (
-        <p className="text-foreground">{value || '—'}</p>
-      )}
-    </div>
-  );
-}
+/* InfoField is now imported from @/components/detail/DetailPageComponents */
 
 function CompanyField({ current, editing, companies, form, setForm, navigate, contactCompanyLinks, linkContact, unlinkContact }: {
   current: Contact;
@@ -602,32 +585,4 @@ function CompanyField({ current, editing, companies, form, setForm, navigate, co
   );
 }
 
-function SectionCard({ title, children, actionLabel, onAction, linkLabel, onLink }: {
-  title: string;
-  children: React.ReactNode;
-  actionLabel?: string;
-  onAction?: () => void;
-  linkLabel?: string;
-  onLink?: () => void;
-}) {
-  return (
-    <div className="rounded-xl bg-card p-5 card-shadow space-y-3">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <h3 className="text-base font-bold text-foreground">{title}</h3>
-          {onAction && (
-            <button onClick={onAction} className="text-muted-foreground hover:text-foreground transition-colors">
-              <Plus size={16} />
-            </button>
-          )}
-        </div>
-        {linkLabel && onLink && (
-          <button onClick={onLink} className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-0.5 transition-colors">
-            {linkLabel} <ChevronRight size={12} />
-          </button>
-        )}
-      </div>
-      {children}
-    </div>
-  );
-}
+/* SectionCard is now imported from @/components/detail/DetailPageComponents */
