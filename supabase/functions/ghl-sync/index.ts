@@ -719,7 +719,49 @@ serve(async (req) => {
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         });
       } else {
-        // Create new GHL contact
+        // First, search GHL for existing contact by email or phone to avoid duplicates
+        let existingGhlId: string | null = null;
+        if (contact.email) {
+          const searchRes = await ghlFetch(`${GHL_API_BASE}/contacts/lookup?locationId=${GHL_LOCATION_ID}&email=${encodeURIComponent(contact.email)}`, {
+            headers: ghlHeaders,
+          });
+          if (searchRes.ok) {
+            const searchData = await searchRes.json();
+            if (searchData.contacts?.[0]?.id) {
+              existingGhlId = searchData.contacts[0].id;
+            }
+          } else {
+            await searchRes.text(); // consume body
+          }
+        }
+        if (!existingGhlId && contact.phone) {
+          const searchRes = await ghlFetch(`${GHL_API_BASE}/contacts/lookup?locationId=${GHL_LOCATION_ID}&phone=${encodeURIComponent(contact.phone)}`, {
+            headers: ghlHeaders,
+          });
+          if (searchRes.ok) {
+            const searchData = await searchRes.json();
+            if (searchData.contacts?.[0]?.id) {
+              existingGhlId = searchData.contacts[0].id;
+            }
+          } else {
+            await searchRes.text();
+          }
+        }
+
+        if (existingGhlId) {
+          // Contact already exists in GHL — update it and save the ID locally
+          const res = await ghlFetch(`${GHL_API_BASE}/contacts/${existingGhlId}`, {
+            method: 'PUT', headers: ghlHeaders, body: JSON.stringify(ghlPayload),
+          });
+          if (contact.id) {
+            await supabase.from('contacts').update({ ghl_contact_id: existingGhlId }).eq('id', contact.id);
+          }
+          return new Response(JSON.stringify({ success: res.ok, action: 'linked', ghl_contact_id: existingGhlId }), {
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
+        }
+
+        // No existing contact found — create new
         const res = await ghlFetch(`${GHL_API_BASE}/contacts/`, {
           method: 'POST', headers: ghlHeaders, body: JSON.stringify(ghlPayload),
         });
