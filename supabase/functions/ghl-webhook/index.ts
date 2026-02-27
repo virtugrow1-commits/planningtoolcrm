@@ -59,22 +59,35 @@ serve(async (req) => {
     const hasPipelineData = payload.pipeline_id || payload.pipleline_stage || payload.pipeline_name || payload.opportunity_name;
     const hasContactData = payload.contact_id && (payload.first_name || payload.last_name || payload.full_name);
     const hasAppointmentData = payload.startTime || payload.appointmentId || payload.calendarId;
-    // CRITICAL: Check that form fields have actual non-empty VALUES, not just that keys exist.
-    // GHL sends contact-sync payloads with all Dutch field names present but empty strings.
-    const hasFormData = !!(
+    // CRITICAL: Detect REAL form submissions vs contact-sync payloads with custom field values.
+    // GHL contact updates include stored custom field values (e.g., "Aantal gasten": "60"),
+    // these are NOT new form submissions. A real form submission must have an explicit indicator.
+    const hasFormFields = !!(
       (payload['Type Evenement'] && payload['Type Evenement'].trim()) ||
       (payload['Aantal gasten'] && String(payload['Aantal gasten']).trim()) ||
       (payload['Selecteer de gewenste datum'] && payload['Selecteer de gewenste datum'].trim()) ||
       (payload['Kies je dagdeel'] && payload['Kies je dagdeel'].trim())
     );
+    const hasFormIndicator = !!(
+      payload.form_name || payload.formName || payload.formId || payload.form_id ||
+      payload.workflow_name || payload.workflowName || payload.workflow_id ||
+      payload['Form Name'] ||
+      type.toLowerCase().includes('form') || type.toLowerCase().includes('workflow')
+    );
+    // Only treat as form if we have BOTH form fields AND a form submission indicator.
+    const hasFormData = hasFormFields && hasFormIndicator;
+    
+    // Contact with custom fields but no form indicator = contact sync, not form
+    const isContactWithCustomFields = !!(payload.contact_id && hasFormFields && !hasFormIndicator);
+    
     const hasMessageData = type.includes('InboundMessage') || type.includes('inbound') || type.includes('message') || (payload.body && payload.conversationId);
     const hasDocumentData = type.includes('Document') || type.includes('document') || type.includes('Proposal') || type.includes('proposal') || type.includes('Invoice') || type.includes('invoice') || type.includes('Estimate') || type.includes('estimate') || payload.documentId || payload.proposalId || payload.estimateId;
 
-    // Detect if this is a contact sync echo (contact created/updated by our own sync)
-    // These payloads typically have contact fields but NO form-specific fields
+    // Detect contact sync echo
     const isContactSyncEcho = (
-      (type.includes('contact') || type.includes('Contact') || hasContactData) &&
-      !hasFormData && !hasPipelineData && !hasAppointmentData && !hasMessageData && !hasDocumentData
+      isContactWithCustomFields ||
+      ((type.includes('contact') || type.includes('Contact') || hasContactData) &&
+       !hasFormData && !hasPipelineData && !hasAppointmentData && !hasMessageData && !hasDocumentData)
     );
 
     // Handle different webhook types
