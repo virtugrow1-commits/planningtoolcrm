@@ -815,7 +815,7 @@ serve(async (req) => {
 
       if (company.ghl_company_id) {
         // Update existing
-        const res = await ghlFetch(`${GHL_API_BASE}/companies/${company.ghl_company_id}`, {
+        const res = await ghlFetch(`${GHL_API_BASE}/businesses/${company.ghl_company_id}`, {
           method: 'PUT', headers: ghlHeaders, body: JSON.stringify(ghlPayload),
         });
         return new Response(JSON.stringify({ success: res.ok, action: 'updated' }), {
@@ -825,13 +825,12 @@ serve(async (req) => {
         // Search first to avoid duplicates
         let existingGhlId: string | null = null;
         try {
-          const searchRes = await ghlFetch(`${GHL_API_BASE}/companies/search`, {
-            method: 'POST', headers: ghlHeaders,
-            body: JSON.stringify({ locationId: GHL_LOCATION_ID, name: company.name, limit: 5 }),
+          const searchRes = await ghlFetch(`${GHL_API_BASE}/businesses/?locationId=${GHL_LOCATION_ID}&limit=100&skip=0`, {
+            headers: ghlHeaders,
           });
           if (searchRes.ok) {
             const searchData = await searchRes.json();
-            const match = (searchData.companies || []).find((c: any) =>
+            const match = (searchData.businesses || []).find((c: any) =>
               c.name && c.name.toLowerCase() === company.name.toLowerCase()
             );
             if (match) existingGhlId = match.id;
@@ -839,7 +838,7 @@ serve(async (req) => {
         } catch (e) { console.warn('Company search failed:', e); }
 
         if (existingGhlId) {
-          const res = await ghlFetch(`${GHL_API_BASE}/companies/${existingGhlId}`, {
+          const res = await ghlFetch(`${GHL_API_BASE}/businesses/${existingGhlId}`, {
             method: 'PUT', headers: ghlHeaders, body: JSON.stringify(ghlPayload),
           });
           if (company.id) {
@@ -851,12 +850,12 @@ serve(async (req) => {
         }
 
         // Create new
-        const res = await ghlFetch(`${GHL_API_BASE}/companies/`, {
+        const res = await ghlFetch(`${GHL_API_BASE}/businesses/`, {
           method: 'POST', headers: ghlHeaders, body: JSON.stringify(ghlPayload),
         });
         if (res.ok) {
           const created = await res.json();
-          const newId = created.company?.id || created.id;
+          const newId = created.business?.id || created.id;
           if (newId && company.id) {
             await supabase.from('companies').update({ ghl_company_id: newId }).eq('id', company.id);
           }
@@ -1474,7 +1473,7 @@ serve(async (req) => {
       if (company.postcode) ghlPayload.postalCode = company.postcode;
       if (company.country) ghlPayload.country = company.country;
 
-      const res = await ghlFetch(`${GHL_API_BASE}/companies/${ghlCompanyId}`, {
+      const res = await ghlFetch(`${GHL_API_BASE}/businesses/${ghlCompanyId}`, {
         method: 'PUT',
         headers: ghlHeaders,
         body: JSON.stringify(ghlPayload),
