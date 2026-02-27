@@ -119,7 +119,7 @@ export default function MasterImport() {
           if (contactPersons.length > 0) {
             for (let i = 0; i < contactPersons.length; i++) {
               const cpName = contactPersons[i];
-              if (!cpName || cpName === '...' || cpName.toLowerCase().includes('financiële administratie')) continue;
+              if (!cpName || cpName === '...') continue;
               const { first, last } = splitName(cpName);
               contacts.push({
                 firstName: first,
@@ -225,20 +225,18 @@ export default function MasterImport() {
       let linked = 0;
       const errors: string[] = [];
 
-      // Deduplicate contacts by email
-      const seenEmails = new Set<string>();
+      // Deduplicate contacts by first_name + last_name + company
+      const seenContacts = new Set<string>();
 
       for (let i = 0; i < contacts.length; i += 50) {
         const batch = contacts.slice(i, i + 50);
         const insertBatch: any[] = [];
 
         for (const c of batch) {
-          // Skip if we've already seen this email
-          if (c.email) {
-            const emailKey = c.email.toLowerCase().trim();
-            if (seenEmails.has(emailKey)) continue;
-            seenEmails.add(emailKey);
-          }
+          // Skip if we've already seen this exact name+company combination
+          const dedupKey = `${c.firstName.toLowerCase().trim()}|${c.lastName.toLowerCase().trim()}|${(c.customerName || '').toLowerCase().trim()}`;
+          if (seenContacts.has(dedupKey)) continue;
+          seenContacts.add(dedupKey);
 
           const companyId = c.companyOldId ? oldIdToCompanyId[c.companyOldId] : null;
           const companyName = c.companyOldId ? c.customerName : null;
