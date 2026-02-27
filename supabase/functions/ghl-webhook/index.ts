@@ -222,11 +222,12 @@ async function handleFormSubmission(supabase: any, userId: string, payload: any)
       .is('company_id', null);
   }
 
-  // Step 4: Check for duplicate before creating inquiry
-  // Dedup: check if an inquiry with same contact + event_type was created in last 10 minutes
-  const recentCutoff = new Date(Date.now() - 10 * 60 * 1000).toISOString();
+  // Step 4: Check for duplicate/existing inquiry before creating a new one
+  // IMPORTANT: Always prefer updating existing inquiries over creating new ones.
+  // This prevents duplicates when a room change or other edit triggers a webhook.
   let duplicateFound = false;
 
+  // 4a: Check if contact already has ANY inquiry with the same event_type (regardless of age)
   if (contactId) {
     const { data: existingByContact } = await supabase
       .from('inquiries')
@@ -234,11 +235,11 @@ async function handleFormSubmission(supabase: any, userId: string, payload: any)
       .eq('user_id', userId)
       .eq('contact_id', contactId)
       .eq('event_type', eventType)
-      .gt('created_at', recentCutoff)
+      .order('created_at', { ascending: false })
       .limit(1)
       .maybeSingle();
     if (existingByContact) {
-      console.log(`Form: Duplicate detected by contact_id+event_type, updating existing ${existingByContact.id}`);
+      console.log(`Form: Existing inquiry found by contact_id+event_type, updating ${existingByContact.id}`);
       await supabase.from('inquiries').update({
         preferred_date: preferredDate, room_preference: roomPreference,
         guest_count: guestCount, budget: budget,
@@ -248,24 +249,46 @@ async function handleFormSubmission(supabase: any, userId: string, payload: any)
     }
   }
 
+  // 4b: Check by contact_name + event_type (fallback)
   if (!duplicateFound) {
-    // Also check by contact_name if no contact_id match
     const { data: existingByName } = await supabase
       .from('inquiries')
       .select('id')
       .eq('user_id', userId)
       .ilike('contact_name', contactName)
       .eq('event_type', eventType)
-      .gt('created_at', recentCutoff)
+      .order('created_at', { ascending: false })
       .limit(1)
       .maybeSingle();
     if (existingByName) {
-      console.log(`Form: Duplicate detected by contact_name+event_type, updating existing ${existingByName.id}`);
+      console.log(`Form: Existing inquiry found by contact_name+event_type, updating ${existingByName.id}`);
       await supabase.from('inquiries').update({
         contact_id: contactId, preferred_date: preferredDate, room_preference: roomPreference,
         guest_count: guestCount, budget: budget,
         message: fullMessage || null,
       }).eq('id', existingByName.id);
+      duplicateFound = true;
+    }
+  }
+
+  // 4c: Check by GHL contact ID if present
+  if (!duplicateFound && ghlContactId) {
+    const { data: existingByGhl } = await supabase
+      .from('inquiries')
+      .select('id')
+      .eq('user_id', userId)
+      .eq('contact_id', contactId)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (existingByGhl) {
+      console.log(`Form: Existing inquiry found for same contact, updating ${existingByGhl.id}`);
+      await supabase.from('inquiries').update({
+        preferred_date: preferredDate, room_preference: roomPreference,
+        guest_count: guestCount, budget: budget,
+        event_type: eventType,
+        message: fullMessage || null,
+      }).eq('id', existingByGhl.id);
       duplicateFound = true;
     }
   }
@@ -347,14 +370,15 @@ async function handleOpportunityFromWebhookPayload(supabase: any, ghlHeaders: an
   const { data: existing } = await supabase.from('inquiries').select('id, updated_at').eq('user_id', userId).eq('ghl_opportunity_id', ghlOppId).maybeSingle();
 
   if (existing) {
-    const recentThreshold = new Date(Date.now() - 2 * 60 * 1000).toISOString();
+    // Skip if CRM was updated in the last 5 minutes (prevents echo from CRM->GHL->webhook)
+    const recentThreshold = new Date(Date.now() - 5 * 60 * 1000).toISOString();
     if (existing.updated_at <= recentThreshold) {
       await supabase.from('inquiries').update({
         contact_name: contactName, status, budget: monetaryValue, event_type: eventType,
       }).eq('id', existing.id);
       console.log(`Webhook: GHL -> CRM opp ${ghlOppId} -> ${status}`);
     } else {
-      console.log(`Webhook: Skipped opp ${ghlOppId}, CRM recently updated`);
+      console.log(`Webhook: Skipped opp ${ghlOppId}, CRM recently updated (within 5min)`);
     }
   } else {
     // Try to link to existing contact

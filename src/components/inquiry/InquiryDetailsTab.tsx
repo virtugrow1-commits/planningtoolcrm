@@ -138,7 +138,7 @@ export default function InquiryDetailsTab({ inquiry, editing, form, setForm, con
               <InfoRow icon={<CalendarIcon size={14} />} label="Voorkeursdatum" value={inquiry.preferredDate || '—'} />
               <InfoRow icon={<Users size={14} />} label="Gasten" value={`${inquiry.guestCount}`} />
               <InfoRow icon={<Euro size={14} />} label="Budget" value={inquiry.budget ? `€${inquiry.budget.toLocaleString('nl-NL', { minimumFractionDigits: 2 })}` : '—'} />
-              {inquiry.roomPreference && <InfoRow icon={<MapPin size={14} />} label="Ruimte voorkeur" value={inquiry.roomPreference} />}
+              <InfoRow icon={<MapPin size={14} />} label="Ruimte voorkeur" value={inquiry.roomPreference || '—'} />
               <InfoRow icon={<FileText size={14} />} label="Bron" value={inquiry.source === 'GHL' ? 'VirtuGrow' : inquiry.source} />
               <p className="text-xs text-muted-foreground pt-2">Aangemaakt: {inquiry.createdAt}</p>
 
