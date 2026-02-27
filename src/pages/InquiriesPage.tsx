@@ -450,16 +450,15 @@ export default function InquiriesPage() {
                     <div className="mt-2.5 space-y-1 text-xs">
                       
                       {(() => { const contact = inq.contactId ? contacts.find(c => c.id === inq.contactId) : null; const company = contact?.companyId ? companies.find(co => co.id === contact.companyId) : null; return contact?.company ? (
-                        <div className="flex gap-2"><span className="text-muted-foreground w-[100px] shrink-0">Bedrijfsnaam:</span>{company ? (
+                        <div className="flex gap-2"><span className="text-muted-foreground w-[100px] shrink-0">Bedrijf:</span>{company ? (
                           <button className="text-card-foreground font-medium truncate hover:text-primary transition-colors text-left" onClick={(e) => { e.stopPropagation(); navigate(`/companies/${company.id}`); }}>{contact.company}</button>
                         ) : (<span className="text-card-foreground font-medium truncate">{contact.company}</span>)}</div>
                       ) : null; })()}
-                      {inq.source && inq.source !== 'Handmatig' && inq.source !== 'CRM' && <div className="flex gap-2"><span className="text-muted-foreground w-[100px] shrink-0">Bron:</span><span className="text-card-foreground truncate">{inq.source === 'GHL' ? 'VirtuGrow' : inq.source}</span></div>}
-                      {inq.roomPreference && <div className="flex gap-2"><span className="text-muted-foreground w-[100px] shrink-0">Voorkeur zaal:</span><span className="text-card-foreground truncate">{inq.roomPreference}</span></div>}
-                      {inq.preferredDate && <div className="flex gap-2"><span className="text-muted-foreground w-[100px] shrink-0">Voorkeur datum:</span><span className="text-card-foreground">{inq.preferredDate}</span></div>}
+                      <div className="flex gap-2"><span className="text-muted-foreground w-[100px] shrink-0">Bron:</span><span className="text-card-foreground truncate">{inq.source === 'GHL' ? 'VirtuGrow' : inq.source}</span></div>
                       {inq.guestCount > 0 && <div className="flex gap-2"><span className="text-muted-foreground w-[100px] shrink-0">Personen:</span><span className="text-card-foreground">{inq.guestCount}</span></div>}
+                      {inq.roomPreference && <div className="flex gap-2"><span className="text-muted-foreground w-[100px] shrink-0">Ruimte:</span><span className="text-card-foreground truncate">{inq.roomPreference}</span></div>}
+                      {inq.preferredDate && <div className="flex gap-2"><span className="text-muted-foreground w-[100px] shrink-0">Datum:</span><span className="text-card-foreground">{inq.preferredDate}</span></div>}
                       {(inq.budget ?? 0) > 0 && <div className="flex gap-2"><span className="text-muted-foreground w-[100px] shrink-0">Waarde:</span><span className="text-card-foreground font-medium">€{inq.budget!.toLocaleString('nl-NL', { minimumFractionDigits: 2 })}</span></div>}
-                      <div className="flex gap-2"><span className="text-muted-foreground w-[100px] shrink-0">Aangemaakt:</span><span className="text-card-foreground">{inq.createdAt}</span></div>
                       
                       {relatedBookings.length > 0 && (
                         <div className="mt-1.5 pt-1.5 border-t border-border/50 space-y-1">
