@@ -93,7 +93,7 @@ export function CompaniesProvider({ children }: { children: ReactNode }) {
 
   const addCompany = useCallback(async (company: Omit<Company, 'id' | 'createdAt'>) => {
     if (!user) return;
-    const { error } = await (supabase as any).from('companies').upsert({
+    const { data, error } = await (supabase as any).from('companies').upsert({
       user_id: user.id,
       name: capitalizeWords(company.name),
       email: company.email || null,
@@ -109,14 +109,17 @@ export function CompaniesProvider({ children }: { children: ReactNode }) {
       customer_number: company.customerNumber || null,
       crm_group: company.crmGroup || null,
       btw_number: company.btwNumber || null,
-    }, { ignoreDuplicates: true });
+    }, { ignoreDuplicates: true }).select().single();
     if (error) {
       toast({ title: 'Fout bij aanmaken bedrijf', description: error.message, variant: 'destructive' });
+    }
+    if (data) {
+      pushToGHL('push-company', { company: data });
     }
   }, [user, toast]);
 
   const updateCompany = useCallback(async (company: Company) => {
-    const { error } = await (supabase as any).from('companies').update({
+    const { data, error } = await (supabase as any).from('companies').update({
       name: capitalizeWords(company.name),
       email: company.email || null,
       phone: company.phone || null,
@@ -131,9 +134,9 @@ export function CompaniesProvider({ children }: { children: ReactNode }) {
       customer_number: company.customerNumber || null,
       crm_group: company.crmGroup || null,
       btw_number: company.btwNumber || null,
-    }).eq('id', company.id);
-    if (!error) {
-      pushToGHL('updateCompany', { companyId: company.id, company });
+    }).eq('id', company.id).select().single();
+    if (!error && data) {
+      pushToGHL('push-company', { company: data });
     }
     if (error) {
       toast({ title: 'Fout bij bijwerken bedrijf', description: error.message, variant: 'destructive' });

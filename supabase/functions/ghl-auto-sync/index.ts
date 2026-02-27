@@ -52,16 +52,17 @@ serve(async (req) => {
     return new Response(JSON.stringify({ error: 'No user found' }), { status: 200, headers: corsHeaders });
   }
 
-  const results: any = { bookings_pulled: 0, bookings_pushed: 0, contacts: 0, opportunities: 0, contacts_pushed: 0, tasks_pulled: 0, tasks_pushed: 0, conversations_synced: 0, errors: [] };
+  const results: any = { bookings_pulled: 0, bookings_pushed: 0, contacts: 0, opportunities: 0, contacts_pushed: 0, companies_synced: 0, companies_pushed: 0, tasks_pulled: 0, tasks_pushed: 0, conversations_synced: 0, errors: [] };
 
-  // Run all 5 syncs in PARALLEL to avoid timeout
+  // Run all 6 syncs in PARALLEL to avoid timeout
   const calendarSync = syncCalendar(supabase, ghlHeaders, GHL_LOCATION_ID, userId, results);
   const opportunitiesSync = syncOpportunities(supabase, ghlHeaders, GHL_LOCATION_ID, userId, results);
   const contactsSync = syncContacts(supabase, ghlHeaders, GHL_LOCATION_ID, userId, results);
+  const companiesSync = syncCompanies(supabase, ghlHeaders, GHL_LOCATION_ID, userId, results);
   const tasksSync = syncTasks(supabase, ghlHeaders, GHL_LOCATION_ID, userId, results);
   const conversationsSync = syncConversations(supabase, ghlHeaders, GHL_LOCATION_ID, userId, results);
 
-  await Promise.allSettled([calendarSync, opportunitiesSync, contactsSync, tasksSync, conversationsSync]);
+  await Promise.allSettled([calendarSync, opportunitiesSync, contactsSync, companiesSync, tasksSync, conversationsSync]);
 
   // Push local inquiries without GHL opportunity ID
   await pushLocalInquiries(supabase, ghlHeaders, GHL_LOCATION_ID, userId, results);
@@ -611,7 +612,193 @@ async function syncContacts(supabase: any, ghlHeaders: any, locationId: string, 
   } catch (e) { console.error('Contact sync error:', e); }
 }
 
-// === PUSH LOCAL INQUIRIES TO GHL ===
+// === BIDIRECTIONAL COMPANIES SYNC ===
+async function syncCompanies(supabase: any, ghlHeaders: any, locationId: string, userId: string, results: any) {
+  try {
+    const recentThreshold = new Date(Date.now() - 2 * 60 * 1000).toISOString();
+
+    // 1. Pull ALL GHL companies (paginate)
+    const ghlCompanies: any[] = [];
+    let companyPage = 1;
+    let companyHasMore = true;
+    while (companyHasMore && companyPage <= 20) {
+      const res = await fetch(`${GHL_API_BASE}/companies/search`, {
+        method: 'POST',
+        headers: ghlHeaders,
+        body: JSON.stringify({ locationId, page: companyPage, limit: 100 }),
+      });
+      if (!res.ok) {
+        // If companies endpoint not available, fall back to contact-based company sync
+        console.warn('Companies search endpoint not available:', res.status);
+        break;
+      }
+      const data = await res.json();
+      const batch = data.companies || [];
+      ghlCompanies.push(...batch);
+      companyHasMore = batch.length === 100;
+      companyPage++;
+    }
+    console.log(`Fetched ${ghlCompanies.length} companies from GHL`);
+
+    const seenGhlCompanyIds = new Set<string>();
+
+    // 2. Upsert GHL companies into CRM
+    for (const ghlCompany of ghlCompanies) {
+      seenGhlCompanyIds.add(ghlCompany.id);
+      const ghlName = ghlCompany.name || 'Onbekend';
+      const ghlEmail = ghlCompany.email || null;
+      const ghlPhone = ghlCompany.phone || null;
+      const ghlWebsite = ghlCompany.website || null;
+      const ghlAddress = ghlCompany.address || null;
+      const ghlCity = ghlCompany.city || null;
+
+      const { data: existing } = await supabase
+        .from('companies')
+        .select('id, name, email, phone, website, address, city, updated_at')
+        .eq('ghl_company_id', ghlCompany.id)
+        .maybeSingle();
+
+      if (existing) {
+        const crmRecentlyUpdated = existing.updated_at > recentThreshold;
+        const crmDiffers = existing.name !== ghlName ||
+                           existing.email !== ghlEmail ||
+                           existing.phone !== ghlPhone;
+
+        if (crmRecentlyUpdated && crmDiffers) {
+          // CRM wins → push to GHL
+          const pushPayload: any = { name: existing.name };
+          if (existing.email) pushPayload.email = existing.email;
+          if (existing.phone) pushPayload.phone = existing.phone;
+          if (existing.website) pushPayload.website = existing.website;
+          if (existing.address) pushPayload.address = existing.address;
+          if (existing.city) pushPayload.city = existing.city;
+
+          const pushRes = await fetch(`${GHL_API_BASE}/companies/${ghlCompany.id}`, {
+            method: 'PUT', headers: ghlHeaders, body: JSON.stringify(pushPayload),
+          });
+          if (pushRes.ok) {
+            console.log(`Company CRM -> GHL: ${existing.id} (${existing.name})`);
+            results.companies_pushed++;
+          }
+        } else if (crmDiffers) {
+          // GHL wins → update CRM (only fill empty fields, never overwrite)
+          const updatePayload: any = {};
+          if (ghlName && existing.name !== ghlName) updatePayload.name = ghlName;
+          if (ghlEmail && !existing.email) updatePayload.email = ghlEmail;
+          if (ghlPhone && !existing.phone) updatePayload.phone = ghlPhone;
+          if (ghlWebsite && !existing.website) updatePayload.website = ghlWebsite;
+          if (ghlAddress && !existing.address) updatePayload.address = ghlAddress;
+          if (ghlCity && !existing.city) updatePayload.city = ghlCity;
+
+          if (Object.keys(updatePayload).length > 0) {
+            await supabase.from('companies').update(updatePayload).eq('id', existing.id);
+            console.log(`Company GHL -> CRM: ${ghlCompany.id} -> ${ghlName}`);
+          }
+        }
+      } else {
+        // New from GHL → check if company already exists by name
+        const { data: nameMatch } = await supabase
+          .from('companies')
+          .select('id')
+          .eq('user_id', userId)
+          .ilike('name', ghlName)
+          .is('ghl_company_id', null)
+          .maybeSingle();
+
+        if (nameMatch) {
+          // Link existing CRM company to GHL
+          await supabase.from('companies').update({ ghl_company_id: ghlCompany.id }).eq('id', nameMatch.id);
+          console.log(`Linked existing company "${ghlName}" to GHL ${ghlCompany.id}`);
+        } else {
+          // Create new company in CRM
+          const { error: insertErr } = await supabase.from('companies').insert({
+            user_id: userId,
+            ghl_company_id: ghlCompany.id,
+            name: ghlName,
+            email: ghlEmail,
+            phone: ghlPhone,
+            website: ghlWebsite,
+            address: ghlAddress,
+            city: ghlCity,
+          });
+          if (insertErr) {
+            console.error(`Company insert error for ${ghlCompany.id}:`, insertErr.message);
+          }
+        }
+      }
+      results.companies_synced++;
+    }
+
+    // 3. Push CRM companies without GHL ID to GHL
+    const { data: localCompanies } = await supabase
+      .from('companies')
+      .select('*')
+      .eq('user_id', userId)
+      .is('ghl_company_id', null)
+      .limit(500);
+
+    for (const company of localCompanies || []) {
+      // First search GHL by name to avoid duplicates
+      const searchRes = await fetch(`${GHL_API_BASE}/companies/search`, {
+        method: 'POST',
+        headers: ghlHeaders,
+        body: JSON.stringify({ locationId, name: company.name, limit: 5 }),
+      });
+
+      let ghlCompanyId: string | null = null;
+
+      if (searchRes.ok) {
+        const searchData = await searchRes.json();
+        const match = (searchData.companies || []).find((c: any) =>
+          c.name && c.name.toLowerCase() === company.name.toLowerCase()
+        );
+        if (match) {
+          ghlCompanyId = match.id;
+          console.log(`Found existing GHL company for "${company.name}": ${ghlCompanyId}`);
+        }
+      }
+
+      if (ghlCompanyId) {
+        // Link and update
+        await supabase.from('companies').update({ ghl_company_id: ghlCompanyId }).eq('id', company.id);
+        // Push CRM data to GHL
+        const pushPayload: any = { name: company.name, locationId };
+        if (company.email) pushPayload.email = company.email;
+        if (company.phone) pushPayload.phone = company.phone;
+        if (company.website) pushPayload.website = company.website;
+        if (company.address) pushPayload.address = company.address;
+        if (company.city) pushPayload.city = company.city;
+        await fetch(`${GHL_API_BASE}/companies/${ghlCompanyId}`, {
+          method: 'PUT', headers: ghlHeaders, body: JSON.stringify(pushPayload),
+        });
+      } else {
+        // Create new in GHL
+        const createPayload: any = { name: company.name, locationId };
+        if (company.email) createPayload.email = company.email;
+        if (company.phone) createPayload.phone = company.phone;
+        if (company.website) createPayload.website = company.website;
+        if (company.address) createPayload.address = company.address;
+        if (company.city) createPayload.city = company.city;
+
+        const createRes = await fetch(`${GHL_API_BASE}/companies/`, {
+          method: 'POST', headers: ghlHeaders, body: JSON.stringify(createPayload),
+        });
+        if (createRes.ok) {
+          const created = await createRes.json();
+          const newId = created.company?.id || created.id;
+          if (newId) {
+            await supabase.from('companies').update({ ghl_company_id: newId }).eq('id', company.id);
+            console.log(`Company pushed to GHL: ${company.id} -> ${newId} (${company.name})`);
+          }
+          results.companies_pushed++;
+        } else {
+          console.error(`Push company failed for ${company.name}: ${await createRes.text()}`);
+        }
+      }
+    }
+  } catch (e) { console.error('Company sync error:', e); }
+}
+
 async function pushLocalInquiries(supabase: any, ghlHeaders: any, locationId: string, userId: string, results: any) {
   try {
     // Get local inquiries without ghl_opportunity_id
