@@ -119,7 +119,7 @@ export default function MasterImport() {
           if (contactPersons.length > 0) {
             for (let i = 0; i < contactPersons.length; i++) {
               const cpName = contactPersons[i];
-              if (!cpName || cpName === '...' || cpName.toLowerCase().includes('financiële administratie')) continue;
+              if (!cpName || cpName === '...') continue;
               const { first, last } = splitName(cpName);
               contacts.push({
                 firstName: first,
