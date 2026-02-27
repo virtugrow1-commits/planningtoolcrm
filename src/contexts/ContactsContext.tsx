@@ -65,6 +65,7 @@ export function ContactsProvider({ children }: { children: ReactNode }) {
       createdAt: c.created_at.split('T')[0],
       notes: c.notes || undefined,
       ghlContactId: c.ghl_contact_id || undefined,
+      departed: (c as any).departed || false,
     })));
     setLoading(false);
   }, [user, toast]);
@@ -118,6 +119,7 @@ export function ContactsProvider({ children }: { children: ReactNode }) {
       status: contact.status,
       notes: contact.notes || null,
       ghl_contact_id: contact.ghlContactId || null,
+      departed: contact.departed || false,
     } as any).eq('id', contact.id).select().single();
     if (error) {
       toast({ title: 'Fout bij bijwerken contact', description: error.message, variant: 'destructive' });
