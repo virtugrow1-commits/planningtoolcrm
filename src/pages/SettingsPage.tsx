@@ -11,7 +11,7 @@ import { Webhook, Key, ArrowRightLeft, CheckCircle2, AlertCircle, RefreshCw, Upl
 import { supabase } from '@/integrations/supabase/client';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { useContactsContext } from '@/contexts/ContactsContext';
-import { useAuth } from '@/contexts/AuthContext';
+
 import { Contact } from '@/types/crm';
 
 const WEBHOOK_URL = `https://${import.meta.env.VITE_SUPABASE_PROJECT_ID}.supabase.co/functions/v1/ghl-webhook`;
@@ -66,7 +66,7 @@ function mapRow(row: Record<string, string>): Omit<Contact, 'id' | 'createdAt'> 
 }
 
 export default function SettingsPage() {
-  const { } = useAuth();
+  
   const [apiKey, setApiKey] = useState('');
   const [locationId, setLocationId] = useState('');
   const [connected, setConnected] = useState(false);
