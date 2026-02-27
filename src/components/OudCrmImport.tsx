@@ -141,11 +141,11 @@ export default function OudCrmImport() {
     let inserted = 0;
     for (let i = 0; i < records.length; i += batchSize) {
       const batch = records.slice(i, i + batchSize);
-      const { error, data } = await supabase.from(table).insert(batch as any).select('id');
+      const { error, data } = await (supabase as any).from(table).insert(batch).select('id');
       if (error) {
         // Fallback: insert one by one
         for (const item of batch) {
-          const { error: e2 } = await supabase.from(table).insert(item as any);
+          const { error: e2 } = await (supabase as any).from(table).insert(item);
           if (!e2) inserted++;
           else if (e2.code !== '23505') console.error(`${table} error:`, e2.message);
         }
