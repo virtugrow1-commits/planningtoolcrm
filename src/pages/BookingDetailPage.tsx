@@ -228,7 +228,7 @@ export default function BookingDetailPage() {
                 {booking.roomSetup && <InfoRow icon={<ClipboardList size={14} />} label="Opstelling" value={booking.roomSetup} />}
                 <InfoRow icon={<FileText size={14} />} label="Voorbereiding" value={prepStatusLabel(booking.preparationStatus)} />
                 <InfoRow icon={<FileText size={14} />} label="Evenement" value={booking.title} />
-                <p className="text-xs text-muted-foreground pt-2">Aangemaakt: {booking.createdAt?.split('T')[0] || '—'}</p>
+                <p className="text-xs text-muted-foreground pt-2">Aangemaakt: {(booking as any).created_at?.split('T')[0] || '—'}</p>
 
                 <div className="flex gap-2 pt-2">
                   <Button variant="outline" size="sm" className="flex-1" onClick={startEdit}>Bewerken</Button>
