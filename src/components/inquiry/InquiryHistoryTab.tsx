@@ -18,22 +18,27 @@ interface Props {
 export default function InquiryHistoryTab({ inquiry, contactBookings, companyBookings, contactInquiries }: Props) {
   const navigate = useNavigate();
 
+  const todayStr = useMemo(() => new Date().toISOString().split('T')[0], []);
+
   // Merge contact + company bookings, deduplicate
   const allBookings = useMemo(() => {
     const map = new Map<string, Booking>();
     for (const b of [...contactBookings, ...companyBookings]) {
       map.set(b.id, b);
     }
-    return Array.from(map.values()).sort((a, b) => b.date.localeCompare(a.date));
+    return Array.from(map.values());
   }, [contactBookings, companyBookings]);
+
+  const upcomingBookings = useMemo(() => allBookings.filter(b => b.date >= todayStr).sort((a, b) => a.date.localeCompare(b.date)), [allBookings, todayStr]);
+  const pastBookings = useMemo(() => allBookings.filter(b => b.date < todayStr).sort((a, b) => b.date.localeCompare(a.date)), [allBookings, todayStr]);
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-      {/* Eerdere reserveringen */}
+      {/* Komende reserveringen */}
       <div className="rounded-xl bg-card p-5 card-shadow space-y-3">
-        <h3 className="text-base font-bold text-foreground">Eerdere Reserveringen ({allBookings.length})</h3>
-        {allBookings.length === 0 ? (
-          <p className="text-xs text-muted-foreground">Geen eerdere reserveringen gevonden voor dit contact of bedrijf.</p>
+        <h3 className="text-base font-bold text-foreground">Komende Reserveringen ({upcomingBookings.length})</h3>
+        {upcomingBookings.length === 0 ? (
+          <p className="text-xs text-muted-foreground">Geen komende reserveringen gevonden.</p>
         ) : (
           <div className="space-y-1 max-h-[400px] overflow-y-auto">
             {allBookings.map(b => (
