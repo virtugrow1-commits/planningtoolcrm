@@ -619,7 +619,6 @@ async function syncCompanies(supabase: any, ghlHeaders: any, locationId: string,
 
     // 1. Pull ALL GHL companies (paginate)
     const ghlCompanies: any[] = [];
-    let companyPage = 1;
     let companyHasMore = true;
     let skip = 0;
     while (companyHasMore) {
