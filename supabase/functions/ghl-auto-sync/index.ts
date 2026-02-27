@@ -430,48 +430,175 @@ async function syncOpportunities(supabase: any, ghlHeaders: any, locationId: str
   } catch (e) { console.error('Opp sync error:', e); }
 }
 
-// === CONTACTS SYNC ===
+// === BIDIRECTIONAL CONTACTS & COMPANIES SYNC ===
 async function syncContacts(supabase: any, ghlHeaders: any, locationId: string, userId: string, results: any) {
   try {
+    const recentThreshold = new Date(Date.now() - 2 * 60 * 1000).toISOString();
+
+    // 1. Pull GHL contacts
     const res = await fetch(`${GHL_API_BASE}/contacts/?locationId=${locationId}&limit=100`, { headers: ghlHeaders });
     if (!res.ok) {
-      const errText = await res.text();
-      console.error('Contacts error:', res.status, errText);
+      console.error('Contacts error:', res.status, await res.text());
       return;
     }
 
     const data = await res.json();
-    const recentContacts = data.contacts || [];
-    console.log(`Fetched ${recentContacts.length} contacts from GHL`);
+    const ghlContacts = data.contacts || [];
+    console.log(`Fetched ${ghlContacts.length} contacts from GHL`);
 
-    for (const ghlContact of recentContacts) {
+    const seenGhlContactIds = new Set<string>();
+
+    for (const ghlContact of ghlContacts) {
+      seenGhlContactIds.add(ghlContact.id);
       const firstName = ghlContact.firstName || ghlContact.name?.split(' ')[0] || 'Onbekend';
       const lastName = ghlContact.lastName || ghlContact.name?.split(' ').slice(1).join(' ') || '';
-      // Upsert using unique ghl_contact_id constraint — prevents duplicates
-      const { error: upsertErr } = await supabase.from('contacts').upsert({
-        user_id: userId,
-        ghl_contact_id: ghlContact.id,
-        first_name: firstName,
-        last_name: lastName,
-        email: ghlContact.email || null,
-        phone: ghlContact.phone || null,
-        company: ghlContact.companyName || null,
-        status: 'lead',
-      }, { onConflict: 'ghl_contact_id' });
-      if (upsertErr) {
-        console.error(`Contact upsert error for ${ghlContact.id}:`, upsertErr.message);
+      const ghlEmail = ghlContact.email || null;
+      const ghlPhone = ghlContact.phone || null;
+      const ghlCompanyName = ghlContact.companyName || null;
+
+      // Check if contact already exists in CRM
+      const { data: existing } = await supabase
+        .from('contacts')
+        .select('id, first_name, last_name, email, phone, company, status, updated_at')
+        .eq('ghl_contact_id', ghlContact.id)
+        .maybeSingle();
+
+      if (existing) {
+        // BIDIRECTIONAL: Check if CRM was recently updated
+        const crmRecentlyUpdated = existing.updated_at > recentThreshold;
+        const crmDiffers = existing.first_name !== firstName ||
+                           existing.last_name !== lastName ||
+                           existing.email !== ghlEmail ||
+                           existing.phone !== ghlPhone ||
+                           existing.company !== ghlCompanyName;
+
+        if (crmRecentlyUpdated && crmDiffers) {
+          // CRM wins → push CRM data to GHL
+          const pushPayload: any = {
+            firstName: existing.first_name,
+            lastName: existing.last_name,
+            email: existing.email || undefined,
+            phone: existing.phone || undefined,
+            companyName: existing.company || undefined,
+          };
+          const pushRes = await fetch(`${GHL_API_BASE}/contacts/${ghlContact.id}`, {
+            method: 'PUT', headers: ghlHeaders, body: JSON.stringify(pushPayload),
+          });
+          if (pushRes.ok) {
+            console.log(`Contact CRM -> GHL: ${existing.id} (CRM wins, ${existing.first_name} ${existing.last_name})`);
+            results.contacts_pushed++;
+          } else {
+            console.error(`Push contact to GHL failed for ${ghlContact.id}: ${await pushRes.text()}`);
+          }
+        } else if (crmDiffers) {
+          // GHL wins → update CRM (but NEVER overwrite status!)
+          const updatePayload: any = {
+            first_name: firstName,
+            last_name: lastName,
+            email: ghlEmail,
+            phone: ghlPhone,
+          };
+          // Only update company name if GHL has one and CRM doesn't
+          if (ghlCompanyName && !existing.company) {
+            updatePayload.company = ghlCompanyName;
+          }
+          const { error: updateErr } = await supabase.from('contacts').update(updatePayload).eq('id', existing.id);
+          if (updateErr) {
+            console.error(`Contact update error for ${ghlContact.id}:`, updateErr.message);
+          } else {
+            console.log(`Contact GHL -> CRM: ${ghlContact.id} -> ${firstName} ${lastName} (status preserved: ${existing.status})`);
+          }
+        }
+      } else {
+        // New from GHL → upsert (prevent duplicates via ghl_contact_id)
+        const { error: upsertErr } = await supabase.from('contacts').upsert({
+          user_id: userId,
+          ghl_contact_id: ghlContact.id,
+          first_name: firstName,
+          last_name: lastName,
+          email: ghlEmail,
+          phone: ghlPhone,
+          company: ghlCompanyName,
+          status: 'lead',
+        }, { onConflict: 'ghl_contact_id' });
+        if (upsertErr) {
+          console.error(`Contact upsert error for ${ghlContact.id}:`, upsertErr.message);
+        }
       }
       results.contacts++;
     }
 
-    // Push local contacts without GHL ID (max 10 per run)
+    // 2. Push CRM contacts that were recently updated and already have GHL ID
+    const { data: recentlyChanged } = await supabase
+      .from('contacts')
+      .select('id, ghl_contact_id, first_name, last_name, email, phone, company')
+      .eq('user_id', userId)
+      .not('ghl_contact_id', 'is', null)
+      .gt('updated_at', recentThreshold);
+
+    for (const contact of recentlyChanged || []) {
+      if (seenGhlContactIds.has(contact.ghl_contact_id)) continue; // already handled
+      const pushPayload: any = {
+        firstName: contact.first_name,
+        lastName: contact.last_name,
+        email: contact.email || undefined,
+        phone: contact.phone || undefined,
+        companyName: contact.company || undefined,
+      };
+      const pushRes = await fetch(`${GHL_API_BASE}/contacts/${contact.ghl_contact_id}`, {
+        method: 'PUT', headers: ghlHeaders, body: JSON.stringify(pushPayload),
+      });
+      if (pushRes.ok) {
+        console.log(`Pushed recent contact CRM -> GHL: ${contact.id} (${contact.first_name} ${contact.last_name})`);
+        results.contacts_pushed++;
+      }
+    }
+
+    // 3. Push local contacts without GHL ID (max 10 per run)
     const { data: localOnly } = await supabase.from('contacts').select('*').eq('user_id', userId).is('ghl_contact_id', null).limit(10);
     for (const contact of localOnly || []) {
-      const pushRes = await fetch(`${GHL_API_BASE}/contacts/`, { method: 'POST', headers: ghlHeaders, body: JSON.stringify({ firstName: contact.first_name, lastName: contact.last_name, email: contact.email || undefined, phone: contact.phone || undefined, companyName: contact.company || undefined, locationId }) });
+      // Build company name from company text or lookup company entity
+      let companyName = contact.company || null;
+      if (!companyName && contact.company_id) {
+        const { data: companyRow } = await supabase.from('companies').select('name').eq('id', contact.company_id).maybeSingle();
+        companyName = companyRow?.name || null;
+      }
+
+      const pushRes = await fetch(`${GHL_API_BASE}/contacts/`, {
+        method: 'POST', headers: ghlHeaders,
+        body: JSON.stringify({
+          firstName: contact.first_name,
+          lastName: contact.last_name,
+          email: contact.email || undefined,
+          phone: contact.phone || undefined,
+          companyName: companyName || undefined,
+          locationId,
+        }),
+      });
       if (pushRes.ok) {
         const created = await pushRes.json();
-        if (created.contact?.id) await supabase.from('contacts').update({ ghl_contact_id: created.contact.id }).eq('id', contact.id);
+        if (created.contact?.id) {
+          await supabase.from('contacts').update({ ghl_contact_id: created.contact.id }).eq('id', contact.id);
+          console.log(`Contact pushed to GHL: ${contact.id} -> ${created.contact.id} (${contact.first_name} ${contact.last_name})`);
+        }
         results.contacts_pushed++;
+      }
+    }
+
+    // 4. Sync company names: when CRM contact has company_id but no company text, resolve it
+    const { data: missingCompanyText } = await supabase
+      .from('contacts')
+      .select('id, company_id')
+      .eq('user_id', userId)
+      .is('company', null)
+      .not('company_id', 'is', null)
+      .limit(20);
+
+    for (const c of missingCompanyText || []) {
+      const { data: companyRow } = await supabase.from('companies').select('name').eq('id', c.company_id).maybeSingle();
+      if (companyRow?.name) {
+        await supabase.from('contacts').update({ company: companyRow.name }).eq('id', c.id);
+        console.log(`Filled company text for contact ${c.id}: ${companyRow.name}`);
       }
     }
   } catch (e) { console.error('Contact sync error:', e); }
