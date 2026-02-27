@@ -288,42 +288,55 @@ export default function MasterImport() {
       const oldIdToCompanyId: Record<string, string> = {};
       let companiesCreated = 0;
 
-      for (let i = 0; i < companies.length; i += 50) {
-        const batch = companies.slice(i, i + 50);
-        const insertBatch = batch.map(c => ({
-          user_id: user.id,
-          name: c.name,
-          customer_number: c.customerNumber,
-          kvk: c.kvk,
-          btw_number: c.btw,
-          address: c.address,
-          postcode: c.postcode,
-          city: c.city,
-          country: c.country || 'NL',
-          phone: c.phone,
-          email: c.email,
-          website: c.website,
-          crm_group: c.crmGroup,
-        }));
-
+      // Insert one by one to handle duplicates gracefully and track IDs
+      for (let i = 0; i < companies.length; i++) {
+        const c = companies[i];
         const { data: inserted, error } = await (supabase as any)
           .from('companies')
-          .insert(insertBatch)
-          .select('id, name');
+          .upsert({
+            user_id: user.id,
+            name: c.name,
+            customer_number: c.customerNumber,
+            kvk: c.kvk,
+            btw_number: c.btw,
+            address: c.address,
+            postcode: c.postcode,
+            city: c.city,
+            country: c.country || 'NL',
+            phone: c.phone,
+            email: c.email,
+            website: c.website,
+            crm_group: c.crmGroup,
+          }, { onConflict: 'user_id,name', ignoreDuplicates: false })
+          .select('id, name')
+          .single();
 
         if (error) {
-          console.error('Company insert error:', error);
-          continue;
+          // If upsert fails, try to find existing
+          const { data: existing } = await (supabase as any)
+            .from('companies')
+            .select('id, name')
+            .eq('name', c.name)
+            .limit(1)
+            .single();
+          if (existing) {
+            companyNameToId[existing.name.toLowerCase().trim()] = existing.id;
+            if (c.oldId) oldIdToCompanyId[c.oldId] = existing.id;
+          } else {
+            console.error('Company error:', c.name, error.message);
+          }
+        } else if (inserted) {
+          companyNameToId[inserted.name.toLowerCase().trim()] = inserted.id;
+          if (c.oldId) oldIdToCompanyId[c.oldId] = inserted.id;
+          companiesCreated++;
         }
 
-        if (inserted) {
-          for (let j = 0; j < inserted.length; j++) {
-            companyNameToId[inserted[j].name.toLowerCase().trim()] = inserted[j].id;
-            if (batch[j].oldId) oldIdToCompanyId[batch[j].oldId] = inserted[j].id;
-            companiesCreated++;
-          }
+        if (i % 50 === 0) {
+          setProgress(30 + Math.round((i / companies.length) * 25));
+          setStatus(`Bedrijven: ${i}/${companies.length}...`);
+          // Small delay every 50 to avoid rate limiting
+          await new Promise(r => setTimeout(r, 200));
         }
-        setProgress(30 + Math.round((i / companies.length) * 25));
       }
 
       setProgress(55);
@@ -335,18 +348,18 @@ export default function MasterImport() {
       const errors: string[] = [];
       const seenContacts = new Set<string>();
 
-      for (let i = 0; i < contacts.length; i += 50) {
-        const batch = contacts.slice(i, i + 50);
+      for (let i = 0; i < contacts.length; i += 20) {
+        const batch = contacts.slice(i, i + 20);
         const insertBatch: any[] = [];
 
         for (const c of batch) {
-          const dedupKey = `${c.firstName.toLowerCase().trim()}|${c.lastName.toLowerCase().trim()}|${(c.customerName || '').toLowerCase().trim()}`;
+          const dedupKey = `${c.firstName.toLowerCase().trim()}|${c.lastName.toLowerCase().trim()}|${(c.email || '').toLowerCase().trim()}`;
           if (seenContacts.has(dedupKey)) continue;
           seenContacts.add(dedupKey);
 
           // Resolve company: try oldId first, then name match
           let companyId = c.companyOldId ? oldIdToCompanyId[c.companyOldId] : null;
-          if (!companyId && c.customerName) {
+          if (!companyId && c.companyOldId && c.customerName) {
             companyId = companyNameToId[c.customerName.toLowerCase().trim()] || null;
           }
           const companyName = companyId ? c.customerName : (c.companyOldId ? c.customerName : null);
@@ -375,12 +388,27 @@ export default function MasterImport() {
 
         const { error } = await supabase.from('contacts').insert(insertBatch as any);
         if (error) {
-          console.error('Contact insert error at batch', i, error);
-          errors.push(`Batch ${i}: ${error.message}`);
+          // If batch fails, try one by one
+          for (const item of insertBatch) {
+            const { error: singleErr } = await supabase.from('contacts').insert(item as any);
+            if (singleErr) {
+              if (singleErr.code !== '23505') {
+                console.error('Contact error:', item.first_name, item.last_name, singleErr.message);
+                errors.push(`${item.first_name} ${item.last_name}: ${singleErr.message}`);
+              }
+            } else {
+              contactsCreated++;
+            }
+          }
         } else {
           contactsCreated += insertBatch.length;
         }
-        setProgress(55 + Math.round((i / contacts.length) * 40));
+
+        if (i % 100 === 0) {
+          setProgress(55 + Math.round((i / contacts.length) * 40));
+          setStatus(`Contacten: ${i}/${contacts.length}...`);
+          await new Promise(r => setTimeout(r, 300));
+        }
       }
 
       setProgress(100);
