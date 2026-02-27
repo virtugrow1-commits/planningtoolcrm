@@ -41,7 +41,41 @@ export default function InquiryHistoryTab({ inquiry, contactBookings, companyBoo
           <p className="text-xs text-muted-foreground">Geen komende reserveringen gevonden.</p>
         ) : (
           <div className="space-y-1 max-h-[400px] overflow-y-auto">
-            {allBookings.map(b => (
+            {upcomingBookings.map(b => (
+              <button
+                key={b.id}
+                onClick={() => navigate(`/reserveringen/${b.id}`)}
+                className="w-full flex items-center justify-between py-2 px-3 rounded-lg hover:bg-muted/50 transition-colors text-left text-xs"
+              >
+                <div className="flex items-center gap-3">
+                  <CalendarIcon size={12} className="text-muted-foreground shrink-0" />
+                  <div>
+                    <span className="text-foreground font-medium">{b.title}</span>
+                    <span className="text-muted-foreground ml-2">
+                      {format(new Date(b.date), 'd MMM yyyy', { locale: nl })}
+                    </span>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-muted-foreground">{b.roomName}</span>
+                  <Badge variant="secondary" className={cn('text-[10px]', b.status === 'confirmed' ? 'bg-success/10 text-success' : 'bg-warning/10 text-warning')}>
+                    {b.status === 'confirmed' ? 'Bevestigd' : 'Optie'}
+                  </Badge>
+                </div>
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Eerdere reserveringen */}
+      <div className="rounded-xl bg-card p-5 card-shadow space-y-3">
+        <h3 className="text-base font-bold text-foreground">Eerdere Reserveringen ({pastBookings.length})</h3>
+        {pastBookings.length === 0 ? (
+          <p className="text-xs text-muted-foreground">Geen eerdere reserveringen gevonden.</p>
+        ) : (
+          <div className="space-y-1 max-h-[400px] overflow-y-auto">
+            {pastBookings.map(b => (
               <button
                 key={b.id}
                 onClick={() => navigate(`/reserveringen/${b.id}`)}
