@@ -54,7 +54,6 @@ export default function Dashboard() {
     dueDate: '',
     companyId: '',
     contactId: '',
-    report: '',
   });
   const [filter, setFilter] = useState<'all' | 'open' | 'in_progress' | 'completed'>('all');
   const [kpiDialog, setKpiDialog] = useState<{ open: boolean; type: 'tasks' | 'inquiries' | 'bookings' }>({ open: false, type: 'tasks' });
@@ -134,7 +133,7 @@ export default function Dashboard() {
   };
 
   const resetForm = () => {
-    setForm({ title: '', description: '', status: 'open', priority: 'normal', dueDate: '', companyId: '', contactId: '', report: '' });
+    setForm({ title: '', description: '', status: 'open', priority: 'normal', dueDate: '', companyId: '', contactId: '' });
     setCompanySearch('');
     setContactSearch('');
   };
@@ -146,18 +145,7 @@ export default function Dashboard() {
   };
 
   const openEdit = (task: Task) => {
-    setForm({
-      title: task.title,
-      description: task.description || '',
-      status: task.status,
-      priority: task.priority,
-      dueDate: task.dueDate || '',
-      companyId: task.companyId || '',
-      contactId: task.contactId || '',
-      report: '',
-    });
-    setEditTask(task);
-    setNewOpen(true);
+    navigate(`/tasks/${task.id}`);
   };
 
   const saveReport = async (report: string, contactId: string) => {
