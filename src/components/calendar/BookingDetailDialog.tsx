@@ -6,7 +6,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { CalendarDays, Clock, User, MapPin, Pencil, Users, Hash, ClipboardList, Package, Copy } from 'lucide-react';
+import { CalendarDays, Clock, User, MapPin, Pencil, Users, Hash, ClipboardList, Package, Copy, UserCheck } from 'lucide-react';
+import TeamMemberSelect from '@/components/TeamMemberSelect';
 
 interface BookingDetailDialogProps {
   booking: Booking | null;
@@ -182,6 +183,16 @@ export default function BookingDetailDialog({ booking, open, onOpenChange, onUpd
               />
             </div>
 
+            {/* Verantwoordelijke */}
+            <div className="grid gap-1.5">
+              <Label>Verantwoordelijke</Label>
+              <TeamMemberSelect
+                value={form.assignedTo}
+                onValueChange={(v) => setForm({ ...form, assignedTo: v })}
+                placeholder="Selecteer verantwoordelijke"
+              />
+            </div>
+
             {/* Notes / Toelichting */}
             <div className="grid gap-1.5">
               <Label>Toelichting</Label>
@@ -249,6 +260,12 @@ export default function BookingDetailDialog({ booking, open, onOpenChange, onUpd
               <div className="grid gap-1.5">
                 <Label>Benodigdheden</Label>
                 <p className="text-sm text-muted-foreground whitespace-pre-wrap">{booking.requirements}</p>
+              </div>
+            )}
+            {booking.assignedTo && (
+              <div className="flex items-center gap-2 text-sm">
+                <UserCheck size={14} className="text-muted-foreground" />
+                <span className="capitalize">{booking.assignedTo}</span>
               </div>
             )}
             {booking.notes && (

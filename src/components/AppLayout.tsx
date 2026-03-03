@@ -33,12 +33,10 @@ import { Button } from '@/components/ui/button';
 
 const navItemDefs = [
   { to: '/', icon: LayoutDashboard, key: 'nav.dashboard' },
-  { to: '/conversations', icon: MessageSquare, key: 'nav.conversations' },
   { to: '/crm', icon: Users, key: 'nav.crm' },
   { to: '/inquiries', icon: InboxIcon, key: 'nav.inquiries' },
   { to: '/reserveringen', icon: ClipboardList, key: 'nav.reserveringen' },
   { to: '/calendar', icon: CalendarDays, key: 'nav.calendar' },
-  { to: '/documents', icon: FileText, key: 'nav.documents' },
 ];
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {

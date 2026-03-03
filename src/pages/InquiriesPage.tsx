@@ -544,6 +544,7 @@ export default function InquiriesPage() {
               <th className="px-4 py-2.5 text-left font-medium text-muted-foreground w-[110px]">ID</th>
               <th className="px-4 py-2.5 text-left font-medium text-muted-foreground">Type</th>
               <th className="px-4 py-2.5 text-left font-medium text-muted-foreground">Contact</th>
+              <th className="px-4 py-2.5 text-left font-medium text-muted-foreground hidden md:table-cell">Bedrijf</th>
               <th className="px-4 py-2.5 text-left font-medium text-muted-foreground hidden md:table-cell">Datum</th>
               <th className="px-4 py-2.5 text-left font-medium text-muted-foreground hidden md:table-cell">Gasten</th>
               <th className="px-4 py-2.5 text-left font-medium text-muted-foreground hidden lg:table-cell">Budget</th>
@@ -574,6 +575,15 @@ export default function InquiriesPage() {
                     >
                       {inq.contactName}
                     </button>
+                  </td>
+                  <td className="px-4 py-2.5 hidden md:table-cell">
+                    {(() => {
+                      const contact = inq.contactId ? contacts.find(c => c.id === inq.contactId) : null;
+                      const company = contact?.companyId ? companies.find(co => co.id === contact.companyId) : null;
+                      if (company) return <button className="text-primary hover:underline text-left text-xs" onClick={(e) => { e.stopPropagation(); navigate(`/companies/${company.id}`); }}>{company.name}</button>;
+                      if (contact?.company) return <span className="text-muted-foreground text-xs">{contact.company}</span>;
+                      return <span className="text-muted-foreground">—</span>;
+                    })()}
                   </td>
                   <td className="px-4 py-2.5 text-muted-foreground hidden md:table-cell">{inq.preferredDate || '—'}</td>
                   <td className="px-4 py-2.5 text-muted-foreground hidden md:table-cell">{inq.guestCount}</td>
