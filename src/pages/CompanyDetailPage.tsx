@@ -128,7 +128,7 @@ export default function CompanyDetailPage() {
     if (!company) return [];
     const junctionContactIds = new Set(getCompanyContacts(company.id).map((l) => l.contactId));
     return contacts.filter(
-      (c) => junctionContactIds.has(c.id) || c.companyId === company.id || (!c.companyId && c.company && c.company.toLowerCase() === company.name.toLowerCase())
+      (c) => junctionContactIds.has(c.id) || c.companyId === company.id
     );
   }, [contacts, company, getCompanyContacts]);
 
