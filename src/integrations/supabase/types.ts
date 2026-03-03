@@ -16,6 +16,7 @@ export type Database = {
     Tables: {
       bookings: {
         Row: {
+          assigned_to: string | null
           contact_id: string | null
           contact_name: string
           created_at: string
@@ -39,6 +40,7 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          assigned_to?: string | null
           contact_id?: string | null
           contact_name?: string
           created_at?: string
@@ -62,6 +64,7 @@ export type Database = {
           user_id: string
         }
         Update: {
+          assigned_to?: string | null
           contact_id?: string | null
           contact_name?: string
           created_at?: string
@@ -440,6 +443,7 @@ export type Database = {
       }
       inquiries: {
         Row: {
+          assigned_to: string | null
           budget: number | null
           contact_id: string | null
           contact_name: string
@@ -459,6 +463,7 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          assigned_to?: string | null
           budget?: number | null
           contact_id?: string | null
           contact_name: string
@@ -478,6 +483,7 @@ export type Database = {
           user_id: string
         }
         Update: {
+          assigned_to?: string | null
           budget?: number | null
           contact_id?: string | null
           contact_name?: string

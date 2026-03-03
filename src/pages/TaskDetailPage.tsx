@@ -216,7 +216,7 @@ export default function TaskDetailPage() {
                   </Popover>
                 </div>
                 <div>
-                  <p className="text-xs font-semibold text-muted-foreground mb-1">Toegewezen aan</p>
+                  <p className="text-xs font-semibold text-muted-foreground mb-1">Verantwoordelijke</p>
                   <Input value={form!.assignedTo || ''} onChange={(e) => setForm({ ...form!, assignedTo: e.target.value || undefined })} placeholder="Naam..." />
                 </div>
                 <Button variant="destructive" size="sm" className="w-full mt-2" onClick={handleDelete}>
@@ -234,7 +234,7 @@ export default function TaskDetailPage() {
                 <InfoRow icon={<CalendarIcon size={14} />} label="Datum" value={task.dueDate ? (
                   <span className={cn(isOverdue && 'text-destructive font-medium')}>{task.dueDate}</span>
                 ) as any : '—'} />
-                {task.assignedTo && <InfoRow icon={<User size={14} />} label="Toegewezen aan" value={task.assignedTo} />}
+                {task.assignedTo && <InfoRow icon={<User size={14} />} label="Verantwoordelijke" value={task.assignedTo} />}
                 <p className="text-xs text-muted-foreground pt-2">Aangemaakt: {task.createdAt}</p>
                 {task.completedAt && <p className="text-xs text-muted-foreground">Afgerond: {task.completedAt.split('T')[0]}</p>}
 

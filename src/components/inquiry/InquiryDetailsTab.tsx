@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { CalendarIcon, Users, Euro, User, Building2, FileText, MapPin, Trash2, RefreshCw, ArrowRight } from 'lucide-react';
+import { CalendarIcon, Users, Euro, User, Building2, FileText, MapPin, Trash2, RefreshCw, ArrowRight, UserCheck } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
@@ -123,8 +123,9 @@ export default function InquiryDetailsTab({ inquiry, editing, form, setForm, con
                     <SelectItem value="Email">Email</SelectItem>
                     <SelectItem value="GHL">VirtuGrow</SelectItem>
                   </SelectContent>
-                </Select>
+              </Select>
               </div>
+              <div><Label>Verantwoordelijke</Label><Input value={form!.assignedTo || ''} onChange={(e) => setForm({ ...form!, assignedTo: e.target.value || undefined })} placeholder="Naam..." /></div>
               <div><Label>Notities</Label><Textarea value={form!.message} onChange={(e) => setForm({ ...form!, message: e.target.value })} rows={4} /></div>
               <div className="flex gap-2">
                 <Button variant="outline" size="sm" className="flex-1" onClick={onCancel}>Annuleren</Button>
@@ -141,6 +142,7 @@ export default function InquiryDetailsTab({ inquiry, editing, form, setForm, con
               <InfoRow icon={<Euro size={14} />} label="Budget" value={inquiry.budget ? `€${inquiry.budget.toLocaleString('nl-NL', { minimumFractionDigits: 2 })}` : '—'} />
               <InfoRow icon={<MapPin size={14} />} label="Ruimte voorkeur" value={inquiry.roomPreference || '—'} />
               <InfoRow icon={<FileText size={14} />} label="Bron" value={inquiry.source === 'GHL' ? 'VirtuGrow' : inquiry.source} />
+              {inquiry.assignedTo && <InfoRow icon={<UserCheck size={14} />} label="Verantwoordelijke" value={inquiry.assignedTo} />}
               <p className="text-xs text-muted-foreground pt-2">Aangemaakt: {inquiry.createdAt}</p>
 
               <div className="flex gap-2 pt-2">

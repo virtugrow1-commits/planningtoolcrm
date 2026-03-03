@@ -30,6 +30,7 @@ export interface Inquiry {
   source: string;
   ghlOpportunityId?: string;
   isRead?: boolean;
+  assignedTo?: string;
 }
 
 export interface Quotation {
@@ -84,6 +85,7 @@ export interface Booking {
   roomSetup?: string;
   requirements?: string;
   preparationStatus?: 'pending' | 'info_waiting' | 'in_progress' | 'ready';
+  assignedTo?: string;
 }
 
 export interface DaySchedule {

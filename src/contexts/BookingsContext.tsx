@@ -61,6 +61,7 @@ export function BookingsProvider({ children }: { children: ReactNode }) {
       roomSetup: (b as any).room_setup || undefined,
       requirements: (b as any).requirements || undefined,
       preparationStatus: (b as any).preparation_status || 'pending',
+      assignedTo: (b as any).assigned_to || undefined,
     })));
     setLoading(false);
   }, [user, toast]);
@@ -160,6 +161,7 @@ export function BookingsProvider({ children }: { children: ReactNode }) {
       room_setup: updated.roomSetup || null,
       requirements: updated.requirements || null,
       preparation_status: updated.preparationStatus || 'pending',
+      assigned_to: updated.assignedTo || null,
     } as any).eq('id', updated.id).select().single();
     if (error) {
       toast({ title: 'Fout bij bijwerken boeking', description: error.message, variant: 'destructive' });
