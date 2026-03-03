@@ -609,7 +609,7 @@ export default function Dashboard() {
               Taak afgerond
             </DialogTitle>
             <DialogDescription>
-              "{completedTaskTitle}" is afgerond. Wil je een vervolgtaak aanmaken of een gesprekverslag toevoegen?
+              "{completedTaskTitle}" is afgerond. Wil je een vervolgtaak aanmaken?
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-3 py-2">
