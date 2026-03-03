@@ -18,6 +18,7 @@ import ReserveringenPage from "@/pages/ReserveringenPage";
 import SettingsPage from "@/pages/SettingsPage";
 import BookingDetailPage from "@/pages/BookingDetailPage";
 import InquiryDetailPage from "@/pages/InquiryDetailPage";
+import TaskDetailPage from "@/pages/TaskDetailPage";
 import AuthPage from "@/pages/AuthPage";
 import NotFound from "./pages/NotFound";
 import { BookingsProvider } from "@/contexts/BookingsContext";
