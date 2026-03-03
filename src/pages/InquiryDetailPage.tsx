@@ -225,6 +225,46 @@ export default function InquiryDetailPage() {
         />
       </div>
 
+      {/* Gesprekverslag */}
+      {contact && (
+        <div className="space-y-3">
+          <h2 className="text-lg font-bold text-foreground flex items-center gap-2">
+            <MessageSquare size={16} /> Gesprekverslag
+          </h2>
+          <div className="rounded-xl bg-card p-5 card-shadow space-y-3">
+            <Textarea
+              placeholder="Schrijf een gesprekverslag... Dit wordt opgeslagen bij de contactpersoon en het bedrijf."
+              value={reportText}
+              onChange={(e) => setReportText(e.target.value)}
+              rows={4}
+              className="text-sm"
+            />
+            <div className="flex justify-end">
+              <Button
+                size="sm"
+                disabled={savingReport || !reportText.trim()}
+                onClick={async () => {
+                  if (!user || !contact) return;
+                  setSavingReport(true);
+                  await (supabase as any).from('contact_activities').insert({
+                    user_id: user.id,
+                    contact_id: contact.id,
+                    type: 'note',
+                    subject: `Gesprekverslag – ${inquiry.eventType}`,
+                    body: reportText.trim(),
+                  });
+                  setReportText('');
+                  setSavingReport(false);
+                  toast({ title: 'Gesprekverslag opgeslagen', description: 'Zichtbaar bij contactpersoon en bedrijf.' });
+                }}
+              >
+                <MessageSquare size={14} className="mr-1" /> Opslaan
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Convert to Reservation dialog */}
       <NewReservationDialog
         open={showReservationDialog}
