@@ -40,7 +40,7 @@ export default function Dashboard() {
   const { contacts } = useContactsContext();
   const { companies } = useCompaniesContext();
   const { tasks, loading: tasksLoading, addTask, updateTask, deleteTask, deleteTasks } = useTasksContext();
-  const { user } = useAuth();
+  
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [newOpen, setNewOpen] = useState(false);
   const [editTask, setEditTask] = useState<Task | null>(null);
