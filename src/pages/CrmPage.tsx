@@ -203,7 +203,7 @@ export default function CrmPage() {
     : paginatedCompanies.length > 0 && paginatedCompanies.every(c => selected.has(c.id));
 
   const currentTotalPages = activeTab === 'contacts' ? totalPages : companyTotalPages;
-  const currentTotal = activeTab === 'contacts' ? filtered.length : filteredCompanies.length;
+  const currentTotal = activeTab === 'contacts' ? sortedFiltered.length : sortedCompanies.length;
 
   return (
     <div className="p-6 lg:p-8 space-y-4">
