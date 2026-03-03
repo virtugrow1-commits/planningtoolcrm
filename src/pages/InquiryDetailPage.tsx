@@ -43,6 +43,8 @@ export default function InquiryDetailPage() {
   const [editing, setEditing] = useState(false);
   const [form, setForm] = useState<Inquiry | null>(null);
   const [showReservationDialog, setShowReservationDialog] = useState(false);
+  const [reportText, setReportText] = useState('');
+  const [savingReport, setSavingReport] = useState(false);
 
   // Mark as read when opening
   useEffect(() => {
