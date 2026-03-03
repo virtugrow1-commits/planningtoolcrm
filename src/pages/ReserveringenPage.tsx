@@ -41,7 +41,8 @@ export default function ReserveringenPage() {
   const { toast } = useToast();
   const navigate = useNavigate();
   const { user } = useAuth();
-  const { contacts: contactOptions } = useContacts();
+  const { contacts: contactOptions, loading: contactsLoading } = useContacts();
+  const { getDisplayName } = useRoomSettings();
 
   const [search, setSearch] = useState('');
   const [tab, setTab] = useState<'all' | 'confirmed' | 'option'>('all');
