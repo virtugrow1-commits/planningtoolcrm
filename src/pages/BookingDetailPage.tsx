@@ -17,7 +17,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
-import { ArrowLeft, ChevronRight, Pencil, MapPin, Calendar as CalendarIcon, Clock, Users, ClipboardList, Package, User, Building2, FileText, CheckSquare, Trash2, History, Send, Eye, CheckCircle2 } from 'lucide-react';
+import { ArrowLeft, ChevronRight, Pencil, MapPin, Calendar as CalendarIcon, Clock, Users, ClipboardList, Package, User, Building2, FileText, CheckSquare, Trash2, History, Send, Eye, CheckCircle2, UserCheck } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { InfoRow } from '@/components/detail/DetailPageComponents';
 import TasksSection from '@/components/detail/TasksSection';
@@ -210,6 +210,7 @@ export default function BookingDetailPage() {
                   </Select>
                 </div>
                 <div><Label>Benodigdheden</Label><Textarea value={form!.requirements || ''} onChange={(e) => setForm({ ...form!, requirements: e.target.value })} placeholder="Beamer, flipover..." rows={3} /></div>
+                <div><Label>Verantwoordelijke</Label><Input value={form!.assignedTo || ''} onChange={(e) => setForm({ ...form!, assignedTo: e.target.value || undefined })} placeholder="Naam..." /></div>
                 <div><Label>Notities</Label><Textarea value={form!.notes || ''} onChange={(e) => setForm({ ...form!, notes: e.target.value })} rows={3} /></div>
                 <div className="flex gap-2">
                   <Button variant="outline" size="sm" className="flex-1" onClick={cancelEdit}>Annuleren</Button>
@@ -228,6 +229,7 @@ export default function BookingDetailPage() {
                 {booking.roomSetup && <InfoRow icon={<ClipboardList size={14} />} label="Opstelling" value={booking.roomSetup} />}
                 <InfoRow icon={<FileText size={14} />} label="Voorbereiding" value={prepStatusLabel(booking.preparationStatus)} />
                 <InfoRow icon={<FileText size={14} />} label="Evenement" value={booking.title} />
+                {booking.assignedTo && <InfoRow icon={<UserCheck size={14} />} label="Verantwoordelijke" value={booking.assignedTo} />}
                 <p className="text-xs text-muted-foreground pt-2">Aangemaakt: {(booking as any).created_at?.split('T')[0] || '—'}</p>
 
                 <div className="flex gap-2 pt-2">
