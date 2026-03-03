@@ -225,15 +225,15 @@ export default function ReserveringenPage() {
                 onCheckedChange={() => toggleSelectAll(items)}
               />
             </TableHead>
-            <TableHead>#</TableHead>
-            <TableHead>Status</TableHead>
-            <TableHead>Voorbereiding</TableHead>
-            <TableHead>Contactpersoon</TableHead>
-            <TableHead>Bedrijf</TableHead>
-            <TableHead>Evenement</TableHead>
-            <TableHead>Ruimte</TableHead>
-            <TableHead>Datum</TableHead>
-            <TableHead>Tijd</TableHead>
+            <TableHead><SortableHeader label="#" sortKey="number" currentSort={sort.sortKey} currentDirection={sort.sortDir} onSort={sort.handleSort} /></TableHead>
+            <TableHead><SortableHeader label="Status" sortKey="status" currentSort={sort.sortKey} currentDirection={sort.sortDir} onSort={sort.handleSort} /></TableHead>
+            <TableHead><SortableHeader label="Voorbereiding" sortKey="prep" currentSort={sort.sortKey} currentDirection={sort.sortDir} onSort={sort.handleSort} /></TableHead>
+            <TableHead><SortableHeader label="Contactpersoon" sortKey="contact" currentSort={sort.sortKey} currentDirection={sort.sortDir} onSort={sort.handleSort} /></TableHead>
+            <TableHead><SortableHeader label="Bedrijf" sortKey="company" currentSort={sort.sortKey} currentDirection={sort.sortDir} onSort={sort.handleSort} /></TableHead>
+            <TableHead><SortableHeader label="Evenement" sortKey="event" currentSort={sort.sortKey} currentDirection={sort.sortDir} onSort={sort.handleSort} /></TableHead>
+            <TableHead><SortableHeader label="Ruimte" sortKey="room" currentSort={sort.sortKey} currentDirection={sort.sortDir} onSort={sort.handleSort} /></TableHead>
+            <TableHead><SortableHeader label="Datum" sortKey="date" currentSort={sort.sortKey} currentDirection={sort.sortDir} onSort={sort.handleSort} /></TableHead>
+            <TableHead><SortableHeader label="Tijd" sortKey="time" currentSort={sort.sortKey} currentDirection={sort.sortDir} onSort={sort.handleSort} /></TableHead>
             <TableHead className="w-[80px]"></TableHead>
           </TableRow>
         </TableHeader>
