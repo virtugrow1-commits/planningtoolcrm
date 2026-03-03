@@ -23,6 +23,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Checkbox } from '@/components/ui/checkbox';
 import { cn } from '@/lib/utils';
 import { exportToCSV } from '@/lib/csvExport';
+import { SortableHeader, useSortState } from '@/components/SortableHeader';
 
 const PIPELINE_COLUMNS: { key: Inquiry['status']; label: string; colorClass: string; badgeClass: string }[] = [
   { key: 'new', label: 'Nieuwe Aanvraag', colorClass: 'border-t-info bg-info/5', badgeClass: 'status-new' },
@@ -94,6 +95,7 @@ export default function InquiriesPage() {
   const [taskDialogInquiry, setTaskDialogInquiry] = useState<Inquiry | null>(null);
   const [taskTitle, setTaskTitle] = useState('');
   const { toast } = useToast();
+  const inquirySort = useSortState<Inquiry>();
   
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -534,27 +536,44 @@ export default function InquiriesPage() {
       <div className="rounded-xl border border-border bg-card overflow-hidden">
         <table className="w-full text-sm">
           <thead>
-            <tr className="border-b border-border bg-muted/30">
+             <tr className="border-b border-border bg-muted/30">
               <th className="px-4 py-2.5 w-10">
                 <Checkbox
                   checked={inquiries.length > 0 && selected.size === inquiries.length}
                   onCheckedChange={toggleSelectAll}
                 />
               </th>
-              <th className="px-4 py-2.5 text-left font-medium text-muted-foreground w-[110px]">ID</th>
-              <th className="px-4 py-2.5 text-left font-medium text-muted-foreground">Type</th>
-              <th className="px-4 py-2.5 text-left font-medium text-muted-foreground">Contact</th>
-              <th className="px-4 py-2.5 text-left font-medium text-muted-foreground hidden md:table-cell">Bedrijf</th>
-              <th className="px-4 py-2.5 text-left font-medium text-muted-foreground hidden md:table-cell">Datum</th>
-              <th className="px-4 py-2.5 text-left font-medium text-muted-foreground hidden md:table-cell">Gasten</th>
-              <th className="px-4 py-2.5 text-left font-medium text-muted-foreground hidden lg:table-cell">Budget</th>
-              <th className="px-4 py-2.5 text-left font-medium text-muted-foreground">Status</th>
-              <th className="px-4 py-2.5 text-left font-medium text-muted-foreground hidden lg:table-cell">Bron</th>
+              <th className="px-4 py-2.5 w-[110px]"><SortableHeader label="ID" sortKey="id" currentSort={inquirySort.sortKey} currentDirection={inquirySort.sortDir} onSort={inquirySort.handleSort} /></th>
+              <th className="px-4 py-2.5"><SortableHeader label="Type" sortKey="type" currentSort={inquirySort.sortKey} currentDirection={inquirySort.sortDir} onSort={inquirySort.handleSort} /></th>
+              <th className="px-4 py-2.5"><SortableHeader label="Contact" sortKey="contact" currentSort={inquirySort.sortKey} currentDirection={inquirySort.sortDir} onSort={inquirySort.handleSort} /></th>
+              <th className="px-4 py-2.5 hidden md:table-cell"><SortableHeader label="Bedrijf" sortKey="company" currentSort={inquirySort.sortKey} currentDirection={inquirySort.sortDir} onSort={inquirySort.handleSort} /></th>
+              <th className="px-4 py-2.5 hidden md:table-cell"><SortableHeader label="Datum" sortKey="date" currentSort={inquirySort.sortKey} currentDirection={inquirySort.sortDir} onSort={inquirySort.handleSort} /></th>
+              <th className="px-4 py-2.5 hidden md:table-cell"><SortableHeader label="Gasten" sortKey="guests" currentSort={inquirySort.sortKey} currentDirection={inquirySort.sortDir} onSort={inquirySort.handleSort} /></th>
+              <th className="px-4 py-2.5 hidden lg:table-cell"><SortableHeader label="Budget" sortKey="budget" currentSort={inquirySort.sortKey} currentDirection={inquirySort.sortDir} onSort={inquirySort.handleSort} /></th>
+              <th className="px-4 py-2.5"><SortableHeader label="Status" sortKey="status" currentSort={inquirySort.sortKey} currentDirection={inquirySort.sortDir} onSort={inquirySort.handleSort} /></th>
+              <th className="px-4 py-2.5 hidden lg:table-cell"><SortableHeader label="Bron" sortKey="source" currentSort={inquirySort.sortKey} currentDirection={inquirySort.sortDir} onSort={inquirySort.handleSort} /></th>
               <th className="px-4 py-2.5 text-right font-medium text-muted-foreground"></th>
             </tr>
           </thead>
           <tbody>
-            {inquiries.map((inq) => {
+            {inquirySort.sortItems(inquiries, (inq, key) => {
+              switch (key) {
+                case 'id': return inq.displayNumber || '';
+                case 'type': return inq.eventType;
+                case 'contact': return inq.contactName;
+                case 'company': {
+                  const contact = inq.contactId ? contacts.find(c => c.id === inq.contactId) : null;
+                  const company = contact?.companyId ? companies.find(co => co.id === contact.companyId) : null;
+                  return company?.name || (contact as any)?.company || '';
+                }
+                case 'date': return inq.preferredDate || '';
+                case 'guests': return inq.guestCount;
+                case 'budget': return inq.budget || 0;
+                case 'status': return inq.status;
+                case 'source': return inq.source;
+                default: return '';
+              }
+            }).map((inq) => {
               const col = PIPELINE_COLUMNS.find((c) => c.key === inq.status);
               return (
                 <tr key={inq.id} onClick={() => openDetailDialog(inq)} className={cn("border-b border-border last:border-0 hover:bg-muted/20 transition-colors cursor-pointer", selected.has(inq.id) && "bg-primary/5")}>

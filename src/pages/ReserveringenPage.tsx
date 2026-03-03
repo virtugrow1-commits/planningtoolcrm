@@ -7,7 +7,7 @@ import { useContactsContext } from '@/contexts/ContactsContext';
 import { useCompaniesContext } from '@/contexts/CompaniesContext';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { Booking, RoomName, ROOMS } from '@/types/crm';
-import { Search, Edit2, ArrowRightLeft, Calendar as CalendarIcon, Clock, MapPin, ChevronLeft, ChevronRight, History, Hash, ClipboardCheck, Download } from 'lucide-react';
+import { Search, Edit2, ArrowRightLeft, Calendar as CalendarIcon, Clock, MapPin, ChevronLeft, ChevronRight, History, Hash, ClipboardCheck, Download, Plus } from 'lucide-react';
 import BookingDetailDialog from '@/components/calendar/BookingDetailDialog';
 import { exportToCSV } from '@/lib/csvExport';
 import { Input } from '@/components/ui/input';
@@ -24,17 +24,25 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import BulkActionBar from '@/components/BulkActionBar';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
+import { SortableHeader, useSortState } from '@/components/SortableHeader';
+import NewReservationDialog from '@/components/calendar/NewReservationDialog';
+import { useContacts } from '@/hooks/useContacts';
+import { useAuth } from '@/contexts/AuthContext';
+import { useRoomSettings } from '@/hooks/useRoomSettings';
 
 type EnrichedBooking = Booking & { company: string; isPast: boolean };
 
 export default function ReserveringenPage() {
-  const { bookings, updateBooking, deleteBooking, loading } = useBookings();
+  const { bookings, updateBooking, deleteBooking, addBookings, loading } = useBookings();
   const { contacts: fullContacts } = useContactsContext();
   const { companies } = useCompaniesContext();
   const contacts = fullContacts.map(c => ({ id: c.id, firstName: c.firstName, lastName: c.lastName, email: c.email || null, company: c.company || null, companyId: c.companyId || null }));
   const { t } = useLanguage();
   const { toast } = useToast();
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const { contacts: contactOptions, loading: contactsLoading } = useContacts();
+  const { getDisplayName } = useRoomSettings();
 
   const [search, setSearch] = useState('');
   const [tab, setTab] = useState<'all' | 'confirmed' | 'option'>('all');
@@ -45,6 +53,9 @@ export default function ReserveringenPage() {
   const [bulkEditOpen, setBulkEditOpen] = useState(false);
   const [bulkEditField, setBulkEditField] = useState<{ status?: 'confirmed' | 'option'; preparationStatus?: string }>({});
   const [bulkEditConfirmOpen, setBulkEditConfirmOpen] = useState(false);
+  const [newReservationOpen, setNewReservationOpen] = useState(false);
+
+  const sort = useSortState<EnrichedBooking>();
 
   const availableRooms = useMemo(() => [...ROOMS], []);
   const todayStr = useMemo(() => new Date().toISOString().split('T')[0], []);
@@ -76,13 +87,30 @@ export default function ReserveringenPage() {
     return list;
   };
 
+  const sortAccessor = (b: EnrichedBooking, key: string): string | number | null => {
+    switch (key) {
+      case 'number': return b.reservationNumber || '';
+      case 'status': return b.status;
+      case 'prep': return b.preparationStatus || 'pending';
+      case 'contact': return b.contactName;
+      case 'company': return b.company;
+      case 'event': return b.title;
+      case 'room': return b.roomName;
+      case 'date': return b.date;
+      case 'time': return b.startHour * 60 + (b.startMinute || 0);
+      default: return '';
+    }
+  };
+
   const upcoming = useMemo(() => {
-    return applyFilters(enrichedBookings.filter(b => !b.isPast)).sort((a, b) => a.date.localeCompare(b.date));
-  }, [enrichedBookings, tab, search]);
+    const filtered = applyFilters(enrichedBookings.filter(b => !b.isPast)).sort((a, b) => a.date.localeCompare(b.date));
+    return sort.sortItems(filtered, sortAccessor);
+  }, [enrichedBookings, tab, search, sort.sortKey, sort.sortDir]);
 
   const past = useMemo(() => {
-    return applyFilters(enrichedBookings.filter(b => b.isPast)).sort((a, b) => b.date.localeCompare(a.date));
-  }, [enrichedBookings, tab, search]);
+    const filtered = applyFilters(enrichedBookings.filter(b => b.isPast)).sort((a, b) => b.date.localeCompare(a.date));
+    return sort.sortItems(filtered, sortAccessor);
+  }, [enrichedBookings, tab, search, sort.sortKey, sort.sortDir]);
 
   useMemo(() => { setUpcomingPage(1); setPastPage(1); }, [tab, search, pageSize]);
 
@@ -199,15 +227,15 @@ export default function ReserveringenPage() {
                 onCheckedChange={() => toggleSelectAll(items)}
               />
             </TableHead>
-            <TableHead>#</TableHead>
-            <TableHead>Status</TableHead>
-            <TableHead>Voorbereiding</TableHead>
-            <TableHead>Contactpersoon</TableHead>
-            <TableHead>Bedrijf</TableHead>
-            <TableHead>Evenement</TableHead>
-            <TableHead>Ruimte</TableHead>
-            <TableHead>Datum</TableHead>
-            <TableHead>Tijd</TableHead>
+            <TableHead><SortableHeader label="#" sortKey="number" currentSort={sort.sortKey} currentDirection={sort.sortDir} onSort={sort.handleSort} /></TableHead>
+            <TableHead><SortableHeader label="Status" sortKey="status" currentSort={sort.sortKey} currentDirection={sort.sortDir} onSort={sort.handleSort} /></TableHead>
+            <TableHead><SortableHeader label="Voorbereiding" sortKey="prep" currentSort={sort.sortKey} currentDirection={sort.sortDir} onSort={sort.handleSort} /></TableHead>
+            <TableHead><SortableHeader label="Contactpersoon" sortKey="contact" currentSort={sort.sortKey} currentDirection={sort.sortDir} onSort={sort.handleSort} /></TableHead>
+            <TableHead><SortableHeader label="Bedrijf" sortKey="company" currentSort={sort.sortKey} currentDirection={sort.sortDir} onSort={sort.handleSort} /></TableHead>
+            <TableHead><SortableHeader label="Evenement" sortKey="event" currentSort={sort.sortKey} currentDirection={sort.sortDir} onSort={sort.handleSort} /></TableHead>
+            <TableHead><SortableHeader label="Ruimte" sortKey="room" currentSort={sort.sortKey} currentDirection={sort.sortDir} onSort={sort.handleSort} /></TableHead>
+            <TableHead><SortableHeader label="Datum" sortKey="date" currentSort={sort.sortKey} currentDirection={sort.sortDir} onSort={sort.handleSort} /></TableHead>
+            <TableHead><SortableHeader label="Tijd" sortKey="time" currentSort={sort.sortKey} currentDirection={sort.sortDir} onSort={sort.handleSort} /></TableHead>
             <TableHead className="w-[80px]"></TableHead>
           </TableRow>
         </TableHeader>
@@ -342,6 +370,9 @@ export default function ReserveringenPage() {
           }}>
             <Download size={14} />
           </Button>
+          <Button size="sm" onClick={() => setNewReservationOpen(true)}>
+            <Plus size={14} className="mr-1" /> Reservering toevoegen
+          </Button>
         </div>
       </div>
 
@@ -450,6 +481,64 @@ export default function ReserveringenPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <NewReservationDialog
+        open={newReservationOpen}
+        onOpenChange={setNewReservationOpen}
+        contacts={contactOptions}
+        contactsLoading={contactsLoading}
+        conflictAlert={null}
+        getRoomDisplayName={getDisplayName}
+        onSubmit={(form) => {
+          const newBookings: Omit<Booking, 'id'>[] = [];
+          // Handle recurrence
+          const count = form.repeatType !== 'eenmalig' && form.repeatType !== 'specifiek' ? form.repeatCount : 1;
+          for (let i = 0; i < count; i++) {
+            const d = new Date(form.date + 'T00:00:00');
+            if (form.repeatType === 'week') d.setDate(d.getDate() + i * 7);
+            else if (form.repeatType === '2weken') d.setDate(d.getDate() + i * 14);
+            else if (form.repeatType === 'maand') d.setMonth(d.getMonth() + i);
+            else if (form.repeatType === 'kwartaal') d.setMonth(d.getMonth() + i * 3);
+            const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+            newBookings.push({
+              roomName: form.room,
+              date: dateStr,
+              startHour: form.startHour,
+              startMinute: form.startMinute,
+              endHour: form.endHour,
+              endMinute: form.endMinute,
+              title: form.title,
+              contactName: form.contactName,
+              contactId: form.contactId || undefined,
+              status: form.status,
+              guestCount: form.guestCount,
+              notes: form.notes,
+              roomSetup: form.roomSetup,
+            });
+          }
+          if (form.repeatType === 'specifiek' && form.specificDates.length > 0) {
+            form.specificDates.forEach(sd => {
+              newBookings.push({
+                roomName: form.room,
+                date: sd,
+                startHour: form.startHour,
+                startMinute: form.startMinute,
+                endHour: form.endHour,
+                endMinute: form.endMinute,
+                title: form.title,
+                contactName: form.contactName,
+                contactId: form.contactId || undefined,
+                status: form.status,
+                guestCount: form.guestCount,
+                notes: form.notes,
+                roomSetup: form.roomSetup,
+              });
+            });
+          }
+          addBookings(newBookings);
+          toast({ title: `${newBookings.length} reservering(en) aangemaakt` });
+        }}
+      />
     </div>
   );
 }
