@@ -28,6 +28,7 @@ import { SortableHeader, useSortState } from '@/components/SortableHeader';
 import NewReservationDialog from '@/components/calendar/NewReservationDialog';
 import { useContacts } from '@/hooks/useContacts';
 import { useAuth } from '@/contexts/AuthContext';
+import { useRoomSettings } from '@/hooks/useRoomSettings';
 
 type EnrichedBooking = Booking & { company: string; isPast: boolean };
 
