@@ -60,6 +60,7 @@ function ProtectedRoutes() {
                   <Route path="/companies/:id" element={<CompanyDetailPage />} />
                   <Route path="/inquiries" element={<InquiriesPage />} />
                   <Route path="/inquiries/:id" element={<InquiryDetailPage />} />
+                  <Route path="/tasks/:id" element={<TaskDetailPage />} />
                   <Route path="/reserveringen" element={<ReserveringenPage />} />
                   <Route path="/reserveringen/:id" element={<BookingDetailPage />} />
                   <Route path="/quotations" element={<QuotationsPage />} />
