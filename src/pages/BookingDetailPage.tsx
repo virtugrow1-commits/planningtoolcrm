@@ -21,6 +21,7 @@ import { ArrowLeft, ChevronRight, Pencil, MapPin, Calendar as CalendarIcon, Cloc
 import { cn } from '@/lib/utils';
 import { InfoRow } from '@/components/detail/DetailPageComponents';
 import TasksSection from '@/components/detail/TasksSection';
+import TeamMemberSelect from '@/components/TeamMemberSelect';
 
 export default function BookingDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -210,7 +211,7 @@ export default function BookingDetailPage() {
                   </Select>
                 </div>
                 <div><Label>Benodigdheden</Label><Textarea value={form!.requirements || ''} onChange={(e) => setForm({ ...form!, requirements: e.target.value })} placeholder="Beamer, flipover..." rows={3} /></div>
-                <div><Label>Verantwoordelijke</Label><Input value={form!.assignedTo || ''} onChange={(e) => setForm({ ...form!, assignedTo: e.target.value || undefined })} placeholder="Naam..." /></div>
+                <div><Label>Verantwoordelijke</Label><TeamMemberSelect value={form!.assignedTo} onValueChange={(v) => setForm({ ...form!, assignedTo: v })} /></div>
                 <div><Label>Notities</Label><Textarea value={form!.notes || ''} onChange={(e) => setForm({ ...form!, notes: e.target.value })} rows={3} /></div>
                 <div className="flex gap-2">
                   <Button variant="outline" size="sm" className="flex-1" onClick={cancelEdit}>Annuleren</Button>
