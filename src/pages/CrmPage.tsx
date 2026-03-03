@@ -209,7 +209,7 @@ export default function CrmPage() {
     <div className="p-6 lg:p-8 space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-4">
         <p className="text-sm text-muted-foreground">
-          {activeTab === 'contacts' ? `${filtered.length} van ${contacts.length} contacten` : `${filteredCompanies.length} van ${companies.length} bedrijven`}
+          {activeTab === 'contacts' ? `${sortedFiltered.length} van ${contacts.length} contacten` : `${sortedCompanies.length} van ${companies.length} bedrijven`}
         </p>
         <div className="flex items-center gap-2">
           <div className="relative w-64">
