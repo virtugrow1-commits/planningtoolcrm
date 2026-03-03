@@ -598,19 +598,6 @@ export default function Dashboard() {
                 onChange={(e) => setForm({ ...form, dueDate: e.target.value })}
               />
             </div>
-            {/* Gesprekverslag - only for new tasks with a contact */}
-            {!editTask && form.contactId && (
-              <div className="grid gap-1.5">
-                <Label>Gesprekverslag</Label>
-                <Textarea
-                  value={form.report}
-                  onChange={(e) => setForm({ ...form, report: e.target.value })}
-                  placeholder="Wordt opgeslagen bij de contactpersoon..."
-                  rows={3}
-                  className="text-xs"
-                />
-              </div>
-            )}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setNewOpen(false)}>Annuleren</Button>
