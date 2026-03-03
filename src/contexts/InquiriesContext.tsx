@@ -53,6 +53,7 @@ export function InquiriesProvider({ children }: { children: ReactNode }) {
         source: i.source,
         ghlOpportunityId: (i as any).ghl_opportunity_id || undefined,
         isRead: (i as any).is_read ?? true,
+        assignedTo: (i as any).assigned_to || undefined,
       })));
     }
     setLoading(false);
@@ -116,7 +117,8 @@ export function InquiriesProvider({ children }: { children: ReactNode }) {
       message: inquiry.message || null,
       status: inquiry.status,
       source: inquiry.source,
-    }).eq('id', inquiry.id);
+      assigned_to: inquiry.assignedTo || null,
+    } as any).eq('id', inquiry.id);
     if (error) {
       toast({ title: 'Fout bij bijwerken aanvraag', description: error.message, variant: 'destructive' });
       return;
