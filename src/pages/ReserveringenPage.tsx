@@ -7,7 +7,7 @@ import { useContactsContext } from '@/contexts/ContactsContext';
 import { useCompaniesContext } from '@/contexts/CompaniesContext';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { Booking, RoomName, ROOMS } from '@/types/crm';
-import { Search, Edit2, ArrowRightLeft, Calendar as CalendarIcon, Clock, MapPin, ChevronLeft, ChevronRight, History, Hash, ClipboardCheck, Download } from 'lucide-react';
+import { Search, Edit2, ArrowRightLeft, Calendar as CalendarIcon, Clock, MapPin, ChevronLeft, ChevronRight, History, Hash, ClipboardCheck, Download, Plus } from 'lucide-react';
 import BookingDetailDialog from '@/components/calendar/BookingDetailDialog';
 import { exportToCSV } from '@/lib/csvExport';
 import { Input } from '@/components/ui/input';
@@ -24,17 +24,23 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import BulkActionBar from '@/components/BulkActionBar';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
+import { SortableHeader, useSortState } from '@/components/SortableHeader';
+import NewReservationDialog from '@/components/calendar/NewReservationDialog';
+import { useContacts } from '@/hooks/useContacts';
+import { useAuth } from '@/contexts/AuthContext';
 
 type EnrichedBooking = Booking & { company: string; isPast: boolean };
 
 export default function ReserveringenPage() {
-  const { bookings, updateBooking, deleteBooking, loading } = useBookings();
+  const { bookings, updateBooking, deleteBooking, addBookings, loading } = useBookings();
   const { contacts: fullContacts } = useContactsContext();
   const { companies } = useCompaniesContext();
   const contacts = fullContacts.map(c => ({ id: c.id, firstName: c.firstName, lastName: c.lastName, email: c.email || null, company: c.company || null, companyId: c.companyId || null }));
   const { t } = useLanguage();
   const { toast } = useToast();
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const { contacts: contactOptions } = useContacts();
 
   const [search, setSearch] = useState('');
   const [tab, setTab] = useState<'all' | 'confirmed' | 'option'>('all');
@@ -45,6 +51,9 @@ export default function ReserveringenPage() {
   const [bulkEditOpen, setBulkEditOpen] = useState(false);
   const [bulkEditField, setBulkEditField] = useState<{ status?: 'confirmed' | 'option'; preparationStatus?: string }>({});
   const [bulkEditConfirmOpen, setBulkEditConfirmOpen] = useState(false);
+  const [newReservationOpen, setNewReservationOpen] = useState(false);
+
+  const sort = useSortState<EnrichedBooking>();
 
   const availableRooms = useMemo(() => [...ROOMS], []);
   const todayStr = useMemo(() => new Date().toISOString().split('T')[0], []);
