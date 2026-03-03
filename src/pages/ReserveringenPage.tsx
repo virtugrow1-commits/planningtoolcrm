@@ -486,23 +486,57 @@ export default function ReserveringenPage() {
         open={newReservationOpen}
         onOpenChange={setNewReservationOpen}
         contacts={contactOptions}
-        onSave={(forms) => {
-          addBookings(forms.map(f => ({
-            roomName: f.room,
-            date: f.date,
-            startHour: f.startHour,
-            startMinute: f.startMinute,
-            endHour: f.endHour,
-            endMinute: f.endMinute,
-            title: f.title,
-            contactName: f.contactName,
-            contactId: f.contactId || undefined,
-            status: f.status,
-            guestCount: f.guestCount,
-            notes: f.notes,
-            roomSetup: f.roomSetup,
-          })));
-          toast({ title: `${forms.length} reservering(en) aangemaakt` });
+        contactsLoading={contactsLoading}
+        conflictAlert={null}
+        getRoomDisplayName={getDisplayName}
+        onSubmit={(form) => {
+          const newBookings: Omit<Booking, 'id'>[] = [];
+          // Handle recurrence
+          const count = form.repeatType !== 'eenmalig' && form.repeatType !== 'specifiek' ? form.repeatCount : 1;
+          for (let i = 0; i < count; i++) {
+            const d = new Date(form.date + 'T00:00:00');
+            if (form.repeatType === 'week') d.setDate(d.getDate() + i * 7);
+            else if (form.repeatType === '2weken') d.setDate(d.getDate() + i * 14);
+            else if (form.repeatType === 'maand') d.setMonth(d.getMonth() + i);
+            else if (form.repeatType === 'kwartaal') d.setMonth(d.getMonth() + i * 3);
+            const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+            newBookings.push({
+              roomName: form.room,
+              date: dateStr,
+              startHour: form.startHour,
+              startMinute: form.startMinute,
+              endHour: form.endHour,
+              endMinute: form.endMinute,
+              title: form.title,
+              contactName: form.contactName,
+              contactId: form.contactId || undefined,
+              status: form.status,
+              guestCount: form.guestCount,
+              notes: form.notes,
+              roomSetup: form.roomSetup,
+            });
+          }
+          if (form.repeatType === 'specifiek' && form.specificDates.length > 0) {
+            form.specificDates.forEach(sd => {
+              newBookings.push({
+                roomName: form.room,
+                date: sd,
+                startHour: form.startHour,
+                startMinute: form.startMinute,
+                endHour: form.endHour,
+                endMinute: form.endMinute,
+                title: form.title,
+                contactName: form.contactName,
+                contactId: form.contactId || undefined,
+                status: form.status,
+                guestCount: form.guestCount,
+                notes: form.notes,
+                roomSetup: form.roomSetup,
+              });
+            });
+          }
+          addBookings(newBookings);
+          toast({ title: `${newBookings.length} reservering(en) aangemaakt` });
         }}
       />
     </div>
