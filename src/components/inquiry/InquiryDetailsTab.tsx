@@ -14,6 +14,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { useState } from 'react';
 import { InfoRow } from '@/components/detail/DetailPageComponents';
+import TeamMemberSelect from '@/components/TeamMemberSelect';
 
 const PIPELINE_COLUMNS: { key: Inquiry['status']; label: string; badgeClass: string }[] = [
   { key: 'new', label: 'Nieuwe Aanvraag', badgeClass: 'status-new' },
@@ -125,7 +126,7 @@ export default function InquiryDetailsTab({ inquiry, editing, form, setForm, con
                   </SelectContent>
               </Select>
               </div>
-              <div><Label>Verantwoordelijke</Label><Input value={form!.assignedTo || ''} onChange={(e) => setForm({ ...form!, assignedTo: e.target.value || undefined })} placeholder="Naam..." /></div>
+              <div><Label>Verantwoordelijke</Label><TeamMemberSelect value={form!.assignedTo} onValueChange={(v) => setForm({ ...form!, assignedTo: v })} /></div>
               <div><Label>Notities</Label><Textarea value={form!.message} onChange={(e) => setForm({ ...form!, message: e.target.value })} rows={4} /></div>
               <div className="flex gap-2">
                 <Button variant="outline" size="sm" className="flex-1" onClick={onCancel}>Annuleren</Button>

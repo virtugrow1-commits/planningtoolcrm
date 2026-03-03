@@ -16,6 +16,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Calendar } from '@/components/ui/calendar';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { InfoRow, SectionCard } from '@/components/detail/DetailPageComponents';
+import TeamMemberSelect from '@/components/TeamMemberSelect';
 import { ArrowLeft, ChevronRight, Pencil, Check, X, CalendarIcon, User, Building2, FileText, Bookmark, CheckCircle2, Plus, Trash2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
@@ -217,7 +218,7 @@ export default function TaskDetailPage() {
                 </div>
                 <div>
                   <p className="text-xs font-semibold text-muted-foreground mb-1">Verantwoordelijke</p>
-                  <Input value={form!.assignedTo || ''} onChange={(e) => setForm({ ...form!, assignedTo: e.target.value || undefined })} placeholder="Naam..." />
+                  <TeamMemberSelect value={form!.assignedTo} onValueChange={(v) => setForm({ ...form!, assignedTo: v })} />
                 </div>
                 <Button variant="destructive" size="sm" className="w-full mt-2" onClick={handleDelete}>
                   <Trash2 size={14} className="mr-1" /> Taak verwijderen
