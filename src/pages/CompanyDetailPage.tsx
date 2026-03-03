@@ -415,7 +415,7 @@ export default function CompanyDetailPage() {
                       {c.companyId !== company?.id && (
                         <Badge variant="outline" className="text-[9px] px-1">Secundair</Badge>
                       )}
-                      <Badge variant={c.status === 'do_not_contact' ? 'destructive' : 'outline'} className="text-[10px]">{STATUS_LABELS[c.status] || c.status}</Badge>
+                      {c.status === 'do_not_contact' && <Badge variant="destructive" className="text-[10px]">{STATUS_LABELS[c.status]}</Badge>}
                       <button
                         onClick={(e) => { e.stopPropagation(); handleUnlinkContact(c.id); }}
                         className="p-0.5 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors"
