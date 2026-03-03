@@ -148,17 +148,6 @@ export default function Dashboard() {
     navigate(`/tasks/${task.id}`);
   };
 
-  const saveReport = async (report: string, contactId: string) => {
-    if (!report.trim() || !user || !contactId) return;
-    await (supabase as any).from('contact_activities').insert({
-      user_id: user.id,
-      contact_id: contactId,
-      type: 'note',
-      subject: 'Gesprekverslag',
-      body: report.trim(),
-    });
-  };
-
   const handleSave = async () => {
     if (!form.title.trim()) {
       toast({ title: 'Geef de taak een titel', variant: 'destructive' });
@@ -186,9 +175,6 @@ export default function Dashboard() {
         companyId: form.companyId || undefined,
         contactId: form.contactId || undefined,
       });
-      if (form.report.trim() && form.contactId) {
-        await saveReport(form.report, form.contactId);
-      }
       toast({ title: 'Taak aangemaakt' });
     }
     setNewOpen(false);
@@ -239,29 +225,21 @@ export default function Dashboard() {
   };
 
   const handleFollowUp = async () => {
+    if (!followTitle.trim()) return;
     setFollowAdding(true);
-    if (followTitle.trim()) {
-      await addTask({
-        title: followTitle.trim(),
-        status: 'open',
-        priority: followPriority,
-        dueDate: followDueDate || undefined,
-        companyId: followDefaults.companyId || undefined,
-        contactId: followDefaults.contactId || undefined,
-        inquiryId: followDefaults.inquiryId || undefined,
-        bookingId: followDefaults.bookingId || undefined,
-      });
-    }
-    if (followReport.trim() && completedTaskContactId) {
-      await saveReport(followReport, completedTaskContactId);
-    }
+    await addTask({
+      title: followTitle.trim(),
+      status: 'open',
+      priority: followPriority,
+      dueDate: followDueDate || undefined,
+      companyId: followDefaults.companyId || undefined,
+      contactId: followDefaults.contactId || undefined,
+      inquiryId: followDefaults.inquiryId || undefined,
+      bookingId: followDefaults.bookingId || undefined,
+    });
     setFollowAdding(false);
     setShowFollowUp(false);
-    if (followTitle.trim()) {
-      toast({ title: 'Vervolgtaak aangemaakt' });
-    } else if (followReport.trim()) {
-      toast({ title: 'Gesprekverslag opgeslagen' });
-    }
+    toast({ title: 'Vervolgtaak aangemaakt' });
   };
 
   const priorityIcon = (p: Task['priority']) => {
