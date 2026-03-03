@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { ArrowUp, ArrowDown, ArrowUpDown } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -40,8 +41,12 @@ export function useSortState<T>(defaultKey: string | null = null, defaultDir: So
 
   const handleSort = (key: string) => {
     if (sortKey === key) {
-      setSortDir(prev => prev === 'asc' ? 'desc' : prev === 'desc' ? null : 'asc');
-      if (sortDir === 'desc') setSortKey(null);
+      if (sortDir === 'asc') {
+        setSortDir('desc');
+      } else {
+        setSortKey(null);
+        setSortDir(null);
+      }
     } else {
       setSortKey(key);
       setSortDir('asc');
@@ -68,5 +73,3 @@ export function useSortState<T>(defaultKey: string | null = null, defaultDir: So
 
   return { sortKey, sortDir, handleSort, sortItems };
 }
-
-import { useState } from 'react';
