@@ -556,7 +556,24 @@ export default function InquiriesPage() {
             </tr>
           </thead>
           <tbody>
-            {inquiries.map((inq) => {
+            {inquirySort.sortItems(inquiries, (inq, key) => {
+              switch (key) {
+                case 'id': return inq.displayNumber || '';
+                case 'type': return inq.eventType;
+                case 'contact': return inq.contactName;
+                case 'company': {
+                  const contact = inq.contactId ? contacts.find(c => c.id === inq.contactId) : null;
+                  const company = contact?.companyId ? companies.find(co => co.id === contact.companyId) : null;
+                  return company?.name || (contact as any)?.company || '';
+                }
+                case 'date': return inq.preferredDate || '';
+                case 'guests': return inq.guestCount;
+                case 'budget': return inq.budget || 0;
+                case 'status': return inq.status;
+                case 'source': return inq.source;
+                default: return '';
+              }
+            }).map((inq) => {
               const col = PIPELINE_COLUMNS.find((c) => c.key === inq.status);
               return (
                 <tr key={inq.id} onClick={() => openDetailDialog(inq)} className={cn("border-b border-border last:border-0 hover:bg-muted/20 transition-colors cursor-pointer", selected.has(inq.id) && "bg-primary/5")}>
