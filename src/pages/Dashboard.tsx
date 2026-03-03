@@ -67,11 +67,9 @@ export default function Dashboard() {
   // Follow-up dialog
   const [showFollowUp, setShowFollowUp] = useState(false);
   const [completedTaskTitle, setCompletedTaskTitle] = useState('');
-  const [completedTaskContactId, setCompletedTaskContactId] = useState<string | undefined>();
   const [followTitle, setFollowTitle] = useState('');
   const [followPriority, setFollowPriority] = useState<Task['priority']>('normal');
   const [followDueDate, setFollowDueDate] = useState('');
-  const [followReport, setFollowReport] = useState('');
   const [followAdding, setFollowAdding] = useState(false);
   const [followDefaults, setFollowDefaults] = useState<Record<string, string | undefined>>({});
 
@@ -209,11 +207,9 @@ export default function Dashboard() {
     await updateTask({ ...task, status: newStatus });
     if (newStatus === 'completed') {
       setCompletedTaskTitle(task.title);
-      setCompletedTaskContactId(task.contactId);
       setFollowTitle('');
       setFollowPriority('normal');
       setFollowDueDate('');
-      setFollowReport('');
       setFollowDefaults({
         companyId: task.companyId,
         contactId: task.contactId,
@@ -645,15 +641,6 @@ export default function Dashboard() {
                 />
               </div>
             )}
-            {completedTaskContactId && (
-              <Textarea
-                placeholder="Gesprekverslag (optioneel, wordt opgeslagen bij contactpersoon)..."
-                value={followReport}
-                onChange={(e) => setFollowReport(e.target.value)}
-                rows={3}
-                className="text-xs"
-              />
-            )}
           </div>
           <DialogFooter className="gap-2 sm:gap-0">
             <Button variant="ghost" size="sm" onClick={() => setShowFollowUp(false)}>
@@ -662,9 +649,9 @@ export default function Dashboard() {
             <Button
               size="sm"
               onClick={handleFollowUp}
-              disabled={followAdding || (!followTitle.trim() && !followReport.trim())}
+              disabled={followAdding || !followTitle.trim()}
             >
-              Opslaan
+              Aanmaken
             </Button>
           </DialogFooter>
         </DialogContent>
