@@ -5,6 +5,8 @@ import { useContactsContext } from '@/contexts/ContactsContext';
 import { useCompaniesContext } from '@/contexts/CompaniesContext';
 import { useBookings } from '@/contexts/BookingsContext';
 import { useTasksContext } from '@/contexts/TasksContext';
+import { useAuth } from '@/contexts/AuthContext';
+import { supabase } from '@/integrations/supabase/client';
 import { Inquiry } from '@/types/crm';
 import { useToast } from '@/hooks/use-toast';
 import { useDocuments } from '@/hooks/useDocuments';
@@ -32,6 +34,7 @@ export default function InquiryDetailPage() {
   const { bookings, addBooking } = useBookings();
   const { tasks } = useTasksContext();
   const { toast } = useToast();
+  const { user } = useAuth();
   const { contacts: contactOptions, loading: contactsLoading } = useContacts();
   const { getDisplayName } = useRoomSettings();
   const { documents } = useDocuments();
