@@ -31,8 +31,6 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogD
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
-import { useAuth } from '@/contexts/AuthContext';
-import { supabase } from '@/integrations/supabase/client';
 import { Task, TASK_STATUSES, TASK_PRIORITIES } from '@/types/task';
 import { cn } from '@/lib/utils';
 
@@ -42,7 +40,7 @@ export default function Dashboard() {
   const { contacts } = useContactsContext();
   const { companies } = useCompaniesContext();
   const { tasks, loading: tasksLoading, addTask, updateTask, deleteTask, deleteTasks } = useTasksContext();
-  const { user } = useAuth();
+  
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [newOpen, setNewOpen] = useState(false);
   const [editTask, setEditTask] = useState<Task | null>(null);
@@ -54,7 +52,6 @@ export default function Dashboard() {
     dueDate: '',
     companyId: '',
     contactId: '',
-    report: '',
   });
   const [filter, setFilter] = useState<'all' | 'open' | 'in_progress' | 'completed'>('all');
   const [kpiDialog, setKpiDialog] = useState<{ open: boolean; type: 'tasks' | 'inquiries' | 'bookings' }>({ open: false, type: 'tasks' });
@@ -68,11 +65,9 @@ export default function Dashboard() {
   // Follow-up dialog
   const [showFollowUp, setShowFollowUp] = useState(false);
   const [completedTaskTitle, setCompletedTaskTitle] = useState('');
-  const [completedTaskContactId, setCompletedTaskContactId] = useState<string | undefined>();
   const [followTitle, setFollowTitle] = useState('');
   const [followPriority, setFollowPriority] = useState<Task['priority']>('normal');
   const [followDueDate, setFollowDueDate] = useState('');
-  const [followReport, setFollowReport] = useState('');
   const [followAdding, setFollowAdding] = useState(false);
   const [followDefaults, setFollowDefaults] = useState<Record<string, string | undefined>>({});
 
@@ -134,7 +129,7 @@ export default function Dashboard() {
   };
 
   const resetForm = () => {
-    setForm({ title: '', description: '', status: 'open', priority: 'normal', dueDate: '', companyId: '', contactId: '', report: '' });
+    setForm({ title: '', description: '', status: 'open', priority: 'normal', dueDate: '', companyId: '', contactId: '' });
     setCompanySearch('');
     setContactSearch('');
   };
@@ -146,29 +141,7 @@ export default function Dashboard() {
   };
 
   const openEdit = (task: Task) => {
-    setForm({
-      title: task.title,
-      description: task.description || '',
-      status: task.status,
-      priority: task.priority,
-      dueDate: task.dueDate || '',
-      companyId: task.companyId || '',
-      contactId: task.contactId || '',
-      report: '',
-    });
-    setEditTask(task);
-    setNewOpen(true);
-  };
-
-  const saveReport = async (report: string, contactId: string) => {
-    if (!report.trim() || !user || !contactId) return;
-    await (supabase as any).from('contact_activities').insert({
-      user_id: user.id,
-      contact_id: contactId,
-      type: 'note',
-      subject: 'Gesprekverslag',
-      body: report.trim(),
-    });
+    navigate(`/tasks/${task.id}`);
   };
 
   const handleSave = async () => {
@@ -198,9 +171,6 @@ export default function Dashboard() {
         companyId: form.companyId || undefined,
         contactId: form.contactId || undefined,
       });
-      if (form.report.trim() && form.contactId) {
-        await saveReport(form.report, form.contactId);
-      }
       toast({ title: 'Taak aangemaakt' });
     }
     setNewOpen(false);
@@ -235,11 +205,9 @@ export default function Dashboard() {
     await updateTask({ ...task, status: newStatus });
     if (newStatus === 'completed') {
       setCompletedTaskTitle(task.title);
-      setCompletedTaskContactId(task.contactId);
       setFollowTitle('');
       setFollowPriority('normal');
       setFollowDueDate('');
-      setFollowReport('');
       setFollowDefaults({
         companyId: task.companyId,
         contactId: task.contactId,
@@ -251,29 +219,21 @@ export default function Dashboard() {
   };
 
   const handleFollowUp = async () => {
+    if (!followTitle.trim()) return;
     setFollowAdding(true);
-    if (followTitle.trim()) {
-      await addTask({
-        title: followTitle.trim(),
-        status: 'open',
-        priority: followPriority,
-        dueDate: followDueDate || undefined,
-        companyId: followDefaults.companyId || undefined,
-        contactId: followDefaults.contactId || undefined,
-        inquiryId: followDefaults.inquiryId || undefined,
-        bookingId: followDefaults.bookingId || undefined,
-      });
-    }
-    if (followReport.trim() && completedTaskContactId) {
-      await saveReport(followReport, completedTaskContactId);
-    }
+    await addTask({
+      title: followTitle.trim(),
+      status: 'open',
+      priority: followPriority,
+      dueDate: followDueDate || undefined,
+      companyId: followDefaults.companyId || undefined,
+      contactId: followDefaults.contactId || undefined,
+      inquiryId: followDefaults.inquiryId || undefined,
+      bookingId: followDefaults.bookingId || undefined,
+    });
     setFollowAdding(false);
     setShowFollowUp(false);
-    if (followTitle.trim()) {
-      toast({ title: 'Vervolgtaak aangemaakt' });
-    } else if (followReport.trim()) {
-      toast({ title: 'Gesprekverslag opgeslagen' });
-    }
+    toast({ title: 'Vervolgtaak aangemaakt' });
   };
 
   const priorityIcon = (p: Task['priority']) => {
@@ -632,19 +592,6 @@ export default function Dashboard() {
                 onChange={(e) => setForm({ ...form, dueDate: e.target.value })}
               />
             </div>
-            {/* Gesprekverslag - only for new tasks with a contact */}
-            {!editTask && form.contactId && (
-              <div className="grid gap-1.5">
-                <Label>Gesprekverslag</Label>
-                <Textarea
-                  value={form.report}
-                  onChange={(e) => setForm({ ...form, report: e.target.value })}
-                  placeholder="Wordt opgeslagen bij de contactpersoon..."
-                  rows={3}
-                  className="text-xs"
-                />
-              </div>
-            )}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setNewOpen(false)}>Annuleren</Button>
@@ -662,7 +609,7 @@ export default function Dashboard() {
               Taak afgerond
             </DialogTitle>
             <DialogDescription>
-              "{completedTaskTitle}" is afgerond. Wil je een vervolgtaak aanmaken of een gesprekverslag toevoegen?
+              "{completedTaskTitle}" is afgerond. Wil je een vervolgtaak aanmaken?
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-3 py-2">
@@ -692,15 +639,6 @@ export default function Dashboard() {
                 />
               </div>
             )}
-            {completedTaskContactId && (
-              <Textarea
-                placeholder="Gesprekverslag (optioneel, wordt opgeslagen bij contactpersoon)..."
-                value={followReport}
-                onChange={(e) => setFollowReport(e.target.value)}
-                rows={3}
-                className="text-xs"
-              />
-            )}
           </div>
           <DialogFooter className="gap-2 sm:gap-0">
             <Button variant="ghost" size="sm" onClick={() => setShowFollowUp(false)}>
@@ -709,9 +647,9 @@ export default function Dashboard() {
             <Button
               size="sm"
               onClick={handleFollowUp}
-              disabled={followAdding || (!followTitle.trim() && !followReport.trim())}
+              disabled={followAdding || !followTitle.trim()}
             >
-              Opslaan
+              Aanmaken
             </Button>
           </DialogFooter>
         </DialogContent>
