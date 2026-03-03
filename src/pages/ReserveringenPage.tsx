@@ -85,13 +85,30 @@ export default function ReserveringenPage() {
     return list;
   };
 
+  const sortAccessor = (b: EnrichedBooking, key: string): string | number | null => {
+    switch (key) {
+      case 'number': return b.reservationNumber || '';
+      case 'status': return b.status;
+      case 'prep': return b.preparationStatus || 'pending';
+      case 'contact': return b.contactName;
+      case 'company': return b.company;
+      case 'event': return b.title;
+      case 'room': return b.roomName;
+      case 'date': return b.date;
+      case 'time': return b.startHour * 60 + (b.startMinute || 0);
+      default: return '';
+    }
+  };
+
   const upcoming = useMemo(() => {
-    return applyFilters(enrichedBookings.filter(b => !b.isPast)).sort((a, b) => a.date.localeCompare(b.date));
-  }, [enrichedBookings, tab, search]);
+    const filtered = applyFilters(enrichedBookings.filter(b => !b.isPast)).sort((a, b) => a.date.localeCompare(b.date));
+    return sort.sortItems(filtered, sortAccessor);
+  }, [enrichedBookings, tab, search, sort.sortKey, sort.sortDir]);
 
   const past = useMemo(() => {
-    return applyFilters(enrichedBookings.filter(b => b.isPast)).sort((a, b) => b.date.localeCompare(a.date));
-  }, [enrichedBookings, tab, search]);
+    const filtered = applyFilters(enrichedBookings.filter(b => b.isPast)).sort((a, b) => b.date.localeCompare(a.date));
+    return sort.sortItems(filtered, sortAccessor);
+  }, [enrichedBookings, tab, search, sort.sortKey, sort.sortDir]);
 
   useMemo(() => { setUpcomingPage(1); setPastPage(1); }, [tab, search, pageSize]);
 
