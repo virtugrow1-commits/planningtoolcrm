@@ -306,7 +306,7 @@ export default function NewReservationDialog({
               <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="eenmalig">Eenmalig</SelectItem>
-                <SelectItem value="specifiek">Specifieke datums</SelectItem>
+                <SelectItem value="specifiek">Specifieke datum</SelectItem>
                 <SelectItem value="week">Elke week</SelectItem>
                 <SelectItem value="2weken">Om de 2 weken</SelectItem>
                 <SelectItem value="maand">Elke maand</SelectItem>
