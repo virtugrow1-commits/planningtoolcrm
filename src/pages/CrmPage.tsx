@@ -18,6 +18,7 @@ import { useContactsContext } from '@/contexts/ContactsContext';
 import { useCompaniesContext } from '@/contexts/CompaniesContext';
 import { cn } from '@/lib/utils';
 import { exportToCSV } from '@/lib/csvExport';
+import { SortableHeader, useSortState } from '@/components/SortableHeader';
 
 const STATUS_LABELS: Record<string, string> = {
   lead: 'Lead',
@@ -48,6 +49,9 @@ export default function CrmPage() {
   const navigate = useNavigate();
   const { toast } = useToast();
 
+  const contactSort = useSortState<typeof contacts[0]>();
+  const companySort = useSortState<typeof companies[0]>();
+
   const uniqueStatuses = [...new Set(contacts.map((c) => c.status))];
   const uniqueCompanies = [...new Set(contacts.map((c) => c.company).filter(Boolean))] as string[];
   const activeFilterCount = Object.values(filters).filter(Boolean).length;
@@ -66,8 +70,20 @@ export default function CrmPage() {
   const handleSearch = (v: string) => { setSearch(v); setPage(1); };
   const handleFilter = (f: Record<FilterKey, string>) => { setFilters(f); setPage(1); };
 
-  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
-  const paginated = filtered.slice((page - 1) * pageSize, page * pageSize);
+  const sortedFiltered = contactSort.sortItems(filtered, (c, key) => {
+    switch (key) {
+      case 'id': return c.displayNumber || '';
+      case 'name': return `${c.firstName} ${c.lastName}`;
+      case 'email': return c.email || '';
+      case 'phone': return c.phone || '';
+      case 'company': return c.company || '';
+      case 'status': return c.status;
+      default: return '';
+    }
+  });
+
+  const totalPages = Math.max(1, Math.ceil(sortedFiltered.length / pageSize));
+  const paginated = sortedFiltered.slice((page - 1) * pageSize, page * pageSize);
 
   const toggleSelect = (id: string) => {
     setSelected(prev => { const n = new Set(prev); if (n.has(id)) n.delete(id); else n.add(id); return n; });
@@ -124,8 +140,19 @@ export default function CrmPage() {
   const filteredCompanies = companies.filter((c) =>
     `${c.name} ${c.email || ''} ${c.phone || ''} ${c.address || ''}`.toLowerCase().includes(search.toLowerCase())
   );
-  const companyTotalPages = Math.max(1, Math.ceil(filteredCompanies.length / pageSize));
-  const paginatedCompanies = filteredCompanies.slice((page - 1) * pageSize, page * pageSize);
+  const sortedCompanies = companySort.sortItems(filteredCompanies, (c, key) => {
+    switch (key) {
+      case 'id': return c.displayNumber || '';
+      case 'name': return c.name;
+      case 'email': return c.email || '';
+      case 'phone': return c.phone || '';
+      case 'city': return c.city || '';
+      case 'status': return c.crmGroup || 'lead';
+      default: return '';
+    }
+  });
+  const companyTotalPages = Math.max(1, Math.ceil(sortedCompanies.length / pageSize));
+  const paginatedCompanies = sortedCompanies.slice((page - 1) * pageSize, page * pageSize);
 
   const handleExportContacts = () => {
     exportToCSV(filtered.map(c => ({
@@ -257,12 +284,12 @@ export default function CrmPage() {
           <thead>
             <tr className="border-b bg-muted/50">
               <th className="px-4 py-3 w-[40px]"><Checkbox checked={allPageSelected} onCheckedChange={toggleSelectAll} /></th>
-              <th className="px-4 py-3 text-left font-semibold text-muted-foreground w-[110px]">ID</th>
-              <th className="px-4 py-3 text-left font-semibold text-muted-foreground">Naam</th>
-              <th className="px-4 py-3 text-left font-semibold text-muted-foreground">Email</th>
-              <th className="px-4 py-3 text-left font-semibold text-muted-foreground hidden md:table-cell">Telefoon</th>
-              <th className="px-4 py-3 text-left font-semibold text-muted-foreground hidden lg:table-cell">Bedrijf</th>
-              <th className="px-4 py-3 text-left font-semibold text-muted-foreground hidden lg:table-cell">Status</th>
+              <th className="px-4 py-3 w-[110px]"><SortableHeader label="ID" sortKey="id" currentSort={contactSort.sortKey} currentDirection={contactSort.sortDir} onSort={contactSort.handleSort} /></th>
+              <th className="px-4 py-3"><SortableHeader label="Naam" sortKey="name" currentSort={contactSort.sortKey} currentDirection={contactSort.sortDir} onSort={contactSort.handleSort} /></th>
+              <th className="px-4 py-3"><SortableHeader label="Email" sortKey="email" currentSort={contactSort.sortKey} currentDirection={contactSort.sortDir} onSort={contactSort.handleSort} /></th>
+              <th className="px-4 py-3 hidden md:table-cell"><SortableHeader label="Telefoon" sortKey="phone" currentSort={contactSort.sortKey} currentDirection={contactSort.sortDir} onSort={contactSort.handleSort} /></th>
+              <th className="px-4 py-3 hidden lg:table-cell"><SortableHeader label="Bedrijf" sortKey="company" currentSort={contactSort.sortKey} currentDirection={contactSort.sortDir} onSort={contactSort.handleSort} /></th>
+              <th className="px-4 py-3 hidden lg:table-cell"><SortableHeader label="Status" sortKey="status" currentSort={contactSort.sortKey} currentDirection={contactSort.sortDir} onSort={contactSort.handleSort} /></th>
             </tr>
           </thead>
           <tbody>
@@ -312,12 +339,12 @@ export default function CrmPage() {
                 const allSel = ids.every(id => selected.has(id));
                 setSelected(prev => { const n = new Set(prev); if (allSel) ids.forEach(id => n.delete(id)); else ids.forEach(id => n.add(id)); return n; });
               }} /></th>
-              <th className="px-4 py-3 text-left font-semibold text-muted-foreground w-[110px]">ID</th>
-              <th className="px-4 py-3 text-left font-semibold text-muted-foreground">Naam</th>
-              <th className="px-4 py-3 text-left font-semibold text-muted-foreground">Email</th>
-              <th className="px-4 py-3 text-left font-semibold text-muted-foreground hidden md:table-cell">Telefoon</th>
-              <th className="px-4 py-3 text-left font-semibold text-muted-foreground hidden lg:table-cell">Plaats</th>
-              <th className="px-4 py-3 text-left font-semibold text-muted-foreground hidden lg:table-cell">Status</th>
+              <th className="px-4 py-3 w-[110px]"><SortableHeader label="ID" sortKey="id" currentSort={companySort.sortKey} currentDirection={companySort.sortDir} onSort={companySort.handleSort} /></th>
+              <th className="px-4 py-3"><SortableHeader label="Naam" sortKey="name" currentSort={companySort.sortKey} currentDirection={companySort.sortDir} onSort={companySort.handleSort} /></th>
+              <th className="px-4 py-3"><SortableHeader label="Email" sortKey="email" currentSort={companySort.sortKey} currentDirection={companySort.sortDir} onSort={companySort.handleSort} /></th>
+              <th className="px-4 py-3 hidden md:table-cell"><SortableHeader label="Telefoon" sortKey="phone" currentSort={companySort.sortKey} currentDirection={companySort.sortDir} onSort={companySort.handleSort} /></th>
+              <th className="px-4 py-3 hidden lg:table-cell"><SortableHeader label="Plaats" sortKey="city" currentSort={companySort.sortKey} currentDirection={companySort.sortDir} onSort={companySort.handleSort} /></th>
+              <th className="px-4 py-3 hidden lg:table-cell"><SortableHeader label="Status" sortKey="status" currentSort={companySort.sortKey} currentDirection={companySort.sortDir} onSort={companySort.handleSort} /></th>
             </tr>
           </thead>
           <tbody>
