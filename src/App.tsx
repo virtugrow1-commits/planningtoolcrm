@@ -18,6 +18,7 @@ import ReserveringenPage from "@/pages/ReserveringenPage";
 import SettingsPage from "@/pages/SettingsPage";
 import BookingDetailPage from "@/pages/BookingDetailPage";
 import InquiryDetailPage from "@/pages/InquiryDetailPage";
+import TaskDetailPage from "@/pages/TaskDetailPage";
 import AuthPage from "@/pages/AuthPage";
 import NotFound from "./pages/NotFound";
 import { BookingsProvider } from "@/contexts/BookingsContext";
@@ -60,6 +61,7 @@ function ProtectedRoutes() {
                   <Route path="/companies/:id" element={<CompanyDetailPage />} />
                   <Route path="/inquiries" element={<InquiriesPage />} />
                   <Route path="/inquiries/:id" element={<InquiryDetailPage />} />
+                  <Route path="/tasks/:id" element={<TaskDetailPage />} />
                   <Route path="/reserveringen" element={<ReserveringenPage />} />
                   <Route path="/reserveringen/:id" element={<BookingDetailPage />} />
                   <Route path="/quotations" element={<QuotationsPage />} />

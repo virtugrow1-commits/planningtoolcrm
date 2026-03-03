@@ -5,6 +5,8 @@ import { useContactsContext } from '@/contexts/ContactsContext';
 import { useCompaniesContext } from '@/contexts/CompaniesContext';
 import { useBookings } from '@/contexts/BookingsContext';
 import { useTasksContext } from '@/contexts/TasksContext';
+import { useAuth } from '@/contexts/AuthContext';
+import { supabase } from '@/integrations/supabase/client';
 import { Inquiry } from '@/types/crm';
 import { useToast } from '@/hooks/use-toast';
 import { useDocuments } from '@/hooks/useDocuments';
@@ -12,7 +14,8 @@ import { useContacts } from '@/hooks/useContacts';
 import { useRoomSettings } from '@/hooks/useRoomSettings';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { ArrowLeft, ChevronRight, History, CheckSquare, FileText, Send, Eye, CheckCircle2 } from 'lucide-react';
+import { Textarea } from '@/components/ui/textarea';
+import { ArrowLeft, ChevronRight, History, CheckSquare, FileText, Send, Eye, CheckCircle2, MessageSquare } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
@@ -31,6 +34,7 @@ export default function InquiryDetailPage() {
   const { bookings, addBooking } = useBookings();
   const { tasks } = useTasksContext();
   const { toast } = useToast();
+  const { user } = useAuth();
   const { contacts: contactOptions, loading: contactsLoading } = useContacts();
   const { getDisplayName } = useRoomSettings();
   const { documents } = useDocuments();
@@ -39,6 +43,8 @@ export default function InquiryDetailPage() {
   const [editing, setEditing] = useState(false);
   const [form, setForm] = useState<Inquiry | null>(null);
   const [showReservationDialog, setShowReservationDialog] = useState(false);
+  const [reportText, setReportText] = useState('');
+  const [savingReport, setSavingReport] = useState(false);
 
   // Mark as read when opening
   useEffect(() => {
@@ -218,6 +224,46 @@ export default function InquiryDetailPage() {
           defaults={{ inquiryId: inquiry.id, contactId: contact?.id, companyId: company?.id }}
         />
       </div>
+
+      {/* Gesprekverslag */}
+      {contact && (
+        <div className="space-y-3">
+          <h2 className="text-lg font-bold text-foreground flex items-center gap-2">
+            <MessageSquare size={16} /> Gesprekverslag
+          </h2>
+          <div className="rounded-xl bg-card p-5 card-shadow space-y-3">
+            <Textarea
+              placeholder="Schrijf een gesprekverslag... Dit wordt opgeslagen bij de contactpersoon en het bedrijf."
+              value={reportText}
+              onChange={(e) => setReportText(e.target.value)}
+              rows={4}
+              className="text-sm"
+            />
+            <div className="flex justify-end">
+              <Button
+                size="sm"
+                disabled={savingReport || !reportText.trim()}
+                onClick={async () => {
+                  if (!user || !contact) return;
+                  setSavingReport(true);
+                  await (supabase as any).from('contact_activities').insert({
+                    user_id: user.id,
+                    contact_id: contact.id,
+                    type: 'note',
+                    subject: `Gesprekverslag – ${inquiry.eventType}`,
+                    body: reportText.trim(),
+                  });
+                  setReportText('');
+                  setSavingReport(false);
+                  toast({ title: 'Gesprekverslag opgeslagen', description: 'Zichtbaar bij contactpersoon en bedrijf.' });
+                }}
+              >
+                <MessageSquare size={14} className="mr-1" /> Opslaan
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Convert to Reservation dialog */}
       <NewReservationDialog
