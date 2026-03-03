@@ -368,6 +368,9 @@ export default function ReserveringenPage() {
           }}>
             <Download size={14} />
           </Button>
+          <Button size="sm" onClick={() => setNewReservationOpen(true)}>
+            <Plus size={14} className="mr-1" /> Reservering toevoegen
+          </Button>
         </div>
       </div>
 
