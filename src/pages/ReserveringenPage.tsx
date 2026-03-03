@@ -479,6 +479,30 @@ export default function ReserveringenPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <NewReservationDialog
+        open={newReservationOpen}
+        onOpenChange={setNewReservationOpen}
+        contacts={contactOptions}
+        onSave={(forms) => {
+          addBookings(forms.map(f => ({
+            roomName: f.room,
+            date: f.date,
+            startHour: f.startHour,
+            startMinute: f.startMinute,
+            endHour: f.endHour,
+            endMinute: f.endMinute,
+            title: f.title,
+            contactName: f.contactName,
+            contactId: f.contactId || undefined,
+            status: f.status,
+            guestCount: f.guestCount,
+            notes: f.notes,
+            roomSetup: f.roomSetup,
+          })));
+          toast({ title: `${forms.length} reservering(en) aangemaakt` });
+        }}
+      />
     </div>
   );
 }
