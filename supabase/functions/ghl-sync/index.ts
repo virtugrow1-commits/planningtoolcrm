@@ -911,9 +911,74 @@ serve(async (req) => {
         ghlContactId = contactRow?.ghl_contact_id || null;
       }
 
+      // If no GHL contact linked, try to find or create one by contact_name
+      if (!ghlContactId && booking.contact_name) {
+        console.info(`push-booking ${booking.id}: no GHL contact linked, searching by name "${booking.contact_name}"`);
+        
+        // Search GHL by name
+        const nameParts = booking.contact_name.trim().split(/\s+/);
+        const searchFirstName = nameParts[0] || '';
+        const searchLastName = nameParts.slice(1).join(' ') || '';
+        
+        // Try lookup by email first if we have a contact_id
+        let foundEmail: string | null = null;
+        if (booking.contact_id) {
+          const { data: contactRow } = await supabase.from('contacts').select('email, phone, first_name, last_name').eq('id', booking.contact_id).maybeSingle();
+          if (contactRow?.email) {
+            const searchRes = await ghlFetch(`${GHL_API_BASE}/contacts/lookup?locationId=${GHL_LOCATION_ID}&email=${encodeURIComponent(contactRow.email)}`, { headers: ghlHeaders });
+            if (searchRes.ok) {
+              const searchData = await searchRes.json();
+              if (searchData.contacts?.[0]?.id) {
+                ghlContactId = searchData.contacts[0].id;
+                // Save the link
+                await supabase.from('contacts').update({ ghl_contact_id: ghlContactId }).eq('id', booking.contact_id);
+                console.info(`push-booking: linked existing GHL contact ${ghlContactId} by email`);
+              }
+            } else { await searchRes.text(); }
+          }
+          if (!ghlContactId && contactRow?.phone) {
+            const searchRes = await ghlFetch(`${GHL_API_BASE}/contacts/lookup?locationId=${GHL_LOCATION_ID}&phone=${encodeURIComponent(contactRow.phone)}`, { headers: ghlHeaders });
+            if (searchRes.ok) {
+              const searchData = await searchRes.json();
+              if (searchData.contacts?.[0]?.id) {
+                ghlContactId = searchData.contacts[0].id;
+                await supabase.from('contacts').update({ ghl_contact_id: ghlContactId }).eq('id', booking.contact_id);
+                console.info(`push-booking: linked existing GHL contact ${ghlContactId} by phone`);
+              }
+            } else { await searchRes.text(); }
+          }
+          foundEmail = contactRow?.email || null;
+        }
+        
+        // If still no GHL contact, create one
+        if (!ghlContactId) {
+          const newContactPayload: Record<string, any> = {
+            firstName: searchFirstName || 'Onbekend',
+            lastName: searchLastName || '',
+            locationId: GHL_LOCATION_ID,
+          };
+          if (foundEmail) newContactPayload.email = foundEmail;
+          
+          const createRes = await ghlFetch(`${GHL_API_BASE}/contacts/`, {
+            method: 'POST', headers: ghlHeaders, body: JSON.stringify(newContactPayload),
+          });
+          if (createRes.ok) {
+            const created = await createRes.json();
+            ghlContactId = created.contact?.id || null;
+            if (ghlContactId && booking.contact_id) {
+              await supabase.from('contacts').update({ ghl_contact_id: ghlContactId }).eq('id', booking.contact_id);
+            }
+            console.info(`push-booking: created new GHL contact ${ghlContactId} for "${booking.contact_name}"`);
+          } else {
+            const errText = await createRes.text();
+            console.warn(`push-booking: failed to create GHL contact: [${createRes.status}] ${errText}`);
+          }
+        }
+      }
+
       if (!ghlContactId) {
-        console.info(`Skip push booking ${booking.id}: no GHL contact linked`);
-        return new Response(JSON.stringify({ success: false, warning: 'No GHL contact linked to this booking' }), {
+        console.warn(`Skip push booking ${booking.id}: could not find or create GHL contact for "${booking.contact_name}"`);
+        return new Response(JSON.stringify({ success: false, warning: 'Could not find or create GHL contact' }), {
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         });
       }
