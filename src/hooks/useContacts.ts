@@ -17,10 +17,10 @@ export function useContacts() {
 
   const fetchContacts = useCallback(async () => {
     if (!user) return;
+    // Fetch all contacts (not filtered by user_id) so all org contacts are searchable
     const { data } = await supabase
       .from('contacts')
       .select('id, first_name, last_name, email, company')
-      .eq('user_id', user.id)
       .order('first_name');
 
     if (data) {

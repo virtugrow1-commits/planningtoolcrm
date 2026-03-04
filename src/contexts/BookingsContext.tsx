@@ -98,13 +98,29 @@ export function BookingsProvider({ children }: { children: ReactNode }) {
 
   const addBooking = useCallback(async (booking: Omit<Booking, 'id'>): Promise<{ success: boolean; conflicts?: Booking[] }> => {
     if (!user) return { success: false };
-    // Conflict check
+    // Local conflict check first
     const startMin = booking.startHour * 60 + (booking.startMinute ?? 0);
     const endMin = booking.endHour * 60 + (booking.endMinute ?? 0);
-    const conflicts = checkConflicts(booking.date, booking.roomName, startMin, endMin);
-    if (conflicts.length > 0) {
+    const localConflicts = checkConflicts(booking.date, booking.roomName, startMin, endMin);
+    if (localConflicts.length > 0) {
       toast({ title: 'Dubbele boeking niet toegestaan', description: 'Er is al een reservering of optie op dit tijdslot in deze ruimte.', variant: 'destructive' });
-      return { success: false, conflicts };
+      return { success: false, conflicts: localConflicts };
+    }
+    // Server-side conflict check to catch stale data
+    const { data: dbConflicts } = await supabase
+      .from('bookings')
+      .select('id, room_name, date, start_hour, start_minute, end_hour, end_minute, title, contact_name, status')
+      .eq('date', booking.date)
+      .eq('room_name', booking.roomName);
+    const serverConflicts = (dbConflicts || []).filter((b: any) => {
+      const bStart = b.start_hour * 60 + (b.start_minute ?? 0);
+      const bEnd = b.end_hour * 60 + (b.end_minute ?? 0);
+      return startMin < bEnd && endMin > bStart;
+    });
+    if (serverConflicts.length > 0) {
+      toast({ title: 'Dubbele boeking niet toegestaan', description: `Er is al een reservering in ${booking.roomName} op dit tijdslot.`, variant: 'destructive' });
+      await fetchBookings(); // Refresh stale data
+      return { success: false };
     }
 
     const { data, error } = await supabase.from('bookings').insert({
