@@ -489,7 +489,7 @@ export default function ReserveringenPage() {
         contactsLoading={contactsLoading}
         conflictAlert={null}
         getRoomDisplayName={getDisplayName}
-        onSubmit={(form) => {
+        onSubmit={async (form) => {
           const newBookings: Omit<Booking, 'id'>[] = [];
           // Handle recurrence
           const count = form.repeatType !== 'eenmalig' && form.repeatType !== 'specifiek' ? form.repeatCount : 1;
@@ -535,7 +535,8 @@ export default function ReserveringenPage() {
               });
             });
           }
-          addBookings(newBookings);
+          const result = await addBookings(newBookings);
+          if (!result.success) return; // conflict toast shown by context
           toast({ title: `${newBookings.length} reservering(en) aangemaakt` });
         }}
       />

@@ -5,14 +5,19 @@ import { useAuth } from '@/contexts/AuthContext';
 import { pushToGHL } from '@/lib/ghlSync';
 import { useToast } from '@/hooks/use-toast';
 
+export interface BookingConflict {
+  booking: Booking;
+}
+
 interface BookingsContextType {
   bookings: Booking[];
   loading: boolean;
-  addBooking: (booking: Omit<Booking, 'id'>) => Promise<void>;
-  addBookings: (bookings: Omit<Booking, 'id'>[]) => Promise<void>;
-  updateBooking: (booking: Booking) => Promise<void>;
+  addBooking: (booking: Omit<Booking, 'id'>) => Promise<{ success: boolean; conflicts?: Booking[] }>;
+  addBookings: (bookings: Omit<Booking, 'id'>[]) => Promise<{ success: boolean; conflicts?: Booking[] }>;
+  updateBooking: (booking: Booking) => Promise<{ success: boolean; conflicts?: Booking[] }>;
   deleteBooking: (id: string) => Promise<void>;
   refetch: () => Promise<void>;
+  checkConflicts: (date: string, room: RoomName, startMin: number, endMin: number, excludeId?: string) => Booking[];
 }
 
 const BookingsContext = createContext<BookingsContextType | null>(null);
@@ -81,8 +86,27 @@ export function BookingsProvider({ children }: { children: ReactNode }) {
     return () => { supabase.removeChannel(channel); };
   }, [user, fetchBookings]);
 
-  const addBooking = useCallback(async (booking: Omit<Booking, 'id'>) => {
-    if (!user) return;
+  const checkConflicts = useCallback((date: string, room: RoomName, startMin: number, endMin: number, excludeId?: string): Booking[] => {
+    return bookings.filter((b) =>
+      b.date === date &&
+      b.roomName === room &&
+      b.id !== excludeId &&
+      startMin < b.endHour * 60 + (b.endMinute || 0) &&
+      endMin > b.startHour * 60 + (b.startMinute || 0)
+    );
+  }, [bookings]);
+
+  const addBooking = useCallback(async (booking: Omit<Booking, 'id'>): Promise<{ success: boolean; conflicts?: Booking[] }> => {
+    if (!user) return { success: false };
+    // Conflict check
+    const startMin = booking.startHour * 60 + (booking.startMinute ?? 0);
+    const endMin = booking.endHour * 60 + (booking.endMinute ?? 0);
+    const conflicts = checkConflicts(booking.date, booking.roomName, startMin, endMin);
+    if (conflicts.length > 0) {
+      toast({ title: 'Dubbele boeking niet toegestaan', description: 'Er is al een reservering of optie op dit tijdslot in deze ruimte.', variant: 'destructive' });
+      return { success: false, conflicts };
+    }
+
     const { data, error } = await supabase.from('bookings').insert({
       user_id: user.id,
       room_name: booking.roomName,
@@ -103,16 +127,29 @@ export function BookingsProvider({ children }: { children: ReactNode }) {
     } as any).select().single();
     if (error) {
       toast({ title: 'Fout bij aanmaken boeking', description: error.message, variant: 'destructive' });
-      return;
+      return { success: false };
     }
     if (data) {
       await fetchBookings();
       pushToGHL('push-booking', { booking: data });
     }
-  }, [user, fetchBookings, toast]);
+    return { success: true };
+  }, [user, fetchBookings, toast, checkConflicts]);
 
-  const addBookings = useCallback(async (newBookings: Omit<Booking, 'id'>[]) => {
-    if (!user || newBookings.length === 0) return;
+  const addBookings = useCallback(async (newBookings: Omit<Booking, 'id'>[]): Promise<{ success: boolean; conflicts?: Booking[] }> => {
+    if (!user || newBookings.length === 0) return { success: false };
+    // Conflict check for all bookings
+    const allConflicts: Booking[] = [];
+    for (const b of newBookings) {
+      const startMin = b.startHour * 60 + (b.startMinute ?? 0);
+      const endMin = b.endHour * 60 + (b.endMinute ?? 0);
+      allConflicts.push(...checkConflicts(b.date, b.roomName, startMin, endMin));
+    }
+    if (allConflicts.length > 0) {
+      toast({ title: 'Dubbele boeking niet toegestaan', description: `Er ${allConflicts.length === 1 ? 'is' : 'zijn'} al ${allConflicts.length} boeking(en) op de gekozen tijdslots.`, variant: 'destructive' });
+      return { success: false, conflicts: allConflicts };
+    }
+
     const rows = newBookings.map((b) => ({
       user_id: user.id,
       room_name: b.roomName,
@@ -134,17 +171,25 @@ export function BookingsProvider({ children }: { children: ReactNode }) {
     const { data, error } = await supabase.from('bookings').insert(rows).select();
     if (error) {
       toast({ title: 'Fout bij aanmaken boekingen', description: error.message, variant: 'destructive' });
-      return;
+      return { success: false };
     }
-    if (!error) {
-      await fetchBookings();
-      for (const booking of data || []) {
-        pushToGHL('push-booking', { booking });
-      }
+    await fetchBookings();
+    for (const booking of data || []) {
+      pushToGHL('push-booking', { booking });
     }
-  }, [user, fetchBookings, toast]);
+    return { success: true };
+  }, [user, fetchBookings, toast, checkConflicts]);
 
-  const updateBooking = useCallback(async (updated: Booking) => {
+  const updateBooking = useCallback(async (updated: Booking): Promise<{ success: boolean; conflicts?: Booking[] }> => {
+    // Conflict check
+    const startMin = updated.startHour * 60 + (updated.startMinute ?? 0);
+    const endMin = updated.endHour * 60 + (updated.endMinute ?? 0);
+    const conflicts = checkConflicts(updated.date, updated.roomName, startMin, endMin, updated.id);
+    if (conflicts.length > 0) {
+      toast({ title: 'Dubbele boeking niet toegestaan', description: 'Er is al een reservering of optie op dit tijdslot in deze ruimte.', variant: 'destructive' });
+      return { success: false, conflicts };
+    }
+
     const { data, error } = await supabase.from('bookings').update({
       room_name: updated.roomName,
       date: updated.date,
@@ -165,13 +210,14 @@ export function BookingsProvider({ children }: { children: ReactNode }) {
     } as any).eq('id', updated.id).select().single();
     if (error) {
       toast({ title: 'Fout bij bijwerken boeking', description: error.message, variant: 'destructive' });
-      return;
+      return { success: false };
     }
     if (data) {
       await fetchBookings();
       pushToGHL('push-booking', { booking: data });
     }
-  }, [fetchBookings, toast]);
+    return { success: true };
+  }, [fetchBookings, toast, checkConflicts]);
 
   const deleteBooking = useCallback(async (id: string) => {
     const { data: existing } = await supabase.from('bookings').select('ghl_event_id').eq('id', id).single();
@@ -187,7 +233,7 @@ export function BookingsProvider({ children }: { children: ReactNode }) {
   }, [fetchBookings, toast]);
 
   return (
-    <BookingsContext.Provider value={{ bookings, loading, addBooking, addBookings, updateBooking, deleteBooking, refetch: fetchBookings }}>
+    <BookingsContext.Provider value={{ bookings, loading, addBooking, addBookings, updateBooking, deleteBooking, refetch: fetchBookings, checkConflicts }}>
       {children}
     </BookingsContext.Provider>
   );
