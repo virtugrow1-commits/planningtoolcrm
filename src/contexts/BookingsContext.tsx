@@ -5,14 +5,19 @@ import { useAuth } from '@/contexts/AuthContext';
 import { pushToGHL } from '@/lib/ghlSync';
 import { useToast } from '@/hooks/use-toast';
 
+export interface BookingConflict {
+  booking: Booking;
+}
+
 interface BookingsContextType {
   bookings: Booking[];
   loading: boolean;
-  addBooking: (booking: Omit<Booking, 'id'>) => Promise<void>;
-  addBookings: (bookings: Omit<Booking, 'id'>[]) => Promise<void>;
-  updateBooking: (booking: Booking) => Promise<void>;
+  addBooking: (booking: Omit<Booking, 'id'>) => Promise<{ success: boolean; conflicts?: Booking[] }>;
+  addBookings: (bookings: Omit<Booking, 'id'>[]) => Promise<{ success: boolean; conflicts?: Booking[] }>;
+  updateBooking: (booking: Booking) => Promise<{ success: boolean; conflicts?: Booking[] }>;
   deleteBooking: (id: string) => Promise<void>;
   refetch: () => Promise<void>;
+  checkConflicts: (date: string, room: RoomName, startMin: number, endMin: number, excludeId?: string) => Booking[];
 }
 
 const BookingsContext = createContext<BookingsContextType | null>(null);
