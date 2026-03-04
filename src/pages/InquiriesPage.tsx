@@ -287,9 +287,12 @@ export default function InquiriesPage() {
         else if (recurrence === 'monthly') bookingDate.setMonth(bookingDate.getMonth() + i);
         else if (recurrence === 'quarterly') bookingDate.setMonth(bookingDate.getMonth() + i * 3);
 
+        // Use local date formatting to prevent timezone shift
+        const dateStr = `${bookingDate.getFullYear()}-${String(bookingDate.getMonth() + 1).padStart(2, '0')}-${String(bookingDate.getDate()).padStart(2, '0')}`;
+
         newBookings.push({
           roomName: opt.room as RoomName,
-          date: bookingDate.toISOString().split('T')[0],
+          date: dateStr,
           startHour: opt.startHour,
           startMinute: 0,
           endHour: opt.endHour,
@@ -301,7 +304,11 @@ export default function InquiriesPage() {
       }
     }
 
-    addBookings(newBookings);
+    const result = await addBookings(newBookings);
+    if (!result.success) {
+      if (result.conflicts) setConflictPopup({ conflicts: result.conflicts });
+      return;
+    }
 
     // Update inquiry status based on booking status
     if (selectedInquiry) {
