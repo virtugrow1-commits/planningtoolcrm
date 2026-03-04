@@ -23,6 +23,8 @@ import InquiryDetailsTab, { PIPELINE_COLUMNS } from '@/components/inquiry/Inquir
 import InquiryHistoryTab from '@/components/inquiry/InquiryHistoryTab';
 import TasksSection from '@/components/detail/TasksSection';
 import NewReservationDialog from '@/components/calendar/NewReservationDialog';
+import ConflictAlertDialog from '@/components/calendar/ConflictAlertDialog';
+import { Booking } from '@/types/crm';
 
 
 export default function InquiryDetailPage() {
@@ -45,6 +47,7 @@ export default function InquiryDetailPage() {
   const [showReservationDialog, setShowReservationDialog] = useState(false);
   const [reportText, setReportText] = useState('');
   const [savingReport, setSavingReport] = useState(false);
+  const [conflictPopup, setConflictPopup] = useState<{ conflicts: Booking[] } | null>(null);
 
   // Mark as read when opening
   useEffect(() => {
@@ -286,7 +289,10 @@ export default function InquiryDetailPage() {
             guestCount: resForm.guestCount,
             roomSetup: resForm.roomSetup || undefined,
           });
-          if (!result.success) return; // conflict toast already shown by context
+          if (!result.success) {
+            if (result.conflicts) setConflictPopup({ conflicts: result.conflicts });
+            return;
+          }
           // Update inquiry status based on booking type
           const newStatus: Inquiry['status'] = resForm.status === 'confirmed' ? 'reserved' : 'option';
           await updateInquiry({ ...inquiry, status: newStatus });
@@ -308,6 +314,14 @@ export default function InquiryDetailPage() {
           startTime: inquiry.preferredStartTime || undefined,
           endTime: inquiry.preferredEndTime || undefined,
         }}
+      />
+
+      {/* Conflict Alert Dialog */}
+      <ConflictAlertDialog
+        open={!!conflictPopup}
+        onOpenChange={(open) => !open && setConflictPopup(null)}
+        conflicts={conflictPopup?.conflicts || []}
+        getRoomDisplayName={getDisplayName}
       />
     </div>
   );
