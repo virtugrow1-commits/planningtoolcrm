@@ -5,6 +5,7 @@ import { nl } from 'date-fns/locale';
 import { Inquiry, Booking, ROOMS, RoomName } from '@/types/crm';
 import { Calendar as CalendarIcon, Users, Euro, GripVertical, Repeat, Plus, X, Check, LayoutGrid, List, Trash2, ArrowRight, AlertTriangle, Download, MapPin, MessageSquare, StickyNote, CheckSquare, Clock, Building2, FileText, Pencil, Eye } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { useRoomSettings } from '@/hooks/useRoomSettings';
 import { useBookings } from '@/contexts/BookingsContext';
 import { useInquiriesContext } from '@/contexts/InquiriesContext';
 import { useContactsContext } from '@/contexts/ContactsContext';
@@ -22,6 +23,7 @@ import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Checkbox } from '@/components/ui/checkbox';
 import { cn } from '@/lib/utils';
+import ConflictAlertDialog from '@/components/calendar/ConflictAlertDialog';
 import { exportToCSV } from '@/lib/csvExport';
 import { SortableHeader, useSortState } from '@/components/SortableHeader';
 
@@ -96,6 +98,8 @@ export default function InquiriesPage() {
   const [taskDialogInquiry, setTaskDialogInquiry] = useState<Inquiry | null>(null);
   const [taskTitle, setTaskTitle] = useState('');
   const { toast } = useToast();
+  const { getDisplayName } = useRoomSettings();
+  const [conflictPopup, setConflictPopup] = useState<{ conflicts: Booking[] } | null>(null);
   const inquirySort = useSortState<Inquiry>();
   
   const navigate = useNavigate();
