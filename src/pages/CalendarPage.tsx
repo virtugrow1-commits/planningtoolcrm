@@ -113,10 +113,30 @@ export default function CalendarPage() {
     setDetailOpen(false);
   }, []);
 
+  const [deleteConfirm, setDeleteConfirm] = useState<Booking | null>(null);
+
   const handleDeleteBooking = (bookingId: string) => {
-    deleteBooking(bookingId);
-    setDetailOpen(false);
-    toast({ title: 'Boeking verwijderd' });
+    // Find the booking to show reschedule prompt
+    const bk = bookings.find(b => b.id === bookingId) || detailBooking;
+    if (bk) {
+      setDeleteConfirm(bk);
+      setDetailOpen(false);
+    }
+  };
+
+  const confirmDelete = async () => {
+    if (!deleteConfirm) return;
+    await deleteBooking(deleteConfirm.id);
+    setDeleteConfirm(null);
+    toast({ title: 'Boeking verwijderd', description: 'De reservering is verwijderd uit het CRM en de planning.' });
+  };
+
+  const handleRescheduleInstead = () => {
+    if (!deleteConfirm) return;
+    // Open the booking detail for editing
+    setDetailBooking(deleteConfirm);
+    setDeleteConfirm(null);
+    setDetailOpen(true);
   };
 
   const handleBookingMove = useCallback((booking: Booking, targetRoom: RoomName, startHour: number, startMinute: number, endHour: number, endMinute: number) => {
@@ -362,6 +382,38 @@ export default function CalendarPage() {
         conflicts={conflictPopup?.conflicts || []}
         getRoomDisplayName={getDisplayName}
       />
+
+      {/* Delete confirmation dialog with reschedule option */}
+      <AlertDialog open={!!deleteConfirm} onOpenChange={(open) => { if (!open) setDeleteConfirm(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Reservering verwijderen?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Wil je deze reservering verzetten naar een andere datum/tijd, of definitief verwijderen?
+              <br />
+              <span className="font-medium text-foreground mt-1 block">
+                {deleteConfirm?.title} — {deleteConfirm?.contactName}
+                {deleteConfirm?.date && ` (${deleteConfirm.date})`}
+              </span>
+              <span className="text-xs text-muted-foreground block mt-1">
+                Bij verwijderen wordt de boeking ook uit de externe planning verwijderd.
+              </span>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="gap-2 sm:gap-0">
+            <AlertDialogCancel>Annuleren</AlertDialogCancel>
+            <Button variant="outline" onClick={handleRescheduleInstead}>
+              Verzetten
+            </Button>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={confirmDelete}
+            >
+              Definitief verwijderen
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Move confirmation dialog */}
       <AlertDialog open={!!moveConfirm} onOpenChange={(open) => { if (!open) setMoveConfirm(null); }}>

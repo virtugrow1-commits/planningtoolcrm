@@ -3,7 +3,7 @@ import { createContext, useContext, useState, useEffect, ReactNode, useCallback 
 import { Booking, RoomName } from '@/types/crm';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
-import { pushToGHL } from '@/lib/ghlSync';
+
 import { useToast } from '@/hooks/use-toast';
 
 export interface BookingConflict {
@@ -161,7 +161,13 @@ export function BookingsProvider({ children }: { children: ReactNode }) {
     }
     if (data) {
       await fetchBookings();
-      pushToGHL('push-booking', { booking: data });
+      try {
+        await supabase.functions.invoke('ghl-sync', {
+          body: { action: 'push-booking', booking: data },
+        });
+      } catch (err) {
+        console.warn('[VGW Sync] push-booking failed:', err);
+      }
     }
     return { success: true };
   }, [user, fetchBookings, toast, checkConflicts]);
@@ -226,7 +232,13 @@ export function BookingsProvider({ children }: { children: ReactNode }) {
     }
     await fetchBookings();
     for (const booking of data || []) {
-      pushToGHL('push-booking', { booking });
+      try {
+        await supabase.functions.invoke('ghl-sync', {
+          body: { action: 'push-booking', booking },
+        });
+      } catch (err) {
+        console.warn('[VGW Sync] push-booking failed:', err);
+      }
     }
     return { success: true };
   }, [user, fetchBookings, toast, checkConflicts]);
@@ -288,22 +300,39 @@ export function BookingsProvider({ children }: { children: ReactNode }) {
     }
     if (data) {
       await fetchBookings();
-      pushToGHL('push-booking', { booking: data });
+      // Await GHL sync to ensure changes propagate before auto-sync runs
+      try {
+        await supabase.functions.invoke('ghl-sync', {
+          body: { action: 'push-booking', booking: data },
+        });
+      } catch (err) {
+        console.warn('[VGW Sync] push-booking failed:', err);
+      }
     }
     return { success: true };
   }, [fetchBookings, toast, checkConflicts]);
 
   const deleteBooking = useCallback(async (id: string) => {
     const { data: existing } = await supabase.from('bookings').select('ghl_event_id').eq('id', id).single();
+    
+    // Delete from GHL FIRST (await it) to prevent auto-sync from re-creating the booking
+    if ((existing as any)?.ghl_event_id) {
+      try {
+        await supabase.functions.invoke('ghl-sync', {
+          body: { action: 'delete-booking', ghl_event_id: (existing as any).ghl_event_id },
+        });
+      } catch (err) {
+        console.warn('[VGW Sync] delete-booking failed:', err);
+      }
+    }
+    
+    // Then delete from CRM
     const { error } = await supabase.from('bookings').delete().eq('id', id);
     if (error) {
       toast({ title: 'Fout bij verwijderen boeking', description: error.message, variant: 'destructive' });
       return;
     }
     await fetchBookings();
-    if ((existing as any)?.ghl_event_id) {
-      pushToGHL('delete-booking', { ghl_event_id: (existing as any).ghl_event_id });
-    }
   }, [fetchBookings, toast]);
 
   return (
