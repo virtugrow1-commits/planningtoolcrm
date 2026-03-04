@@ -65,20 +65,12 @@ export default function CalendarPage() {
     setDetailOpen(true);
   };
 
-  const handleUpdateBooking = (updated: Booking) => {
-    const dayBookings = bookings.filter((b) => b.date === updated.date);
-    const conflicts = dayBookings.filter((b) =>
-      b.roomName === updated.roomName &&
-      updated.startHour * 60 + (updated.startMinute || 0) < b.endHour * 60 + (b.endMinute || 0) &&
-      updated.endHour * 60 + (updated.endMinute || 0) > b.startHour * 60 + (b.startMinute || 0) &&
-      b.id !== updated.id
-    );
-    if (conflicts.length > 0) {
-      setConflictPopup({ conflicts });
-      toast({ title: 'Dubbele boeking niet toegestaan', description: 'Er is al een reservering op dit tijdslot.', variant: 'destructive' });
+  const handleUpdateBooking = async (updated: Booking) => {
+    const result = await updateBooking(updated);
+    if (!result.success) {
+      if (result.conflicts) setConflictPopup({ conflicts: result.conflicts });
       return;
     }
-    updateBooking(updated);
     setDetailBooking(updated);
     toast({ title: 'Boeking bijgewerkt' });
   };
@@ -102,31 +94,18 @@ export default function CalendarPage() {
       preparationStatus: booking.preparationStatus || 'pending' as const,
     }));
 
-    // Check conflicts
-    const allConflicts: Booking[] = [];
-    for (const nb of newBookings) {
-      const dayBookings = bookings.filter((b) => b.date === nb.date);
-      const conflicts = dayBookings.filter((b) =>
-        b.roomName === nb.roomName &&
-        nb.startHour * 60 + (nb.startMinute || 0) < b.endHour * 60 + (b.endMinute || 0) &&
-        nb.endHour * 60 + (nb.endMinute || 0) > b.startHour * 60 + (b.startMinute || 0)
-      );
-      allConflicts.push(...conflicts);
+    let result;
+    if (newBookings.length === 1) {
+      result = await addBooking(newBookings[0]);
+    } else {
+      result = await addBookings(newBookings);
     }
-
-    if (allConflicts.length > 0) {
-      setConflictPopup({ conflicts: allConflicts });
-      toast({ title: 'Dubbele boeking niet toegestaan', description: 'Er is al een reservering op een van de gekozen datums.', variant: 'destructive' });
+    if (!result.success) {
+      if (result.conflicts) setConflictPopup({ conflicts: result.conflicts });
       return;
     }
-
-    if (newBookings.length === 1) {
-      await addBooking(newBookings[0]);
-    } else {
-      await addBookings(newBookings);
-    }
     toast({ title: 'Reserveringen gekopieerd', description: `${dates.length} kopie(ën) aangemaakt` });
-  }, [bookings, addBooking, addBookings, toast]);
+  }, [addBooking, addBookings, toast]);
 
   const handleOpenCopyDialog = useCallback((booking: Booking) => {
     setCopyBooking(booking);
