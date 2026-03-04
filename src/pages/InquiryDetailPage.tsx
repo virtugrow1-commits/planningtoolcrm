@@ -270,6 +270,20 @@ export default function InquiryDetailPage() {
         open={showReservationDialog}
         onOpenChange={setShowReservationDialog}
         onSubmit={async (resForm) => {
+          // Conflict check before adding
+          const dayBookings = bookings.filter((b) => b.date === resForm.date);
+          const startMin = resForm.startHour * 60 + (resForm.startMinute || 0);
+          const endMin = resForm.endHour * 60 + (resForm.endMinute || 0);
+          const conflicts = dayBookings.filter((b) =>
+            b.roomName === resForm.room &&
+            startMin < b.endHour * 60 + (b.endMinute || 0) &&
+            endMin > b.startHour * 60 + (b.startMinute || 0)
+          );
+          if (conflicts.length > 0) {
+            toast({ title: 'Dubbele boeking niet toegestaan', description: 'Er is al een reservering of optie op dit tijdslot in deze ruimte.', variant: 'destructive' });
+            return;
+          }
+
           await addBooking({
             roomName: resForm.room,
             date: resForm.date,
@@ -295,6 +309,7 @@ export default function InquiryDetailPage() {
         contactsLoading={contactsLoading}
         conflictAlert={null}
         getRoomDisplayName={getDisplayName}
+        initialStartHour={inquiry.preferredStartTime ? parseInt(inquiry.preferredStartTime.split(':')[0]) : undefined}
         prefill={{
           title: inquiry.eventType,
           contactName: inquiry.contactName,
