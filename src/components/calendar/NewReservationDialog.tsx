@@ -41,6 +41,8 @@ export interface ReservationPrefill {
   date?: string;
   roomName?: string;
   guestCount?: number;
+  startTime?: string;
+  endTime?: string;
 }
 
 interface NewReservationDialogProps {
@@ -98,15 +100,31 @@ export default function NewReservationDialog({
   useEffect(() => {
     if (open) {
       const prefillRoom = prefill?.roomName && ROOMS.includes(prefill.roomName as RoomName) ? prefill.roomName as RoomName : undefined;
+      // Parse prefilled start/end times
+      let sH = initialStartHour ?? 9;
+      let sM = 0;
+      let eH = Math.min((initialStartHour ?? 9) + 3, 25);
+      let eM = 0;
+      if (prefill?.startTime) {
+        const [h, m] = prefill.startTime.split(':').map(Number);
+        if (!isNaN(h)) { sH = h; sM = m || 0; }
+      }
+      if (prefill?.endTime) {
+        const [h, m] = prefill.endTime.split(':').map(Number);
+        if (!isNaN(h)) { eH = h; eM = m || 0; }
+      } else {
+        eH = Math.min(sH + 3, 25);
+        eM = sM;
+      }
       setForm({
         contactId: prefill?.contactId || '',
         contactName: prefill?.contactName || '',
         room: prefillRoom || initialRoom || ROOMS[0],
         date: prefill?.date || initialDate || today,
-        startHour: initialStartHour ?? 9,
-        startMinute: 0,
-        endHour: Math.min((initialStartHour ?? 9) + 3, 25),
-        endMinute: 0,
+        startHour: sH,
+        startMinute: sM,
+        endHour: eH,
+        endMinute: eM,
         title: prefill?.title || '',
         status: 'confirmed',
         repeatType: 'eenmalig',
