@@ -1,0 +1,2 @@
+UPDATE profiles SET display_name = 'Sjors Jochems' WHERE id = 'aec6a233-955d-451c-98e5-debdf1e1ae76';
+UPDATE profiles SET display_name = 'Iris Machielse' WHERE id = 'b796b85c-6227-4ef8-9688-40971dcc85b8';
