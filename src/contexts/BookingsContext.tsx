@@ -121,9 +121,20 @@ export function BookingsProvider({ children }: { children: ReactNode }) {
     if (serverConflicts.length > 0) {
       toast({ title: 'Dubbele boeking niet toegestaan', description: `Er is al een reservering in ${booking.roomName} op dit tijdslot.`, variant: 'destructive' });
       await fetchBookings();
-      // Map server conflicts to Booking objects for the conflict dialog
-      const conflictBookings = bookings.filter(b => serverConflicts.some((sc: any) => sc.id === b.id));
-      return { success: false, conflicts: conflictBookings.length > 0 ? conflictBookings : undefined };
+      // Map server conflicts directly to Booking objects (don't rely on stale local state)
+      const conflictBookings: Booking[] = serverConflicts.map((sc: any) => ({
+        id: sc.id,
+        roomName: sc.room_name as RoomName,
+        date: sc.date,
+        startHour: sc.start_hour,
+        startMinute: sc.start_minute ?? 0,
+        endHour: sc.end_hour,
+        endMinute: sc.end_minute ?? 0,
+        title: sc.title || '',
+        contactName: sc.contact_name || '',
+        status: sc.status as 'confirmed' | 'option',
+      }));
+      return { success: false, conflicts: conflictBookings };
     }
 
     const { data, error } = await supabase.from('bookings').insert({
@@ -174,8 +185,19 @@ export function BookingsProvider({ children }: { children: ReactNode }) {
       if (serverConflicts.length > 0) {
         toast({ title: 'Dubbele boeking niet toegestaan', description: `Er is al een boeking in ${b.roomName} op ${b.date}.`, variant: 'destructive' });
         await fetchBookings();
-        const conflictBookings = bookings.filter(bk => serverConflicts.some((sc: any) => sc.id === bk.id));
-        return { success: false, conflicts: conflictBookings.length > 0 ? conflictBookings : undefined };
+        const conflictBookings: Booking[] = serverConflicts.map((sc: any) => ({
+          id: sc.id,
+          roomName: b.roomName,
+          date: b.date,
+          startHour: sc.start_hour,
+          startMinute: sc.start_minute ?? 0,
+          endHour: sc.end_hour,
+          endMinute: sc.end_minute ?? 0,
+          title: '',
+          contactName: '',
+          status: 'confirmed' as const,
+        }));
+        return { success: false, conflicts: conflictBookings };
       }
     }
 
@@ -227,8 +249,19 @@ export function BookingsProvider({ children }: { children: ReactNode }) {
     if (serverConflicts.length > 0) {
       toast({ title: 'Dubbele boeking niet toegestaan', description: 'Er is al een reservering of optie op dit tijdslot in deze ruimte.', variant: 'destructive' });
       await fetchBookings();
-      const conflictBookings = bookings.filter(bk => serverConflicts.some((sc: any) => sc.id === bk.id));
-      return { success: false, conflicts: conflictBookings.length > 0 ? conflictBookings : undefined };
+      const conflictBookings: Booking[] = serverConflicts.map((sc: any) => ({
+        id: sc.id,
+        roomName: updated.roomName,
+        date: updated.date,
+        startHour: sc.start_hour,
+        startMinute: sc.start_minute ?? 0,
+        endHour: sc.end_hour,
+        endMinute: sc.end_minute ?? 0,
+        title: '',
+        contactName: '',
+        status: 'confirmed' as const,
+      }));
+      return { success: false, conflicts: conflictBookings };
     }
 
     const { data, error } = await supabase.from('bookings').update({
