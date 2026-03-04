@@ -1270,6 +1270,14 @@ export default function InquiriesPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Conflict Alert Dialog */}
+      <ConflictAlertDialog
+        open={!!conflictPopup}
+        onOpenChange={(open) => !open && setConflictPopup(null)}
+        conflicts={conflictPopup?.conflicts || []}
+        getRoomDisplayName={getDisplayName}
+      />
     </div>
   );
 }
