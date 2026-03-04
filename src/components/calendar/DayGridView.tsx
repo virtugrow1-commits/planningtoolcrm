@@ -193,7 +193,7 @@ export default function DayGridView({
                 className="relative"
                 style={{ height: totalHeight }}
                 onClick={(e) => {
-                  if (dragging) return;
+                  if (dragging || justDragged.current) return;
                   const rect = e.currentTarget.getBoundingClientRect();
                   const y = e.clientY - rect.top;
                   const { hour } = yToTime(y);
@@ -254,7 +254,7 @@ export default function DayGridView({
                       style={{ top, height }}
                       onMouseDown={(e) => handleMouseDown(e, b)}
                       onClick={(e) => {
-                        if (!dragging) {
+                        if (!dragging && !justDragged.current) {
                           e.stopPropagation();
                           onBookingClick(b);
                         }
