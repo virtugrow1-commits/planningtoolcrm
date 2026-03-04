@@ -9,11 +9,12 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
-import { Plus, CalendarIcon } from 'lucide-react';
+import { Plus, CalendarIcon, User } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
 import { nl } from 'date-fns/locale';
 import { useToast } from '@/hooks/use-toast';
+import { useTeamMembers } from '@/hooks/useTeamMembers';
 
 interface TasksSectionProps {
   tasks: Task[];
@@ -29,9 +30,11 @@ export default function TasksSection({ tasks, defaults }: TasksSectionProps) {
   const { addTask, updateTask } = useTasksContext();
   const { toast } = useToast();
   const navigate = useNavigate();
+  const { members } = useTeamMembers();
   const [newTitle, setNewTitle] = useState('');
   const [newPriority, setNewPriority] = useState<Task['priority']>('normal');
   const [newDueDate, setNewDueDate] = useState<Date | undefined>();
+  const [newAssignedTo, setNewAssignedTo] = useState<string | undefined>();
   const [adding, setAdding] = useState(false);
   const [showForm, setShowForm] = useState(false);
 
@@ -49,11 +52,13 @@ export default function TasksSection({ tasks, defaults }: TasksSectionProps) {
       status: 'open',
       priority: newPriority,
       dueDate,
+      assignedTo: newAssignedTo,
       ...defaults,
     });
     setNewTitle('');
     setNewPriority('normal');
     setNewDueDate(undefined);
+    setNewAssignedTo(undefined);
     setAdding(false);
     setShowForm(false);
     toast({ title: 'Taak aangemaakt' });
@@ -120,9 +125,21 @@ export default function TasksSection({ tasks, defaults }: TasksSectionProps) {
                 <Calendar mode="single" selected={newDueDate} onSelect={setNewDueDate} initialFocus className="p-3 pointer-events-auto" />
               </PopoverContent>
             </Popover>
+            <Select value={newAssignedTo || '__none__'} onValueChange={(v) => setNewAssignedTo(v === '__none__' ? undefined : v)}>
+              <SelectTrigger className="w-[140px] h-8 text-xs">
+                <User size={12} className="mr-1 shrink-0" />
+                <SelectValue placeholder="Toewijzen" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__none__" className="text-xs">Niemand</SelectItem>
+                {members.map(m => (
+                  <SelectItem key={m.id} value={m.displayName} className="text-xs">{m.displayName}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
           <div className="flex gap-1.5 justify-end">
-            <Button variant="ghost" size="sm" className="h-8 text-xs" onClick={() => { setShowForm(false); setNewTitle(''); setNewDueDate(undefined); }}>
+            <Button variant="ghost" size="sm" className="h-8 text-xs" onClick={() => { setShowForm(false); setNewTitle(''); setNewDueDate(undefined); setNewAssignedTo(undefined); }}>
               Annuleren
             </Button>
             <Button size="sm" className="h-8 text-xs" onClick={handleAdd} disabled={adding || !newTitle.trim()}>

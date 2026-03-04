@@ -7,9 +7,10 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
-import { Plus, CheckSquare } from 'lucide-react';
+import { Plus, CheckSquare, User } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
+import { useTeamMembers } from '@/hooks/useTeamMembers';
 
 interface Props {
   inquiry: Inquiry;
@@ -21,8 +22,10 @@ interface Props {
 export default function InquiryTasksTab({ inquiry, tasks, contactId, companyId }: Props) {
   const { addTask, updateTask } = useTasksContext();
   const { toast } = useToast();
+  const { members } = useTeamMembers();
   const [newTitle, setNewTitle] = useState('');
   const [newPriority, setNewPriority] = useState<Task['priority']>('normal');
+  const [newAssignedTo, setNewAssignedTo] = useState<string | undefined>();
   const [adding, setAdding] = useState(false);
 
   const openTasks = tasks.filter(t => t.status !== 'completed');
@@ -35,12 +38,14 @@ export default function InquiryTasksTab({ inquiry, tasks, contactId, companyId }
       title: newTitle.trim(),
       status: 'open',
       priority: newPriority,
+      assignedTo: newAssignedTo,
       inquiryId: inquiry.id,
       contactId: contactId || inquiry.contactId || undefined,
       companyId: companyId || undefined,
     });
     setNewTitle('');
     setNewPriority('normal');
+    setNewAssignedTo(undefined);
     setAdding(false);
     toast({ title: 'Taak aangemaakt' });
   };
@@ -70,6 +75,18 @@ export default function InquiryTasksTab({ inquiry, tasks, contactId, companyId }
             <SelectContent>
               {TASK_PRIORITIES.map(p => (
                 <SelectItem key={p.value} value={p.value}>{p.label}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Select value={newAssignedTo || '__none__'} onValueChange={(v) => setNewAssignedTo(v === '__none__' ? undefined : v)}>
+            <SelectTrigger className="w-[150px]">
+              <User size={14} className="mr-1 shrink-0" />
+              <SelectValue placeholder="Toewijzen" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="__none__">Niemand</SelectItem>
+              {members.map(m => (
+                <SelectItem key={m.id} value={m.displayName}>{m.displayName}</SelectItem>
               ))}
             </SelectContent>
           </Select>
