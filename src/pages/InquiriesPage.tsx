@@ -5,6 +5,7 @@ import { nl } from 'date-fns/locale';
 import { Inquiry, Booking, ROOMS, RoomName } from '@/types/crm';
 import { Calendar as CalendarIcon, Users, Euro, GripVertical, Repeat, Plus, X, Check, LayoutGrid, List, Trash2, ArrowRight, AlertTriangle, Download, MapPin, MessageSquare, StickyNote, CheckSquare, Clock, Building2, FileText, Pencil, Eye } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { useRoomSettings } from '@/hooks/useRoomSettings';
 import { useBookings } from '@/contexts/BookingsContext';
 import { useInquiriesContext } from '@/contexts/InquiriesContext';
 import { useContactsContext } from '@/contexts/ContactsContext';
@@ -22,6 +23,7 @@ import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Checkbox } from '@/components/ui/checkbox';
 import { cn } from '@/lib/utils';
+import ConflictAlertDialog from '@/components/calendar/ConflictAlertDialog';
 import { exportToCSV } from '@/lib/csvExport';
 import { SortableHeader, useSortState } from '@/components/SortableHeader';
 
@@ -96,6 +98,8 @@ export default function InquiriesPage() {
   const [taskDialogInquiry, setTaskDialogInquiry] = useState<Inquiry | null>(null);
   const [taskTitle, setTaskTitle] = useState('');
   const { toast } = useToast();
+  const { getDisplayName } = useRoomSettings();
+  const [conflictPopup, setConflictPopup] = useState<{ conflicts: Booking[] } | null>(null);
   const inquirySort = useSortState<Inquiry>();
   
   const navigate = useNavigate();
@@ -283,9 +287,12 @@ export default function InquiriesPage() {
         else if (recurrence === 'monthly') bookingDate.setMonth(bookingDate.getMonth() + i);
         else if (recurrence === 'quarterly') bookingDate.setMonth(bookingDate.getMonth() + i * 3);
 
+        // Use local date formatting to prevent timezone shift
+        const dateStr = `${bookingDate.getFullYear()}-${String(bookingDate.getMonth() + 1).padStart(2, '0')}-${String(bookingDate.getDate()).padStart(2, '0')}`;
+
         newBookings.push({
           roomName: opt.room as RoomName,
-          date: bookingDate.toISOString().split('T')[0],
+          date: dateStr,
           startHour: opt.startHour,
           startMinute: 0,
           endHour: opt.endHour,
@@ -297,7 +304,11 @@ export default function InquiriesPage() {
       }
     }
 
-    addBookings(newBookings);
+    const result = await addBookings(newBookings);
+    if (!result.success) {
+      if (result.conflicts) setConflictPopup({ conflicts: result.conflicts });
+      return;
+    }
 
     // Update inquiry status based on booking status
     if (selectedInquiry) {
@@ -1259,6 +1270,14 @@ export default function InquiriesPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Conflict Alert Dialog */}
+      <ConflictAlertDialog
+        open={!!conflictPopup}
+        onOpenChange={(open) => !open && setConflictPopup(null)}
+        conflicts={conflictPopup?.conflicts || []}
+        getRoomDisplayName={getDisplayName}
+      />
     </div>
   );
 }
