@@ -10,7 +10,7 @@ import { Badge } from '@/components/ui/badge';
 import { Plus, CheckSquare, User } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
-import { useTeamMembers } from '@/hooks/useTeamMembers';
+
 
 interface Props {
   inquiry: Inquiry;
@@ -22,7 +22,7 @@ interface Props {
 export default function InquiryTasksTab({ inquiry, tasks, contactId, companyId }: Props) {
   const { addTask, updateTask } = useTasksContext();
   const { toast } = useToast();
-  const { members } = useTeamMembers();
+  
   const [newTitle, setNewTitle] = useState('');
   const [newPriority, setNewPriority] = useState<Task['priority']>('normal');
   const [newAssignedTo, setNewAssignedTo] = useState<string | undefined>();
@@ -85,9 +85,8 @@ export default function InquiryTasksTab({ inquiry, tasks, contactId, companyId }
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="__none__">Niemand</SelectItem>
-              {members.map(m => (
-                <SelectItem key={m.id} value={m.displayName}>{m.displayName}</SelectItem>
-              ))}
+              <SelectItem value="Sjors Jochems">Sjors Jochems</SelectItem>
+              <SelectItem value="Iris Machielse">Iris Machielse</SelectItem>
             </SelectContent>
           </Select>
           <Button onClick={handleAdd} disabled={adding || !newTitle.trim()} size="sm">
