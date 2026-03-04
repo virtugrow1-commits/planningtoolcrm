@@ -186,7 +186,13 @@ export default function CalendarPage() {
     const allConflicts: Booking[] = [];
     for (const date of allDates) {
       const dayBookings = bookings.filter((b) => b.date === date);
-      const dateConflicts = dayBookings.filter((b) => b.roomName === form.room && form.startHour < b.endHour && form.endHour > b.startHour);
+      const formStartMin = form.startHour * 60 + (form.startMinute ?? 0);
+      const formEndMin = form.endHour * 60 + (form.endMinute ?? 0);
+      const dateConflicts = dayBookings.filter((b) =>
+        b.roomName === form.room &&
+        formStartMin < b.endHour * 60 + (b.endMinute || 0) &&
+        formEndMin > b.startHour * 60 + (b.startMinute || 0)
+      );
       allConflicts.push(...dateConflicts);
     }
 
