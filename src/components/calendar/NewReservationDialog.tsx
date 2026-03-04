@@ -139,9 +139,15 @@ export default function NewReservationDialog({
     setLastOpen(open);
   }, [open]);
 
-  const filteredContacts = contacts.filter((c) =>
-    `${c.firstName} ${c.lastName} ${c.email || ''} ${c.company || ''}`.toLowerCase().includes(contactSearch.toLowerCase())
-  );
+  const filteredContacts = (() => {
+    const query = contactSearch.toLowerCase().trim();
+    if (!query) return contacts.slice(0, 50);
+    const terms = query.split(/\s+/);
+    return contacts.filter((c) => {
+      const haystack = `${c.firstName} ${c.lastName} ${c.email || ''} ${c.company || ''}`.toLowerCase();
+      return terms.every((term) => haystack.includes(term));
+    }).slice(0, 50);
+  })();
 
   const selectedContact = contacts.find((c) => c.id === form.contactId);
 
