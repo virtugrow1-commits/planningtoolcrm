@@ -121,24 +121,17 @@ export default function CalendarPage() {
 
   const handleBookingMove = useCallback((booking: Booking, targetRoom: RoomName, startHour: number, startMinute: number, endHour: number, endMinute: number) => {
     const updated = { ...booking, roomName: targetRoom, startHour, startMinute, endHour, endMinute };
-    const dayBookings = bookings.filter((b) => b.date === booking.date);
     const startMin = startHour * 60 + startMinute;
     const endMin = endHour * 60 + endMinute;
-    const conflicts = dayBookings.filter((b) =>
-      b.roomName === targetRoom &&
-      startMin < b.endHour * 60 + (b.endMinute || 0) &&
-      endMin > b.startHour * 60 + (b.startMinute || 0) &&
-      b.id !== booking.id
-    );
+    const conflicts = checkConflicts(booking.date, targetRoom, startMin, endMin, booking.id);
     if (conflicts.length > 0) {
       setConflictPopup({ conflicts });
       toast({ title: 'Dubbele boeking niet toegestaan', description: 'Er is al een reservering op dit tijdslot.', variant: 'destructive' });
       return;
     }
-    // Show confirmation dialog
     const desc = `${booking.title} → ${getDisplayName(targetRoom)}, ${String(startHour).padStart(2,'0')}:${String(startMinute).padStart(2,'0')}–${String(endHour).padStart(2,'0')}:${String(endMinute).padStart(2,'0')}`;
     setMoveConfirm({ booking, updated, description: desc });
-  }, [bookings, toast, getDisplayName]);
+  }, [checkConflicts, toast, getDisplayName]);
 
   const handleNewReservation = async (form: NewReservationForm) => {
     const allDates: string[] = [];
@@ -162,56 +155,39 @@ export default function CalendarPage() {
       }
     }
 
-    const allConflicts: Booking[] = [];
-    for (const date of allDates) {
-      const dayBookings = bookings.filter((b) => b.date === date);
-      const formStartMin = form.startHour * 60 + (form.startMinute ?? 0);
-      const formEndMin = form.endHour * 60 + (form.endMinute ?? 0);
-      const dateConflicts = dayBookings.filter((b) =>
-        b.roomName === form.room &&
-        formStartMin < b.endHour * 60 + (b.endMinute || 0) &&
-        formEndMin > b.startHour * 60 + (b.startMinute || 0)
-      );
-      allConflicts.push(...dateConflicts);
+    const newBookingsList = allDates.map((date) => ({
+      roomName: form.room,
+      date,
+      startHour: form.startHour,
+      startMinute: form.startMinute ?? 0,
+      endHour: form.endHour,
+      endMinute: form.endMinute ?? 0,
+      title: form.title,
+      contactName: form.contactName,
+      contactId: form.contactId,
+      status: form.status,
+      guestCount: form.guestCount ?? 0,
+      roomSetup: form.roomSetup || undefined,
+      requirements: form.notes || undefined,
+      preparationStatus: 'pending' as const,
+    }));
+
+    let result;
+    if (newBookingsList.length === 1) {
+      result = await addBooking(newBookingsList[0]);
+    } else {
+      result = await addBookings(newBookingsList);
     }
 
-    const doAdd = async () => {
-      const newBookingsList = allDates.map((date) => ({
-        roomName: form.room,
-        date,
-        startHour: form.startHour,
-        startMinute: form.startMinute ?? 0,
-        endHour: form.endHour,
-        endMinute: form.endMinute ?? 0,
-        title: form.title,
-        contactName: form.contactName,
-        contactId: form.contactId,
-        status: form.status,
-        guestCount: form.guestCount ?? 0,
-        roomSetup: form.roomSetup || undefined,
-        requirements: form.notes || undefined,
-        preparationStatus: 'pending' as const,
-      }));
-
-      if (newBookingsList.length === 1) {
-        await addBooking(newBookingsList[0]);
-      } else {
-        await addBookings(newBookingsList);
-      }
-
-      setReservationDialogOpen(false);
-      setReservationConflict(null);
-      setConflictPopup(null);
-      toast({ title: 'Reservering toegevoegd', description: `${form.title} — ${allDates.length} boeking(en)` });
-    };
-
-    if (allConflicts.length > 0) {
-      setConflictPopup({ conflicts: allConflicts });
-      toast({ title: 'Dubbele boeking niet toegestaan', description: 'Er is al een reservering op dit tijdslot.', variant: 'destructive' });
+    if (!result.success) {
+      if (result.conflicts) setConflictPopup({ conflicts: result.conflicts });
       return;
     }
 
-    await doAdd();
+    setReservationDialogOpen(false);
+    setReservationConflict(null);
+    setConflictPopup(null);
+    toast({ title: 'Reservering toegevoegd', description: `${form.title} — ${allDates.length} boeking(en)` });
   };
 
   const prevPeriod = () => setCurrentDate((d) => {
