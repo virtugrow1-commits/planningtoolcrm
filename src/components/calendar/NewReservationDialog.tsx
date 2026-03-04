@@ -96,11 +96,11 @@ export default function NewReservationDialog({
   });
   const [contactSearch, setContactSearch] = useState('');
 
-  // Reset form when dialog opens with new initial values
+  // Reset form when dialog opens (only triggered by `open` changing to true)
+  const [lastOpen, setLastOpen] = useState(false);
   useEffect(() => {
-    if (open) {
+    if (open && !lastOpen) {
       const prefillRoom = prefill?.roomName && ROOMS.includes(prefill.roomName as RoomName) ? prefill.roomName as RoomName : undefined;
-      // Parse prefilled start/end times
       let sH = initialStartHour ?? 9;
       let sM = 0;
       let eH = Math.min((initialStartHour ?? 9) + 3, 25);
@@ -136,7 +136,8 @@ export default function NewReservationDialog({
       });
       setContactSearch('');
     }
-  }, [open, initialStartHour, initialRoom, initialDate, prefill]);
+    setLastOpen(open);
+  }, [open]);
 
   const filteredContacts = contacts.filter((c) =>
     `${c.firstName} ${c.lastName} ${c.email || ''} ${c.company || ''}`.toLowerCase().includes(contactSearch.toLowerCase())
