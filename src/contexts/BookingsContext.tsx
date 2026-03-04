@@ -161,7 +161,13 @@ export function BookingsProvider({ children }: { children: ReactNode }) {
     }
     if (data) {
       await fetchBookings();
-      pushToGHL('push-booking', { booking: data });
+      try {
+        await supabase.functions.invoke('ghl-sync', {
+          body: { action: 'push-booking', booking: data },
+        });
+      } catch (err) {
+        console.warn('[VGW Sync] push-booking failed:', err);
+      }
     }
     return { success: true };
   }, [user, fetchBookings, toast, checkConflicts]);
@@ -288,7 +294,14 @@ export function BookingsProvider({ children }: { children: ReactNode }) {
     }
     if (data) {
       await fetchBookings();
-      pushToGHL('push-booking', { booking: data });
+      // Await GHL sync to ensure changes propagate before auto-sync runs
+      try {
+        await supabase.functions.invoke('ghl-sync', {
+          body: { action: 'push-booking', booking: data },
+        });
+      } catch (err) {
+        console.warn('[VGW Sync] push-booking failed:', err);
+      }
     }
     return { success: true };
   }, [fetchBookings, toast, checkConflicts]);
