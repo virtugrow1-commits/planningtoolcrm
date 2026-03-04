@@ -35,7 +35,7 @@ export default function CalendarPage() {
     }
     return new Date();
   });
-  const { bookings, addBooking, addBookings, updateBooking, deleteBooking } = useBookings();
+  const { bookings, addBooking, addBookings, updateBooking, deleteBooking, checkConflicts } = useBookings();
   const [viewMode, setViewMode] = useState<CalendarViewMode>('day');
   const [detailBooking, setDetailBooking] = useState<Booking | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
