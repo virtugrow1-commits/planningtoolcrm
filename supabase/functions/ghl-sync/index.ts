@@ -970,8 +970,21 @@ serve(async (req) => {
             }
             console.info(`push-booking: created new GHL contact ${ghlContactId} for "${booking.contact_name}"`);
           } else {
+            // GHL returns the existing contactId in meta when duplicate is detected
             const errText = await createRes.text();
-            console.warn(`push-booking: failed to create GHL contact: [${createRes.status}] ${errText}`);
+            console.warn(`push-booking: create GHL contact response: [${createRes.status}] ${errText}`);
+            try {
+              const errData = JSON.parse(errText);
+              if (errData.meta?.contactId) {
+                ghlContactId = errData.meta.contactId;
+                if (booking.contact_id) {
+                  await supabase.from('contacts').update({ ghl_contact_id: ghlContactId }).eq('id', booking.contact_id);
+                }
+                console.info(`push-booking: extracted existing GHL contact ${ghlContactId} from duplicate error for "${booking.contact_name}"`);
+              }
+            } catch (_e) {
+              console.warn(`push-booking: could not parse duplicate error response`);
+            }
           }
         }
       }
