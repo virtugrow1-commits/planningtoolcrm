@@ -119,8 +119,10 @@ export function BookingsProvider({ children }: { children: ReactNode }) {
     });
     if (serverConflicts.length > 0) {
       toast({ title: 'Dubbele boeking niet toegestaan', description: `Er is al een reservering in ${booking.roomName} op dit tijdslot.`, variant: 'destructive' });
-      await fetchBookings(); // Refresh stale data
-      return { success: false };
+      await fetchBookings();
+      // Map server conflicts to Booking objects for the conflict dialog
+      const conflictBookings = bookings.filter(b => serverConflicts.some((sc: any) => sc.id === b.id));
+      return { success: false, conflicts: conflictBookings.length > 0 ? conflictBookings : undefined };
     }
 
     const { data, error } = await supabase.from('bookings').insert({
@@ -171,7 +173,8 @@ export function BookingsProvider({ children }: { children: ReactNode }) {
       if (serverConflicts.length > 0) {
         toast({ title: 'Dubbele boeking niet toegestaan', description: `Er is al een boeking in ${b.roomName} op ${b.date}.`, variant: 'destructive' });
         await fetchBookings();
-        return { success: false };
+        const conflictBookings = bookings.filter(bk => serverConflicts.some((sc: any) => sc.id === bk.id));
+        return { success: false, conflicts: conflictBookings.length > 0 ? conflictBookings : undefined };
       }
     }
 
@@ -223,7 +226,8 @@ export function BookingsProvider({ children }: { children: ReactNode }) {
     if (serverConflicts.length > 0) {
       toast({ title: 'Dubbele boeking niet toegestaan', description: 'Er is al een reservering of optie op dit tijdslot in deze ruimte.', variant: 'destructive' });
       await fetchBookings();
-      return { success: false };
+      const conflictBookings = bookings.filter(bk => serverConflicts.some((sc: any) => sc.id === bk.id));
+      return { success: false, conflicts: conflictBookings.length > 0 ? conflictBookings : undefined };
     }
 
     const { data, error } = await supabase.from('bookings').update({
