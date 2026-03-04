@@ -212,9 +212,12 @@ export default function NewReservationDialog({
                   {contactsLoading ? (
                     <p className="p-3 text-sm text-muted-foreground">Laden...</p>
                   ) : filteredContacts.length === 0 ? (
-                    <p className="p-3 text-sm text-muted-foreground">Geen contacten gevonden</p>
+                    <p className="p-3 text-sm text-muted-foreground">
+                      {contactSearch ? 'Geen contacten gevonden' : 'Typ om te zoeken...'}
+                    </p>
                   ) : (
-                    filteredContacts.map((c) => (
+                    <>
+                      {filteredContacts.map((c) => (
                       <button
                         key={c.id}
                         className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-accent/10 transition-colors"
@@ -226,6 +229,13 @@ export default function NewReservationDialog({
                         </div>
                       </button>
                     ))
+                    }
+                    {contacts.length > 50 && filteredContacts.length >= 50 && (
+                      <p className="px-3 py-2 text-xs text-muted-foreground border-t">
+                        Typ om meer resultaten te zien ({contacts.length} contacten totaal)
+                      </p>
+                    )}
+                    </>
                   )}
                 </ScrollArea>
               </div>
