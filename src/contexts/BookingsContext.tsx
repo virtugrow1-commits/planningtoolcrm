@@ -3,7 +3,7 @@ import { createContext, useContext, useState, useEffect, ReactNode, useCallback 
 import { Booking, RoomName } from '@/types/crm';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
-import { pushToGHL } from '@/lib/ghlSync';
+
 import { useToast } from '@/hooks/use-toast';
 
 export interface BookingConflict {
