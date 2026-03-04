@@ -14,7 +14,7 @@ import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
 import { nl } from 'date-fns/locale';
 import { useToast } from '@/hooks/use-toast';
-import { useTeamMembers } from '@/hooks/useTeamMembers';
+
 
 interface TasksSectionProps {
   tasks: Task[];
@@ -30,7 +30,7 @@ export default function TasksSection({ tasks, defaults }: TasksSectionProps) {
   const { addTask, updateTask } = useTasksContext();
   const { toast } = useToast();
   const navigate = useNavigate();
-  const { members } = useTeamMembers();
+  
   const [newTitle, setNewTitle] = useState('');
   const [newPriority, setNewPriority] = useState<Task['priority']>('normal');
   const [newDueDate, setNewDueDate] = useState<Date | undefined>();
@@ -132,9 +132,8 @@ export default function TasksSection({ tasks, defaults }: TasksSectionProps) {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="__none__" className="text-xs">Niemand</SelectItem>
-                {members.map(m => (
-                  <SelectItem key={m.id} value={m.displayName} className="text-xs">{m.displayName}</SelectItem>
-                ))}
+                <SelectItem value="Sjors Jochems" className="text-xs">Sjors Jochems</SelectItem>
+                <SelectItem value="Iris Machielse" className="text-xs">Iris Machielse</SelectItem>
               </SelectContent>
             </Select>
           </div>
