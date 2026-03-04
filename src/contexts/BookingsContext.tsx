@@ -232,7 +232,13 @@ export function BookingsProvider({ children }: { children: ReactNode }) {
     }
     await fetchBookings();
     for (const booking of data || []) {
-      pushToGHL('push-booking', { booking });
+      try {
+        await supabase.functions.invoke('ghl-sync', {
+          body: { action: 'push-booking', booking },
+        });
+      } catch (err) {
+        console.warn('[VGW Sync] push-booking failed:', err);
+      }
     }
     return { success: true };
   }, [user, fetchBookings, toast, checkConflicts]);
