@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { CalendarIcon, Users, Euro, User, Building2, FileText, MapPin, Trash2, RefreshCw, ArrowRight, UserCheck } from 'lucide-react';
+import { CalendarIcon, Users, Euro, User, Building2, FileText, MapPin, Trash2, RefreshCw, ArrowRight, UserCheck, Clock } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
@@ -96,6 +96,10 @@ export default function InquiryDetailsTab({ inquiry, editing, form, setForm, con
               <div><Label>Type evenement</Label><Input value={form!.eventType} onChange={(e) => setForm({ ...form!, eventType: e.target.value })} /></div>
               <div><Label>Voorkeursdatum</Label><Input type="date" value={form!.preferredDate} onChange={(e) => setForm({ ...form!, preferredDate: e.target.value })} /></div>
               <div className="grid grid-cols-2 gap-2">
+                <div><Label>Voorkeurstijd van</Label><Input type="time" value={form!.preferredStartTime || ''} onChange={(e) => setForm({ ...form!, preferredStartTime: e.target.value })} /></div>
+                <div><Label>Voorkeurstijd tot</Label><Input type="time" value={form!.preferredEndTime || ''} onChange={(e) => setForm({ ...form!, preferredEndTime: e.target.value })} /></div>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
                 <div><Label>Gasten</Label><Input type="number" min={0} value={form!.guestCount || ''} onChange={(e) => setForm({ ...form!, guestCount: Number(e.target.value) })} /></div>
                 <div><Label>Budget (€)</Label><Input type="number" min={0} value={form!.budget || ''} onChange={(e) => setForm({ ...form!, budget: Number(e.target.value) || undefined })} /></div>
               </div>
@@ -139,6 +143,9 @@ export default function InquiryDetailsTab({ inquiry, editing, form, setForm, con
               <InfoRow icon={<User size={14} />} label="Contactpersoon" value={inquiry.contactName} onClick={contact ? () => navigate(`/crm/${contact.id}`) : undefined} />
               {company && <InfoRow icon={<Building2 size={14} />} label="Bedrijf" value={company.name} onClick={() => navigate(`/companies/${company.id}`)} />}
               <InfoRow icon={<CalendarIcon size={14} />} label="Voorkeursdatum" value={inquiry.preferredDate || '—'} />
+              {(inquiry.preferredStartTime || inquiry.preferredEndTime) && (
+                <InfoRow icon={<Clock size={14} />} label="Voorkeurstijd" value={`${inquiry.preferredStartTime || '—'} – ${inquiry.preferredEndTime || '—'}`} />
+              )}
               <InfoRow icon={<Users size={14} />} label="Gasten" value={`${inquiry.guestCount}`} />
               <InfoRow icon={<Euro size={14} />} label="Budget" value={inquiry.budget ? `€${inquiry.budget.toLocaleString('nl-NL', { minimumFractionDigits: 2 })}` : '—'} />
               <InfoRow icon={<MapPin size={14} />} label="Ruimte voorkeur" value={inquiry.roomPreference || '—'} />

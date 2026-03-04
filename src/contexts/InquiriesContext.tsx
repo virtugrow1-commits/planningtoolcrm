@@ -54,6 +54,8 @@ export function InquiriesProvider({ children }: { children: ReactNode }) {
         ghlOpportunityId: (i as any).ghl_opportunity_id || undefined,
         isRead: (i as any).is_read ?? true,
         assignedTo: (i as any).assigned_to || undefined,
+        preferredStartTime: (i as any).preferred_start_time || undefined,
+        preferredEndTime: (i as any).preferred_end_time || undefined,
       })));
     }
     setLoading(false);
@@ -118,6 +120,8 @@ export function InquiriesProvider({ children }: { children: ReactNode }) {
       status: inquiry.status,
       source: inquiry.source,
       assigned_to: inquiry.assignedTo || null,
+      preferred_start_time: inquiry.preferredStartTime || null,
+      preferred_end_time: inquiry.preferredEndTime || null,
     } as any).eq('id', inquiry.id);
     if (error) {
       toast({ title: 'Fout bij bijwerken aanvraag', description: error.message, variant: 'destructive' });

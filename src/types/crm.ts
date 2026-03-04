@@ -31,6 +31,8 @@ export interface Inquiry {
   ghlOpportunityId?: string;
   isRead?: boolean;
   assignedTo?: string;
+  preferredStartTime?: string;
+  preferredEndTime?: string;
 }
 
 export interface Quotation {
