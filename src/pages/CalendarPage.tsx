@@ -376,10 +376,14 @@ export default function CalendarPage() {
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Annuleren</AlertDialogCancel>
-            <AlertDialogAction onClick={() => {
+            <AlertDialogAction onClick={async () => {
               if (moveConfirm) {
-                updateBooking(moveConfirm.updated);
-                toast({ title: 'Boeking verplaatst' });
+                const result = await updateBooking(moveConfirm.updated);
+                if (result.success) {
+                  toast({ title: 'Boeking verplaatst' });
+                } else if (result.conflicts) {
+                  setConflictPopup({ conflicts: result.conflicts });
+                }
               }
               setMoveConfirm(null);
             }}>
