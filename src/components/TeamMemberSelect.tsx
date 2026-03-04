@@ -1,8 +1,8 @@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 const RESPONSIBLE_MEMBERS = [
-  { value: 'sjors', label: 'Sjors' },
-  { value: 'iris', label: 'Iris' },
+  { value: 'sjors', label: 'Sjors Jochems' },
+  { value: 'iris', label: 'Iris Machielse' },
 ];
 
 interface Props {

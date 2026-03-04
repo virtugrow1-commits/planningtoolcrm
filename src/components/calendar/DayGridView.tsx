@@ -64,6 +64,7 @@ export default function DayGridView({
   const [ghostPos, setGhostPos] = useState<{ room: RoomName; slot: number } | null>(null);
   const gridRef = useRef<HTMLDivElement>(null);
   const columnRefs = useRef<Map<string, HTMLDivElement>>(new Map());
+  const justDragged = useRef(false);
 
   const totalHeight = HOURS.length * HOUR_HEIGHT;
 
@@ -122,6 +123,10 @@ export default function DayGridView({
       setGhostPos(null);
       return;
     }
+    // Prevent click events from firing after drag
+    justDragged.current = true;
+    setTimeout(() => { justDragged.current = false; }, 100);
+
     const booking = todayBookings.find((b) => b.id === dragging.bookingId);
     if (!booking) { setDragging(null); setGhostPos(null); return; }
 
@@ -188,7 +193,7 @@ export default function DayGridView({
                 className="relative"
                 style={{ height: totalHeight }}
                 onClick={(e) => {
-                  if (dragging) return;
+                  if (dragging || justDragged.current) return;
                   const rect = e.currentTarget.getBoundingClientRect();
                   const y = e.clientY - rect.top;
                   const { hour } = yToTime(y);
@@ -249,7 +254,7 @@ export default function DayGridView({
                       style={{ top, height }}
                       onMouseDown={(e) => handleMouseDown(e, b)}
                       onClick={(e) => {
-                        if (!dragging) {
+                        if (!dragging && !justDragged.current) {
                           e.stopPropagation();
                           onBookingClick(b);
                         }
