@@ -295,15 +295,25 @@ export function BookingsProvider({ children }: { children: ReactNode }) {
 
   const deleteBooking = useCallback(async (id: string) => {
     const { data: existing } = await supabase.from('bookings').select('ghl_event_id').eq('id', id).single();
+    
+    // Delete from GHL FIRST (await it) to prevent auto-sync from re-creating the booking
+    if ((existing as any)?.ghl_event_id) {
+      try {
+        await supabase.functions.invoke('ghl-sync', {
+          body: { action: 'delete-booking', ghl_event_id: (existing as any).ghl_event_id },
+        });
+      } catch (err) {
+        console.warn('[VGW Sync] delete-booking failed:', err);
+      }
+    }
+    
+    // Then delete from CRM
     const { error } = await supabase.from('bookings').delete().eq('id', id);
     if (error) {
       toast({ title: 'Fout bij verwijderen boeking', description: error.message, variant: 'destructive' });
       return;
     }
     await fetchBookings();
-    if ((existing as any)?.ghl_event_id) {
-      pushToGHL('delete-booking', { ghl_event_id: (existing as any).ghl_event_id });
-    }
   }, [fetchBookings, toast]);
 
   return (
