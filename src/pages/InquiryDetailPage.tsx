@@ -31,7 +31,7 @@ export default function InquiryDetailPage() {
   const { inquiries, loading: inquiriesLoading, updateInquiry, deleteInquiry, markAsRead, refetch } = useInquiriesContext();
   const { contacts } = useContactsContext();
   const { companies } = useCompaniesContext();
-  const { addBooking } = useBookings();
+  const { bookings, addBooking } = useBookings();
   const { tasks } = useTasksContext();
   const { toast } = useToast();
   const { user } = useAuth();
