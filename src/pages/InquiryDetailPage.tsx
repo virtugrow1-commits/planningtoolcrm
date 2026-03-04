@@ -305,6 +305,8 @@ export default function InquiryDetailPage() {
           date: inquiry.preferredDate || '',
           roomName: inquiry.roomPreference || '',
           guestCount: inquiry.guestCount,
+          startTime: inquiry.preferredStartTime || undefined,
+          endTime: inquiry.preferredEndTime || undefined,
         }}
       />
     </div>
