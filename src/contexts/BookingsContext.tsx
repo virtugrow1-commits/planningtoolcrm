@@ -1,3 +1,4 @@
+// BookingsContext - centralized booking management with conflict detection
 import { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
 import { Booking, RoomName } from '@/types/crm';
 import { supabase } from '@/integrations/supabase/client';
