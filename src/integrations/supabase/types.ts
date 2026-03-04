@@ -456,6 +456,8 @@ export type Database = {
           is_read: boolean
           message: string | null
           preferred_date: string | null
+          preferred_end_time: string | null
+          preferred_start_time: string | null
           room_preference: string | null
           source: string
           status: string
@@ -476,6 +478,8 @@ export type Database = {
           is_read?: boolean
           message?: string | null
           preferred_date?: string | null
+          preferred_end_time?: string | null
+          preferred_start_time?: string | null
           room_preference?: string | null
           source?: string
           status?: string
@@ -496,6 +500,8 @@ export type Database = {
           is_read?: boolean
           message?: string | null
           preferred_date?: string | null
+          preferred_end_time?: string | null
+          preferred_start_time?: string | null
           room_preference?: string | null
           source?: string
           status?: string
