@@ -160,7 +160,7 @@ export function BookingsProvider({ children }: { children: ReactNode }) {
       return { success: false };
     }
     if (data) {
-      await fetchBookings();
+      // GHL first: push to GHL before refreshing local state
       try {
         await supabase.functions.invoke('ghl-sync', {
           body: { action: 'push-booking', booking: data },
@@ -168,6 +168,7 @@ export function BookingsProvider({ children }: { children: ReactNode }) {
       } catch (err) {
         console.warn('[VGW Sync] push-booking failed:', err);
       }
+      await fetchBookings();
     }
     return { success: true };
   }, [user, fetchBookings, toast, checkConflicts]);
@@ -230,7 +231,7 @@ export function BookingsProvider({ children }: { children: ReactNode }) {
       toast({ title: 'Fout bij aanmaken boekingen', description: error.message, variant: 'destructive' });
       return { success: false };
     }
-    await fetchBookings();
+    // GHL first: push all bookings to GHL before refreshing local state
     for (const booking of data || []) {
       try {
         await supabase.functions.invoke('ghl-sync', {
@@ -240,6 +241,7 @@ export function BookingsProvider({ children }: { children: ReactNode }) {
         console.warn('[VGW Sync] push-booking failed:', err);
       }
     }
+    await fetchBookings();
     return { success: true };
   }, [user, fetchBookings, toast, checkConflicts]);
 
@@ -299,8 +301,7 @@ export function BookingsProvider({ children }: { children: ReactNode }) {
       return { success: false };
     }
     if (data) {
-      await fetchBookings();
-      // Await GHL sync to ensure changes propagate before auto-sync runs
+      // GHL first: push to GHL before refreshing local state
       try {
         await supabase.functions.invoke('ghl-sync', {
           body: { action: 'push-booking', booking: data },
@@ -308,6 +309,7 @@ export function BookingsProvider({ children }: { children: ReactNode }) {
       } catch (err) {
         console.warn('[VGW Sync] push-booking failed:', err);
       }
+      await fetchBookings();
     }
     return { success: true };
   }, [fetchBookings, toast, checkConflicts]);
