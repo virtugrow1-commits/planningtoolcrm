@@ -518,19 +518,52 @@ async function syncContacts(supabase: any, ghlHeaders: any, locationId: string, 
           }
         }
       } else {
-        // New from GHL → upsert (prevent duplicates via ghl_contact_id)
-        const { error: upsertErr } = await supabase.from('contacts').upsert({
-          user_id: userId,
-          ghl_contact_id: ghlContact.id,
-          first_name: firstName,
-          last_name: lastName,
-          email: ghlEmail,
-          phone: ghlPhone,
-          company: ghlCompanyName,
-          status: 'lead',
-        }, { onConflict: 'ghl_contact_id' });
-        if (upsertErr) {
-          console.error(`Contact upsert error for ${ghlContact.id}:`, upsertErr.message);
+        // New from GHL → first check if a contact with same name+email already exists (to avoid unique constraint violation)
+        let matchQuery = supabase.from('contacts').select('id, ghl_contact_id')
+          .eq('user_id', userId)
+          .ilike('first_name', firstName.trim())
+          .ilike('last_name', lastName.trim());
+        if (ghlEmail) {
+          matchQuery = matchQuery.ilike('email', ghlEmail.trim());
+        } else {
+          matchQuery = matchQuery.or('email.is.null,email.eq.');
+        }
+        const { data: nameMatch } = await matchQuery.limit(1).maybeSingle();
+
+        if (nameMatch) {
+          // Contact already exists by name+email → link ghl_contact_id
+          if (!nameMatch.ghl_contact_id) {
+            await supabase.from('contacts').update({
+              ghl_contact_id: ghlContact.id,
+              phone: ghlPhone || undefined,
+              company: ghlCompanyName || undefined,
+            }).eq('id', nameMatch.id);
+            console.log(`Linked existing contact ${nameMatch.id} to GHL ${ghlContact.id} (${firstName} ${lastName})`);
+          }
+        } else {
+          // Truly new → insert
+          const { error: insertErr } = await supabase.from('contacts').insert({
+            user_id: userId,
+            ghl_contact_id: ghlContact.id,
+            first_name: firstName,
+            last_name: lastName,
+            email: ghlEmail,
+            phone: ghlPhone,
+            company: ghlCompanyName,
+            status: 'lead',
+          });
+          if (insertErr) {
+            // If still duplicate, just update ghl_contact_id on the existing record
+            if (insertErr.message?.includes('contacts_unique_name_email')) {
+              console.log(`Duplicate contact ${firstName} ${lastName}, linking to GHL ${ghlContact.id}`);
+              await supabase.from('contacts').update({ ghl_contact_id: ghlContact.id })
+                .eq('user_id', userId)
+                .ilike('first_name', firstName.trim())
+                .ilike('last_name', lastName.trim());
+            } else {
+              console.error(`Contact insert error for ${ghlContact.id}:`, insertErr.message);
+            }
+          }
         }
       }
       results.contacts++;
