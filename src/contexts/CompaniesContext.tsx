@@ -114,12 +114,24 @@ export function CompaniesProvider({ children }: { children: ReactNode }) {
       toast({ title: 'Fout bij aanmaken bedrijf', description: error.message, variant: 'destructive' });
     }
     if (data) {
-      pushToGHL('push-company', { company: data });
+      await pushToGHL('push-company', { company: data });
     }
   }, [user, toast]);
 
   const updateCompany = useCallback(async (company: Company) => {
-    const { data, error } = await (supabase as any).from('companies').update({
+    // GHL first: push to GHL before updating local DB
+    await pushToGHL('push-company', { company: {
+      id: company.id,
+      name: capitalizeWords(company.name),
+      email: company.email || null,
+      phone: company.phone || null,
+      website: company.website || null,
+      address: company.address || null,
+      city: company.city || null,
+      ghl_company_id: company.ghlCompanyId || null,
+    }});
+    // Then update local DB
+    const { error } = await (supabase as any).from('companies').update({
       name: capitalizeWords(company.name),
       email: company.email || null,
       phone: company.phone || null,
@@ -134,10 +146,7 @@ export function CompaniesProvider({ children }: { children: ReactNode }) {
       customer_number: company.customerNumber || null,
       crm_group: company.crmGroup || null,
       btw_number: company.btwNumber || null,
-    }).eq('id', company.id).select().single();
-    if (!error && data) {
-      pushToGHL('push-company', { company: data });
-    }
+    }).eq('id', company.id);
     if (error) {
       toast({ title: 'Fout bij bijwerken bedrijf', description: error.message, variant: 'destructive' });
     }

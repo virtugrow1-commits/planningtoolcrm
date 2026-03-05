@@ -96,7 +96,7 @@ export function InquiriesProvider({ children }: { children: ReactNode }) {
       return;
     }
     if (inserted?.id) {
-      pushToGHL('push-inquiry', {
+      await pushToGHL('push-inquiry', {
         inquiry_id: inserted.id,
         contact_name: inquiry.contactName,
         event_type: inquiry.eventType,
@@ -108,6 +108,16 @@ export function InquiriesProvider({ children }: { children: ReactNode }) {
   }, [user, toast]);
 
   const updateInquiry = useCallback(async (inquiry: Inquiry) => {
+    // GHL first: push status to GHL before updating local DB
+    if (inquiry.ghlOpportunityId) {
+      await pushToGHL('push-inquiry-status', {
+        ghl_opportunity_id: inquiry.ghlOpportunityId,
+        status: inquiry.status,
+        name: inquiry.eventType,
+        monetary_value: inquiry.budget,
+      });
+    }
+    // Then update local DB
     const { error } = await supabase.from('inquiries').update({
       contact_id: inquiry.contactId || null,
       contact_name: inquiry.contactName,
@@ -125,29 +135,18 @@ export function InquiriesProvider({ children }: { children: ReactNode }) {
     } as any).eq('id', inquiry.id);
     if (error) {
       toast({ title: 'Fout bij bijwerken aanvraag', description: error.message, variant: 'destructive' });
-      return;
-    }
-    if (inquiry.ghlOpportunityId) {
-      pushToGHL('push-inquiry-status', {
-        ghl_opportunity_id: inquiry.ghlOpportunityId,
-        status: inquiry.status,
-        name: inquiry.eventType,
-        monetary_value: inquiry.budget,
-      });
     }
   }, [toast]);
 
   const deleteInquiry = useCallback(async (id: string) => {
-    // Find the inquiry first to get ghlOpportunityId before deleting
     const target = inquiries.find(i => i.id === id);
+    // GHL first: delete from GHL before local DB
+    if (target?.ghlOpportunityId) {
+      await pushToGHL('delete-inquiry', { ghl_opportunity_id: target.ghlOpportunityId });
+    }
     const { error } = await supabase.from('inquiries').delete().eq('id', id);
     if (error) {
       toast({ title: 'Fout bij verwijderen aanvraag', description: error.message, variant: 'destructive' });
-      return;
-    }
-    // Also delete from GHL if linked
-    if (target?.ghlOpportunityId) {
-      pushToGHL('delete-inquiry', { ghl_opportunity_id: target.ghlOpportunityId });
     }
   }, [toast, inquiries]);
 
