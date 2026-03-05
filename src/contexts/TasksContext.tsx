@@ -93,11 +93,25 @@ export function TasksProvider({ children }: { children: ReactNode }) {
       return;
     }
     if (data) {
-      pushToGHL('push-task', { task: data });
+      await pushToGHL('push-task', { task: data });
     }
   }, [user, toast]);
 
   const updateTask = useCallback(async (task: Task) => {
+    // GHL first: push to GHL before updating local DB
+    if (task.ghlTaskId) {
+      await pushToGHL('push-task', { task: {
+        id: task.id,
+        ghl_task_id: task.ghlTaskId,
+        title: task.title,
+        description: task.description || null,
+        status: task.status,
+        due_date: task.dueDate || null,
+        completed_at: task.status === 'completed' ? new Date().toISOString() : null,
+        contact_id: task.contactId || null,
+      }});
+    }
+    // Then update local DB
     const { data, error } = await (supabase as any).from('tasks').update({
       title: task.title,
       description: task.description || null,
@@ -116,20 +130,21 @@ export function TasksProvider({ children }: { children: ReactNode }) {
       toast({ title: 'Fout bij bijwerken taak', description: error.message, variant: 'destructive' });
       return;
     }
-    if (data) {
-      pushToGHL('push-task', { task: data });
+    // If no GHL task yet, push the saved data to create one
+    if (data && !task.ghlTaskId) {
+      await pushToGHL('push-task', { task: data });
     }
   }, [toast]);
 
   const deleteTask = useCallback(async (id: string) => {
     const { data: existing } = await (supabase as any).from('tasks').select('ghl_task_id').eq('id', id).single();
+    // GHL first: delete from GHL before local DB
+    if (existing?.ghl_task_id) {
+      await pushToGHL('delete-task', { ghl_task_id: existing.ghl_task_id });
+    }
     const { error } = await (supabase as any).from('tasks').delete().eq('id', id);
     if (error) {
       toast({ title: 'Fout bij verwijderen taak', description: error.message, variant: 'destructive' });
-      return;
-    }
-    if (existing?.ghl_task_id) {
-      pushToGHL('delete-task', { ghl_task_id: existing.ghl_task_id });
     }
   }, [toast]);
 

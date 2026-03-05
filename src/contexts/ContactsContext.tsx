@@ -104,12 +104,23 @@ export function ContactsProvider({ children }: { children: ReactNode }) {
       return;
     }
     if (data) {
-      pushToGHL('push-contact', { contact: data });
+      await pushToGHL('push-contact', { contact: data });
     }
   }, [user, toast]);
 
   const updateContact = useCallback(async (contact: Contact) => {
-    const { data, error } = await supabase.from('contacts').update({
+    // GHL first: push changes to GHL before updating local DB
+    await pushToGHL('push-contact', { contact: {
+      id: contact.id,
+      first_name: capitalizeWords(contact.firstName),
+      last_name: capitalizeWords(contact.lastName),
+      email: contact.email || null,
+      phone: contact.phone || null,
+      company: contact.company || null,
+      ghl_contact_id: contact.ghlContactId || null,
+    }});
+    // Then update local DB
+    const { error } = await supabase.from('contacts').update({
       first_name: capitalizeWords(contact.firstName),
       last_name: capitalizeWords(contact.lastName),
       email: contact.email || null,
@@ -120,25 +131,21 @@ export function ContactsProvider({ children }: { children: ReactNode }) {
       notes: contact.notes || null,
       ghl_contact_id: contact.ghlContactId || null,
       departed: contact.departed || false,
-    } as any).eq('id', contact.id).select().single();
+    } as any).eq('id', contact.id);
     if (error) {
       toast({ title: 'Fout bij bijwerken contact', description: error.message, variant: 'destructive' });
-      return;
-    }
-    if (data) {
-      pushToGHL('push-contact', { contact: data });
     }
   }, [toast]);
 
   const deleteContact = useCallback(async (id: string) => {
     const { data: existing } = await supabase.from('contacts').select('ghl_contact_id').eq('id', id).single();
+    // GHL first: delete from GHL before local DB
+    if (existing?.ghl_contact_id) {
+      await pushToGHL('delete-contact', { ghl_contact_id: existing.ghl_contact_id });
+    }
     const { error } = await supabase.from('contacts').delete().eq('id', id);
     if (error) {
       toast({ title: 'Fout bij verwijderen contact', description: error.message, variant: 'destructive' });
-      return;
-    }
-    if (existing?.ghl_contact_id) {
-      pushToGHL('delete-contact', { ghl_contact_id: existing.ghl_contact_id });
     }
   }, [toast]);
 

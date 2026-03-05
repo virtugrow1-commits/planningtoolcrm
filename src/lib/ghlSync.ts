@@ -1,15 +1,22 @@
 import { supabase } from '@/integrations/supabase/client';
 
 /**
- * Fire-and-forget push to VirtuGrow via edge function.
- * Errors are logged but never block the UI.
+ * Push to VirtuGrow via edge function.
+ * Awaits the response so GHL is always updated BEFORE the local CRM.
+ * Returns the response data or null on failure.
  */
-export async function pushToGHL(action: string, data: Record<string, any>) {
+export async function pushToGHL(action: string, data: Record<string, any>): Promise<any | null> {
   try {
-    await supabase.functions.invoke('ghl-sync', {
+    const { data: result, error } = await supabase.functions.invoke('ghl-sync', {
       body: { action, ...data },
     });
+    if (error) {
+      console.warn(`[VGW Sync] ${action} failed:`, error);
+      return null;
+    }
+    return result;
   } catch (err) {
     console.warn(`[VGW Sync] ${action} failed:`, err);
+    return null;
   }
 }
