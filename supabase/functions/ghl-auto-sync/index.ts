@@ -8,6 +8,16 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version',
 };
 
+/** Normalize string for comparison (lowercase, trim, collapse whitespace) */
+function norm(s: string | null | undefined): string {
+  return (s || '').toLowerCase().trim().replace(/\s+/g, ' ');
+}
+
+/** Rate-limit delay to avoid 429 errors */
+function delay(ms: number) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
 /** Convert a Date to Europe/Amsterdam local components */
 function toAmsterdam(date: Date) {
   const s = date.toLocaleString('en-US', { timeZone: 'Europe/Amsterdam', hour12: false });
