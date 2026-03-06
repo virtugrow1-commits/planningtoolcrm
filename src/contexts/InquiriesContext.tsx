@@ -26,18 +26,33 @@ export function InquiriesProvider({ children }: { children: ReactNode }) {
 
   const fetchInquiries = useCallback(async () => {
     if (!user) return;
-    const { data, error } = await supabase
-      .from('inquiries')
-      .select('*')
-      .order('created_at', { ascending: false });
+    const allRows: any[] = [];
+    const PAGE_SIZE = 1000;
+    let from = 0;
+    let hasMore = true;
 
-    if (error) {
-      toast({ title: 'Fout bij laden aanvragen', description: error.message, variant: 'destructive' });
-      setLoading(false);
-      return;
+    while (hasMore) {
+      const { data, error } = await supabase
+        .from('inquiries')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .range(from, from + PAGE_SIZE - 1);
+
+      if (error) {
+        toast({ title: 'Fout bij laden aanvragen', description: error.message, variant: 'destructive' });
+        setLoading(false);
+        return;
+      }
+      if (data) {
+        allRows.push(...data);
+        hasMore = data.length === PAGE_SIZE;
+        from += PAGE_SIZE;
+      } else {
+        hasMore = false;
+      }
     }
-    if (data) {
-      setInquiries(data.map((i) => ({
+
+    setInquiries(allRows.map((i) => ({
         id: i.id,
         displayNumber: (i as any).display_number ? (i as any).display_number.replace(/^ANV-/, '#') : undefined,
         contactId: i.contact_id || '',
@@ -139,16 +154,17 @@ export function InquiriesProvider({ children }: { children: ReactNode }) {
   }, [toast]);
 
   const deleteInquiry = useCallback(async (id: string) => {
-    const target = inquiries.find(i => i.id === id);
+    // Fetch GHL ID from DB to avoid stale closure
+    const { data: existing } = await supabase.from('inquiries').select('ghl_opportunity_id').eq('id', id).single();
     // GHL first: delete from GHL before local DB
-    if (target?.ghlOpportunityId) {
-      await pushToGHL('delete-inquiry', { ghl_opportunity_id: target.ghlOpportunityId });
+    if (existing?.ghl_opportunity_id) {
+      await pushToGHL('delete-inquiry', { ghl_opportunity_id: existing.ghl_opportunity_id });
     }
     const { error } = await supabase.from('inquiries').delete().eq('id', id);
     if (error) {
       toast({ title: 'Fout bij verwijderen aanvraag', description: error.message, variant: 'destructive' });
     }
-  }, [toast, inquiries]);
+  }, [toast]);
 
   const markAsRead = useCallback(async (id: string) => {
     await supabase.from('inquiries').update({ is_read: true } as any).eq('id', id);

@@ -87,7 +87,22 @@ export function ContactsProvider({ children }: { children: ReactNode }) {
 
   const addContact = useCallback(async (contact: Omit<Contact, 'id' | 'createdAt'>) => {
     if (!user) return;
-    const { data, error } = await supabase.from('contacts').upsert({
+    // Check for existing contact by name + email to prevent duplicates
+    const { data: existing } = await supabase
+      .from('contacts')
+      .select('id')
+      .eq('user_id', user.id)
+      .ilike('first_name', capitalizeWords(contact.firstName))
+      .ilike('last_name', capitalizeWords(contact.lastName))
+      .limit(1)
+      .maybeSingle();
+
+    if (existing) {
+      // Contact already exists, skip creation
+      return;
+    }
+
+    const { data, error } = await supabase.from('contacts').insert({
       user_id: user.id,
       first_name: capitalizeWords(contact.firstName),
       last_name: capitalizeWords(contact.lastName),
@@ -98,7 +113,7 @@ export function ContactsProvider({ children }: { children: ReactNode }) {
       status: contact.status,
       notes: contact.notes || null,
       ghl_contact_id: contact.ghlContactId || null,
-    } as any, { onConflict: 'user_id,lower(trim(first_name)),lower(trim(last_name)),lower(trim(COALESCE(email,\'\')))' as any, ignoreDuplicates: true }).select().single();
+    } as any).select().single();
     if (error) {
       toast({ title: 'Fout bij aanmaken contact', description: error.message, variant: 'destructive' });
       return;

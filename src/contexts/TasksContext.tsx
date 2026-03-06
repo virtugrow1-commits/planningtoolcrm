@@ -25,18 +25,33 @@ export function TasksProvider({ children }: { children: ReactNode }) {
 
   const fetchTasks = useCallback(async () => {
     if (!user) return;
-    const { data, error } = await (supabase as any)
-      .from('tasks')
-      .select('*')
-      .order('created_at', { ascending: false });
+    const allRows: any[] = [];
+    const PAGE_SIZE = 1000;
+    let from = 0;
+    let hasMore = true;
 
-    if (error) {
-      toast({ title: 'Fout bij laden taken', description: error.message, variant: 'destructive' });
-      setLoading(false);
-      return;
+    while (hasMore) {
+      const { data, error } = await (supabase as any)
+        .from('tasks')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .range(from, from + PAGE_SIZE - 1);
+
+      if (error) {
+        toast({ title: 'Fout bij laden taken', description: error.message, variant: 'destructive' });
+        setLoading(false);
+        return;
+      }
+      if (data) {
+        allRows.push(...data);
+        hasMore = data.length === PAGE_SIZE;
+        from += PAGE_SIZE;
+      } else {
+        hasMore = false;
+      }
     }
-    if (data) {
-      setTasks(data.map((t: any) => ({
+
+    setTasks(allRows.map((t: any) => ({
         id: t.id,
         title: t.title,
         description: t.description || undefined,
