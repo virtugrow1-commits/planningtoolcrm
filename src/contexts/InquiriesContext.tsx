@@ -72,7 +72,6 @@ export function InquiriesProvider({ children }: { children: ReactNode }) {
         preferredStartTime: (i as any).preferred_start_time || undefined,
         preferredEndTime: (i as any).preferred_end_time || undefined,
       })));
-    }
     setLoading(false);
   }, [user, toast]);
 

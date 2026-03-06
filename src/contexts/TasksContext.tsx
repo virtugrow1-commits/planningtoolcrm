@@ -67,7 +67,6 @@ export function TasksProvider({ children }: { children: ReactNode }) {
         completedAt: t.completed_at || undefined,
         createdAt: t.created_at?.split('T')[0],
       })));
-    }
     setLoading(false);
   }, [user, toast]);
 

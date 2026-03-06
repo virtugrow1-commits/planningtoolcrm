@@ -89,7 +89,6 @@ export function CompaniesProvider({ children }: { children: ReactNode }) {
         btwNumber: c.btw_number || undefined,
         createdAt: c.created_at?.split('T')[0] || '',
       })));
-    }
     setLoading(false);
   }, [user, toast]);
 
