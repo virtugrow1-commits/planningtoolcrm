@@ -5,8 +5,14 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
-/** Capitalize first letter of each word */
+/** Capitalize first letter of each word (Unicode-safe) */
 export function capitalizeWords(str: string): string {
   if (!str) return str;
-  return str.replace(/\b\w/g, (c) => c.toUpperCase());
+  return str
+    .split(/\s+/)
+    .map((word) => {
+      if (!word) return word;
+      return word.charAt(0).toUpperCase() + word.slice(1);
+    })
+    .join(' ');
 }
