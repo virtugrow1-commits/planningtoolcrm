@@ -8,6 +8,24 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+/** Map GHL pipeline stage name to CRM status */
+function stageToStatus(stageName: string): string {
+  const l = stageName.toLowerCase();
+  if (l.includes('nieuwe aanvraag') || l === 'new') return 'new';
+  if (l.includes('lopend contact')) return 'contacted';
+  if (l.includes('optie')) return 'option';
+  if (l.includes('aangepaste offerte')) return 'quote_revised';
+  if (l.includes('offerte verzonden') || l.includes('offerte')) return 'quoted';
+  if (l.includes('definitieve reservering') || l.includes('definitief')) return 'confirmed';
+  if (l.includes('reservering')) return 'reserved';
+  if (l.includes('draaiboek')) return 'script';
+  if (l.includes('facturatie') || l.includes('invoice')) return 'invoiced';
+  if (l.includes('vervallen') || l.includes('verloren') || l.includes('lost')) return 'lost';
+  if (l.includes('after sales') || l.includes('aftersales')) return 'after_sales';
+  if (l.includes('evenement')) return 'converted';
+  return 'new';
+}
+
 /** Convert a Date to Europe/Amsterdam local components */
 function toAmsterdam(date: Date) {
   const s = date.toLocaleString('en-US', { timeZone: 'Europe/Amsterdam', hour12: false });

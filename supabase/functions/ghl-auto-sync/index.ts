@@ -223,8 +223,8 @@ async function syncOpportunities(supabase: any, ghlHeaders: any, locationId: str
 
     const stageToStatus = (s: string): string => {
       const l = s.toLowerCase();
-      if (l.includes('nieuwe aanvraag') || l.includes('new')) return 'new';
-      if (l.includes('lopend contact') || l.includes('contact')) return 'contacted';
+      if (l.includes('nieuwe aanvraag') || l === 'new') return 'new';
+      if (l.includes('lopend contact')) return 'contacted';
       if (l.includes('optie')) return 'option';
       if (l.includes('aangepaste offerte')) return 'quote_revised';
       if (l.includes('offerte verzonden') || l.includes('offerte')) return 'quoted';
@@ -234,7 +234,7 @@ async function syncOpportunities(supabase: any, ghlHeaders: any, locationId: str
       if (l.includes('facturatie') || l.includes('invoice')) return 'invoiced';
       if (l.includes('vervallen') || l.includes('verloren') || l.includes('lost')) return 'lost';
       if (l.includes('after sales') || l.includes('aftersales')) return 'after_sales';
-      if (l.includes('evenement')) return 'confirmed';
+      if (l.includes('evenement')) return 'converted';
       return 'new';
     };
 
