@@ -91,7 +91,12 @@ serve(async (req) => {
     );
 
     // Handle different webhook types
-    if (hasDocumentData) {
+    const isOpportunityDelete = type.includes('OpportunityDelete') || type.includes('opportunity.deleted') || 
+                                 (type.includes('opportunity') && (type.includes('delete') || type.includes('Delete')));
+
+    if (isOpportunityDelete) {
+      await handleOpportunityDelete(supabase, userId, payload);
+    } else if (hasDocumentData) {
       await handleDocumentWebhook(supabase, ghlHeaders, userId, payload, type);
     } else if (hasMessageData) {
       await handleInboundMessage(supabase, ghlHeaders, userId, payload);
@@ -105,7 +110,6 @@ serve(async (req) => {
       await handleAppointmentWebhook(supabase, userId, payload);
     } else {
       // IMPORTANT: Do NOT fall back to form handler for unknown types.
-      // This was causing contact sync events to create false inquiries.
       console.log('Unknown webhook type, skipping:', type, 'Keys:', Object.keys(payload).join(', '));
     }
 
