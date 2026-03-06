@@ -712,9 +712,9 @@ async function syncCompanies(supabase: any, ghlHeaders: any, locationId: string,
 
       if (existing) {
         const crmRecentlyUpdated = existing.updated_at > recentThreshold;
-        const crmDiffers = existing.name !== ghlName ||
-                           existing.email !== ghlEmail ||
-                           existing.phone !== ghlPhone;
+        const crmDiffers = norm(existing.name) !== norm(ghlName) ||
+                           norm(existing.email) !== norm(ghlEmail) ||
+                           norm(existing.phone) !== norm(ghlPhone);
 
         if (crmRecentlyUpdated && crmDiffers) {
           // CRM wins → push to GHL
@@ -725,6 +725,7 @@ async function syncCompanies(supabase: any, ghlHeaders: any, locationId: string,
           if (existing.address) pushPayload.address = existing.address;
           if (existing.city) pushPayload.city = existing.city;
 
+          await delay(300);
           const pushRes = await fetch(`${GHL_API_BASE}/businesses/${ghlCompany.id}`, {
             method: 'PUT', headers: ghlHeaders, body: JSON.stringify(pushPayload),
           });
