@@ -600,12 +600,16 @@ async function syncContacts(supabase: any, ghlHeaders: any, locationId: string, 
         phone: contact.phone || undefined,
         companyName: contact.company || undefined,
       };
+      await delay(300);
       const pushRes = await fetch(`${GHL_API_BASE}/contacts/${contact.ghl_contact_id}`, {
         method: 'PUT', headers: ghlHeaders, body: JSON.stringify(pushPayload),
       });
       if (pushRes.ok) {
         console.log(`Pushed recent contact CRM -> GHL: ${contact.id} (${contact.first_name} ${contact.last_name})`);
         results.contacts_pushed++;
+      } else if (pushRes.status === 429) {
+        console.warn('Rate limited, backing off');
+        await delay(2000);
       }
     }
 
@@ -619,6 +623,7 @@ async function syncContacts(supabase: any, ghlHeaders: any, locationId: string, 
         companyName = companyRow?.name || null;
       }
 
+      await delay(300);
       const pushRes = await fetch(`${GHL_API_BASE}/contacts/`, {
         method: 'POST', headers: ghlHeaders,
         body: JSON.stringify({
@@ -637,6 +642,9 @@ async function syncContacts(supabase: any, ghlHeaders: any, locationId: string, 
           console.log(`Contact pushed to GHL: ${contact.id} -> ${created.contact.id} (${contact.first_name} ${contact.last_name})`);
         }
         results.contacts_pushed++;
+      } else if (pushRes.status === 429) {
+        console.warn('Rate limited on contact push, backing off');
+        await delay(2000);
       }
     }
 
