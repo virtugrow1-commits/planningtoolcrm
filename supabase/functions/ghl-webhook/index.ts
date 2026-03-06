@@ -661,22 +661,7 @@ async function handleAppointmentWebhook(supabase: any, userId: string, payload: 
   console.log(`Webhook: Appointment ${eventId} synced (${startHour}:${String(startMinute).padStart(2,'0')}-${endHour}:${String(endMinute).padStart(2,'0')})`);
 }
 
-function stageToStatus(s: string): string {
-  const l = s.toLowerCase();
-  if (l.includes('nieuwe aanvraag') || l.includes('new')) return 'new';
-  if (l.includes('lopend contact') || l.includes('contact')) return 'contacted';
-  if (l.includes('optie')) return 'option';
-  if (l.includes('aangepaste offerte')) return 'quote_revised';
-  if (l.includes('offerte verzonden') || l.includes('offerte')) return 'quoted';
-  if (l.includes('definitieve reservering') || l.includes('definitief')) return 'confirmed';
-  if (l.includes('reservering')) return 'reserved';
-  if (l.includes('draaiboek')) return 'script';
-  if (l.includes('facturatie') || l.includes('invoice')) return 'invoiced';
-  if (l.includes('vervallen') || l.includes('verloren') || l.includes('lost')) return 'lost';
-  if (l.includes('after sales') || l.includes('aftersales')) return 'after_sales';
-  if (l.includes('evenement')) return 'confirmed';
-  return 'new';
-}
+// stageToStatus is now defined at the top of the file
 
 async function handleInboundMessage(supabase: any, ghlHeaders: any, userId: string, payload: any) {
   const conversationId = payload.conversationId || payload.conversation_id || payload.data?.conversationId;
