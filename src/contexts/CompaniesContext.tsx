@@ -44,18 +44,33 @@ export function CompaniesProvider({ children }: { children: ReactNode }) {
 
   const fetchCompanies = useCallback(async () => {
     if (!user) return;
-    const { data, error } = await (supabase as any)
-      .from('companies')
-      .select('*')
-      .order('name');
+    const allRows: any[] = [];
+    const PAGE_SIZE = 1000;
+    let from = 0;
+    let hasMore = true;
 
-    if (error) {
-      toast({ title: 'Fout bij laden bedrijven', description: error.message, variant: 'destructive' });
-      setLoading(false);
-      return;
+    while (hasMore) {
+      const { data, error } = await (supabase as any)
+        .from('companies')
+        .select('*')
+        .order('name')
+        .range(from, from + PAGE_SIZE - 1);
+
+      if (error) {
+        toast({ title: 'Fout bij laden bedrijven', description: error.message, variant: 'destructive' });
+        setLoading(false);
+        return;
+      }
+      if (data) {
+        allRows.push(...data);
+        hasMore = data.length === PAGE_SIZE;
+        from += PAGE_SIZE;
+      } else {
+        hasMore = false;
+      }
     }
-    if (data) {
-      setCompanies(data.map((c: any) => ({
+
+    setCompanies(allRows.map((c: any) => ({
         id: c.id,
         displayNumber: c.display_number ? c.display_number.replace(/^BED-/, '#') : undefined,
         name: c.name,
@@ -74,7 +89,6 @@ export function CompaniesProvider({ children }: { children: ReactNode }) {
         btwNumber: c.btw_number || undefined,
         createdAt: c.created_at?.split('T')[0] || '',
       })));
-    }
     setLoading(false);
   }, [user, toast]);
 
@@ -153,6 +167,11 @@ export function CompaniesProvider({ children }: { children: ReactNode }) {
   }, [toast]);
 
   const deleteCompany = useCallback(async (id: string) => {
+    // GHL first: delete from GHL before local DB
+    const { data: existing } = await (supabase as any).from('companies').select('ghl_company_id').eq('id', id).single();
+    if (existing?.ghl_company_id) {
+      await pushToGHL('delete-company', { ghl_company_id: existing.ghl_company_id });
+    }
     const { error } = await (supabase as any).from('companies').delete().eq('id', id);
     if (error) {
       toast({ title: 'Fout bij verwijderen bedrijf', description: error.message, variant: 'destructive' });
