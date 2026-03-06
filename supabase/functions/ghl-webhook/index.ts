@@ -347,7 +347,33 @@ async function handleFormSubmission(supabase: any, userId: string, payload: any)
   }
 }
 
-async function handleOpportunityFromWebhookPayload(supabase: any, ghlHeaders: any, locationId: string, userId: string, payload: any) {
+async function handleOpportunityDelete(supabase: any, userId: string, payload: any) {
+  const oppId = payload.id || payload.opportunityId || payload.data?.id;
+  if (!oppId) {
+    console.log('Webhook: OpportunityDelete but no ID found in payload');
+    return;
+  }
+
+  const { data: existing } = await supabase
+    .from('inquiries')
+    .select('id, contact_name')
+    .eq('user_id', userId)
+    .eq('ghl_opportunity_id', oppId)
+    .maybeSingle();
+
+  if (existing) {
+    const { error } = await supabase.from('inquiries').delete().eq('id', existing.id);
+    if (!error) {
+      console.log(`Webhook: Deleted inquiry ${existing.id} (GHL opp ${oppId} deleted, was: ${existing.contact_name})`);
+    } else {
+      console.error(`Webhook: Failed to delete inquiry ${existing.id}:`, error.message);
+    }
+  } else {
+    console.log(`Webhook: OpportunityDelete for ${oppId} but no matching CRM inquiry found`);
+  }
+}
+
+
   // GHL sends pipeline webhooks in two formats:
   // 1. With an opportunity ID (fetch full data from API)
   // 2. Direct payload with pipleline_stage, opportunity_name, contact_id etc.
