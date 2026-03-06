@@ -91,7 +91,12 @@ serve(async (req) => {
     );
 
     // Handle different webhook types
-    if (hasDocumentData) {
+    const isOpportunityDelete = type.includes('OpportunityDelete') || type.includes('opportunity.deleted') || 
+                                 (type.includes('opportunity') && (type.includes('delete') || type.includes('Delete')));
+
+    if (isOpportunityDelete) {
+      await handleOpportunityDelete(supabase, userId, payload);
+    } else if (hasDocumentData) {
       await handleDocumentWebhook(supabase, ghlHeaders, userId, payload, type);
     } else if (hasMessageData) {
       await handleInboundMessage(supabase, ghlHeaders, userId, payload);
@@ -105,7 +110,6 @@ serve(async (req) => {
       await handleAppointmentWebhook(supabase, userId, payload);
     } else {
       // IMPORTANT: Do NOT fall back to form handler for unknown types.
-      // This was causing contact sync events to create false inquiries.
       console.log('Unknown webhook type, skipping:', type, 'Keys:', Object.keys(payload).join(', '));
     }
 
@@ -340,6 +344,32 @@ async function handleFormSubmission(supabase: any, userId: string, payload: any)
     } else {
       console.log(`Form: Created inquiry ${newInquiry.id} for ${contactName} (contact: ${contactId}, company: ${companyId})`);
     }
+  }
+}
+
+async function handleOpportunityDelete(supabase: any, userId: string, payload: any) {
+  const oppId = payload.id || payload.opportunityId || payload.data?.id;
+  if (!oppId) {
+    console.log('Webhook: OpportunityDelete but no ID found in payload');
+    return;
+  }
+
+  const { data: existing } = await supabase
+    .from('inquiries')
+    .select('id, contact_name')
+    .eq('user_id', userId)
+    .eq('ghl_opportunity_id', oppId)
+    .maybeSingle();
+
+  if (existing) {
+    const { error } = await supabase.from('inquiries').delete().eq('id', existing.id);
+    if (!error) {
+      console.log(`Webhook: Deleted inquiry ${existing.id} (GHL opp ${oppId} deleted, was: ${existing.contact_name})`);
+    } else {
+      console.error(`Webhook: Failed to delete inquiry ${existing.id}:`, error.message);
+    }
+  } else {
+    console.log(`Webhook: OpportunityDelete for ${oppId} but no matching CRM inquiry found`);
   }
 }
 

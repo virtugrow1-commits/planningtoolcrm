@@ -438,6 +438,40 @@ async function syncOpportunities(supabase: any, ghlHeaders: any, locationId: str
         results.opportunities_pushed = (results.opportunities_pushed || 0) + 1;
       }
     }
+
+    // 3. Remove CRM inquiries whose GHL opportunity no longer exists (deleted in GHL)
+    const { data: linkedInquiries } = await supabase
+      .from('inquiries')
+      .select('id, ghl_opportunity_id, contact_name, status')
+      .eq('user_id', userId)
+      .not('ghl_opportunity_id', 'is', null);
+
+    let deletedCount = 0;
+    for (const inq of linkedInquiries || []) {
+      if (!seenGhlOppIds.has(inq.ghl_opportunity_id)) {
+        // Double-check: verify it's truly deleted in GHL (not just missing from search pagination)
+        await delay(200);
+        const verifyRes = await fetch(`${GHL_API_BASE}/opportunities/${inq.ghl_opportunity_id}`, { headers: ghlHeaders });
+        if (verifyRes.status === 404 || verifyRes.status === 422 || verifyRes.status === 400) {
+          // Confirmed deleted in GHL → remove from CRM
+          const { error: delErr } = await supabase.from('inquiries').delete().eq('id', inq.id);
+          if (!delErr) {
+            console.log(`Deleted orphaned inquiry ${inq.id} (GHL opp ${inq.ghl_opportunity_id} no longer exists, was: ${inq.contact_name} - ${inq.status})`);
+            deletedCount++;
+          } else {
+            console.error(`Failed to delete orphaned inquiry ${inq.id}:`, delErr.message);
+          }
+        } else {
+          // Not deleted, just missed in search pagination - consume body
+          await verifyRes.text();
+        }
+        if (verifyRes.status === 429) await delay(2000);
+      }
+    }
+    if (deletedCount > 0) {
+      results.inquiries_deleted = deletedCount;
+      console.log(`Cleaned up ${deletedCount} orphaned inquiries (deleted in GHL)`);
+    }
   } catch (e) { console.error('Opp sync error:', e); }
 }
 
