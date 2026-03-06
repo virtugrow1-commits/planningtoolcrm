@@ -484,11 +484,12 @@ async function syncContacts(supabase: any, ghlHeaders: any, locationId: string, 
       if (existing) {
         // BIDIRECTIONAL: Check if CRM was recently updated
         const crmRecentlyUpdated = existing.updated_at > recentThreshold;
-        const crmDiffers = existing.first_name !== firstName ||
-                           existing.last_name !== lastName ||
-                           existing.email !== ghlEmail ||
-                           existing.phone !== ghlPhone ||
-                           existing.company !== ghlCompanyName;
+        // Use case-insensitive comparison to avoid false diffs from initcap trigger
+        const crmDiffers = norm(existing.first_name) !== norm(firstName) ||
+                           norm(existing.last_name) !== norm(lastName) ||
+                           norm(existing.email) !== norm(ghlEmail) ||
+                           norm(existing.phone) !== norm(ghlPhone) ||
+                           (ghlCompanyName && norm(existing.company) !== norm(ghlCompanyName));
 
         if (crmRecentlyUpdated && crmDiffers) {
           // CRM wins → push CRM data to GHL
@@ -499,6 +500,7 @@ async function syncContacts(supabase: any, ghlHeaders: any, locationId: string, 
             phone: existing.phone || undefined,
             companyName: existing.company || undefined,
           };
+          await delay(300); // rate limit
           const pushRes = await fetch(`${GHL_API_BASE}/contacts/${ghlContact.id}`, {
             method: 'PUT', headers: ghlHeaders, body: JSON.stringify(pushPayload),
           });
@@ -506,7 +508,9 @@ async function syncContacts(supabase: any, ghlHeaders: any, locationId: string, 
             console.log(`Contact CRM -> GHL: ${existing.id} (CRM wins, ${existing.first_name} ${existing.last_name})`);
             results.contacts_pushed++;
           } else {
-            console.error(`Push contact to GHL failed for ${ghlContact.id}: ${await pushRes.text()}`);
+            const errText = await pushRes.text();
+            console.error(`Push contact to GHL failed for ${ghlContact.id}: ${errText}`);
+            if (pushRes.status === 429) await delay(2000); // extra backoff on rate limit
           }
         } else if (crmDiffers) {
           // GHL wins → update CRM (but NEVER overwrite status!)
