@@ -336,10 +336,10 @@ serve(async (req) => {
       // Map GHL stage names to CRM statuses
       const stageToStatus = (stageName: string): string => {
         const lower = stageName.toLowerCase();
-        if (lower.includes('nieuwe aanvraag') || lower.includes('new')) return 'new';
-        if (lower.includes('lopend contact') || lower.includes('contact')) return 'contacted';
+        if (lower.includes('nieuwe aanvraag') || lower === 'new') return 'new';
+        if (lower.includes('lopend contact')) return 'contacted';
         if (lower.includes('optie')) return 'option';
-        if (lower.includes('aangepaste offerte') || lower.includes('adjusted')) return 'quote_revised';
+        if (lower.includes('aangepaste offerte')) return 'quote_revised';
         if (lower.includes('offerte verzonden') || lower.includes('offerte')) return 'quoted';
         if (lower.includes('definitieve reservering') || lower.includes('definitief')) return 'confirmed';
         if (lower.includes('reservering')) return 'reserved';
@@ -347,7 +347,7 @@ serve(async (req) => {
         if (lower.includes('facturatie') || lower.includes('invoice')) return 'invoiced';
         if (lower.includes('vervallen') || lower.includes('verloren') || lower.includes('lost')) return 'lost';
         if (lower.includes('after sales') || lower.includes('aftersales')) return 'after_sales';
-        if (lower.includes('evenement')) return 'confirmed';
+        if (lower.includes('evenement')) return 'converted';
         return 'new';
       };
 
