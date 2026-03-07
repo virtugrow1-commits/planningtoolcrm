@@ -62,23 +62,37 @@ serve(async (req) => {
     return new Response(JSON.stringify({ error: 'No user found' }), { status: 200, headers: corsHeaders });
   }
 
-  const results: any = { bookings_pulled: 0, bookings_pushed: 0, contacts: 0, opportunities: 0, contacts_pushed: 0, companies_synced: 0, companies_pushed: 0, tasks_pulled: 0, tasks_pushed: 0, conversations_synced: 0, errors: [] };
+  // Run heavy sync in background using EdgeRuntime.waitUntil
+  // This allows the function to return immediately (avoiding CPU timeout)
+  // while the actual sync continues running in the background
+  const backgroundSync = async () => {
+    const results: any = { bookings_pulled: 0, bookings_pushed: 0, contacts: 0, opportunities: 0, contacts_pushed: 0, companies_synced: 0, companies_pushed: 0, tasks_pulled: 0, tasks_pushed: 0, conversations_synced: 0, errors: [] };
 
-  // Run all 6 syncs in PARALLEL to avoid timeout
-  const calendarSync = syncCalendar(supabase, ghlHeaders, GHL_LOCATION_ID, userId, results);
-  const opportunitiesSync = syncOpportunities(supabase, ghlHeaders, GHL_LOCATION_ID, userId, results);
-  const contactsSync = syncContacts(supabase, ghlHeaders, GHL_LOCATION_ID, userId, results);
-  const companiesSync = syncCompanies(supabase, ghlHeaders, GHL_LOCATION_ID, userId, results);
-  const tasksSync = syncTasks(supabase, ghlHeaders, GHL_LOCATION_ID, userId, results);
-  const conversationsSync = syncConversations(supabase, ghlHeaders, GHL_LOCATION_ID, userId, results);
+    try {
+      // Run all 6 syncs in PARALLEL
+      const calendarSync = syncCalendar(supabase, ghlHeaders, GHL_LOCATION_ID, userId, results);
+      const opportunitiesSync = syncOpportunities(supabase, ghlHeaders, GHL_LOCATION_ID, userId, results);
+      const contactsSync = syncContacts(supabase, ghlHeaders, GHL_LOCATION_ID, userId, results);
+      const companiesSync = syncCompanies(supabase, ghlHeaders, GHL_LOCATION_ID, userId, results);
+      const tasksSync = syncTasks(supabase, ghlHeaders, GHL_LOCATION_ID, userId, results);
+      const conversationsSync = syncConversations(supabase, ghlHeaders, GHL_LOCATION_ID, userId, results);
 
-  await Promise.allSettled([calendarSync, opportunitiesSync, contactsSync, companiesSync, tasksSync, conversationsSync]);
+      await Promise.allSettled([calendarSync, opportunitiesSync, contactsSync, companiesSync, tasksSync, conversationsSync]);
 
-  // Push local inquiries without GHL opportunity ID
-  await pushLocalInquiries(supabase, ghlHeaders, GHL_LOCATION_ID, userId, results);
+      // Push local inquiries without GHL opportunity ID
+      await pushLocalInquiries(supabase, ghlHeaders, GHL_LOCATION_ID, userId, results);
 
-  console.log('Auto-sync completed:', JSON.stringify(results));
-  return new Response(JSON.stringify({ success: true, ...results }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      console.log('Auto-sync completed:', JSON.stringify(results));
+    } catch (err) {
+      console.error('Background sync error:', err);
+    }
+  };
+
+  // @ts-ignore - EdgeRuntime.waitUntil is available in Supabase Edge Functions
+  EdgeRuntime.waitUntil(backgroundSync());
+
+  // Return immediately
+  return new Response(JSON.stringify({ success: true, message: 'Sync started in background' }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
 });
 
 // === CALENDAR SYNC ===
