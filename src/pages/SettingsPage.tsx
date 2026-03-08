@@ -2,6 +2,7 @@ import { useState, useRef } from 'react';
 import LegacyImport from '@/components/LegacyImport';
 import MasterImport from '@/components/MasterImport';
 import OudCrmImport from '@/components/OudCrmImport';
+import SyncQueuePanel from '@/components/SyncQueuePanel';
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
