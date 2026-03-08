@@ -92,6 +92,18 @@ export default function Dashboard() {
   const todayBookings = useMemo(() => bookings.filter((b) => b.date === today), [bookings, today]);
   const openInquiries = useMemo(() => inquiries.filter((i) => i.status === 'new' || i.status === 'contacted'), [inquiries]);
 
+  const contactMap = useMemo(() => {
+    const m = new Map<string, string>();
+    contacts.forEach(c => m.set(c.id, [c.firstName, c.lastName].filter(n => n && n !== '—').join(' ')));
+    return m;
+  }, [contacts]);
+
+  const companyMap = useMemo(() => {
+    const m = new Map<string, string>();
+    companies.forEach(c => m.set(c.id, c.name));
+    return m;
+  }, [companies]);
+
   const filteredTasks = useMemo(() => {
     if (filter === 'all') return tasks;
     return tasks.filter((t) => t.status === filter);
