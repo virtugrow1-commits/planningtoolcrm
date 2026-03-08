@@ -492,13 +492,6 @@ function CompanyField({ current, editing, companies, form, setForm, navigate, co
     );
   }
 
-  const searchValue = companySearch || '';
-  const filtered = searchValue.trim()
-    ? companies.filter((c) => {
-        const alreadyLinked = allCompanies.some((lc) => lc.id === c.id);
-        return !alreadyLinked && c.name.toLowerCase().includes(searchValue.toLowerCase());
-      }).slice(0, 8)
-    : [];
 
   return (
     <div>
