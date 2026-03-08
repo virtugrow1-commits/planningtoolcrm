@@ -119,7 +119,9 @@ export function ContactsProvider({ children }: { children: ReactNode }) {
       return;
     }
     if (data) {
-      await pushToGHL('push-contact', { contact: data });
+      await pushToGHL('push-contact', { contact: data }, {
+        entityType: 'contact', entityId: data.id, actionType: 'create',
+      });
     }
   }, [user, toast]);
 
