@@ -16,7 +16,7 @@ import { useInquiriesContext } from '@/contexts/InquiriesContext';
 import { useTasksContext } from '@/contexts/TasksContext';
 import { useContactCompanies } from '@/hooks/useContactCompanies';
 import { useToast } from '@/hooks/use-toast';
-import { mockQuotations } from '@/data/mockData';
+
 
 import CompanyActivityTimeline from '@/components/company/CompanyActivityTimeline';
 import { SectionCard } from '@/components/detail/DetailPageComponents';
