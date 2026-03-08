@@ -112,7 +112,7 @@ export default function ReserveringenPage() {
     return sort.sortItems(filtered, sortAccessor);
   }, [enrichedBookings, tab, search, sort.sortKey, sort.sortDir]);
 
-  useMemo(() => { setUpcomingPage(1); setPastPage(1); }, [tab, search, pageSize]);
+  useEffect(() => { setUpcomingPage(1); setPastPage(1); }, [tab, search, pageSize]);
 
   const paginate = <T,>(items: T[], page: number) => {
     const start = (page - 1) * pageSize;
