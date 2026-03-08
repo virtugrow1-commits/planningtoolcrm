@@ -13,7 +13,6 @@ import ContactDetailPage from "@/pages/ContactDetailPage";
 import InquiriesPage from "@/pages/InquiriesPage";
 
 import DocumentsPage from "@/pages/DocumentsPage";
-import ConversationsPage from "@/pages/ConversationsPage";
 import ReserveringenPage from "@/pages/ReserveringenPage";
 import SettingsPage from "@/pages/SettingsPage";
 import BookingDetailPage from "@/pages/BookingDetailPage";
