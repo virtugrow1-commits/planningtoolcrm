@@ -120,8 +120,6 @@ export default function Dashboard() {
 
   const resetForm = () => {
     setForm({ title: '', description: '', status: 'open', priority: 'normal', dueDate: '', companyId: '', contactId: '' });
-    setCompanySearch('');
-    setContactSearch('');
   };
 
   const openNew = () => {
