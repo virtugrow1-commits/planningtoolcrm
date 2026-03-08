@@ -774,7 +774,26 @@ serve(async (req) => {
             headers: { ...corsHeaders, 'Content-Type': 'application/json' },
           });
         }
-        return new Response(JSON.stringify({ success: false, error: await res.text() }), {
+
+        // Handle duplicate contact error — GHL returns contactId in meta
+        const errBody = await res.text();
+        try {
+          const errData = JSON.parse(errBody);
+          const dupContactId = errData.meta?.contactId;
+          if (dupContactId && res.status === 400 && errData.message?.includes('duplicate')) {
+            if (contact.id) {
+              await supabase.from('contacts').update({ ghl_contact_id: dupContactId }).eq('id', contact.id);
+            }
+            await ghlFetch(`${GHL_API_BASE}/contacts/${dupContactId}`, {
+              method: 'PUT', headers: ghlHeaders, body: JSON.stringify(ghlPayload),
+            });
+            return new Response(JSON.stringify({ success: true, action: 'linked_duplicate', ghl_contact_id: dupContactId }), {
+              headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+            });
+          }
+        } catch (_) { /* not JSON */ }
+
+        return new Response(JSON.stringify({ success: false, error: errBody }), {
           status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         });
       }
