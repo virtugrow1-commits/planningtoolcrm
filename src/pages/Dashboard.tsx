@@ -452,6 +452,7 @@ export default function Dashboard() {
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle>{editTask ? 'Taak Bewerken' : 'Nieuwe Taak'}</DialogTitle>
+            <DialogDescription className="sr-only">Vul de taakgegevens in</DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-2">
             <div className="grid gap-1.5">
