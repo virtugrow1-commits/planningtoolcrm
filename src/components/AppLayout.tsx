@@ -37,8 +37,6 @@ const navItemDefs = [
   { to: '/inquiries', icon: InboxIcon, key: 'nav.inquiries' },
   { to: '/reserveringen', icon: ClipboardList, key: 'nav.reserveringen' },
   { to: '/calendar', icon: CalendarDays, key: 'nav.calendar' },
-  { to: '/conversations', icon: MessageSquare, key: 'nav.conversations' },
-  
 ];
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
