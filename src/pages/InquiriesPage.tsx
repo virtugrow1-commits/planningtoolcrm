@@ -457,9 +457,11 @@ export default function InquiriesPage() {
                           </button>
                         </div>
                       </div>
-                      <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center text-primary text-xs font-bold shrink-0">
-                        {inq.contactName.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase()}
-                      </div>
+                      {inq.assignedTo && (
+                        <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center text-primary text-xs font-bold shrink-0" title={inq.assignedTo}>
+                          {inq.assignedTo.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase()}
+                        </div>
+                      )}
                     </div>
 
                     <div className="mt-2.5 space-y-1 text-xs">
