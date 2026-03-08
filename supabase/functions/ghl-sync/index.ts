@@ -900,7 +900,23 @@ serve(async (req) => {
         return new Response(JSON.stringify({ success: false, error: await res.text() }), {
           status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         });
+    }
+
+    if (action === 'delete-company') {
+      const { ghl_company_id } = body;
+      if (ghl_company_id) {
+        const res = await ghlFetch(`${GHL_API_BASE}/businesses/${ghl_company_id}`, {
+          method: 'DELETE', headers: ghlHeaders,
+        });
+        console.log(`Delete GHL company ${ghl_company_id}: ${res.status}`);
+        return new Response(JSON.stringify({ success: res.ok, action: 'deleted' }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
       }
+      return new Response(JSON.stringify({ success: true, skipped: true }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    
     }
 
     if (action === 'push-booking') {
