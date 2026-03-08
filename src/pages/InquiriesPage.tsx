@@ -90,7 +90,7 @@ export default function InquiriesPage() {
   const [detailOpen, setDetailOpen] = useState(false);
   const [editInquiry, setEditInquiry] = useState<Inquiry | null>(null);
   const [newForm, setNewForm] = useState({ contactName: '', contactId: '', eventType: '', preferredDate: '', guestCount: '', budget: '', message: '', source: 'Handmatig', roomPreference: '', status: 'new' as Inquiry['status'] });
-  const [contactSearch, setContactSearch] = useState('');
+  
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [bulkDeleteConfirmOpen, setBulkDeleteConfirmOpen] = useState(false);
   const [bulkMoveTarget, setBulkMoveTarget] = useState<Inquiry['status'] | null>(null);

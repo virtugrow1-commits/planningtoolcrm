@@ -95,7 +95,7 @@ export default function NewReservationDialog({
     roomSetup: '',
     notes: '',
   });
-  const [contactSearch, setContactSearch] = useState('');
+  
 
   // Reset form when dialog opens (only triggered by `open` changing to true)
   const [lastOpen, setLastOpen] = useState(false);
