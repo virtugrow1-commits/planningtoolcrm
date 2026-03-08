@@ -14,7 +14,7 @@ const MOJIBAKE_MAP: [string, string][] = [
   ['Ã§', 'ç'],
   ['Ã®', 'î'],
   ['Ã¢', 'â'],
-  ['Ã ', 'à'],
+  ['Ã\u00A0', 'à'],
   ['Ã´', 'ô'],
   ['Ã»', 'û'],
   ['Ã±', 'ñ'],
@@ -24,17 +24,6 @@ const MOJIBAKE_MAP: [string, string][] = [
   ['Ã°', 'ð'],
   ['Ã½', 'ý'],
   ['Ã¿', 'ÿ'],
-  ['Ã\u0096', 'Ö'],
-  ['Ã\u009C', 'Ü'],
-  ['Ã\u0084', 'Ä'],
-  ['â\u0080\u0093', '–'],
-  ['â\u0080\u0094', '—'],
-  ['â\u0080\u0099', '''],
-  ['â\u0080\u009C', '"'],
-  ['â\u0080\u009D', '"'],
-  ['Â©', '©'],
-  ['Â®', '®'],
-  ['Â ', ''], // non-breaking space artifact
 ];
 
 export function fixEncoding(text: string | null | undefined): string {
@@ -49,5 +38,5 @@ export function fixEncoding(text: string | null | undefined): string {
 /** Returns true if the string contains likely mojibake patterns */
 export function hasMojibake(text: string | null | undefined): boolean {
   if (!text) return false;
-  return /Ã[©«¶¼¡³¨¯§®¢ ´»±¤¥¦°½¿]/.test(text) || /â\u0080[\u0093\u0094\u0099\u009C\u009D]/.test(text);
+  return /Ã[©«¶¼¡³¨¯§®¢´»±¤¥¦°½¿]/.test(text);
 }
