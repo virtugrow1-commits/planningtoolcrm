@@ -543,8 +543,6 @@ function CompanyField({ current, editing, companies, form, setForm, navigate, co
               .map((c) => ({
                 id: c.id,
                 label: c.name,
-                secondary: [c.email, c.city].filter(Boolean).join(' · ') || undefined,
-                searchText: `${c.name} ${c.email || ''} ${c.phone || ''} ${c.city || ''}`,
               }))}
             value=""
             onSelect={(id) => {
