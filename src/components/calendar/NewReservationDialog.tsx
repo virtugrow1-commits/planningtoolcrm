@@ -189,7 +189,7 @@ export default function NewReservationDialog({
             {selectedContact ? (
               <div className="flex items-center justify-between rounded-lg border bg-muted/30 p-3">
                 <div>
-                  <p className="text-sm font-medium">{selectedContact.firstName} {selectedContact.lastName}</p>
+                  <p className="text-sm font-medium">{[selectedContact.firstName, selectedContact.lastName].filter(n => n && n !== '—').join(' ')}</p>
                   {selectedContact.email && <p className="text-xs text-muted-foreground">{selectedContact.email}</p>}
                   {selectedContact.company && <p className="text-xs text-muted-foreground">{selectedContact.company}</p>}
                 </div>
@@ -198,47 +198,14 @@ export default function NewReservationDialog({
                 </Button>
               </div>
             ) : (
-              <div className="space-y-2">
-                <div className="relative">
-                  <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-                  <Input
-                    placeholder="Zoek contact..."
-                    className="pl-9"
-                    value={contactSearch}
-                    onChange={(e) => setContactSearch(e.target.value)}
-                  />
-                </div>
-                <ScrollArea className="h-36 rounded-lg border">
-                  {contactsLoading ? (
-                    <p className="p-3 text-sm text-muted-foreground">Laden...</p>
-                  ) : filteredContacts.length === 0 ? (
-                    <p className="p-3 text-sm text-muted-foreground">
-                      {contactSearch ? 'Geen contacten gevonden' : 'Typ om te zoeken...'}
-                    </p>
-                  ) : (
-                    <>
-                      {filteredContacts.map((c) => (
-                      <button
-                        key={c.id}
-                        className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-accent/10 transition-colors"
-                        onClick={() => handleSelectContact(c)}
-                      >
-                        <div>
-                          <span className="font-medium">{c.firstName} {c.lastName}</span>
-                          {c.company && <span className="ml-2 text-xs text-muted-foreground">({c.company})</span>}
-                        </div>
-                      </button>
-                    ))
-                    }
-                    {contacts.length > 50 && filteredContacts.length >= 50 && (
-                      <p className="px-3 py-2 text-xs text-muted-foreground border-t">
-                        Typ om meer resultaten te zien ({contacts.length} contacten totaal)
-                      </p>
-                    )}
-                    </>
-                  )}
-                </ScrollArea>
-              </div>
+              <CrmCombobox
+                options={contactOptions}
+                value={form.contactId}
+                onSelect={handleSelectContact}
+                placeholder="Selecteer klant..."
+                searchPlaceholder="Zoek contact..."
+                popoverWidth="w-[340px]"
+              />
             )}
           </div>
 
