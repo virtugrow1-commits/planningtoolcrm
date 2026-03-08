@@ -338,30 +338,38 @@ export function BookingsProvider({ children }: { children: ReactNode }) {
   }, [fetchBookings, toast, serverConflictCheck, queueFailedSync, logSync]);
 
   const deleteBooking = useCallback(async (id: string) => {
+    // Optimistic removal — instantly remove from UI state to prevent "spring back"
+    const previousBookings = bookings;
+    setBookings((prev) => prev.filter((b) => b.id !== id));
+
     const { data: existing } = await supabase.from('bookings').select('ghl_event_id').eq('id', id).single();
+    const ghlEventId = (existing as any)?.ghl_event_id;
     
     // Delete from GHL FIRST
-    if ((existing as any)?.ghl_event_id) {
+    if (ghlEventId) {
       try {
         const { error: syncErr } = await supabase.functions.invoke('ghl-sync', {
-          body: { action: 'delete-booking', ghl_event_id: (existing as any).ghl_event_id },
+          body: { action: 'delete-booking', ghl_event_id: ghlEventId },
         });
         if (syncErr) throw syncErr;
-        await logSync('delete_booking', id, { ghl_event_id: (existing as any).ghl_event_id, ghl_status: 'success' }, 'success');
+        await logSync('delete_booking', id, { ghl_event_id: ghlEventId, ghl_status: 'success' }, 'success');
       } catch (err: any) {
         console.warn('[VGW Sync] delete-booking failed, queuing:', err);
-        await queueFailedSync(id, 'delete', { ghl_event_id: (existing as any).ghl_event_id }, err?.message || 'Unknown error');
-        await logSync('delete_booking', id, { error: err?.message }, 'error');
+        await queueFailedSync(id, 'delete', { ghl_event_id: ghlEventId }, err?.message || 'Unknown error');
+        await logSync('delete_booking', id, { ghl_event_id: ghlEventId, error: err?.message }, 'error');
       }
     }
     
     const { error } = await supabase.from('bookings').delete().eq('id', id);
     if (error) {
+      // Rollback optimistic removal
+      setBookings(previousBookings);
       toast({ title: 'Fout bij verwijderen boeking', description: error.message, variant: 'destructive' });
       return;
     }
-    await fetchBookings();
-  }, [fetchBookings, toast, queueFailedSync, logSync]);
+    // Don't fetchBookings here — optimistic state is already correct
+    // Realtime subscription will confirm the deletion
+  }, [bookings, toast, queueFailedSync, logSync]);
 
   return (
     <BookingsContext.Provider value={{ bookings, loading, addBooking, addBookings, updateBooking, deleteBooking, refetch: fetchBookings, checkConflicts }}>
