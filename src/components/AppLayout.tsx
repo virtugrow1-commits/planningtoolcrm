@@ -44,7 +44,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const [syncing, setSyncing] = useState(false);
   const { toast } = useToast();
   const { unreadCount } = useInquiriesContext();
-  const [unreadConversations] = useState(0);
+  
 
   const handleFullSync = async () => {
     if (syncing) return;
