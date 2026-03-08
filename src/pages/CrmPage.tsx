@@ -147,7 +147,7 @@ export default function CrmPage() {
       case 'email': return c.email || '';
       case 'phone': return c.phone || '';
       case 'city': return c.city || '';
-      case 'status': return c.crmGroup || 'lead';
+      case 'status': return c.crmGroup || '';
       default: return '';
     }
   });
