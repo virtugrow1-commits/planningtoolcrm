@@ -1346,9 +1346,22 @@ serve(async (req) => {
     }
 
     if (action === 'delete-task') {
-      const { ghl_task_id } = body;
-      // GHL task deletion requires contact context; fire-and-forget
-      return new Response(JSON.stringify({ success: true, action: 'task-delete-noted', ghl_task_id }), {
+      const { ghl_task_id, contact_id } = body;
+      if (ghl_task_id && contact_id) {
+        // Find the GHL contact ID for this contact
+        const { data: contactRow } = await supabase.from('contacts').select('ghl_contact_id').eq('id', contact_id).maybeSingle();
+        const ghlContactId = contactRow?.ghl_contact_id;
+        if (ghlContactId) {
+          const res = await ghlFetch(`${GHL_API_BASE}/contacts/${ghlContactId}/tasks/${ghl_task_id}`, {
+            method: 'DELETE', headers: ghlHeaders,
+          });
+          console.log(`Delete GHL task ${ghl_task_id} for contact ${ghlContactId}: ${res.status}`);
+          return new Response(JSON.stringify({ success: res.ok, action: 'task-deleted' }), {
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
+        }
+      }
+      return new Response(JSON.stringify({ success: true, action: 'task-delete-skipped', ghl_task_id }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
