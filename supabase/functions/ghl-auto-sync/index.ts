@@ -797,14 +797,13 @@ async function syncCompanies(supabase: any, ghlHeaders: any, locationId: string,
           }
         }
       } else {
-        // New from GHL → check if company already exists by name
-        const { data: nameMatch } = await supabase
+        // New from GHL → check if company already exists by name (case-insensitive)
+        const { data: nameMatches } = await supabase
           .from('companies')
-          .select('id')
-          .eq('user_id', userId)
-          .ilike('name', ghlName)
-          .is('ghl_company_id', null)
-          .maybeSingle();
+          .select('id, name')
+          .eq('user_id', userId);
+
+        const nameMatch = (nameMatches || []).find((c: any) => norm(c.name) === norm(ghlName));
 
         if (nameMatch) {
           // Link existing CRM company to GHL
@@ -823,7 +822,16 @@ async function syncCompanies(supabase: any, ghlHeaders: any, locationId: string,
             city: ghlCity,
           });
           if (insertErr) {
-            console.error(`Company insert error for ${ghlCompany.id}:`, insertErr.message);
+            // If unique constraint, try to link instead
+            if (insertErr.message?.includes('unique')) {
+              const { data: dup } = await supabase.from('companies').select('id').ilike('name', ghlName).maybeSingle();
+              if (dup) {
+                await supabase.from('companies').update({ ghl_company_id: ghlCompany.id }).eq('id', dup.id);
+                console.log(`Linked duplicate company "${ghlName}" to GHL ${ghlCompany.id}`);
+              }
+            } else {
+              console.error(`Company insert error for ${ghlCompany.id}:`, insertErr.message);
+            }
           }
         }
       }
