@@ -85,7 +85,7 @@ export function CompaniesProvider({ children }: { children: ReactNode }) {
         postcode: c.postcode || undefined,
         country: c.country || undefined,
         customerNumber: c.customer_number || undefined,
-        crmGroup: c.crm_group || undefined,
+        crmGroup: parseCrmGroup(c.crm_group) || undefined,
         btwNumber: c.btw_number || undefined,
         createdAt: c.created_at?.split('T')[0] || '',
       })));
