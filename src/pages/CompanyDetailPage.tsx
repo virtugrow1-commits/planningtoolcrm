@@ -534,34 +534,4 @@ export default function CompanyDetailPage() {
   );
 }
 
-function OffertesSection({ contactIds, navigate }: { contactIds: Set<string>; navigate: (path: string) => void }) {
-  const quotations = useMemo(() => mockQuotations.filter((q) => contactIds.has(q.contactId)), [contactIds]);
-
-  return (
-    <SectionCard title="Offertes" count={quotations.length} linkLabel="Bekijk offertes" onLink={() => navigate('/quotations')}>
-      {quotations.length === 0 ? (
-        <p className="text-xs text-muted-foreground">Geen offertes</p>
-      ) : (
-        <div className="space-y-1">
-          {quotations.slice(0, 8).map((q) => (
-            <button
-              key={q.id}
-              onClick={() => navigate('/quotations')}
-              className="w-full flex items-center justify-between py-1.5 px-2 rounded-md hover:bg-muted/50 transition-colors text-left text-xs"
-            >
-              <div>
-                <span className="font-medium text-foreground">{q.title}</span>
-                <span className="text-muted-foreground ml-2">€{q.totalAmount.toLocaleString()}</span>
-              </div>
-              <Badge variant="outline" className="text-[10px]">
-                {q.status === 'draft' ? 'Concept' : q.status === 'sent' ? 'Verzonden' : q.status === 'accepted' ? 'Geaccepteerd' : q.status === 'declined' ? 'Afgewezen' : 'Verlopen'}
-              </Badge>
-            </button>
-          ))}
-        </div>
-      )}
-    </SectionCard>
-  );
-}
-
 /* SectionCard is now imported from @/components/detail/DetailPageComponents */

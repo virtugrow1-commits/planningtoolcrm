@@ -64,7 +64,7 @@ function ProtectedRoutes() {
                   <Route path="/tasks/:id" element={<TaskDetailPage />} />
                   <Route path="/reserveringen" element={<ReserveringenPage />} />
                   <Route path="/reserveringen/:id" element={<BookingDetailPage />} />
-                  <Route path="/quotations" element={<QuotationsPage />} />
+                  
                   <Route path="/documents" element={<DocumentsPage />} />
                   <Route path="/conversations" element={<ConversationsPage />} />
                   <Route path="/calendar" element={<CalendarPage />} />

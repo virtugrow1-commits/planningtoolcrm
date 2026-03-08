@@ -327,30 +327,6 @@ export default function ContactDetailPage() {
             )}
           </SectionCard>
 
-          {/* Offertes */}
-          <SectionCard title="Offertes" linkLabel="Bekijk offertes" onLink={() => navigate('/quotations')}>
-            {contactQuotations.length === 0 ? (
-              <p className="text-xs text-muted-foreground">Geen offertes</p>
-            ) : (
-              <div className="space-y-1">
-                {contactQuotations.slice(0, 8).map((q) => (
-                  <button
-                    key={q.id}
-                    onClick={() => navigate('/quotations')}
-                    className="w-full flex items-center justify-between py-1.5 px-2 rounded-md hover:bg-muted/50 transition-colors text-left text-xs"
-                  >
-                    <div>
-                      <span className="font-medium text-foreground">{q.title}</span>
-                      <span className="text-muted-foreground ml-2">€{q.totalAmount.toLocaleString()}</span>
-                    </div>
-                    <Badge variant="outline" className="text-[10px]">
-                      {q.status === 'draft' ? 'Concept' : q.status === 'sent' ? 'Verzonden' : q.status === 'accepted' ? 'Geaccepteerd' : q.status === 'declined' ? 'Afgewezen' : 'Verlopen'}
-                    </Badge>
-                  </button>
-                ))}
-              </div>
-            )}
-          </SectionCard>
 
           {/* Documenten */}
           <SectionCard title="Documenten" linkLabel="Alle documenten" onLink={() => navigate('/documents')}>

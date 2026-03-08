@@ -32,8 +32,6 @@ const VGW_WEBHOOKS = [
   { id: 'booking_created', label: 'Boeking aangemaakt', description: 'Stuur nieuwe boekingen naar VirtuGrow', direction: 'outbound' },
   { id: 'booking_updated', label: 'Boeking gewijzigd', description: 'Sync wijzigingen in boekingen naar VirtuGrow', direction: 'outbound' },
   { id: 'inquiry_status', label: 'Aanvraag status gewijzigd', description: 'Update VirtuGrow opportunity bij status wijziging', direction: 'outbound' },
-  { id: 'quotation_sent', label: 'Offerte verstuurd', description: 'Trigger VirtuGrow workflow bij offerte', direction: 'outbound' },
-  { id: 'quotation_accepted', label: 'Offerte geaccepteerd', description: 'Markeer VirtuGrow opportunity als gewonnen', direction: 'outbound' },
   { id: 'recurring_created', label: 'Herhaling aangemaakt', description: 'Sync terugkerende boekingen naar VirtuGrow', direction: 'outbound' },
 ];
 
