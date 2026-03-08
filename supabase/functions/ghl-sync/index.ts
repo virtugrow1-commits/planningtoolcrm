@@ -933,8 +933,16 @@ serve(async (req) => {
         });
       }
 
-      const startTime = `${booking.date}T${String(booking.start_hour).padStart(2, '0')}:${String(booking.start_minute || 0).padStart(2, '0')}:00+01:00`;
-      const endTime = `${booking.date}T${String(booking.end_hour).padStart(2, '0')}:${String(booking.end_minute || 0).padStart(2, '0')}:00+01:00`;
+      // Determine correct UTC offset for Europe/Amsterdam (CET +01:00 or CEST +02:00)
+      const probeDateStr = `${booking.date}T12:00:00`;
+      const probeDate = new Date(probeDateStr + 'Z');
+      const amsterdamStr = probeDate.toLocaleString('en-US', { timeZone: 'Europe/Amsterdam', hour12: false });
+      const amsterdamDate = new Date(amsterdamStr);
+      const offsetMs = amsterdamDate.getTime() - probeDate.getTime();
+      const offsetHours = Math.round(offsetMs / 3600000);
+      const tzOffset = `${offsetHours >= 0 ? '+' : '-'}${String(Math.abs(offsetHours)).padStart(2, '0')}:00`;
+      const startTime = `${booking.date}T${String(booking.start_hour).padStart(2, '0')}:${String(booking.start_minute || 0).padStart(2, '0')}:00${tzOffset}`;
+      const endTime = `${booking.date}T${String(booking.end_hour).padStart(2, '0')}:${String(booking.end_minute || 0).padStart(2, '0')}:00${tzOffset}`;
 
       // Try to find the GHL contact ID for this booking's contact
       let ghlContactId: string | null = null;
