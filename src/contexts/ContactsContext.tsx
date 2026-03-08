@@ -135,7 +135,9 @@ export function ContactsProvider({ children }: { children: ReactNode }) {
       phone: contact.phone || null,
       company: contact.company || null,
       ghl_contact_id: contact.ghlContactId || null,
-    }});
+    }}, {
+      entityType: 'contact', entityId: contact.id, actionType: 'update',
+    });
     // Then update local DB
     const { error } = await supabase.from('contacts').update({
       first_name: capitalizeWords(contact.firstName),
