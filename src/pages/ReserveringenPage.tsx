@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { format } from 'date-fns';
 import { nl } from 'date-fns/locale';
@@ -112,7 +112,7 @@ export default function ReserveringenPage() {
     return sort.sortItems(filtered, sortAccessor);
   }, [enrichedBookings, tab, search, sort.sortKey, sort.sortDir]);
 
-  useMemo(() => { setUpcomingPage(1); setPastPage(1); }, [tab, search, pageSize]);
+  useEffect(() => { setUpcomingPage(1); setPastPage(1); }, [tab, search, pageSize]);
 
   const paginate = <T,>(items: T[], page: number) => {
     const start = (page - 1) * pageSize;
