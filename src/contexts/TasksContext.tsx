@@ -107,7 +107,9 @@ export function TasksProvider({ children }: { children: ReactNode }) {
       return;
     }
     if (data) {
-      await pushToGHL('push-task', { task: data });
+      await pushToGHL('push-task', { task: data }, {
+        entityType: 'task', entityId: data.id, actionType: 'create',
+      });
     }
   }, [user, toast]);
 
@@ -123,7 +125,9 @@ export function TasksProvider({ children }: { children: ReactNode }) {
         due_date: task.dueDate || null,
         completed_at: task.status === 'completed' ? new Date().toISOString() : null,
         contact_id: task.contactId || null,
-      }});
+      }}, {
+        entityType: 'task', entityId: task.id, actionType: 'update',
+      });
     }
     // Then update local DB
     const completedAt = task.status === 'completed'
@@ -149,15 +153,19 @@ export function TasksProvider({ children }: { children: ReactNode }) {
     }
     // If no GHL task yet, push the saved data to create one
     if (data && !task.ghlTaskId) {
-      await pushToGHL('push-task', { task: data });
+      await pushToGHL('push-task', { task: data }, {
+        entityType: 'task', entityId: data.id, actionType: 'create',
+      });
     }
   }, [toast]);
 
   const deleteTask = useCallback(async (id: string) => {
-    const { data: existing } = await (supabase as any).from('tasks').select('ghl_task_id').eq('id', id).single();
+    const { data: existing } = await (supabase as any).from('tasks').select('ghl_task_id, contact_id').eq('id', id).single();
     // GHL first: delete from GHL before local DB
     if (existing?.ghl_task_id) {
-      await pushToGHL('delete-task', { ghl_task_id: existing.ghl_task_id });
+      await pushToGHL('delete-task', { ghl_task_id: existing.ghl_task_id, contact_id: existing.contact_id }, {
+        entityType: 'task', entityId: id, actionType: 'delete',
+      });
     }
     const { error } = await (supabase as any).from('tasks').delete().eq('id', id);
     if (error) {

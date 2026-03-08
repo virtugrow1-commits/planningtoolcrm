@@ -119,7 +119,9 @@ export function ContactsProvider({ children }: { children: ReactNode }) {
       return;
     }
     if (data) {
-      await pushToGHL('push-contact', { contact: data });
+      await pushToGHL('push-contact', { contact: data }, {
+        entityType: 'contact', entityId: data.id, actionType: 'create',
+      });
     }
   }, [user, toast]);
 
@@ -133,7 +135,9 @@ export function ContactsProvider({ children }: { children: ReactNode }) {
       phone: contact.phone || null,
       company: contact.company || null,
       ghl_contact_id: contact.ghlContactId || null,
-    }});
+    }}, {
+      entityType: 'contact', entityId: contact.id, actionType: 'update',
+    });
     // Then update local DB
     const { error } = await supabase.from('contacts').update({
       first_name: capitalizeWords(contact.firstName),
@@ -156,7 +160,9 @@ export function ContactsProvider({ children }: { children: ReactNode }) {
     const { data: existing } = await supabase.from('contacts').select('ghl_contact_id').eq('id', id).single();
     // GHL first: delete from GHL before local DB
     if (existing?.ghl_contact_id) {
-      await pushToGHL('delete-contact', { ghl_contact_id: existing.ghl_contact_id });
+      await pushToGHL('delete-contact', { ghl_contact_id: existing.ghl_contact_id }, {
+        entityType: 'contact', entityId: id, actionType: 'delete',
+      });
     }
     const { error } = await supabase.from('contacts').delete().eq('id', id);
     if (error) {

@@ -129,7 +129,9 @@ export function CompaniesProvider({ children }: { children: ReactNode }) {
       toast({ title: 'Fout bij aanmaken bedrijf', description: error.message, variant: 'destructive' });
     }
     if (data) {
-      await pushToGHL('push-company', { company: data });
+      await pushToGHL('push-company', { company: data }, {
+        entityType: 'company', entityId: data.id, actionType: 'create',
+      });
     }
   }, [user, toast]);
 
@@ -143,8 +145,12 @@ export function CompaniesProvider({ children }: { children: ReactNode }) {
       website: company.website || null,
       address: company.address || null,
       city: company.city || null,
+      postcode: company.postcode || null,
+      country: company.country || null,
       ghl_company_id: company.ghlCompanyId || null,
-    }});
+    }}, {
+      entityType: 'company', entityId: company.id, actionType: 'update',
+    });
     // Then update local DB
     const { error } = await (supabase as any).from('companies').update({
       name: capitalizeWords(company.name),
@@ -171,7 +177,9 @@ export function CompaniesProvider({ children }: { children: ReactNode }) {
     // GHL first: delete from GHL before local DB
     const { data: existing } = await (supabase as any).from('companies').select('ghl_company_id').eq('id', id).single();
     if (existing?.ghl_company_id) {
-      await pushToGHL('delete-company', { ghl_company_id: existing.ghl_company_id });
+      await pushToGHL('delete-company', { ghl_company_id: existing.ghl_company_id }, {
+        entityType: 'company', entityId: id, actionType: 'delete',
+      });
     }
     const { error } = await (supabase as any).from('companies').delete().eq('id', id);
     if (error) {
