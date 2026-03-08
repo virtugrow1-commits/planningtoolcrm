@@ -118,6 +118,8 @@ export function InquiriesProvider({ children }: { children: ReactNode }) {
         budget: inquiry.budget,
         status: inquiry.status,
         message: inquiry.message,
+      }, {
+        entityType: 'inquiry', entityId: inserted.id, actionType: 'create',
       });
     }
   }, [user, toast]);
