@@ -30,7 +30,7 @@ export function fixEncoding(text: string | null | undefined): string {
   if (!text) return text ?? '';
   let result = text;
   for (const [bad, good] of MOJIBAKE_MAP) {
-    result = result.replaceAll(bad, good);
+    result = result.split(bad).join(good);
   }
   return result;
 }
