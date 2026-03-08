@@ -201,6 +201,23 @@ async function syncCalendar(supabase: any, ghlHeaders: any, locationId: string, 
     const allEvents = eventArrays.flat();
     console.log(`Total events from GHL: ${allEvents.length}`);
 
+    // Load recently deleted GHL event IDs from sync_log to prevent re-import
+    const deletedSince = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(); // last 24h
+    const { data: deletedLogs } = await supabase
+      .from('sync_log')
+      .select('details')
+      .eq('entity_type', 'booking')
+      .eq('action', 'delete_booking')
+      .gte('created_at', deletedSince);
+    const deletedGhlEventIds = new Set<string>();
+    for (const log of deletedLogs || []) {
+      const ghlId = (log.details as any)?.ghl_event_id;
+      if (ghlId) deletedGhlEventIds.add(ghlId);
+    }
+    if (deletedGhlEventIds.size > 0) {
+      console.log(`Skipping ${deletedGhlEventIds.size} recently deleted GHL events`);
+    }
+
     // Batch upsert events in chunks of 20
     const CHUNK_SIZE = 20;
     for (let i = 0; i < allEvents.length; i += CHUNK_SIZE) {
@@ -209,6 +226,12 @@ async function syncCalendar(supabase: any, ghlHeaders: any, locationId: string, 
 
       for (const evt of chunk) {
         try {
+          // Skip events that were recently deleted from CRM
+          if (deletedGhlEventIds.has(evt.id)) {
+            console.log(`Skipping re-import of deleted event: ${evt.id}`);
+            continue;
+          }
+
           const evtStart = new Date(evt.startTime || evt.start || evt.startDate);
           const evtEnd = new Date(evt.endTime || evt.end || evt.endDate);
           if (isNaN(evtStart.getTime())) continue;
