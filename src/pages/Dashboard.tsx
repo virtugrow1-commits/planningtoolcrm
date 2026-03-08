@@ -99,31 +99,7 @@ export default function Dashboard() {
 
   const openTaskCount = useMemo(() => tasks.filter((t) => t.status !== 'completed').length, [tasks]);
 
-  const filteredCompanies = useMemo(() => {
-    if (!companySearch.trim()) return companies.slice(0, 50);
-    const q = companySearch.toLowerCase();
-    return companies.filter(c => c.name.toLowerCase().includes(q)).slice(0, 50);
-  }, [companies, companySearch]);
-
-  const filteredContacts = useMemo(() => {
-    let pool = form.companyId ? contacts.filter(c => c.companyId === form.companyId) : contacts;
-    if (contactSearch.trim()) {
-      const q = contactSearch.toLowerCase();
-      pool = pool.filter(c => `${c.firstName} ${c.lastName}`.toLowerCase().includes(q));
-    }
-    return pool.slice(0, 50);
-  }, [contacts, form.companyId, contactSearch]);
-
-  const selectedCompanyName = useMemo(() => {
-    if (!form.companyId) return '';
-    return companies.find(c => c.id === form.companyId)?.name || '';
-  }, [form.companyId, companies]);
-
-  const selectedContactName = useMemo(() => {
-    if (!form.contactId) return '';
-    const c = contacts.find(c => c.id === form.contactId);
-    return c ? `${c.firstName} ${c.lastName}` : '';
-  }, [form.contactId, contacts]);
+  // (company/contact filtering is now handled by CrmCombobox)
 
   const toggleSelect = (id: string) => {
     setSelected((prev) => {
