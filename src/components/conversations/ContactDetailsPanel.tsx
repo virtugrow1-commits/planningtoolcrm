@@ -83,7 +83,7 @@ export default function ContactDetailsPanel({ contactId, contactName, phone, ema
             variant="outline"
             size="sm"
             className="w-full text-xs"
-            onClick={() => navigate(`/crm/contact/${contact.id}`)}
+            onClick={() => navigate(`/crm/${contact.id}`)}
           >
             <ExternalLink size={12} className="mr-1" />
             Open in CRM
