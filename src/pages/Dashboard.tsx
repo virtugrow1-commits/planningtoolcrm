@@ -11,7 +11,6 @@ import {
   Flag,
   CheckCircle2,
   CalendarIcon,
-  Search,
 } from 'lucide-react';
 import KpiCard from '@/components/KpiCard';
 import KpiDetailDialog from '@/components/dashboard/KpiDetailDialog';
@@ -28,7 +27,7 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import CrmCombobox, { ComboboxOption } from '@/components/CrmCombobox';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { Task, TASK_STATUSES, TASK_PRIORITIES } from '@/types/task';
@@ -56,11 +55,26 @@ export default function Dashboard() {
   const [filter, setFilter] = useState<'all' | 'open' | 'in_progress' | 'completed'>('all');
   const [kpiDialog, setKpiDialog] = useState<{ open: boolean; type: 'tasks' | 'inquiries' | 'bookings' }>({ open: false, type: 'tasks' });
 
-  // Searchable selectors
-  const [companySearch, setCompanySearch] = useState('');
-  const [contactSearch, setContactSearch] = useState('');
-  const [companyPopoverOpen, setCompanyPopoverOpen] = useState(false);
-  const [contactPopoverOpen, setContactPopoverOpen] = useState(false);
+  // Combobox options
+  const companyOptions = useMemo<ComboboxOption[]>(() =>
+    companies.map(c => ({
+      id: c.id,
+      label: c.name,
+      secondary: [c.email, c.city].filter(Boolean).join(' · ') || undefined,
+      searchText: `${c.name} ${c.email || ''} ${c.phone || ''} ${c.city || ''}`,
+    })),
+    [companies]
+  );
+
+  const contactOptions = useMemo<ComboboxOption[]>(() => {
+    const pool = form.companyId ? contacts.filter(c => c.companyId === form.companyId) : contacts;
+    return pool.map(c => ({
+      id: c.id,
+      label: [c.firstName, c.lastName].filter(n => n && n !== '—').join(' ') || c.email || 'Onbekend',
+      secondary: c.company || c.email || undefined,
+      searchText: `${c.firstName} ${c.lastName} ${c.email || ''} ${c.company || ''} ${c.phone || ''}`,
+    }));
+  }, [contacts, form.companyId]);
 
   // Follow-up dialog
   const [showFollowUp, setShowFollowUp] = useState(false);
@@ -85,31 +99,7 @@ export default function Dashboard() {
 
   const openTaskCount = useMemo(() => tasks.filter((t) => t.status !== 'completed').length, [tasks]);
 
-  const filteredCompanies = useMemo(() => {
-    if (!companySearch.trim()) return companies.slice(0, 50);
-    const q = companySearch.toLowerCase();
-    return companies.filter(c => c.name.toLowerCase().includes(q)).slice(0, 50);
-  }, [companies, companySearch]);
-
-  const filteredContacts = useMemo(() => {
-    let pool = form.companyId ? contacts.filter(c => c.companyId === form.companyId) : contacts;
-    if (contactSearch.trim()) {
-      const q = contactSearch.toLowerCase();
-      pool = pool.filter(c => `${c.firstName} ${c.lastName}`.toLowerCase().includes(q));
-    }
-    return pool.slice(0, 50);
-  }, [contacts, form.companyId, contactSearch]);
-
-  const selectedCompanyName = useMemo(() => {
-    if (!form.companyId) return '';
-    return companies.find(c => c.id === form.companyId)?.name || '';
-  }, [form.companyId, companies]);
-
-  const selectedContactName = useMemo(() => {
-    if (!form.contactId) return '';
-    const c = contacts.find(c => c.id === form.contactId);
-    return c ? `${c.firstName} ${c.lastName}` : '';
-  }, [form.contactId, contacts]);
+  // (company/contact filtering is now handled by CrmCombobox)
 
   const toggleSelect = (id: string) => {
     setSelected((prev) => {
@@ -130,8 +120,6 @@ export default function Dashboard() {
 
   const resetForm = () => {
     setForm({ title: '', description: '', status: 'open', priority: 'normal', dueDate: '', companyId: '', contactId: '' });
-    setCompanySearch('');
-    setContactSearch('');
   };
 
   const openNew = () => {
@@ -491,97 +479,31 @@ export default function Dashboard() {
               </div>
             </div>
             <div className="grid grid-cols-2 gap-3">
-              {/* Searchable Company selector */}
               <div className="grid gap-1.5">
                 <Label>Bedrijf</Label>
-                <Popover open={companyPopoverOpen} onOpenChange={setCompanyPopoverOpen}>
-                  <PopoverTrigger asChild>
-                    <Button variant="outline" className="w-full justify-start font-normal h-10 text-sm">
-                      {form.companyId ? (
-                        <span className="truncate">{selectedCompanyName}</span>
-                      ) : (
-                        <span className="text-muted-foreground">Selecteer...</span>
-                      )}
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-[220px] p-0" align="start">
-                    <div className="p-2 border-b">
-                      <div className="flex items-center gap-2 px-2">
-                        <Search size={14} className="text-muted-foreground shrink-0" />
-                        <input
-                          className="w-full text-sm bg-transparent outline-none placeholder:text-muted-foreground"
-                          placeholder="Zoek bedrijf..."
-                          value={companySearch}
-                          onChange={(e) => setCompanySearch(e.target.value)}
-                          autoFocus
-                        />
-                      </div>
-                    </div>
-                    <div className="max-h-48 overflow-y-auto p-1">
-                      <button
-                        className="w-full text-left text-sm px-3 py-1.5 rounded hover:bg-muted/50 text-muted-foreground"
-                        onClick={() => { setForm({ ...form, companyId: '', contactId: '' }); setCompanyPopoverOpen(false); setCompanySearch(''); }}
-                      >
-                        — Geen —
-                      </button>
-                      {filteredCompanies.map((c) => (
-                        <button
-                          key={c.id}
-                          className={cn("w-full text-left text-sm px-3 py-1.5 rounded hover:bg-muted/50", form.companyId === c.id && "bg-primary/10 text-primary")}
-                          onClick={() => { setForm({ ...form, companyId: c.id, contactId: '' }); setCompanyPopoverOpen(false); setCompanySearch(''); }}
-                        >
-                          {c.name}
-                        </button>
-                      ))}
-                    </div>
-                  </PopoverContent>
-                </Popover>
+                <CrmCombobox
+                  options={companyOptions}
+                  value={form.companyId}
+                  onSelect={(id) => setForm({ ...form, companyId: id, contactId: '' })}
+                  placeholder="Selecteer..."
+                  searchPlaceholder="Zoek bedrijf..."
+                  allowClear
+                  clearLabel="— Geen —"
+                  popoverWidth="w-[280px]"
+                />
               </div>
-              {/* Searchable Contact selector */}
               <div className="grid gap-1.5">
                 <Label>Contactpersoon</Label>
-                <Popover open={contactPopoverOpen} onOpenChange={setContactPopoverOpen}>
-                  <PopoverTrigger asChild>
-                    <Button variant="outline" className="w-full justify-start font-normal h-10 text-sm">
-                      {form.contactId ? (
-                        <span className="truncate">{selectedContactName}</span>
-                      ) : (
-                        <span className="text-muted-foreground">Selecteer...</span>
-                      )}
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-[220px] p-0" align="start">
-                    <div className="p-2 border-b">
-                      <div className="flex items-center gap-2 px-2">
-                        <Search size={14} className="text-muted-foreground shrink-0" />
-                        <input
-                          className="w-full text-sm bg-transparent outline-none placeholder:text-muted-foreground"
-                          placeholder="Zoek contact..."
-                          value={contactSearch}
-                          onChange={(e) => setContactSearch(e.target.value)}
-                          autoFocus
-                        />
-                      </div>
-                    </div>
-                    <div className="max-h-48 overflow-y-auto p-1">
-                      <button
-                        className="w-full text-left text-sm px-3 py-1.5 rounded hover:bg-muted/50 text-muted-foreground"
-                        onClick={() => { setForm({ ...form, contactId: '' }); setContactPopoverOpen(false); setContactSearch(''); }}
-                      >
-                        — Geen —
-                      </button>
-                      {filteredContacts.map((c) => (
-                        <button
-                          key={c.id}
-                          className={cn("w-full text-left text-sm px-3 py-1.5 rounded hover:bg-muted/50", form.contactId === c.id && "bg-primary/10 text-primary")}
-                          onClick={() => { setForm({ ...form, contactId: c.id }); setContactPopoverOpen(false); setContactSearch(''); }}
-                        >
-                          {c.firstName} {c.lastName}
-                        </button>
-                      ))}
-                    </div>
-                  </PopoverContent>
-                </Popover>
+                <CrmCombobox
+                  options={contactOptions}
+                  value={form.contactId}
+                  onSelect={(id) => setForm({ ...form, contactId: id })}
+                  placeholder="Selecteer..."
+                  searchPlaceholder="Zoek contact..."
+                  allowClear
+                  clearLabel="— Geen —"
+                  popoverWidth="w-[280px]"
+                />
               </div>
             </div>
             <div className="grid gap-1.5">

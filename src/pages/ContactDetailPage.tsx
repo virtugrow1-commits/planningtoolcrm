@@ -23,6 +23,7 @@ import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
+import CrmCombobox from '@/components/CrmCombobox';
 
 export default function ContactDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -446,7 +447,6 @@ function CompanyField({ current, editing, companies, form, setForm, navigate, co
   unlinkContact: (contactId: string, companyId: string) => Promise<void>;
 }) {
   const [companySearch, setCompanySearch] = useState('');
-  const [showDropdown, setShowDropdown] = useState(false);
   const [showAddCompany, setShowAddCompany] = useState(false);
 
   // All linked companies (from junction table)
@@ -492,13 +492,6 @@ function CompanyField({ current, editing, companies, form, setForm, navigate, co
     );
   }
 
-  const searchValue = companySearch || '';
-  const filtered = searchValue.trim()
-    ? companies.filter((c) => {
-        const alreadyLinked = allCompanies.some((lc) => lc.id === c.id);
-        return !alreadyLinked && c.name.toLowerCase().includes(searchValue.toLowerCase());
-      }).slice(0, 8)
-    : [];
 
   return (
     <div>
@@ -536,42 +529,36 @@ function CompanyField({ current, editing, companies, form, setForm, navigate, co
         </button>
       ) : (
         <div className="relative">
-          <Input
-            className="h-8 text-sm"
-            value={searchValue}
-            placeholder="Zoek bedrijf..."
-            onChange={(e) => {
-              setCompanySearch(e.target.value);
-              setShowDropdown(true);
+          <CrmCombobox
+            options={companies
+              .filter((c) => !allCompanies.some((lc) => lc.id === c.id))
+              .map((c) => ({
+                id: c.id,
+                label: c.name,
+              }))}
+            value=""
+            onSelect={(id) => {
+              if (!id) { setShowAddCompany(false); return; }
+              const co = companies.find((c) => c.id === id);
+              if (co) {
+                linkContact(current.id, co.id, allCompanies.length === 0);
+                if (allCompanies.length === 0 && form) {
+                  setForm({ ...form, company: co.name, companyId: co.id });
+                }
+              }
+              setCompanySearch('');
+              setShowAddCompany(false);
             }}
-            autoFocus
-            onFocus={() => setShowDropdown(true)}
-            onBlur={() => setTimeout(() => { setShowDropdown(false); }, 200)}
-            onKeyDown={(e) => { if (e.key === 'Escape') { setShowAddCompany(false); setCompanySearch(''); } }}
+            placeholder="Zoek bedrijf..."
+            searchPlaceholder="Zoek bedrijf..."
+            popoverWidth="w-[280px]"
           />
-          {showDropdown && filtered.length > 0 && (
-            <div className="absolute z-50 w-full mt-1 bg-popover border rounded-md shadow-md max-h-40 overflow-y-auto">
-              {filtered.map((c) => (
-                <button
-                  key={c.id}
-                  type="button"
-                  className="w-full text-left px-3 py-1.5 text-sm hover:bg-muted/50 transition-colors"
-                  onMouseDown={(e) => {
-                    e.preventDefault();
-                    linkContact(current.id, c.id, allCompanies.length === 0);
-                    // Set as primary company_id if first company
-                    if (allCompanies.length === 0 && form) {
-                      setForm({ ...form, company: c.name, companyId: c.id });
-                    }
-                    setCompanySearch('');
-                    setShowAddCompany(false);
-                  }}
-                >
-                  {c.name}
-                </button>
-              ))}
-            </div>
-          )}
+          <button
+            onClick={() => { setShowAddCompany(false); setCompanySearch(''); }}
+            className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+          >
+            <X size={14} />
+          </button>
         </div>
       )}
     </div>

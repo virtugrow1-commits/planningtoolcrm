@@ -21,6 +21,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import CrmCombobox, { ComboboxOption } from '@/components/CrmCombobox';
 import { Checkbox } from '@/components/ui/checkbox';
 import { cn } from '@/lib/utils';
 import ConflictAlertDialog from '@/components/calendar/ConflictAlertDialog';
@@ -89,7 +90,7 @@ export default function InquiriesPage() {
   const [detailOpen, setDetailOpen] = useState(false);
   const [editInquiry, setEditInquiry] = useState<Inquiry | null>(null);
   const [newForm, setNewForm] = useState({ contactName: '', contactId: '', eventType: '', preferredDate: '', guestCount: '', budget: '', message: '', source: 'Handmatig', roomPreference: '', status: 'new' as Inquiry['status'] });
-  const [contactSearch, setContactSearch] = useState('');
+  
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [bulkDeleteConfirmOpen, setBulkDeleteConfirmOpen] = useState(false);
   const [bulkMoveTarget, setBulkMoveTarget] = useState<Inquiry['status'] | null>(null);
@@ -214,7 +215,7 @@ export default function InquiriesPage() {
     });
     setNewOpen(false);
     setNewForm({ contactName: '', contactId: '', eventType: '', preferredDate: '', guestCount: '', budget: '', message: '', source: 'Handmatig', roomPreference: '', status: 'new' });
-    setContactSearch('');
+    
     toast({ title: 'Aanvraag aangemaakt' });
   };
 
@@ -812,50 +813,21 @@ export default function InquiriesPage() {
           <div className="grid gap-4 py-2">
             <div className="grid gap-1.5">
               <Label>Contactpersoon *</Label>
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button variant="outline" className="w-full justify-start font-normal text-sm h-10">
-                    {newForm.contactName || <span className="text-muted-foreground">Selecteer contactpersoon...</span>}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-[340px] p-2" align="start">
-                  <Input
-                    placeholder="Zoek contactpersoon..."
-                    value={contactSearch}
-                    onChange={(e) => setContactSearch(e.target.value)}
-                    className="mb-2 text-sm"
-                    autoFocus
-                  />
-                  <div className="max-h-48 overflow-y-auto space-y-0.5">
-                    {contacts
-                      .filter(c => {
-                        const full = `${c.firstName} ${c.lastName}`.toLowerCase();
-                        return contactSearch.split(' ').every(w => full.includes(w.toLowerCase()));
-                      })
-                      .slice(0, 50)
-                      .map(c => (
-                        <button
-                          key={c.id}
-                          type="button"
-                          onClick={() => {
-                            setNewForm({ ...newForm, contactName: `${c.firstName} ${c.lastName}`, contactId: c.id });
-                            setContactSearch('');
-                          }}
-                          className="w-full rounded-md px-3 py-1.5 text-left text-sm hover:bg-muted transition-colors"
-                        >
-                          <span className="font-medium">{c.firstName} {c.lastName}</span>
-                          {c.company && <span className="ml-2 text-xs text-muted-foreground">{c.company}</span>}
-                        </button>
-                      ))}
-                    {contacts.filter(c => {
-                      const full = `${c.firstName} ${c.lastName}`.toLowerCase();
-                      return contactSearch.split(' ').every(w => full.includes(w.toLowerCase()));
-                    }).length === 0 && (
-                      <p className="text-xs text-muted-foreground px-3 py-2">Geen contactpersonen gevonden</p>
-                    )}
-                  </div>
-                </PopoverContent>
-              </Popover>
+              <CrmCombobox
+                options={contacts.map(c => ({
+                  id: c.id,
+                  label: [c.firstName, c.lastName].filter(n => n && n !== '—').join(' ') || c.email || 'Onbekend',
+                  secondary: c.company || c.email || undefined,
+                  searchText: `${c.firstName} ${c.lastName} ${c.email || ''} ${c.company || ''} ${c.phone || ''}`,
+                }))}
+                value={newForm.contactId}
+                onSelect={(id, opt) => {
+                  setNewForm({ ...newForm, contactName: opt?.label || '', contactId: id });
+                }}
+                placeholder="Selecteer contactpersoon..."
+                searchPlaceholder="Zoek contactpersoon..."
+                popoverWidth="w-[340px]"
+              />
             </div>
             <div className="grid gap-1.5">
               <Label>Type evenement *</Label>

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { ROOMS, RoomName } from '@/types/crm';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
@@ -6,9 +6,10 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
-import { AlertTriangle, Search, X } from 'lucide-react';
+import { AlertTriangle, X } from 'lucide-react';
+import CrmCombobox, { ComboboxOption } from '@/components/CrmCombobox';
 import { ContactOption } from '@/hooks/useContacts';
-import { ScrollArea } from '@/components/ui/scroll-area';
+
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { cn } from '@/lib/utils';
@@ -94,7 +95,7 @@ export default function NewReservationDialog({
     roomSetup: '',
     notes: '',
   });
-  const [contactSearch, setContactSearch] = useState('');
+  
 
   // Reset form when dialog opens (only triggered by `open` changing to true)
   const [lastOpen, setLastOpen] = useState(false);
@@ -134,30 +135,29 @@ export default function NewReservationDialog({
         roomSetup: '',
         notes: '',
       });
-      setContactSearch('');
+      
     }
     setLastOpen(open);
   }, [open]);
 
-  const filteredContacts = (() => {
-    const query = contactSearch.toLowerCase().trim();
-    if (!query) return contacts.slice(0, 50);
-    const terms = query.split(/\s+/);
-    return contacts.filter((c) => {
-      const haystack = `${c.firstName} ${c.lastName} ${c.email || ''} ${c.company || ''}`.toLowerCase();
-      return terms.every((term) => haystack.includes(term));
-    }).slice(0, 50);
-  })();
+  const contactOptions = useMemo<ComboboxOption[]>(() =>
+    contacts.map(c => ({
+      id: c.id,
+      label: [c.firstName, c.lastName].filter(n => n && n !== '—').join(' ') || c.email || 'Onbekend',
+      secondary: [c.company, c.email].filter(Boolean).join(' · ') || undefined,
+      searchText: `${c.firstName} ${c.lastName} ${c.email || ''} ${c.company || ''}`,
+    })),
+    [contacts]
+  );
 
   const selectedContact = contacts.find((c) => c.id === form.contactId);
 
-  const handleSelectContact = (contact: ContactOption) => {
+  const handleSelectContact = (id: string, opt?: ComboboxOption) => {
     setForm({
       ...form,
-      contactId: contact.id,
-      contactName: `${contact.firstName} ${contact.lastName}`,
+      contactId: id,
+      contactName: opt?.label || '',
     });
-    setContactSearch('');
   };
 
   const handleSubmit = () => {
@@ -189,7 +189,7 @@ export default function NewReservationDialog({
             {selectedContact ? (
               <div className="flex items-center justify-between rounded-lg border bg-muted/30 p-3">
                 <div>
-                  <p className="text-sm font-medium">{selectedContact.firstName} {selectedContact.lastName}</p>
+                  <p className="text-sm font-medium">{[selectedContact.firstName, selectedContact.lastName].filter(n => n && n !== '—').join(' ')}</p>
                   {selectedContact.email && <p className="text-xs text-muted-foreground">{selectedContact.email}</p>}
                   {selectedContact.company && <p className="text-xs text-muted-foreground">{selectedContact.company}</p>}
                 </div>
@@ -198,47 +198,14 @@ export default function NewReservationDialog({
                 </Button>
               </div>
             ) : (
-              <div className="space-y-2">
-                <div className="relative">
-                  <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-                  <Input
-                    placeholder="Zoek contact..."
-                    className="pl-9"
-                    value={contactSearch}
-                    onChange={(e) => setContactSearch(e.target.value)}
-                  />
-                </div>
-                <ScrollArea className="h-36 rounded-lg border">
-                  {contactsLoading ? (
-                    <p className="p-3 text-sm text-muted-foreground">Laden...</p>
-                  ) : filteredContacts.length === 0 ? (
-                    <p className="p-3 text-sm text-muted-foreground">
-                      {contactSearch ? 'Geen contacten gevonden' : 'Typ om te zoeken...'}
-                    </p>
-                  ) : (
-                    <>
-                      {filteredContacts.map((c) => (
-                      <button
-                        key={c.id}
-                        className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-accent/10 transition-colors"
-                        onClick={() => handleSelectContact(c)}
-                      >
-                        <div>
-                          <span className="font-medium">{c.firstName} {c.lastName}</span>
-                          {c.company && <span className="ml-2 text-xs text-muted-foreground">({c.company})</span>}
-                        </div>
-                      </button>
-                    ))
-                    }
-                    {contacts.length > 50 && filteredContacts.length >= 50 && (
-                      <p className="px-3 py-2 text-xs text-muted-foreground border-t">
-                        Typ om meer resultaten te zien ({contacts.length} contacten totaal)
-                      </p>
-                    )}
-                    </>
-                  )}
-                </ScrollArea>
-              </div>
+              <CrmCombobox
+                options={contactOptions}
+                value={form.contactId}
+                onSelect={handleSelectContact}
+                placeholder="Selecteer klant..."
+                searchPlaceholder="Zoek contact..."
+                popoverWidth="w-[340px]"
+              />
             )}
           </div>
 
