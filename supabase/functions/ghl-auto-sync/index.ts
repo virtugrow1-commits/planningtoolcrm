@@ -29,6 +29,26 @@ function toAmsterdam(date: Date) {
   };
 }
 
+/** Fetch all rows from a table using paginated queries (batches of 1000) */
+async function fetchAll(supabase: any, table: string, selectCols: string, filters: Record<string, any> = {}): Promise<any[]> {
+  const rows: any[] = [];
+  let from = 0;
+  const batchSize = 1000;
+  while (true) {
+    let q = supabase.from(table).select(selectCols).range(from, from + batchSize - 1);
+    for (const [key, val] of Object.entries(filters)) {
+      if (val === null) q = q.is(key, null);
+      else q = q.eq(key, val);
+    }
+    const { data, error } = await q;
+    if (error || !data || data.length === 0) break;
+    rows.push(...data);
+    if (data.length < batchSize) break;
+    from += batchSize;
+  }
+  return rows;
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -63,21 +83,58 @@ serve(async (req) => {
   }
 
   // Run heavy sync in background using EdgeRuntime.waitUntil
-  // This allows the function to return immediately (avoiding CPU timeout)
-  // while the actual sync continues running in the background
   const backgroundSync = async () => {
     const results: any = { bookings_pulled: 0, bookings_pushed: 0, contacts: 0, opportunities: 0, contacts_pushed: 0, companies_synced: 0, companies_pushed: 0, tasks_pulled: 0, tasks_pushed: 0, conversations_synced: 0, errors: [] };
 
     try {
-      // Run all 6 syncs in PARALLEL
-      const calendarSync = syncCalendar(supabase, ghlHeaders, GHL_LOCATION_ID, userId, results);
-      const opportunitiesSync = syncOpportunities(supabase, ghlHeaders, GHL_LOCATION_ID, userId, results);
-      const contactsSync = syncContacts(supabase, ghlHeaders, GHL_LOCATION_ID, userId, results);
-      const companiesSync = syncCompanies(supabase, ghlHeaders, GHL_LOCATION_ID, userId, results);
-      const tasksSync = syncTasks(supabase, ghlHeaders, GHL_LOCATION_ID, userId, results);
-      const conversationsSync = syncConversations(supabase, ghlHeaders, GHL_LOCATION_ID, userId, results);
+      // PRE-LOAD: Fetch all existing CRM records into lookup Maps ONCE
+      // This eliminates thousands of individual DB queries
+      const [existingContacts, existingCompanies, existingInquiries, existingTasks] = await Promise.all([
+        fetchAll(supabase, 'contacts', 'id, ghl_contact_id, first_name, last_name, email, phone, company, company_id, status, updated_at', { user_id: userId }),
+        fetchAll(supabase, 'companies', 'id, ghl_company_id, name, email, phone, website, address, city, updated_at', { user_id: userId }),
+        fetchAll(supabase, 'inquiries', 'id, ghl_opportunity_id, status, budget, event_type, contact_name, contact_id, updated_at', { user_id: userId }),
+        fetchAll(supabase, 'tasks', 'id, ghl_task_id, title, description, status, updated_at, contact_id', { user_id: userId }),
+      ]);
 
-      await Promise.allSettled([calendarSync, opportunitiesSync, contactsSync, companiesSync, tasksSync, conversationsSync]);
+      // Build lookup maps
+      const contactByGhlId = new Map<string, any>();
+      const contactByNameEmail = new Map<string, any>();
+      for (const c of existingContacts) {
+        if (c.ghl_contact_id) contactByGhlId.set(c.ghl_contact_id, c);
+        const key = `${norm(c.first_name)}|${norm(c.last_name)}|${norm(c.email)}`;
+        contactByNameEmail.set(key, c);
+      }
+
+      const companyByGhlId = new Map<string, any>();
+      const companyByName = new Map<string, any>();
+      for (const c of existingCompanies) {
+        if (c.ghl_company_id) companyByGhlId.set(c.ghl_company_id, c);
+        companyByName.set(norm(c.name), c);
+      }
+
+      const inquiryByGhlId = new Map<string, any>();
+      for (const i of existingInquiries) {
+        if (i.ghl_opportunity_id) inquiryByGhlId.set(i.ghl_opportunity_id, i);
+      }
+
+      const taskByGhlId = new Map<string, any>();
+      const taskByTitle = new Map<string, any>();
+      for (const t of existingTasks) {
+        if (t.ghl_task_id) taskByGhlId.set(t.ghl_task_id, t);
+        if (!taskByTitle.has(t.title)) taskByTitle.set(t.title, t);
+      }
+
+      const lookups = { contactByGhlId, contactByNameEmail, companyByGhlId, companyByName, inquiryByGhlId, taskByGhlId, taskByTitle, existingContacts, existingCompanies, existingInquiries };
+
+      // Run all syncs in PARALLEL
+      await Promise.allSettled([
+        syncCalendar(supabase, ghlHeaders, GHL_LOCATION_ID, userId, results),
+        syncOpportunities(supabase, ghlHeaders, GHL_LOCATION_ID, userId, results, lookups),
+        syncContacts(supabase, ghlHeaders, GHL_LOCATION_ID, userId, results, lookups),
+        syncCompanies(supabase, ghlHeaders, GHL_LOCATION_ID, userId, results, lookups),
+        syncTasks(supabase, ghlHeaders, GHL_LOCATION_ID, userId, results, lookups),
+        syncConversations(supabase, ghlHeaders, GHL_LOCATION_ID, userId, results, lookups),
+      ]);
 
       // Push local inquiries without GHL opportunity ID
       await pushLocalInquiries(supabase, ghlHeaders, GHL_LOCATION_ID, userId, results);
@@ -91,7 +148,6 @@ serve(async (req) => {
   // @ts-ignore - EdgeRuntime.waitUntil is available in Supabase Edge Functions
   EdgeRuntime.waitUntil(backgroundSync());
 
-  // Return immediately
   return new Response(JSON.stringify({ success: true, message: 'Sync started in background' }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
 });
 
@@ -105,7 +161,6 @@ async function syncCalendar(supabase: any, ghlHeaders: any, locationId: string, 
     const calendars = calData.calendars || [];
     console.log(`Found ${calendars.length} calendars`);
 
-    // Build room_name -> ghl_calendar_id mapping
     const { data: roomMappings } = await supabase
       .from('room_settings')
       .select('room_name, ghl_calendar_id')
@@ -146,57 +201,64 @@ async function syncCalendar(supabase: any, ghlHeaders: any, locationId: string, 
     const allEvents = eventArrays.flat();
     console.log(`Total events from GHL: ${allEvents.length}`);
 
-    // Upsert events with exact GHL times preserved
-    for (const evt of allEvents) {
-      try {
-        const evtStart = new Date(evt.startTime || evt.start || evt.startDate);
-        const evtEnd = new Date(evt.endTime || evt.end || evt.endDate);
-        if (isNaN(evtStart.getTime())) continue;
+    // Batch upsert events in chunks of 20
+    const CHUNK_SIZE = 20;
+    for (let i = 0; i < allEvents.length; i += CHUNK_SIZE) {
+      const chunk = allEvents.slice(i, i + CHUNK_SIZE);
+      const upsertRows = [];
 
-        const startLocal = toAmsterdam(evtStart);
-        const endLocal = isNaN(evtEnd.getTime()) ? null : toAmsterdam(evtEnd);
-        const dateStr = startLocal.dateStr;
-        const startHour = startLocal.hours;
-        const startMinute = startLocal.minutes;
-        // Preserve exact end time from GHL — never override
-        const endHour = endLocal ? endLocal.hours : Math.min(startHour + 1, 23);
-        const endMinute = endLocal ? endLocal.minutes : 0;
+      for (const evt of chunk) {
+        try {
+          const evtStart = new Date(evt.startTime || evt.start || evt.startDate);
+          const evtEnd = new Date(evt.endTime || evt.end || evt.endDate);
+          if (isNaN(evtStart.getTime())) continue;
 
-        const contactName = evt.contact?.name || evt.title || evt.calendarName || 'GHL Afspraak';
-        const title = evt.title || evt.name || evt.calendarName || 'GHL Afspraak';
-        const evtStatus = (evt.status === 'confirmed' || evt.appointmentStatus === 'confirmed') ? 'confirmed' : 'option';
-        const roomName = calIdToRoom[evt.calendarId] || evt.calendarName || 'Ontmoeten Aan de Donge';
+          const startLocal = toAmsterdam(evtStart);
+          const endLocal = isNaN(evtEnd.getTime()) ? null : toAmsterdam(evtEnd);
+          const dateStr = startLocal.dateStr;
+          const startHour = startLocal.hours;
+          const startMinute = startLocal.minutes;
+          const endHour = endLocal ? endLocal.hours : Math.min(startHour + 1, 23);
+          const endMinute = endLocal ? endLocal.minutes : 0;
 
-        // Upsert using unique ghl_event_id constraint — prevents duplicates
-        const { error: upsertErr } = await supabase.from('bookings').upsert({
-          user_id: userId,
-          ghl_event_id: evt.id,
-          room_name: roomName,
-          date: dateStr,
-          start_hour: startHour,
-          start_minute: startMinute,
-          end_hour: endHour,
-          end_minute: endMinute,
-          title,
-          contact_name: contactName,
-          status: evtStatus,
-        }, { onConflict: 'ghl_event_id' });
+          const contactName = evt.contact?.name || evt.title || evt.calendarName || 'GHL Afspraak';
+          const title = evt.title || evt.name || evt.calendarName || 'GHL Afspraak';
+          const evtStatus = (evt.status === 'confirmed' || evt.appointmentStatus === 'confirmed') ? 'confirmed' : 'option';
+          const roomName = calIdToRoom[evt.calendarId] || evt.calendarName || 'Ontmoeten Aan de Donge';
+
+          upsertRows.push({
+            user_id: userId,
+            ghl_event_id: evt.id,
+            room_name: roomName,
+            date: dateStr,
+            start_hour: startHour,
+            start_minute: startMinute,
+            end_hour: endHour,
+            end_minute: endMinute,
+            title,
+            contact_name: contactName,
+            status: evtStatus,
+          });
+        } catch (evtErr) { console.error('Event error:', evt.id, evtErr); }
+      }
+
+      if (upsertRows.length > 0) {
+        const { error: upsertErr } = await supabase.from('bookings').upsert(upsertRows, { onConflict: 'ghl_event_id' });
         if (upsertErr) {
-          console.error(`Booking upsert error for ${evt.id}:`, upsertErr.message);
-          results.errors.push(`booking:${evt.id}:${upsertErr.message}`);
+          console.error(`Booking batch upsert error:`, upsertErr.message);
+          results.errors.push(`booking_batch:${upsertErr.message}`);
         } else {
-          results.bookings_pulled++;
+          results.bookings_pulled += upsertRows.length;
         }
-      } catch (evtErr) { console.error('Event error:', evt.id, evtErr); }
+      }
     }
 
-    // Push local bookings - use room-specific calendar ID
+    // Push local bookings
     const defaultCalendarId = calendars[0]?.id;
     const { data: localBookings } = await supabase.from('bookings').select('*, contacts!bookings_contact_id_fkey(ghl_contact_id)').eq('user_id', userId).is('ghl_event_id', null);
     for (const booking of localBookings || []) {
       const ghlContactId = (booking as any).contacts?.ghl_contact_id || null;
-      if (!ghlContactId) { console.log(`Skip push booking ${booking.id}: no GHL contact linked`); continue; }
-      // Use room-specific calendar or fallback to default
+      if (!ghlContactId) continue;
       const targetCalendarId = roomToCalId[booking.room_name] || defaultCalendarId;
       if (!targetCalendarId) continue;
       try {
@@ -218,7 +280,7 @@ async function syncCalendar(supabase: any, ghlHeaders: any, locationId: string, 
 }
 
 // === OPPORTUNITIES BIDIRECTIONAL SYNC ===
-async function syncOpportunities(supabase: any, ghlHeaders: any, locationId: string, userId: string, results: any) {
+async function syncOpportunities(supabase: any, ghlHeaders: any, locationId: string, userId: string, results: any, lookups: any) {
   try {
     const pipelinesRes = await fetch(`${GHL_API_BASE}/opportunities/pipelines?locationId=${locationId}`, { headers: ghlHeaders });
     if (!pipelinesRes.ok) { console.error('Pipelines error:', pipelinesRes.status); return; }
@@ -270,13 +332,10 @@ async function syncOpportunities(supabase: any, ghlHeaders: any, locationId: str
       return null;
     };
 
-    // Threshold: if CRM updated_at is within last 2 minutes, CRM wins
     const recentThreshold = new Date(Date.now() - 2 * 60 * 1000).toISOString();
-
-    // Track which GHL opp IDs we've seen (to find CRM-only changes later)
     const seenGhlOppIds = new Set<string>();
 
-    // 1. Pull GHL opportunities and compare with CRM
+    // 1. Pull GHL opportunities
     let page = 1;
     let hasMore = true;
     while (hasMore && page <= 5) {
@@ -294,28 +353,17 @@ async function syncOpportunities(supabase: any, ghlHeaders: any, locationId: str
         const contactName = opp.contact?.name || opp.name || 'Onbekend';
         const monetaryValue = opp.monetaryValue ? Number(opp.monetaryValue) : null;
 
-        const { data: existing, error: selectErr } = await supabase
-          .from('inquiries')
-          .select('id, status, budget, event_type, contact_name, updated_at')
-          .eq('user_id', userId)
-          .eq('ghl_opportunity_id', opp.id)
-          .maybeSingle();
-
-        if (selectErr) {
-          console.error(`Opp select error for ${opp.id}:`, selectErr.message);
-          results.errors.push(`select:${opp.id}:${selectErr.message}`);
-          continue;
-        }
+        // Use pre-loaded lookup instead of DB query
+        const existing = lookups.inquiryByGhlId.get(opp.id);
 
         if (existing) {
-          // BIDIRECTIONAL: Check if CRM was recently updated (user made changes)
           const crmRecentlyUpdated = existing.updated_at > recentThreshold;
           const crmDiffers = existing.status !== ghlStatus || 
                              existing.event_type !== (opp.name || 'Onbekend') ||
                              (existing.budget ? Number(existing.budget) : null) !== monetaryValue;
 
           if (crmRecentlyUpdated && crmDiffers) {
-            // CRM wins → push CRM data to GHL
+            // CRM wins → push to GHL
             const targetStageId = findStageId(existing.status);
             const updatePayload: any = {
               name: existing.event_type,
@@ -326,17 +374,16 @@ async function syncOpportunities(supabase: any, ghlHeaders: any, locationId: str
               updatePayload.pipelineStageId = targetStageId;
               if (pipeline) updatePayload.pipelineId = pipeline.id;
             }
-
             const pushRes = await fetch(`${GHL_API_BASE}/opportunities/${opp.id}`, {
               method: 'PUT', headers: ghlHeaders, body: JSON.stringify(updatePayload),
             });
             if (pushRes.ok) {
-              console.log(`Pushed CRM -> GHL opp ${opp.id}: ${existing.status} (CRM wins, updated ${existing.updated_at})`);
+              console.log(`Pushed CRM -> GHL opp ${opp.id}: ${existing.status}`);
               results.opportunities_pushed = (results.opportunities_pushed || 0) + 1;
             } else {
               console.error(`Push to GHL failed for ${opp.id}: ${await pushRes.text()}`);
             }
-          } else {
+          } else if (crmDiffers) {
             // GHL wins → update CRM
             const { error: updateErr } = await supabase.from('inquiries').update({
               contact_name: contactName,
@@ -344,56 +391,41 @@ async function syncOpportunities(supabase: any, ghlHeaders: any, locationId: str
               budget: monetaryValue,
               event_type: opp.name || 'Onbekend',
             }).eq('id', existing.id);
-            if (updateErr) {
-              console.error(`Opp update error for ${opp.id}:`, updateErr.message);
-              results.errors.push(`update:${opp.id}:${updateErr.message}`);
-            } else {
+            if (!updateErr) {
               console.log(`GHL -> CRM opp ${opp.id} -> ${ghlStatus} (stage: ${stageName})`);
             }
           }
         } else {
-          // New from GHL → check for recent form-created inquiry to merge (prevent duplicates)
-          const recentMergeCutoff = new Date(Date.now() - 30 * 60 * 1000).toISOString(); // 30-min window
+          // New from GHL → check for merge candidate using in-memory lookups
+          const recentMergeCutoff = new Date(Date.now() - 30 * 60 * 1000).toISOString();
           let mergedExisting = null;
 
-          // Try to find by contact name match (form inquiries often lack ghl_opportunity_id)
           if (contactName && contactName !== 'Onbekend') {
-            const { data: nameMatch } = await supabase.from('inquiries')
-              .select('id')
-              .eq('user_id', userId)
-              .ilike('contact_name', contactName)
-              .is('ghl_opportunity_id', null)
-              .gt('created_at', recentMergeCutoff)
-              .limit(1)
-              .maybeSingle();
-            mergedExisting = nameMatch;
+            mergedExisting = lookups.existingInquiries.find((i: any) =>
+              !i.ghl_opportunity_id &&
+              norm(i.contact_name) === norm(contactName) &&
+              i.created_at > recentMergeCutoff
+            );
           }
 
-          // Also try matching by contact_id via GHL contact
           if (!mergedExisting && opp.contact?.id) {
-            const { data: contactMatch } = await supabase.from('contacts').select('id').eq('ghl_contact_id', opp.contact.id).maybeSingle();
-            if (contactMatch) {
-              const { data: contactInqMatch } = await supabase.from('inquiries')
-                .select('id')
-                .eq('user_id', userId)
-                .eq('contact_id', contactMatch.id)
-                .is('ghl_opportunity_id', null)
-                .gt('created_at', recentMergeCutoff)
-                .limit(1)
-                .maybeSingle();
-              mergedExisting = contactInqMatch;
+            const localContact = lookups.contactByGhlId.get(opp.contact.id);
+            if (localContact) {
+              mergedExisting = lookups.existingInquiries.find((i: any) =>
+                !i.ghl_opportunity_id &&
+                i.contact_id === localContact.id &&
+                i.created_at > recentMergeCutoff
+              );
             }
           }
 
           if (mergedExisting) {
-            // Merge: link existing form inquiry to this GHL opportunity
             await supabase.from('inquiries').update({
               ghl_opportunity_id: opp.id, status: ghlStatus, budget: monetaryValue,
               event_type: opp.name || 'Onbekend',
             }).eq('id', mergedExisting.id);
             console.log(`Auto-sync: Merged form inquiry ${mergedExisting.id} with GHL opp ${opp.id}`);
           } else {
-            // No merge candidate → upsert new (prevent duplicates via unique ghl_opportunity_id)
             const { error: insertErr } = await supabase.from('inquiries').upsert({
               user_id: userId,
               ghl_opportunity_id: opp.id,
@@ -409,10 +441,7 @@ async function syncOpportunities(supabase: any, ghlHeaders: any, locationId: str
               room_preference: null,
             }, { onConflict: 'ghl_opportunity_id', ignoreDuplicates: true });
             if (insertErr) {
-              console.error(`Opp insert error for ${opp.id}:`, insertErr.message);
               results.errors.push(`insert:${opp.id}:${insertErr.message}`);
-            } else {
-              console.log(`Inserted GHL opp ${opp.id} -> ${ghlStatus} (stage: ${stageName})`);
             }
           }
         }
@@ -423,8 +452,7 @@ async function syncOpportunities(supabase: any, ghlHeaders: any, locationId: str
       page++;
     }
 
-    // 2. Push CRM changes for linked inquiries that were updated recently but NOT seen in GHL loop
-    // (handles case where user updated status but GHL hasn't been polled for that opp yet)
+    // 2. Push recently changed CRM inquiries not seen in GHL loop
     const { data: recentlyChanged } = await supabase
       .from('inquiries')
       .select('id, ghl_opportunity_id, status, event_type, budget, contact_name')
@@ -433,7 +461,7 @@ async function syncOpportunities(supabase: any, ghlHeaders: any, locationId: str
       .gt('updated_at', recentThreshold);
 
     for (const inq of recentlyChanged || []) {
-      if (seenGhlOppIds.has(inq.ghl_opportunity_id)) continue; // already handled above
+      if (seenGhlOppIds.has(inq.ghl_opportunity_id)) continue;
       const targetStageId = findStageId(inq.status);
       const updatePayload: any = {
         name: inq.event_type,
@@ -453,44 +481,36 @@ async function syncOpportunities(supabase: any, ghlHeaders: any, locationId: str
       }
     }
 
-    // 3. Remove CRM inquiries whose GHL opportunity no longer exists (deleted in GHL)
-    const { data: linkedInquiries } = await supabase
-      .from('inquiries')
-      .select('id, ghl_opportunity_id, contact_name, status')
-      .eq('user_id', userId)
-      .not('ghl_opportunity_id', 'is', null);
+    // 3. Orphan cleanup — only check items NOT seen in GHL search, limit to 10 verifications per run
+    const linkedNotSeen = lookups.existingInquiries.filter((i: any) =>
+      i.ghl_opportunity_id && !seenGhlOppIds.has(i.ghl_opportunity_id)
+    );
 
     let deletedCount = 0;
-    for (const inq of linkedInquiries || []) {
-      if (!seenGhlOppIds.has(inq.ghl_opportunity_id)) {
-        // Double-check: verify it's truly deleted in GHL (not just missing from search pagination)
-        await delay(200);
-        const verifyRes = await fetch(`${GHL_API_BASE}/opportunities/${inq.ghl_opportunity_id}`, { headers: ghlHeaders });
-        if (verifyRes.status === 404 || verifyRes.status === 422 || verifyRes.status === 400) {
-          // Confirmed deleted in GHL → remove from CRM
-          const { error: delErr } = await supabase.from('inquiries').delete().eq('id', inq.id);
-          if (!delErr) {
-            console.log(`Deleted orphaned inquiry ${inq.id} (GHL opp ${inq.ghl_opportunity_id} no longer exists, was: ${inq.contact_name} - ${inq.status})`);
-            deletedCount++;
-          } else {
-            console.error(`Failed to delete orphaned inquiry ${inq.id}:`, delErr.message);
-          }
-        } else {
-          // Not deleted, just missed in search pagination - consume body
-          await verifyRes.text();
+    const MAX_ORPHAN_CHECKS = 10;
+    for (const inq of linkedNotSeen.slice(0, MAX_ORPHAN_CHECKS)) {
+      await delay(200);
+      const verifyRes = await fetch(`${GHL_API_BASE}/opportunities/${inq.ghl_opportunity_id}`, { headers: ghlHeaders });
+      if (verifyRes.status === 404 || verifyRes.status === 422 || verifyRes.status === 400) {
+        const { error: delErr } = await supabase.from('inquiries').delete().eq('id', inq.id);
+        if (!delErr) {
+          console.log(`Deleted orphaned inquiry ${inq.id} (GHL opp ${inq.ghl_opportunity_id})`);
+          deletedCount++;
         }
-        if (verifyRes.status === 429) await delay(2000);
+      } else {
+        await verifyRes.text(); // consume body
       }
+      if (verifyRes.status === 429) await delay(2000);
     }
     if (deletedCount > 0) {
       results.inquiries_deleted = deletedCount;
-      console.log(`Cleaned up ${deletedCount} orphaned inquiries (deleted in GHL)`);
+      console.log(`Cleaned up ${deletedCount} orphaned inquiries`);
     }
   } catch (e) { console.error('Opp sync error:', e); }
 }
 
-// === BIDIRECTIONAL CONTACTS & COMPANIES SYNC ===
-async function syncContacts(supabase: any, ghlHeaders: any, locationId: string, userId: string, results: any) {
+// === BIDIRECTIONAL CONTACTS SYNC ===
+async function syncContacts(supabase: any, ghlHeaders: any, locationId: string, userId: string, results: any, lookups: any) {
   try {
     const recentThreshold = new Date(Date.now() - 2 * 60 * 1000).toISOString();
 
@@ -522,17 +542,11 @@ async function syncContacts(supabase: any, ghlHeaders: any, locationId: string, 
       const ghlPhone = ghlContact.phone || null;
       const ghlCompanyName = ghlContact.companyName || null;
 
-      // Check if contact already exists in CRM
-      const { data: existing } = await supabase
-        .from('contacts')
-        .select('id, first_name, last_name, email, phone, company, status, updated_at')
-        .eq('ghl_contact_id', ghlContact.id)
-        .maybeSingle();
+      // Use pre-loaded lookup instead of DB query
+      const existing = lookups.contactByGhlId.get(ghlContact.id);
 
       if (existing) {
-        // BIDIRECTIONAL: Check if CRM was recently updated
         const crmRecentlyUpdated = existing.updated_at > recentThreshold;
-        // Use case-insensitive comparison to avoid false diffs from initcap trigger
         const crmDiffers = norm(existing.first_name) !== norm(firstName) ||
                            norm(existing.last_name) !== norm(lastName) ||
                            norm(existing.email) !== norm(ghlEmail) ||
@@ -540,7 +554,7 @@ async function syncContacts(supabase: any, ghlHeaders: any, locationId: string, 
                            (ghlCompanyName && norm(existing.company) !== norm(ghlCompanyName));
 
         if (crmRecentlyUpdated && crmDiffers) {
-          // CRM wins → push CRM data to GHL
+          // CRM wins → push to GHL
           const pushPayload: any = {
             firstName: existing.first_name,
             lastName: existing.last_name,
@@ -548,63 +562,47 @@ async function syncContacts(supabase: any, ghlHeaders: any, locationId: string, 
             phone: existing.phone || undefined,
             companyName: existing.company || undefined,
           };
-          await delay(300); // rate limit
+          await delay(300);
           const pushRes = await fetch(`${GHL_API_BASE}/contacts/${ghlContact.id}`, {
             method: 'PUT', headers: ghlHeaders, body: JSON.stringify(pushPayload),
           });
           if (pushRes.ok) {
-            console.log(`Contact CRM -> GHL: ${existing.id} (CRM wins, ${existing.first_name} ${existing.last_name})`);
             results.contacts_pushed++;
-          } else {
-            const errText = await pushRes.text();
-            console.error(`Push contact to GHL failed for ${ghlContact.id}: ${errText}`);
-            if (pushRes.status === 429) await delay(2000); // extra backoff on rate limit
+          } else if (pushRes.status === 429) {
+            await delay(2000);
           }
         } else if (crmDiffers) {
-          // GHL wins → update CRM (but NEVER overwrite status!)
+          // GHL wins → update CRM (never overwrite status!)
           const updatePayload: any = {
             first_name: firstName,
             last_name: lastName,
             email: ghlEmail,
             phone: ghlPhone,
           };
-          // Only update company name if GHL has one and CRM doesn't
           if (ghlCompanyName && !existing.company) {
             updatePayload.company = ghlCompanyName;
           }
-          const { error: updateErr } = await supabase.from('contacts').update(updatePayload).eq('id', existing.id);
-          if (updateErr) {
-            console.error(`Contact update error for ${ghlContact.id}:`, updateErr.message);
-          } else {
-            console.log(`Contact GHL -> CRM: ${ghlContact.id} -> ${firstName} ${lastName} (status preserved: ${existing.status})`);
-          }
+          await supabase.from('contacts').update(updatePayload).eq('id', existing.id);
         }
       } else {
-        // New from GHL → first check if a contact with same name+email already exists (to avoid unique constraint violation)
-        let matchQuery = supabase.from('contacts').select('id, ghl_contact_id')
-          .eq('user_id', userId)
-          .ilike('first_name', firstName.trim())
-          .ilike('last_name', lastName.trim());
-        if (ghlEmail) {
-          matchQuery = matchQuery.ilike('email', ghlEmail.trim());
-        } else {
-          matchQuery = matchQuery.or('email.is.null,email.eq.');
-        }
-        const { data: nameMatch } = await matchQuery.limit(1).maybeSingle();
+        // New from GHL → check in-memory lookup by name+email
+        const key = `${norm(firstName)}|${norm(lastName)}|${norm(ghlEmail)}`;
+        const nameMatch = lookups.contactByNameEmail.get(key);
 
         if (nameMatch) {
-          // Contact already exists by name+email → link ghl_contact_id
           if (!nameMatch.ghl_contact_id) {
             await supabase.from('contacts').update({
               ghl_contact_id: ghlContact.id,
               phone: ghlPhone || undefined,
               company: ghlCompanyName || undefined,
             }).eq('id', nameMatch.id);
-            console.log(`Linked existing contact ${nameMatch.id} to GHL ${ghlContact.id} (${firstName} ${lastName})`);
+            // Update lookup
+            nameMatch.ghl_contact_id = ghlContact.id;
+            lookups.contactByGhlId.set(ghlContact.id, nameMatch);
           }
         } else {
           // Truly new → insert
-          const { error: insertErr } = await supabase.from('contacts').insert({
+          const { data: inserted, error: insertErr } = await supabase.from('contacts').insert({
             user_id: userId,
             ghl_contact_id: ghlContact.id,
             first_name: firstName,
@@ -613,25 +611,27 @@ async function syncContacts(supabase: any, ghlHeaders: any, locationId: string, 
             phone: ghlPhone,
             company: ghlCompanyName,
             status: 'lead',
-          });
+          }).select('id').maybeSingle();
           if (insertErr) {
-            // If still duplicate, just update ghl_contact_id on the existing record
             if (insertErr.message?.includes('contacts_unique_name_email')) {
-              console.log(`Duplicate contact ${firstName} ${lastName}, linking to GHL ${ghlContact.id}`);
+              console.log(`Duplicate contact \\${firstName} ${lastName}, linking to GHL ${ghlContact.id}`);
               await supabase.from('contacts').update({ ghl_contact_id: ghlContact.id })
                 .eq('user_id', userId)
                 .ilike('first_name', firstName.trim())
                 .ilike('last_name', lastName.trim());
-            } else {
-              console.error(`Contact insert error for ${ghlContact.id}:`, insertErr.message);
             }
+          } else if (inserted) {
+            // Add to lookup for subsequent iterations
+            const newContact = { id: inserted.id, ghl_contact_id: ghlContact.id, first_name: firstName, last_name: lastName, email: ghlEmail, phone: ghlPhone, company: ghlCompanyName };
+            lookups.contactByGhlId.set(ghlContact.id, newContact);
+            lookups.contactByNameEmail.set(key, newContact);
           }
         }
       }
       results.contacts++;
     }
 
-    // 2. Push CRM contacts that were recently updated and already have GHL ID
+    // 2. Push recently changed CRM contacts
     const { data: recentlyChanged } = await supabase
       .from('contacts')
       .select('id, ghl_contact_id, first_name, last_name, email, phone, company')
@@ -640,7 +640,7 @@ async function syncContacts(supabase: any, ghlHeaders: any, locationId: string, 
       .gt('updated_at', recentThreshold);
 
     for (const contact of recentlyChanged || []) {
-      if (seenGhlContactIds.has(contact.ghl_contact_id)) continue; // already handled
+      if (seenGhlContactIds.has(contact.ghl_contact_id)) continue;
       const pushPayload: any = {
         firstName: contact.first_name,
         lastName: contact.last_name,
@@ -653,21 +653,18 @@ async function syncContacts(supabase: any, ghlHeaders: any, locationId: string, 
         method: 'PUT', headers: ghlHeaders, body: JSON.stringify(pushPayload),
       });
       if (pushRes.ok) {
-        console.log(`Pushed recent contact CRM -> GHL: ${contact.id} (${contact.first_name} ${contact.last_name})`);
         results.contacts_pushed++;
       } else if (pushRes.status === 429) {
-        console.warn('Rate limited, backing off');
         await delay(2000);
       }
     }
 
-    // 3. Push ALL local contacts without GHL ID
-    const { data: localOnly } = await supabase.from('contacts').select('*').eq('user_id', userId).is('ghl_contact_id', null).limit(500);
-    for (const contact of localOnly || []) {
-      // Build company name from company text or lookup company entity
+    // 3. Push local contacts without GHL ID — limit to 50 per run to avoid timeout
+    const localOnly = lookups.existingContacts.filter((c: any) => !c.ghl_contact_id).slice(0, 50);
+    for (const contact of localOnly) {
       let companyName = contact.company || null;
       if (!companyName && contact.company_id) {
-        const { data: companyRow } = await supabase.from('companies').select('name').eq('id', contact.company_id).maybeSingle();
+        const companyRow = lookups.existingCompanies.find((c: any) => c.id === contact.company_id);
         companyName = companyRow?.name || null;
       }
 
@@ -687,36 +684,26 @@ async function syncContacts(supabase: any, ghlHeaders: any, locationId: string, 
         const created = await pushRes.json();
         if (created.contact?.id) {
           await supabase.from('contacts').update({ ghl_contact_id: created.contact.id }).eq('id', contact.id);
-          console.log(`Contact pushed to GHL: ${contact.id} -> ${created.contact.id} (${contact.first_name} ${contact.last_name})`);
         }
         results.contacts_pushed++;
       } else if (pushRes.status === 429) {
-        console.warn('Rate limited on contact push, backing off');
         await delay(2000);
       }
     }
 
-    // 4. Sync company names: when CRM contact has company_id but no company text, resolve it
-    const { data: missingCompanyText } = await supabase
-      .from('contacts')
-      .select('id, company_id')
-      .eq('user_id', userId)
-      .is('company', null)
-      .not('company_id', 'is', null)
-      .limit(20);
-
-    for (const c of missingCompanyText || []) {
-      const { data: companyRow } = await supabase.from('companies').select('name').eq('id', c.company_id).maybeSingle();
+    // 4. Fill missing company text — use in-memory lookup
+    const missingCompanyText = lookups.existingContacts.filter((c: any) => !c.company && c.company_id).slice(0, 20);
+    for (const c of missingCompanyText) {
+      const companyRow = lookups.existingCompanies.find((co: any) => co.id === c.company_id);
       if (companyRow?.name) {
         await supabase.from('contacts').update({ company: companyRow.name }).eq('id', c.id);
-        console.log(`Filled company text for contact ${c.id}: ${companyRow.name}`);
       }
     }
   } catch (e) { console.error('Contact sync error:', e); }
 }
 
 // === BIDIRECTIONAL COMPANIES SYNC ===
-async function syncCompanies(supabase: any, ghlHeaders: any, locationId: string, userId: string, results: any) {
+async function syncCompanies(supabase: any, ghlHeaders: any, locationId: string, userId: string, results: any, lookups: any) {
   try {
     const recentThreshold = new Date(Date.now() - 2 * 60 * 1000).toISOString();
 
@@ -725,13 +712,8 @@ async function syncCompanies(supabase: any, ghlHeaders: any, locationId: string,
     let companyHasMore = true;
     let skip = 0;
     while (companyHasMore) {
-      const res = await fetch(`${GHL_API_BASE}/businesses/?locationId=${locationId}&limit=100&skip=${skip}`, {
-        headers: ghlHeaders,
-      });
-      if (!res.ok) {
-        console.warn('Businesses endpoint not available:', res.status);
-        break;
-      }
+      const res = await fetch(`${GHL_API_BASE}/businesses/?locationId=${locationId}&limit=100&skip=${skip}`, { headers: ghlHeaders });
+      if (!res.ok) { console.warn('Businesses endpoint not available:', res.status); break; }
       const data = await res.json();
       const batch = data.businesses || [];
       ghlCompanies.push(...batch);
@@ -742,7 +724,7 @@ async function syncCompanies(supabase: any, ghlHeaders: any, locationId: string,
 
     const seenGhlCompanyIds = new Set<string>();
 
-    // 2. Upsert GHL companies into CRM
+    // 2. Upsert GHL companies — all lookups are in-memory now
     for (const ghlCompany of ghlCompanies) {
       seenGhlCompanyIds.add(ghlCompany.id);
       const ghlName = ghlCompany.name || 'Onbekend';
@@ -752,11 +734,8 @@ async function syncCompanies(supabase: any, ghlHeaders: any, locationId: string,
       const ghlAddress = ghlCompany.address || null;
       const ghlCity = ghlCompany.city || null;
 
-      const { data: existing } = await supabase
-        .from('companies')
-        .select('id, name, email, phone, website, address, city, updated_at')
-        .eq('ghl_company_id', ghlCompany.id)
-        .maybeSingle();
+      // In-memory lookup by ghl_company_id
+      const existing = lookups.companyByGhlId.get(ghlCompany.id);
 
       if (existing) {
         const crmRecentlyUpdated = existing.updated_at > recentThreshold;
@@ -765,53 +744,36 @@ async function syncCompanies(supabase: any, ghlHeaders: any, locationId: string,
                            norm(existing.phone) !== norm(ghlPhone);
 
         if (crmRecentlyUpdated && crmDiffers) {
-          // CRM wins → push to GHL
+          // CRM wins
           const pushPayload: any = { name: existing.name };
           if (existing.email) pushPayload.email = existing.email;
           if (existing.phone) pushPayload.phone = existing.phone;
           if (existing.website) pushPayload.website = existing.website;
           if (existing.address) pushPayload.address = existing.address;
           if (existing.city) pushPayload.city = existing.city;
-
-          await delay(300);
-          const pushRes = await fetch(`${GHL_API_BASE}/businesses/${ghlCompany.id}`, {
+          pushPayload.locationId = locationId;
+          await fetch(`${GHL_API_BASE}/businesses/${ghlCompany.id}`, {
             method: 'PUT', headers: ghlHeaders, body: JSON.stringify(pushPayload),
           });
-          if (pushRes.ok) {
-            console.log(`Company CRM -> GHL: ${existing.id} (${existing.name})`);
-            results.companies_pushed++;
-          }
+          results.companies_pushed++;
         } else if (crmDiffers) {
-          // GHL wins → update CRM (only fill empty fields, never overwrite)
-          const updatePayload: any = {};
-          if (ghlName && existing.name !== ghlName) updatePayload.name = ghlName;
-          if (ghlEmail && !existing.email) updatePayload.email = ghlEmail;
-          if (ghlPhone && !existing.phone) updatePayload.phone = ghlPhone;
-          if (ghlWebsite && !existing.website) updatePayload.website = ghlWebsite;
-          if (ghlAddress && !existing.address) updatePayload.address = ghlAddress;
-          if (ghlCity && !existing.city) updatePayload.city = ghlCity;
-
-          if (Object.keys(updatePayload).length > 0) {
-            await supabase.from('companies').update(updatePayload).eq('id', existing.id);
-            console.log(`Company GHL -> CRM: ${ghlCompany.id} -> ${ghlName}`);
-          }
+          // GHL wins
+          await supabase.from('companies').update({
+            name: ghlName, email: ghlEmail, phone: ghlPhone,
+            website: ghlWebsite, address: ghlAddress, city: ghlCity,
+          }).eq('id', existing.id);
         }
       } else {
-        // New from GHL → check if company already exists by name (case-insensitive)
-        const { data: nameMatches } = await supabase
-          .from('companies')
-          .select('id, name')
-          .eq('user_id', userId);
-
-        const nameMatch = (nameMatches || []).find((c: any) => norm(c.name) === norm(ghlName));
+        // New from GHL → in-memory name match
+        const nameMatch = lookups.companyByName.get(norm(ghlName));
 
         if (nameMatch) {
-          // Link existing CRM company to GHL
           await supabase.from('companies').update({ ghl_company_id: ghlCompany.id }).eq('id', nameMatch.id);
+          nameMatch.ghl_company_id = ghlCompany.id;
+          lookups.companyByGhlId.set(ghlCompany.id, nameMatch);
           console.log(`Linked existing company "${ghlName}" to GHL ${ghlCompany.id}`);
         } else {
-          // Create new company in CRM
-          const { error: insertErr } = await supabase.from('companies').insert({
+          const { data: inserted, error: insertErr } = await supabase.from('companies').insert({
             user_id: userId,
             ghl_company_id: ghlCompany.id,
             name: ghlName,
@@ -820,9 +782,8 @@ async function syncCompanies(supabase: any, ghlHeaders: any, locationId: string,
             website: ghlWebsite,
             address: ghlAddress,
             city: ghlCity,
-          });
+          }).select('id').maybeSingle();
           if (insertErr) {
-            // If unique constraint, try to link instead
             if (insertErr.message?.includes('unique')) {
               const { data: dup } = await supabase.from('companies').select('id').ilike('name', ghlName).maybeSingle();
               if (dup) {
@@ -832,54 +793,36 @@ async function syncCompanies(supabase: any, ghlHeaders: any, locationId: string,
             } else {
               console.error(`Company insert error for ${ghlCompany.id}:`, insertErr.message);
             }
+          } else if (inserted) {
+            const newCompany = { id: inserted.id, ghl_company_id: ghlCompany.id, name: ghlName };
+            lookups.companyByGhlId.set(ghlCompany.id, newCompany);
+            lookups.companyByName.set(norm(ghlName), newCompany);
           }
         }
       }
       results.companies_synced++;
     }
 
-    // 3. Push CRM companies without GHL ID to GHL
-    const { data: localCompanies } = await supabase
-      .from('companies')
-      .select('*')
-      .eq('user_id', userId)
-      .is('ghl_company_id', null)
-      .limit(500);
+    // 3. Push CRM companies without GHL ID — limit to 50 per run
+    const localCompanies = lookups.existingCompanies.filter((c: any) => !c.ghl_company_id).slice(0, 50);
+    
+    // Pre-fetch all GHL companies for name matching (already in ghlCompanies)
+    const ghlCompanyNameSet = new Set(ghlCompanies.map((c: any) => norm(c.name)));
+    const ghlCompanyByName = new Map(ghlCompanies.map((c: any) => [norm(c.name), c]));
 
-    for (const company of localCompanies || []) {
-      // First search GHL by name to avoid duplicates
-      const searchRes = await fetch(`${GHL_API_BASE}/businesses/?locationId=${locationId}&limit=100&skip=0`, {
-        headers: ghlHeaders,
-      });
+    for (const company of localCompanies) {
+      const matchedGhl = ghlCompanyByName.get(norm(company.name));
 
-      let ghlCompanyId: string | null = null;
-
-      if (searchRes.ok) {
-        const searchData = await searchRes.json();
-        const match = (searchData.businesses || []).find((c: any) =>
-          c.name && c.name.toLowerCase() === company.name.toLowerCase()
-        );
-        if (match) {
-          ghlCompanyId = match.id;
-          console.log(`Found existing GHL company for "${company.name}": ${ghlCompanyId}`);
-        }
-      }
-
-      if (ghlCompanyId) {
-        // Link and update
-        await supabase.from('companies').update({ ghl_company_id: ghlCompanyId }).eq('id', company.id);
-        // Push CRM data to GHL
+      if (matchedGhl) {
+        await supabase.from('companies').update({ ghl_company_id: matchedGhl.id }).eq('id', company.id);
         const pushPayload: any = { name: company.name, locationId };
         if (company.email) pushPayload.email = company.email;
         if (company.phone) pushPayload.phone = company.phone;
         if (company.website) pushPayload.website = company.website;
-        if (company.address) pushPayload.address = company.address;
-        if (company.city) pushPayload.city = company.city;
-        await fetch(`${GHL_API_BASE}/businesses/${ghlCompanyId}`, {
+        await fetch(`${GHL_API_BASE}/businesses/${matchedGhl.id}`, {
           method: 'PUT', headers: ghlHeaders, body: JSON.stringify(pushPayload),
         });
       } else {
-        // Create new in GHL
         const createPayload: any = { name: company.name, locationId };
         if (company.email) createPayload.email = company.email;
         if (company.phone) createPayload.phone = company.phone;
@@ -895,7 +838,6 @@ async function syncCompanies(supabase: any, ghlHeaders: any, locationId: string,
           const newId = created.business?.id || created.id;
           if (newId) {
             await supabase.from('companies').update({ ghl_company_id: newId }).eq('id', company.id);
-            console.log(`Company pushed to GHL: ${company.id} -> ${newId} (${company.name})`);
           }
           results.companies_pushed++;
         } else {
@@ -908,16 +850,14 @@ async function syncCompanies(supabase: any, ghlHeaders: any, locationId: string,
 
 async function pushLocalInquiries(supabase: any, ghlHeaders: any, locationId: string, userId: string, results: any) {
   try {
-    // Get local inquiries without ghl_opportunity_id
-    const { data: localInquiries } = await supabase.from('inquiries').select('*').eq('user_id', userId).is('ghl_opportunity_id', null).limit(200);
+    const { data: localInquiries } = await supabase.from('inquiries').select('*').eq('user_id', userId).is('ghl_opportunity_id', null).limit(50);
     if (!localInquiries || localInquiries.length === 0) return;
 
-    // Get pipeline info
     const pipelinesRes = await fetch(`${GHL_API_BASE}/opportunities/pipelines?locationId=${locationId}`, { headers: ghlHeaders });
-    if (!pipelinesRes.ok) { console.error('Pipelines fetch failed for push'); return; }
+    if (!pipelinesRes.ok) return;
     const pipelinesData = await pipelinesRes.json();
     const pipeline = pipelinesData.pipelines?.[0];
-    if (!pipeline) { console.error('No pipeline found for push'); return; }
+    if (!pipeline) return;
 
     const statusToStageName: Record<string, string> = {
       'new': 'Nieuwe Aanvraag', 'contacted': 'Lopend contact', 'option': 'Optie',
@@ -939,7 +879,6 @@ async function pushLocalInquiries(supabase: any, ghlHeaders: any, locationId: st
           }
         }
 
-        // Try to find GHL contact
         let ghlContactId = null;
         if (inq.contact_id) {
           const { data: contact } = await supabase.from('contacts').select('ghl_contact_id').eq('id', inq.contact_id).maybeSingle();
@@ -952,7 +891,6 @@ async function pushLocalInquiries(supabase: any, ghlHeaders: any, locationId: st
             ghlContactId = searchData.contacts?.[0]?.id || null;
           }
         }
-        // If still no contact, create one in GHL (required field)
         if (!ghlContactId) {
           const nameParts = (inq.contact_name || 'Onbekend').split(' ');
           const createRes = await fetch(`${GHL_API_BASE}/contacts/`, {
@@ -962,17 +900,12 @@ async function pushLocalInquiries(supabase: any, ghlHeaders: any, locationId: st
           if (createRes.ok) {
             const created = await createRes.json();
             ghlContactId = created.contact?.id || null;
-            // Link contact back to CRM if possible
             if (ghlContactId && inq.contact_id) {
               await supabase.from('contacts').update({ ghl_contact_id: ghlContactId }).eq('id', inq.contact_id);
             }
           }
         }
-        // Skip if we still can't get a contactId (GHL requires it)
-        if (!ghlContactId) {
-          console.log(`Skip push inquiry ${inq.id}: could not find or create GHL contact`);
-          continue;
-        }
+        if (!ghlContactId) continue;
 
         const oppPayload: any = {
           pipelineId: pipeline.id,
@@ -993,7 +926,6 @@ async function pushLocalInquiries(supabase: any, ghlHeaders: any, locationId: st
           const ghlOppId = created.opportunity?.id || created.id;
           if (ghlOppId) {
             await supabase.from('inquiries').update({ ghl_opportunity_id: ghlOppId }).eq('id', inq.id);
-            console.log(`Pushed inquiry ${inq.id} -> GHL opportunity ${ghlOppId}`);
           }
           results.inquiries_pushed++;
         } else {
@@ -1005,121 +937,110 @@ async function pushLocalInquiries(supabase: any, ghlHeaders: any, locationId: st
 }
 
 // === BIDIRECTIONAL TASK SYNC ===
-async function syncTasks(supabase: any, ghlHeaders: any, locationId: string, userId: string, results: any) {
+async function syncTasks(supabase: any, ghlHeaders: any, locationId: string, userId: string, results: any, lookups: any) {
   try {
-    // 1. Get all contacts with GHL IDs
-    const { data: contacts } = await supabase
-      .from('contacts')
-      .select('id, ghl_contact_id')
-      .not('ghl_contact_id', 'is', null);
+    // Only sync tasks for contacts that have GHL IDs — limit to 100 contacts per run
+    const contactsWithGhl = lookups.existingContacts
+      .filter((c: any) => c.ghl_contact_id)
+      .slice(0, 100);
 
-    if (!contacts || contacts.length === 0) {
-      console.log('No contacts with GHL IDs for task sync');
-      return;
-    }
+    if (contactsWithGhl.length === 0) return;
 
     const recentThreshold = new Date(Date.now() - 2 * 60 * 1000).toISOString();
 
-    // 2. Pull tasks from GHL for each contact
-    for (const contact of contacts) {
-      try {
-        const res = await fetch(`${GHL_API_BASE}/contacts/${contact.ghl_contact_id}/tasks`, { headers: ghlHeaders });
-        if (!res.ok) continue;
-        const data = await res.json();
+    // Batch: fetch tasks for multiple contacts in parallel (chunks of 5 to avoid rate limits)
+    const TASK_CHUNK = 5;
+    for (let i = 0; i < contactsWithGhl.length; i += TASK_CHUNK) {
+      const chunk = contactsWithGhl.slice(i, i + TASK_CHUNK);
+      
+      const taskFetches = chunk.map(async (contact: any) => {
+        try {
+          const res = await fetch(`${GHL_API_BASE}/contacts/${contact.ghl_contact_id}/tasks`, { headers: ghlHeaders });
+          if (!res.ok) return [];
+          const data = await res.json();
+          return (data.tasks || []).map((t: any) => ({ ...t, _localContactId: contact.id, _ghlContactId: contact.ghl_contact_id }));
+        } catch { return []; }
+      });
 
-        for (const ghlTask of data.tasks || []) {
-          const { data: existing } = await supabase
-            .from('tasks')
-            .select('id, status, title, description, updated_at')
-            .eq('ghl_task_id', ghlTask.id)
-            .maybeSingle();
+      const taskResults = await Promise.all(taskFetches);
+      const allTasks = taskResults.flat();
 
-          const ghlStatus = ghlTask.completed ? 'completed' : 'open';
-          const ghlTitle = ghlTask.title || 'GHL Taak';
-          const ghlDescription = ghlTask.body || null;
-          const ghlDueDate = ghlTask.dueDate ? ghlTask.dueDate.split('T')[0] : null;
+      for (const ghlTask of allTasks) {
+        const ghlStatus = ghlTask.completed ? 'completed' : 'open';
+        const ghlTitle = ghlTask.title || 'GHL Taak';
+        const ghlDescription = ghlTask.body || null;
+        const ghlDueDate = ghlTask.dueDate ? ghlTask.dueDate.split('T')[0] : null;
 
-          if (existing) {
-            const crmRecentlyUpdated = existing.updated_at > recentThreshold;
-            const crmDiffers = existing.status !== ghlStatus || existing.title !== ghlTitle;
+        // In-memory lookup
+        const existing = lookups.taskByGhlId.get(ghlTask.id);
 
-            if (crmRecentlyUpdated && crmDiffers) {
-              // CRM wins → push to GHL
-              const pushPayload: any = {
-                title: existing.title,
-                body: existing.description || '',
-                completed: existing.status === 'completed',
-              };
-              const pushRes = await fetch(`${GHL_API_BASE}/contacts/${contact.ghl_contact_id}/tasks/${ghlTask.id}`, {
-                method: 'PUT', headers: ghlHeaders, body: JSON.stringify(pushPayload),
-              });
-              if (pushRes.ok) {
-                console.log(`Task CRM -> GHL: ${existing.id} (CRM wins)`);
-                results.tasks_pushed++;
-              }
-            } else {
-              // GHL wins → update CRM
-              await supabase.from('tasks').update({
-                title: ghlTitle,
-                description: ghlDescription,
-                status: ghlStatus,
-                due_date: ghlDueDate,
-                completed_at: ghlTask.completed ? (ghlTask.completedDate || new Date().toISOString()) : null,
-              }).eq('id', existing.id);
-              results.tasks_pulled++;
-            }
+        if (existing) {
+          const crmRecentlyUpdated = existing.updated_at > recentThreshold;
+          const crmDiffers = existing.status !== ghlStatus || existing.title !== ghlTitle;
+
+          if (crmRecentlyUpdated && crmDiffers) {
+            // CRM wins
+            const pushPayload: any = {
+              title: existing.title,
+              body: existing.description || '',
+              completed: existing.status === 'completed',
+            };
+            const pushRes = await fetch(`${GHL_API_BASE}/contacts/${ghlTask._ghlContactId}/tasks/${ghlTask.id}`, {
+              method: 'PUT', headers: ghlHeaders, body: JSON.stringify(pushPayload),
+            });
+            if (pushRes.ok) results.tasks_pushed++;
+          } else if (crmDiffers) {
+            // GHL wins
+            await supabase.from('tasks').update({
+              title: ghlTitle,
+              description: ghlDescription,
+              status: ghlStatus,
+              due_date: ghlDueDate,
+              completed_at: ghlTask.completed ? (ghlTask.completedDate || new Date().toISOString()) : null,
+            }).eq('id', existing.id);
+            results.tasks_pulled++;
+          }
+        } else {
+          // Check title dedup in-memory
+          const titleDup = lookups.taskByTitle.get(ghlTitle);
+
+          if (titleDup) {
+            await supabase.from('tasks').update({ ghl_task_id: ghlTask.id }).eq('id', titleDup.id);
+            lookups.taskByGhlId.set(ghlTask.id, titleDup);
           } else {
-            // Check if a task with the same title already exists (prevents duplicates from GHL tasks on multiple contacts)
-            const { data: titleDup } = await supabase
-              .from('tasks')
-              .select('id')
-              .eq('title', ghlTitle)
-              .limit(1)
-              .maybeSingle();
-
-            if (titleDup) {
-              // Link existing task to this GHL task ID instead of creating a duplicate
-              await supabase.from('tasks').update({ ghl_task_id: ghlTask.id }).eq('id', titleDup.id);
-              console.log(`Task dedup: linked existing "${ghlTitle}" to GHL ${ghlTask.id}`);
-            } else {
-              // New from GHL → insert into CRM
-              await supabase.from('tasks').insert({
-                user_id: userId,
-                title: ghlTitle,
-                description: ghlDescription,
-                status: ghlStatus,
-                priority: 'normal',
-                due_date: ghlDueDate,
-                contact_id: contact.id,
-                ghl_task_id: ghlTask.id,
-                completed_at: ghlTask.completed ? (ghlTask.completedDate || new Date().toISOString()) : null,
-              });
-              console.log(`Task GHL -> CRM: ${ghlTask.id} (new)`);
-              results.tasks_pulled++;
+            const { data: inserted } = await supabase.from('tasks').insert({
+              user_id: userId,
+              title: ghlTitle,
+              description: ghlDescription,
+              status: ghlStatus,
+              priority: 'normal',
+              due_date: ghlDueDate,
+              contact_id: ghlTask._localContactId,
+              ghl_task_id: ghlTask.id,
+              completed_at: ghlTask.completed ? (ghlTask.completedDate || new Date().toISOString()) : null,
+            }).select('id').maybeSingle();
+            if (inserted) {
+              const newTask = { id: inserted.id, ghl_task_id: ghlTask.id, title: ghlTitle };
+              lookups.taskByGhlId.set(ghlTask.id, newTask);
+              lookups.taskByTitle.set(ghlTitle, newTask);
             }
+            results.tasks_pulled++;
           }
         }
-      } catch (e) {
-        console.error(`Task sync error for contact ${contact.ghl_contact_id}:`, e);
       }
+
+      // Small delay between chunks to avoid rate limits
+      if (i + TASK_CHUNK < contactsWithGhl.length) await delay(100);
     }
 
-    // 3. Push local tasks without GHL ID (that have a linked contact with GHL ID)
-    const { data: localTasks } = await supabase
-      .from('tasks')
-      .select('*')
-      .eq('user_id', userId)
-      .is('ghl_task_id', null)
-      .not('contact_id', 'is', null)
-      .limit(20);
+    // Push local tasks without GHL ID
+    const localTasks = lookups.existingContacts.length > 0
+      ? (await supabase.from('tasks').select('*').eq('user_id', userId).is('ghl_task_id', null).not('contact_id', 'is', null).limit(20)).data || []
+      : [];
 
-    for (const task of localTasks || []) {
-      let ghlContactId: string | null = null;
-      if (task.contact_id) {
-        const { data: contactRow } = await supabase.from('contacts').select('ghl_contact_id').eq('id', task.contact_id).maybeSingle();
-        ghlContactId = contactRow?.ghl_contact_id || null;
-      }
-      if (!ghlContactId) continue;
+    for (const task of localTasks) {
+      const contact = lookups.existingContacts.find((c: any) => c.id === task.contact_id);
+      if (!contact?.ghl_contact_id) continue;
 
       try {
         const ghlPayload = {
@@ -1128,22 +1049,17 @@ async function syncTasks(supabase: any, ghlHeaders: any, locationId: string, use
           dueDate: task.due_date || new Date().toISOString(),
           completed: task.status === 'completed',
         };
-        const res = await fetch(`${GHL_API_BASE}/contacts/${ghlContactId}/tasks`, {
+        const res = await fetch(`${GHL_API_BASE}/contacts/${contact.ghl_contact_id}/tasks`, {
           method: 'POST', headers: ghlHeaders, body: JSON.stringify(ghlPayload),
         });
         if (res.ok) {
           const created = await res.json();
           if (created.task?.id) {
             await supabase.from('tasks').update({ ghl_task_id: created.task.id }).eq('id', task.id);
-            console.log(`Task CRM -> GHL: ${task.id} -> ${created.task.id} (pushed)`);
           }
           results.tasks_pushed++;
-        } else {
-          console.error(`Push task ${task.id} failed: ${await res.text()}`);
         }
-      } catch (e) {
-        console.error('Push task error:', task.id, e);
-      }
+      } catch (e) { console.error('Push task error:', task.id, e); }
     }
   } catch (e) { console.error('Task sync error:', e); }
 }
@@ -1151,15 +1067,15 @@ async function syncTasks(supabase: any, ghlHeaders: any, locationId: string, use
 // === CONVERSATIONS SYNC ===
 function toISODate(val: any): string | null {
   if (!val) return null;
-  if (typeof val === 'string' && val.includes('T')) return val; // already ISO
+  if (typeof val === 'string' && val.includes('T')) return val;
   const n = Number(val);
-  if (!isNaN(n) && n > 1e12) return new Date(n).toISOString(); // unix ms
-  if (!isNaN(n) && n > 1e9) return new Date(n * 1000).toISOString(); // unix sec
+  if (!isNaN(n) && n > 1e12) return new Date(n).toISOString();
+  if (!isNaN(n) && n > 1e9) return new Date(n * 1000).toISOString();
   if (typeof val === 'string') { const d = new Date(val); if (!isNaN(d.getTime())) return d.toISOString(); }
   return null;
 }
 
-async function syncConversations(supabase: any, ghlHeaders: any, locationId: string, userId: string, results: any) {
+async function syncConversations(supabase: any, ghlHeaders: any, locationId: string, userId: string, results: any, lookups: any) {
   try {
     const searchParams = new URLSearchParams({ locationId, limit: '50', sortBy: 'last_message_date', sortOrder: 'desc' });
     const res = await fetch(`${GHL_API_BASE}/conversations/search?${searchParams.toString()}`, { headers: ghlHeaders });
@@ -1172,6 +1088,9 @@ async function syncConversations(supabase: any, ghlHeaders: any, locationId: str
     let messagesSyncCount = 0;
     const MAX_MESSAGE_SYNCS = 10;
 
+    // Batch upsert conversations
+    const convUpsertRows = [];
+
     for (const conv of conversations) {
       try {
         const contactName = conv.contactName || conv.fullName || conv.contact?.name || 'Onbekend';
@@ -1182,15 +1101,16 @@ async function syncConversations(supabase: any, ghlHeaders: any, locationId: str
         const email = conv.email || conv.contact?.email || null;
         const ghlContactId = conv.contactId || conv.contact?.id || null;
 
+        // In-memory contact lookup
         let localContactId: string | null = null;
         if (ghlContactId) {
-          const { data: contactMatch } = await supabase.from('contacts').select('id').eq('ghl_contact_id', ghlContactId).maybeSingle();
-          localContactId = contactMatch?.id || null;
+          const localContact = lookups.contactByGhlId.get(ghlContactId);
+          localContactId = localContact?.id || null;
         }
 
         const isUnread = lastMsgDir === 'inbound' && (conv.unreadCount > 0 || false);
 
-        const { error: upsertErr } = await supabase.from('conversations').upsert({
+        convUpsertRows.push({
           user_id: userId,
           ghl_conversation_id: conv.id,
           contact_id: localContactId,
@@ -1201,57 +1121,67 @@ async function syncConversations(supabase: any, ghlHeaders: any, locationId: str
           last_message_direction: lastMsgDir,
           unread: isUnread,
           channel: conv.type || 'chat',
-        }, { onConflict: 'ghl_conversation_id' });
+        });
+      } catch (convErr) { console.error('Conversation process error:', convErr); }
+    }
 
-        if (upsertErr) {
-          console.error(`Conv upsert error for ${conv.id}:`, upsertErr.message);
-        } else {
-          results.conversations_synced++;
-        }
-
-        // Fetch recent messages for this conversation (limited to avoid timeout)
-        if (messagesSyncCount >= MAX_MESSAGE_SYNCS) continue;
-        try {
-          messagesSyncCount++;
-          const msgRes = await fetch(`${GHL_API_BASE}/conversations/${conv.id}/messages`, {
-            headers: ghlHeaders,
-          });
-          console.log(`Messages fetch for conv ${conv.id}: status=${msgRes.status}`);
-          if (!msgRes.ok) {
-            console.error(`Messages fetch failed for ${conv.id}: ${msgRes.status} ${await msgRes.text()}`);
-            continue;
-          }
-          const msgData = await msgRes.json();
-          console.log(`Messages response keys for ${conv.id}:`, Object.keys(msgData));
-          
-          const rawMessages = Array.isArray(msgData.messages) ? msgData.messages
-            : Array.isArray(msgData) ? msgData
-            : msgData.messages?.messages ? msgData.messages.messages
-            : [];
-          
-          console.log(`Found ${rawMessages.length} messages for conv ${conv.id}`);
-
-          const { data: dbConv } = await supabase.from('conversations').select('id').eq('ghl_conversation_id', conv.id).maybeSingle();
-          if (!dbConv) { console.log(`No local conv found for GHL ${conv.id}`); continue; }
-
-          for (const msg of rawMessages) {
-            if (!msg.id) continue;
-            const { error: msgErr } = await supabase.from('messages').upsert({
-              user_id: userId,
-              conversation_id: dbConv.id,
-              ghl_message_id: msg.id,
-              body: msg.body || msg.message || msg.text || '',
-              direction: msg.direction === 1 || msg.direction === 'outbound' ? 'outbound' : 'inbound',
-              message_type: msg.type || msg.messageType || 'TYPE_SMS',
-              status: msg.status || 'delivered',
-              date_added: toISODate(msg.dateAdded || msg.createdAt) || new Date().toISOString(),
-            }, { onConflict: 'ghl_message_id' });
-            if (msgErr) console.error(`Message upsert error:`, msgErr.message);
-          }
-        } catch (msgFetchErr) { console.error(`Messages sync error for ${conv.id}:`, msgFetchErr); }
-      } catch (convErr) {
-        console.error('Conv sync error:', conv.id, convErr);
+    // Batch upsert all conversations at once
+    if (convUpsertRows.length > 0) {
+      const { error: upsertErr } = await supabase.from('conversations').upsert(convUpsertRows, { onConflict: 'ghl_conversation_id' });
+      if (upsertErr) {
+        console.error('Conversations batch upsert error:', upsertErr.message);
+      } else {
+        results.conversations_synced += convUpsertRows.length;
       }
     }
-  } catch (e) { console.error('Conversations sync error:', e); }
+
+    // Sync messages for recent conversations (limit to MAX_MESSAGE_SYNCS)
+    for (const conv of conversations) {
+      if (messagesSyncCount >= MAX_MESSAGE_SYNCS) break;
+      
+      try {
+        const msgRes = await fetch(`${GHL_API_BASE}/conversations/${conv.id}/messages?limit=20`, { headers: ghlHeaders });
+        if (!msgRes.ok) continue;
+        
+        const msgData = await msgRes.json();
+        const messages = msgData.messages || [];
+        console.log(`Messages fetch for conv ${conv.id}: status=${msgRes.status}`);
+        console.log(`Messages response keys for ${conv.id}: ${JSON.stringify(Object.keys(msgData))}`);
+        console.log(`Found ${messages.length} messages for conv ${conv.id}`);
+
+        const msgUpsertRows = [];
+        for (const msg of messages) {
+          const msgDateAdded = toISODate(msg.dateAdded || msg.createdAt);
+          msgUpsertRows.push({
+            user_id: userId,
+            conversation_id: null, // will be resolved below
+            ghl_message_id: msg.id,
+            body: msg.body || msg.text || '',
+            direction: msg.direction || 'inbound',
+            date_added: msgDateAdded || new Date().toISOString(),
+            message_type: msg.contentType || msg.type || 'TYPE_SMS',
+            status: msg.status || 'delivered',
+          });
+        }
+
+        if (msgUpsertRows.length > 0) {
+          // Get local conversation id
+          const { data: localConv } = await supabase.from('conversations')
+            .select('id')
+            .eq('ghl_conversation_id', conv.id)
+            .maybeSingle();
+
+          if (localConv) {
+            for (const row of msgUpsertRows) {
+              row.conversation_id = localConv.id;
+            }
+            await supabase.from('messages').upsert(msgUpsertRows, { onConflict: 'ghl_message_id' });
+          }
+        }
+        messagesSyncCount++;
+      } catch (msgErr) {
+        console.error(`Messages sync error for ${conv.id}:`, msgErr);
+      }
+    }
+  } catch (e) { console.error('Conversation sync error:', e); }
 }
