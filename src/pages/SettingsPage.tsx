@@ -242,8 +242,9 @@ export default function SettingsPage() {
       </div>
 
       <Tabs defaultValue="vgw" className="space-y-4">
-        <TabsList>
+        <TabsList className="flex-wrap">
           <TabsTrigger value="vgw" className="gap-2"><Key size={14} /> VGW Verbinding</TabsTrigger>
+          <TabsTrigger value="sync-queue" className="gap-2"><RefreshCw size={14} /> Sync Status</TabsTrigger>
           <TabsTrigger value="webhooks" className="gap-2"><Webhook size={14} /> Webhooks</TabsTrigger>
           <TabsTrigger value="mapping" className="gap-2"><ArrowRightLeft size={14} /> Veld Mapping</TabsTrigger>
           <TabsTrigger value="import" className="gap-2"><Upload size={14} /> CSV Import</TabsTrigger>
@@ -251,6 +252,10 @@ export default function SettingsPage() {
           <TabsTrigger value="master" className="gap-2"><Database size={14} /> Master Import</TabsTrigger>
           <TabsTrigger value="oud-crm" className="gap-2"><Database size={14} /> Oud CRM</TabsTrigger>
         </TabsList>
+
+        <TabsContent value="sync-queue">
+          <SyncQueuePanel />
+        </TabsContent>
 
         <TabsContent value="vgw" className="space-y-4">
           <div className="rounded-xl border bg-card p-6 card-shadow space-y-4">
