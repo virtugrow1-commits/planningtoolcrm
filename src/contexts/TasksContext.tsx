@@ -126,6 +126,9 @@ export function TasksProvider({ children }: { children: ReactNode }) {
       }});
     }
     // Then update local DB
+    const completedAt = task.status === 'completed'
+      ? (task.completedAt || new Date().toISOString())
+      : null;
     const { data, error } = await (supabase as any).from('tasks').update({
       title: task.title,
       description: task.description || null,
@@ -138,7 +141,7 @@ export function TasksProvider({ children }: { children: ReactNode }) {
       inquiry_id: task.inquiryId || null,
       booking_id: task.bookingId || null,
       ghl_task_id: task.ghlTaskId || null,
-      completed_at: task.status === 'completed' ? new Date().toISOString() : null,
+      completed_at: completedAt,
     }).eq('id', task.id).select().single();
     if (error) {
       toast({ title: 'Fout bij bijwerken taak', description: error.message, variant: 'destructive' });
