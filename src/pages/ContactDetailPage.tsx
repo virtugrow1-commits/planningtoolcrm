@@ -536,42 +536,38 @@ function CompanyField({ current, editing, companies, form, setForm, navigate, co
         </button>
       ) : (
         <div className="relative">
-          <Input
-            className="h-8 text-sm"
-            value={searchValue}
-            placeholder="Zoek bedrijf..."
-            onChange={(e) => {
-              setCompanySearch(e.target.value);
-              setShowDropdown(true);
+          <CrmCombobox
+            options={companies
+              .filter((c) => !allCompanies.some((lc) => lc.id === c.id))
+              .map((c) => ({
+                id: c.id,
+                label: c.name,
+                secondary: [c.email, c.city].filter(Boolean).join(' · ') || undefined,
+                searchText: `${c.name} ${c.email || ''} ${c.phone || ''} ${c.city || ''}`,
+              }))}
+            value=""
+            onSelect={(id) => {
+              if (!id) { setShowAddCompany(false); return; }
+              const co = companies.find((c) => c.id === id);
+              if (co) {
+                linkContact(current.id, co.id, allCompanies.length === 0);
+                if (allCompanies.length === 0 && form) {
+                  setForm({ ...form, company: co.name, companyId: co.id });
+                }
+              }
+              setCompanySearch('');
+              setShowAddCompany(false);
             }}
-            autoFocus
-            onFocus={() => setShowDropdown(true)}
-            onBlur={() => setTimeout(() => { setShowDropdown(false); }, 200)}
-            onKeyDown={(e) => { if (e.key === 'Escape') { setShowAddCompany(false); setCompanySearch(''); } }}
+            placeholder="Zoek bedrijf..."
+            searchPlaceholder="Zoek bedrijf..."
+            popoverWidth="w-[280px]"
           />
-          {showDropdown && filtered.length > 0 && (
-            <div className="absolute z-50 w-full mt-1 bg-popover border rounded-md shadow-md max-h-40 overflow-y-auto">
-              {filtered.map((c) => (
-                <button
-                  key={c.id}
-                  type="button"
-                  className="w-full text-left px-3 py-1.5 text-sm hover:bg-muted/50 transition-colors"
-                  onMouseDown={(e) => {
-                    e.preventDefault();
-                    linkContact(current.id, c.id, allCompanies.length === 0);
-                    // Set as primary company_id if first company
-                    if (allCompanies.length === 0 && form) {
-                      setForm({ ...form, company: c.name, companyId: c.id });
-                    }
-                    setCompanySearch('');
-                    setShowAddCompany(false);
-                  }}
-                >
-                  {c.name}
-                </button>
-              ))}
-            </div>
-          )}
+          <button
+            onClick={() => { setShowAddCompany(false); setCompanySearch(''); }}
+            className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+          >
+            <X size={14} />
+          </button>
         </div>
       )}
     </div>
