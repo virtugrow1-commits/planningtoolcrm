@@ -47,29 +47,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const [syncing, setSyncing] = useState(false);
   const { toast } = useToast();
   const { unreadCount } = useInquiriesContext();
-  const [unreadConversations, setUnreadConversations] = useState(0);
-
-  // Fetch unread conversations count
-  useEffect(() => {
-    const fetchUnread = async () => {
-      const { count } = await supabase
-        .from('conversations')
-        .select('id', { count: 'exact', head: true })
-        .eq('unread', true);
-      setUnreadConversations(count || 0);
-    };
-    fetchUnread();
-
-    // Subscribe to realtime changes
-    const channel = supabase
-      .channel('unread-conversations')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'conversations' }, () => {
-        fetchUnread();
-      })
-      .subscribe();
-
-    return () => { supabase.removeChannel(channel); };
-  }, []);
+  const [unreadConversations] = useState(0);
 
   const handleFullSync = async () => {
     if (syncing) return;
