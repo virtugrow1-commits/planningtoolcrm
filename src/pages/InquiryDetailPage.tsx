@@ -54,7 +54,7 @@ export default function InquiryDetailPage() {
     if (inquiry && !inquiry.isRead) {
       markAsRead(inquiry.id);
     }
-  }, [inquiry?.id]);
+  }, [inquiry?.id, inquiry?.isRead, markAsRead]);
 
   const contact = useMemo(() => inquiry?.contactId ? contacts.find(c => c.id === inquiry.contactId) : null, [inquiry, contacts]);
   const company = useMemo(() => contact?.companyId ? companies.find(co => co.id === contact.companyId) : null, [contact, companies]);

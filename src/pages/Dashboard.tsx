@@ -417,7 +417,7 @@ export default function Dashboard() {
               </div>
               <div className="mt-1 flex items-center gap-2 text-xs opacity-75">
                 <Clock size={12} />
-                <span>{booking.startHour}:00 – {booking.endHour}:00</span>
+                <span>{String(booking.startHour).padStart(2,'0')}:{String(booking.startMinute || 0).padStart(2,'0')} – {String(booking.endHour).padStart(2,'0')}:{String(booking.endMinute || 0).padStart(2,'0')}</span>
                 <span>·</span>
                 <span>{booking.contactName}</span>
               </div>
