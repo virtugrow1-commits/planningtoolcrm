@@ -2,11 +2,8 @@ import { NavLink, useLocation } from 'react-router-dom';
 import {
   LayoutDashboard,
   Users,
-  Building2,
   InboxIcon,
-  MessageSquare,
   CalendarDays,
-  FileText,
   ClipboardList,
   Settings,
   LogOut,
