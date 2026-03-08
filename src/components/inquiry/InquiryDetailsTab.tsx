@@ -61,6 +61,9 @@ export default function InquiryDetailsTab({ inquiry, editing, form, setForm, con
   const FIELD_LABEL_MAP: Record<string, string> = {
     'Saalh7jouh8kpkx4ntx9': 'Extra informatie over',
     'V2uhrncbin2tugy7iug0': 'Contactpersoon',
+    '3kgpapaxtsha4cc3omeu': 'Aantal gasten',
+    'Joqfpmtxpjwwri15fhmo': 'Dagdeel',
+    'Dey06emx0wklhdik6ugt': 'Gewenste datum',
   };
 
   const messageLines = inquiry.message ? inquiry.message.split('\n').filter(l => l.trim()) : [];
