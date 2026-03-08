@@ -160,7 +160,7 @@ export function TasksProvider({ children }: { children: ReactNode }) {
   }, [toast]);
 
   const deleteTask = useCallback(async (id: string) => {
-    const { data: existing } = await (supabase as any).from('tasks').select('ghl_task_id').eq('id', id).single();
+    const { data: existing } = await (supabase as any).from('tasks').select('ghl_task_id, contact_id').eq('id', id).single();
     // GHL first: delete from GHL before local DB
     if (existing?.ghl_task_id) {
       await pushToGHL('delete-task', { ghl_task_id: existing.ghl_task_id, contact_id: existing.contact_id }, {
