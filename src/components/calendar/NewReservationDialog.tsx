@@ -140,25 +140,24 @@ export default function NewReservationDialog({
     setLastOpen(open);
   }, [open]);
 
-  const filteredContacts = (() => {
-    const query = contactSearch.toLowerCase().trim();
-    if (!query) return contacts.slice(0, 50);
-    const terms = query.split(/\s+/);
-    return contacts.filter((c) => {
-      const haystack = `${c.firstName} ${c.lastName} ${c.email || ''} ${c.company || ''}`.toLowerCase();
-      return terms.every((term) => haystack.includes(term));
-    }).slice(0, 50);
-  })();
+  const contactOptions = useMemo<ComboboxOption[]>(() =>
+    contacts.map(c => ({
+      id: c.id,
+      label: [c.firstName, c.lastName].filter(n => n && n !== '—').join(' ') || c.email || 'Onbekend',
+      secondary: [c.company, c.email].filter(Boolean).join(' · ') || undefined,
+      searchText: `${c.firstName} ${c.lastName} ${c.email || ''} ${c.company || ''}`,
+    })),
+    [contacts]
+  );
 
   const selectedContact = contacts.find((c) => c.id === form.contactId);
 
-  const handleSelectContact = (contact: ContactOption) => {
+  const handleSelectContact = (id: string, opt?: ComboboxOption) => {
     setForm({
       ...form,
-      contactId: contact.id,
-      contactName: `${contact.firstName} ${contact.lastName}`,
+      contactId: id,
+      contactName: opt?.label || '',
     });
-    setContactSearch('');
   };
 
   const handleSubmit = () => {
