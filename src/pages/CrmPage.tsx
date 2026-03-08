@@ -344,7 +344,7 @@ export default function CrmPage() {
               <th className="px-4 py-3"><SortableHeader label="Email" sortKey="email" currentSort={companySort.sortKey} currentDirection={companySort.sortDir} onSort={companySort.handleSort} /></th>
               <th className="px-4 py-3 hidden md:table-cell"><SortableHeader label="Telefoon" sortKey="phone" currentSort={companySort.sortKey} currentDirection={companySort.sortDir} onSort={companySort.handleSort} /></th>
               <th className="px-4 py-3 hidden lg:table-cell"><SortableHeader label="Plaats" sortKey="city" currentSort={companySort.sortKey} currentDirection={companySort.sortDir} onSort={companySort.handleSort} /></th>
-              <th className="px-4 py-3 hidden lg:table-cell"><SortableHeader label="Status" sortKey="status" currentSort={companySort.sortKey} currentDirection={companySort.sortDir} onSort={companySort.handleSort} /></th>
+              <th className="px-4 py-3 hidden lg:table-cell"><SortableHeader label="Doelgroep" sortKey="status" currentSort={companySort.sortKey} currentDirection={companySort.sortDir} onSort={companySort.handleSort} /></th>
             </tr>
           </thead>
           <tbody>
