@@ -153,7 +153,9 @@ export function TasksProvider({ children }: { children: ReactNode }) {
     }
     // If no GHL task yet, push the saved data to create one
     if (data && !task.ghlTaskId) {
-      await pushToGHL('push-task', { task: data });
+      await pushToGHL('push-task', { task: data }, {
+        entityType: 'task', entityId: data.id, actionType: 'create',
+      });
     }
   }, [toast]);
 
