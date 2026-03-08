@@ -55,11 +55,26 @@ export default function Dashboard() {
   const [filter, setFilter] = useState<'all' | 'open' | 'in_progress' | 'completed'>('all');
   const [kpiDialog, setKpiDialog] = useState<{ open: boolean; type: 'tasks' | 'inquiries' | 'bookings' }>({ open: false, type: 'tasks' });
 
-  // Searchable selectors
-  const [companySearch, setCompanySearch] = useState('');
-  const [contactSearch, setContactSearch] = useState('');
-  const [companyPopoverOpen, setCompanyPopoverOpen] = useState(false);
-  const [contactPopoverOpen, setContactPopoverOpen] = useState(false);
+  // Combobox options
+  const companyOptions = useMemo<ComboboxOption[]>(() =>
+    companies.map(c => ({
+      id: c.id,
+      label: c.name,
+      secondary: [c.email, c.city].filter(Boolean).join(' · ') || undefined,
+      searchText: `${c.name} ${c.email || ''} ${c.phone || ''} ${c.city || ''}`,
+    })),
+    [companies]
+  );
+
+  const contactOptions = useMemo<ComboboxOption[]>(() => {
+    const pool = form.companyId ? contacts.filter(c => c.companyId === form.companyId) : contacts;
+    return pool.map(c => ({
+      id: c.id,
+      label: [c.firstName, c.lastName].filter(n => n && n !== '—').join(' ') || c.email || 'Onbekend',
+      secondary: c.company || c.email || undefined,
+      searchText: `${c.firstName} ${c.lastName} ${c.email || ''} ${c.company || ''} ${c.phone || ''}`,
+    }));
+  }, [contacts, form.companyId]);
 
   // Follow-up dialog
   const [showFollowUp, setShowFollowUp] = useState(false);
