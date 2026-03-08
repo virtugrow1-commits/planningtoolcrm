@@ -68,8 +68,8 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         <nav className="hidden md:flex items-center gap-0.5">
           {navItemDefs.map((item) => {
             const isActive = location.pathname === item.to;
-            const showBadge = (item.to === '/inquiries' && unreadCount > 0) || (item.to === '/conversations' && unreadConversations > 0);
-            const badgeCount = item.to === '/inquiries' ? unreadCount : item.to === '/conversations' ? unreadConversations : 0;
+            const showBadge = item.to === '/inquiries' && unreadCount > 0;
+            const badgeCount = item.to === '/inquiries' ? unreadCount : 0;
             return (
               <NavLink
                 key={item.to}
