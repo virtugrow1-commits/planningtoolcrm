@@ -168,8 +168,8 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         <nav className="md:hidden sidebar-gradient border-t border-white/10 px-2 py-2 space-y-0.5 animate-slide-down shadow-lg">
           {navItemDefs.map((item) => {
             const isActive = location.pathname === item.to;
-            const showBadge = (item.to === '/inquiries' && unreadCount > 0) || (item.to === '/conversations' && unreadConversations > 0);
-            const badgeCount = item.to === '/inquiries' ? unreadCount : item.to === '/conversations' ? unreadConversations : 0;
+            const showBadge = item.to === '/inquiries' && unreadCount > 0;
+            const badgeCount = item.to === '/inquiries' ? unreadCount : 0;
             return (
               <NavLink
                 key={item.to}

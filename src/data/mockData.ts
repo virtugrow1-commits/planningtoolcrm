@@ -1,30 +1,9 @@
+/**
+ * Mock data — retained only for type reference during development.
+ * Not used in production; all data comes from the database.
+ */
 import { Contact, Inquiry, Booking } from '@/types/crm';
 
-const today = new Date().toISOString().split('T')[0];
-
-export const mockContacts: Contact[] = [
-  { id: '1', firstName: 'Jan', lastName: 'de Vries', email: 'jan@devries.nl', phone: '+31 6 1234 5678', company: 'De Vries Events', status: 'client', createdAt: '2024-11-15' },
-  { id: '2', firstName: 'Maria', lastName: 'Jansen', email: 'maria@jansen.nl', phone: '+31 6 2345 6789', status: 'prospect', createdAt: '2024-12-01' },
-  { id: '3', firstName: 'Pieter', lastName: 'Bakker', email: 'pieter@bakker.com', phone: '+31 6 3456 7890', company: 'Bakker & Co', status: 'lead', createdAt: '2025-01-10' },
-  { id: '4', firstName: 'Sophie', lastName: 'Mulder', email: 'sophie@mulder.nl', phone: '+31 6 4567 8901', status: 'client', createdAt: '2024-09-20' },
-  { id: '5', firstName: 'Thomas', lastName: 'Visser', email: 'thomas@visser.nl', phone: '+31 6 5678 9012', company: 'Visser Group', status: 'lead', createdAt: '2025-02-01' },
-  { id: '6', firstName: 'Emma', lastName: 'de Groot', email: 'emma@degroot.nl', phone: '+31 6 6789 0123', status: 'prospect', createdAt: '2025-01-25' },
-];
-
-export const mockInquiries: Inquiry[] = [
-  { id: 'inq-1', contactId: '3', contactName: 'Pieter Bakker', eventType: 'Bedrijfsfeest', preferredDate: '2025-03-15', roomPreference: 'Grote Zaal', guestCount: 80, budget: 5000, message: 'We zoeken een locatie voor ons jaarlijkse bedrijfsfeest.', status: 'new', createdAt: '2025-02-18', source: 'Website' },
-  { id: 'inq-2', contactId: '5', contactName: 'Thomas Visser', eventType: 'Vergadering', preferredDate: '2025-02-25', roomPreference: 'Boardroom', guestCount: 12, budget: 800, message: 'Boardroom nodig voor dagvergadering met lunch.', status: 'contacted', createdAt: '2025-02-17', source: 'Telefoon' },
-  { id: 'inq-3', contactId: '6', contactName: 'Emma de Groot', eventType: 'Bruiloft', preferredDate: '2025-06-21', roomPreference: 'Grote Zaal', guestCount: 120, budget: 15000, message: 'Op zoek naar een mooie locatie voor onze bruiloft.', status: 'quoted', createdAt: '2025-02-15', source: 'Website' },
-  { id: 'inq-4', contactId: '2', contactName: 'Maria Jansen', eventType: 'Workshop', preferredDate: '2025-03-05', guestCount: 25, message: 'Workshop fotografie, ruimte met veel daglicht gewenst.', status: 'new', createdAt: '2025-02-19', source: 'Email' },
-];
-
-
-export const mockBookings: Booking[] = [
-  { id: 'b-1', roomName: 'Vergaderzaal 100', date: today, startHour: 9, startMinute: 0, endHour: 17, endMinute: 0, title: 'Bedrijfsevent Van Dam', contactName: 'R. van Dam', status: 'confirmed' },
-  { id: 'b-2', roomName: 'Vergaderzaal 1.03', date: today, startHour: 10, startMinute: 0, endHour: 12, endMinute: 0, title: 'Vergadering Visser Group', contactName: 'Thomas Visser', contactId: '5', status: 'confirmed' },
-  { id: 'b-3', roomName: 'Coachingruimte 2.05', date: today, startHour: 13, startMinute: 0, endHour: 17, endMinute: 0, title: 'Fotoshoot Studio', contactName: 'L. Smit', status: 'option' },
-  { id: 'b-4', roomName: 'Keuken / Kookstudio', date: today, startHour: 14, startMinute: 0, endHour: 18, endMinute: 0, title: 'Verjaardag feest', contactName: 'Maria Jansen', contactId: '2', status: 'confirmed' },
-  { id: 'b-5', roomName: 'Vergaderzaal 1.04', date: today, startHour: 9, startMinute: 0, endHour: 12, endMinute: 0, title: 'Workshop Schilderen', contactName: 'A. Kunst', status: 'option' },
-  { id: 'b-6', roomName: 'Petit Café / Horeca', date: today, startHour: 18, startMinute: 0, endHour: 22, endMinute: 0, title: 'Diner privé', contactName: 'Sophie Mulder', contactId: '4', status: 'confirmed' },
-  { id: 'b-7', roomName: 'BBQ- en Borrelterras', date: today, startHour: 15, startMinute: 0, endHour: 20, endMinute: 0, title: 'Cocktailparty', contactName: 'J. Berg', status: 'option' },
-];
+export const mockContacts: Contact[] = [];
+export const mockInquiries: Inquiry[] = [];
+export const mockBookings: Booking[] = [];

@@ -340,7 +340,7 @@ export default function SettingsPage() {
                   <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-success opacity-75"></span>
                   <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-success"></span>
                 </span>
-                <span>Automatische sync actief — elke minuut worden contacten, boekingen en aanvragen uitgewisseld met VirtuGrow</span>
+                <span>Automatische sync actief — elke 5 minuten worden contacten, boekingen en aanvragen uitgewisseld met VirtuGrow</span>
               </div>
               <p className="text-xs text-muted-foreground">
                 De API key en Location ID worden beheerd via de beveiligde backend configuratie.
