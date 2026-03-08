@@ -447,7 +447,6 @@ function CompanyField({ current, editing, companies, form, setForm, navigate, co
   unlinkContact: (contactId: string, companyId: string) => Promise<void>;
 }) {
   const [companySearch, setCompanySearch] = useState('');
-  const [showDropdown, setShowDropdown] = useState(false);
   const [showAddCompany, setShowAddCompany] = useState(false);
 
   // All linked companies (from junction table)
