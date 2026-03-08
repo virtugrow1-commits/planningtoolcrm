@@ -4,6 +4,7 @@ import { pushToGHL } from '@/lib/ghlSync';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { capitalizeWords } from '@/lib/utils';
+import { parseCrmGroup } from '@/lib/formatters';
 
 export interface Company {
   id: string;
