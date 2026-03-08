@@ -389,8 +389,6 @@ export default function CompanyDetailPage() {
             inquiriesEmptyText="Geen aanvragen van dit bedrijf."
           />
 
-          {/* Offertes */}
-          <OffertesSection contactIds={contactIds} navigate={navigate} />
 
           {/* Contactpersonen */}
           <SectionCard title="Contactpersonen" count={companyContacts.length} onAdd={() => { setAddContactOpen(true); setAddContactTab('link'); setLinkSearch(''); setNewContactForm({ firstName: '', lastName: '', email: '', phone: '' }); }}>
