@@ -900,6 +900,7 @@ serve(async (req) => {
         return new Response(JSON.stringify({ success: false, error: await res.text() }), {
           status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         });
+      }
     }
 
     if (action === 'delete-company') {
@@ -1363,21 +1364,46 @@ serve(async (req) => {
 
     if (action === 'delete-task') {
       const { ghl_task_id, contact_id } = body;
-      if (ghl_task_id && contact_id) {
-        // Find the GHL contact ID for this contact
+      if (!ghl_task_id) {
+        return new Response(JSON.stringify({ success: true, action: 'task-delete-skipped', reason: 'no ghl_task_id' }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      // Find the GHL contact ID — try from contact_id first, then scan all contacts with GHL IDs
+      let ghlContactId: string | null = null;
+      if (contact_id) {
         const { data: contactRow } = await supabase.from('contacts').select('ghl_contact_id').eq('id', contact_id).maybeSingle();
-        const ghlContactId = contactRow?.ghl_contact_id;
-        if (ghlContactId) {
-          const res = await ghlFetch(`${GHL_API_BASE}/contacts/${ghlContactId}/tasks/${ghl_task_id}`, {
-            method: 'DELETE', headers: ghlHeaders,
-          });
-          console.log(`Delete GHL task ${ghl_task_id} for contact ${ghlContactId}: ${res.status}`);
-          return new Response(JSON.stringify({ success: res.ok, action: 'task-deleted' }), {
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-          });
+        ghlContactId = contactRow?.ghl_contact_id || null;
+      }
+
+      // If no contact_id or no ghl_contact_id found, try to find the task across all GHL contacts
+      if (!ghlContactId) {
+        const { data: contacts } = await supabase.from('contacts').select('id, ghl_contact_id').not('ghl_contact_id', 'is', null).limit(200);
+        for (const c of contacts || []) {
+          try {
+            const checkRes = await ghlFetch(`${GHL_API_BASE}/contacts/${c.ghl_contact_id}/tasks/${ghl_task_id}`, { headers: ghlHeaders });
+            if (checkRes.ok) {
+              ghlContactId = c.ghl_contact_id;
+              break;
+            }
+            await checkRes.text();
+          } catch {}
         }
       }
-      return new Response(JSON.stringify({ success: true, action: 'task-delete-skipped', ghl_task_id }), {
+
+      if (ghlContactId) {
+        const res = await ghlFetch(`${GHL_API_BASE}/contacts/${ghlContactId}/tasks/${ghl_task_id}`, {
+          method: 'DELETE', headers: ghlHeaders,
+        });
+        console.log(`Delete GHL task ${ghl_task_id} for contact ${ghlContactId}: ${res.status}`);
+        return new Response(JSON.stringify({ success: res.ok, action: 'task-deleted' }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      console.warn(`Could not find GHL contact for task ${ghl_task_id}, task may already be deleted`);
+      return new Response(JSON.stringify({ success: true, action: 'task-delete-skipped', reason: 'no GHL contact found' }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
