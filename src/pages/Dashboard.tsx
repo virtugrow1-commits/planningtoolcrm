@@ -359,8 +359,13 @@ export default function Dashboard() {
                     <p className={`text-sm font-medium truncate ${task.status === 'completed' ? 'line-through text-muted-foreground' : 'text-card-foreground'}`}>
                       {task.title}
                     </p>
-                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                      {task.description && <span className="truncate max-w-[200px]">{task.description}</span>}
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground flex-wrap">
+                      {task.contactId && contactMap.get(task.contactId) && (
+                        <span className="truncate max-w-[160px]">👤 {contactMap.get(task.contactId)}</span>
+                      )}
+                      {task.companyId && companyMap.get(task.companyId) && (
+                        <span className="truncate max-w-[160px]">🏢 {companyMap.get(task.companyId)}</span>
+                      )}
                       {task.dueDate && (
                         <span className={task.dueDate < today ? 'text-destructive font-medium' : ''}>
                           📅 {task.dueDate}
