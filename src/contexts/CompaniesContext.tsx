@@ -145,8 +145,12 @@ export function CompaniesProvider({ children }: { children: ReactNode }) {
       website: company.website || null,
       address: company.address || null,
       city: company.city || null,
+      postcode: company.postcode || null,
+      country: company.country || null,
       ghl_company_id: company.ghlCompanyId || null,
-    }});
+    }}, {
+      entityType: 'company', entityId: company.id, actionType: 'update',
+    });
     // Then update local DB
     const { error } = await (supabase as any).from('companies').update({
       name: capitalizeWords(company.name),
