@@ -457,9 +457,11 @@ export default function InquiriesPage() {
                           </button>
                         </div>
                       </div>
-                      <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center text-primary text-xs font-bold shrink-0">
-                        {inq.contactName.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase()}
-                      </div>
+                      {inq.assignedTo && (
+                        <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center text-primary text-xs font-bold shrink-0" title={inq.assignedTo}>
+                          {inq.assignedTo.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase()}
+                        </div>
+                      )}
                     </div>
 
                     <div className="mt-2.5 space-y-1 text-xs">
@@ -954,8 +956,8 @@ export default function InquiriesPage() {
                 {/* Header with status */}
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex items-center gap-3">
-                    <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center text-primary text-lg font-bold shrink-0">
-                      {editInquiry.contactName.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase()}
+                    <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center text-primary text-lg font-bold shrink-0" title={editInquiry.assignedTo || editInquiry.contactName}>
+                      {(editInquiry.assignedTo || editInquiry.contactName).split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase()}
                     </div>
                     <div>
                       <h3 className="text-lg font-semibold text-foreground">{editInquiry.eventType}</h3>
