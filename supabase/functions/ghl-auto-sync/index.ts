@@ -1061,20 +1061,34 @@ async function syncTasks(supabase: any, ghlHeaders: any, locationId: string, use
               results.tasks_pulled++;
             }
           } else {
-            // New from GHL → insert into CRM
-            await supabase.from('tasks').insert({
-              user_id: userId,
-              title: ghlTitle,
-              description: ghlDescription,
-              status: ghlStatus,
-              priority: 'normal',
-              due_date: ghlDueDate,
-              contact_id: contact.id,
-              ghl_task_id: ghlTask.id,
-              completed_at: ghlTask.completed ? (ghlTask.completedDate || new Date().toISOString()) : null,
-            });
-            console.log(`Task GHL -> CRM: ${ghlTask.id} (new)`);
-            results.tasks_pulled++;
+            // Check if a task with the same title already exists (prevents duplicates from GHL tasks on multiple contacts)
+            const { data: titleDup } = await supabase
+              .from('tasks')
+              .select('id')
+              .eq('title', ghlTitle)
+              .limit(1)
+              .maybeSingle();
+
+            if (titleDup) {
+              // Link existing task to this GHL task ID instead of creating a duplicate
+              await supabase.from('tasks').update({ ghl_task_id: ghlTask.id }).eq('id', titleDup.id);
+              console.log(`Task dedup: linked existing "${ghlTitle}" to GHL ${ghlTask.id}`);
+            } else {
+              // New from GHL → insert into CRM
+              await supabase.from('tasks').insert({
+                user_id: userId,
+                title: ghlTitle,
+                description: ghlDescription,
+                status: ghlStatus,
+                priority: 'normal',
+                due_date: ghlDueDate,
+                contact_id: contact.id,
+                ghl_task_id: ghlTask.id,
+                completed_at: ghlTask.completed ? (ghlTask.completedDate || new Date().toISOString()) : null,
+              });
+              console.log(`Task GHL -> CRM: ${ghlTask.id} (new)`);
+              results.tasks_pulled++;
+            }
           }
         }
       } catch (e) {
