@@ -612,6 +612,27 @@ export type Database = {
           },
         ]
       }
+      room_conflict_rules: {
+        Row: {
+          conflicts_with: string
+          created_at: string
+          id: string
+          room_name: string
+        }
+        Insert: {
+          conflicts_with: string
+          created_at?: string
+          id?: string
+          room_name: string
+        }
+        Update: {
+          conflicts_with?: string
+          created_at?: string
+          id?: string
+          room_name?: string
+        }
+        Relationships: []
+      }
       room_settings: {
         Row: {
           created_at: string
@@ -644,6 +665,87 @@ export type Database = {
           max_guests?: number
           room_name?: string
           updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      sync_log: {
+        Row: {
+          action: string
+          created_at: string
+          details: Json | null
+          entity_id: string | null
+          entity_type: string
+          id: string
+          status: string
+          user_id: string
+        }
+        Insert: {
+          action: string
+          created_at?: string
+          details?: Json | null
+          entity_id?: string | null
+          entity_type: string
+          id?: string
+          status?: string
+          user_id: string
+        }
+        Update: {
+          action?: string
+          created_at?: string
+          details?: Json | null
+          entity_id?: string | null
+          entity_type?: string
+          id?: string
+          status?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      sync_queue: {
+        Row: {
+          action_type: string
+          completed_at: string | null
+          created_at: string
+          entity_id: string
+          entity_type: string
+          id: string
+          last_attempt_at: string | null
+          last_error: string | null
+          max_retries: number
+          payload: Json | null
+          retry_count: number
+          status: string
+          user_id: string
+        }
+        Insert: {
+          action_type: string
+          completed_at?: string | null
+          created_at?: string
+          entity_id: string
+          entity_type: string
+          id?: string
+          last_attempt_at?: string | null
+          last_error?: string | null
+          max_retries?: number
+          payload?: Json | null
+          retry_count?: number
+          status?: string
+          user_id: string
+        }
+        Update: {
+          action_type?: string
+          completed_at?: string | null
+          created_at?: string
+          entity_id?: string
+          entity_type?: string
+          id?: string
+          last_attempt_at?: string | null
+          last_error?: string | null
+          max_retries?: number
+          payload?: Json | null
+          retry_count?: number
+          status?: string
           user_id?: string
         }
         Relationships: []

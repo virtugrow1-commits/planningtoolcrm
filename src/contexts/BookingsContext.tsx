@@ -1,9 +1,9 @@
-// BookingsContext - centralized booking management with conflict detection
+// BookingsContext - centralized booking management with conflict detection + combined room logic
 import { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
 import { Booking, RoomName } from '@/types/crm';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
-
+import { useRoomConflicts } from '@/hooks/useRoomConflicts';
 import { useToast } from '@/hooks/use-toast';
 
 export interface BookingConflict {
@@ -28,6 +28,7 @@ export function BookingsProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
   const { user } = useAuth();
   const { toast } = useToast();
+  const { getConflictRooms } = useRoomConflicts();
 
   const fetchBookings = useCallback(async () => {
     if (!user) return;
@@ -87,54 +88,106 @@ export function BookingsProvider({ children }: { children: ReactNode }) {
     return () => { supabase.removeChannel(channel); };
   }, [user, fetchBookings]);
 
+  // Check conflicts including combined room rules
   const checkConflicts = useCallback((date: string, room: RoomName, startMin: number, endMin: number, excludeId?: string): Booking[] => {
+    const roomsToCheck = getConflictRooms(room);
     return bookings.filter((b) =>
       b.date === date &&
-      b.roomName === room &&
+      roomsToCheck.includes(b.roomName) &&
       b.id !== excludeId &&
       startMin < b.endHour * 60 + (b.endMinute || 0) &&
       endMin > b.startHour * 60 + (b.startMinute || 0)
     );
-  }, [bookings]);
+  }, [bookings, getConflictRooms]);
 
-  const addBooking = useCallback(async (booking: Omit<Booking, 'id'>): Promise<{ success: boolean; conflicts?: Booking[] }> => {
-    if (!user) return { success: false };
-    // Local conflict check first
-    const startMin = booking.startHour * 60 + (booking.startMinute ?? 0);
-    const endMin = booking.endHour * 60 + (booking.endMinute ?? 0);
-    const localConflicts = checkConflicts(booking.date, booking.roomName, startMin, endMin);
-    if (localConflicts.length > 0) {
-      toast({ title: 'Dubbele boeking niet toegestaan', description: 'Er is al een reservering of optie op dit tijdslot in deze ruimte.', variant: 'destructive' });
-      return { success: false, conflicts: localConflicts };
-    }
-    // Server-side conflict check to catch stale data
+  // Server-side conflict check including combined room rules
+  const serverConflictCheck = useCallback(async (
+    date: string, roomName: string, startMin: number, endMin: number, excludeId?: string
+  ): Promise<Booking[]> => {
+    const roomsToCheck = getConflictRooms(roomName);
     const { data: dbConflicts } = await supabase
       .from('bookings')
       .select('id, room_name, date, start_hour, start_minute, end_hour, end_minute, title, contact_name, status')
-      .eq('date', booking.date)
-      .eq('room_name', booking.roomName);
-    const serverConflicts = (dbConflicts || []).filter((b: any) => {
+      .eq('date', date)
+      .in('room_name', roomsToCheck);
+    return (dbConflicts || []).filter((b: any) => {
+      if (excludeId && b.id === excludeId) return false;
       const bStart = b.start_hour * 60 + (b.start_minute ?? 0);
       const bEnd = b.end_hour * 60 + (b.end_minute ?? 0);
       return startMin < bEnd && endMin > bStart;
-    });
+    }).map((sc: any) => ({
+      id: sc.id,
+      roomName: sc.room_name as RoomName,
+      date: sc.date,
+      startHour: sc.start_hour,
+      startMinute: sc.start_minute ?? 0,
+      endHour: sc.end_hour,
+      endMinute: sc.end_minute ?? 0,
+      title: sc.title || '',
+      contactName: sc.contact_name || '',
+      status: sc.status as 'confirmed' | 'option',
+    }));
+  }, [getConflictRooms]);
+
+  // Queue failed sync to sync_queue table
+  const queueFailedSync = useCallback(async (
+    entityId: string, actionType: string, payload: any, error: string
+  ) => {
+    if (!user) return;
+    try {
+      await supabase.from('sync_queue').insert({
+        user_id: user.id,
+        entity_type: 'booking',
+        entity_id: entityId,
+        action_type: actionType,
+        payload,
+        status: 'pending',
+        last_error: error,
+      } as any);
+    } catch (e) {
+      console.error('[SyncQueue] Failed to queue:', e);
+    }
+  }, [user]);
+
+  // Log sync action
+  const logSync = useCallback(async (
+    action: string, entityId: string | null, details: any, status: 'success' | 'error' | 'conflict'
+  ) => {
+    if (!user) return;
+    try {
+      await supabase.from('sync_log').insert({
+        user_id: user.id,
+        entity_type: 'booking',
+        entity_id: entityId,
+        action,
+        details,
+        status,
+      } as any);
+    } catch (_) {}
+  }, [user]);
+
+  const addBooking = useCallback(async (booking: Omit<Booking, 'id'>): Promise<{ success: boolean; conflicts?: Booking[] }> => {
+    if (!user) return { success: false };
+    const startMin = booking.startHour * 60 + (booking.startMinute ?? 0);
+    const endMin = booking.endHour * 60 + (booking.endMinute ?? 0);
+
+    // Local conflict check (includes combined room logic)
+    const localConflicts = checkConflicts(booking.date, booking.roomName, startMin, endMin);
+    if (localConflicts.length > 0) {
+      const conflictRooms = [...new Set(localConflicts.map(c => c.roomName))].join(', ');
+      toast({ title: 'Dubbele boeking niet toegestaan', description: `Conflict met: ${conflictRooms}`, variant: 'destructive' });
+      await logSync('conflict_detected', null, { room: booking.roomName, conflicts: localConflicts.map(c => ({ id: c.id, room: c.roomName })) }, 'conflict');
+      return { success: false, conflicts: localConflicts };
+    }
+
+    // Server-side conflict check (includes combined room logic)
+    const serverConflicts = await serverConflictCheck(booking.date, booking.roomName, startMin, endMin);
     if (serverConflicts.length > 0) {
-      toast({ title: 'Dubbele boeking niet toegestaan', description: `Er is al een reservering in ${booking.roomName} op dit tijdslot.`, variant: 'destructive' });
+      const conflictRooms = [...new Set(serverConflicts.map(c => c.roomName))].join(', ');
+      toast({ title: 'Dubbele boeking niet toegestaan', description: `Server conflict met: ${conflictRooms}`, variant: 'destructive' });
       await fetchBookings();
-      // Map server conflicts directly to Booking objects (don't rely on stale local state)
-      const conflictBookings: Booking[] = serverConflicts.map((sc: any) => ({
-        id: sc.id,
-        roomName: sc.room_name as RoomName,
-        date: sc.date,
-        startHour: sc.start_hour,
-        startMinute: sc.start_minute ?? 0,
-        endHour: sc.end_hour,
-        endMinute: sc.end_minute ?? 0,
-        title: sc.title || '',
-        contactName: sc.contact_name || '',
-        status: sc.status as 'confirmed' | 'option',
-      }));
-      return { success: false, conflicts: conflictBookings };
+      await logSync('conflict_detected', null, { room: booking.roomName, conflicts: serverConflicts.map(c => ({ id: c.id, room: c.roomName })) }, 'conflict');
+      return { success: false, conflicts: serverConflicts };
     }
 
     const { data, error } = await supabase.from('bookings').insert({
@@ -160,51 +213,35 @@ export function BookingsProvider({ children }: { children: ReactNode }) {
       return { success: false };
     }
     if (data) {
-      // GHL first: push to GHL before refreshing local state
+      // GHL push with sync queue fallback
       try {
-        await supabase.functions.invoke('ghl-sync', {
+        const { error: syncErr } = await supabase.functions.invoke('ghl-sync', {
           body: { action: 'push-booking', booking: data },
         });
-      } catch (err) {
-        console.warn('[VGW Sync] push-booking failed:', err);
+        if (syncErr) throw syncErr;
+        await logSync('push_booking', data.id, { room: booking.roomName, ghl_status: 'success' }, 'success');
+      } catch (err: any) {
+        console.warn('[VGW Sync] push-booking failed, queuing:', err);
+        await queueFailedSync(data.id, 'create', data, err?.message || 'Unknown error');
+        await logSync('push_booking', data.id, { room: booking.roomName, error: err?.message }, 'error');
       }
       await fetchBookings();
     }
     return { success: true };
-  }, [user, fetchBookings, toast, checkConflicts]);
+  }, [user, fetchBookings, toast, checkConflicts, serverConflictCheck, queueFailedSync, logSync]);
 
   const addBookings = useCallback(async (newBookings: Omit<Booking, 'id'>[]): Promise<{ success: boolean; conflicts?: Booking[] }> => {
     if (!user || newBookings.length === 0) return { success: false };
-    // Local + server-side conflict check for all bookings
+    // Check conflicts for each booking (with combined room logic)
     for (const b of newBookings) {
       const startMin = b.startHour * 60 + (b.startMinute ?? 0);
       const endMin = b.endHour * 60 + (b.endMinute ?? 0);
-      const { data: dbConflicts } = await supabase
-        .from('bookings')
-        .select('id, start_hour, start_minute, end_hour, end_minute')
-        .eq('date', b.date)
-        .eq('room_name', b.roomName);
-      const serverConflicts = (dbConflicts || []).filter((x: any) => {
-        const bStart = x.start_hour * 60 + (x.start_minute ?? 0);
-        const bEnd = x.end_hour * 60 + (x.end_minute ?? 0);
-        return startMin < bEnd && endMin > bStart;
-      });
+      const serverConflicts = await serverConflictCheck(b.date, b.roomName, startMin, endMin);
       if (serverConflicts.length > 0) {
-        toast({ title: 'Dubbele boeking niet toegestaan', description: `Er is al een boeking in ${b.roomName} op ${b.date}.`, variant: 'destructive' });
+        const conflictRooms = [...new Set(serverConflicts.map(c => c.roomName))].join(', ');
+        toast({ title: 'Dubbele boeking niet toegestaan', description: `Conflict met ${conflictRooms} op ${b.date}.`, variant: 'destructive' });
         await fetchBookings();
-        const conflictBookings: Booking[] = serverConflicts.map((sc: any) => ({
-          id: sc.id,
-          roomName: b.roomName,
-          date: b.date,
-          startHour: sc.start_hour,
-          startMinute: sc.start_minute ?? 0,
-          endHour: sc.end_hour,
-          endMinute: sc.end_minute ?? 0,
-          title: '',
-          contactName: '',
-          status: 'confirmed' as const,
-        }));
-        return { success: false, conflicts: conflictBookings };
+        return { success: false, conflicts: serverConflicts };
       }
     }
 
@@ -231,51 +268,34 @@ export function BookingsProvider({ children }: { children: ReactNode }) {
       toast({ title: 'Fout bij aanmaken boekingen', description: error.message, variant: 'destructive' });
       return { success: false };
     }
-    // GHL first: push all bookings to GHL before refreshing local state
     for (const booking of data || []) {
       try {
-        await supabase.functions.invoke('ghl-sync', {
+        const { error: syncErr } = await supabase.functions.invoke('ghl-sync', {
           body: { action: 'push-booking', booking },
         });
-      } catch (err) {
-        console.warn('[VGW Sync] push-booking failed:', err);
+        if (syncErr) throw syncErr;
+        await logSync('push_booking', booking.id, { ghl_status: 'success' }, 'success');
+      } catch (err: any) {
+        console.warn('[VGW Sync] push-booking failed, queuing:', err);
+        await queueFailedSync(booking.id, 'create', booking, err?.message || 'Unknown error');
+        await logSync('push_booking', booking.id, { error: err?.message }, 'error');
       }
     }
     await fetchBookings();
     return { success: true };
-  }, [user, fetchBookings, toast, checkConflicts]);
+  }, [user, fetchBookings, toast, serverConflictCheck, queueFailedSync, logSync]);
 
   const updateBooking = useCallback(async (updated: Booking): Promise<{ success: boolean; conflicts?: Booking[] }> => {
-    // Local + server-side conflict check
     const startMin = updated.startHour * 60 + (updated.startMinute ?? 0);
     const endMin = updated.endHour * 60 + (updated.endMinute ?? 0);
-    const { data: dbConflicts } = await supabase
-      .from('bookings')
-      .select('id, start_hour, start_minute, end_hour, end_minute')
-      .eq('date', updated.date)
-      .eq('room_name', updated.roomName)
-      .neq('id', updated.id);
-    const serverConflicts = (dbConflicts || []).filter((b: any) => {
-      const bStart = b.start_hour * 60 + (b.start_minute ?? 0);
-      const bEnd = b.end_hour * 60 + (b.end_minute ?? 0);
-      return startMin < bEnd && endMin > bStart;
-    });
+
+    // Server-side conflict check with combined room logic
+    const serverConflicts = await serverConflictCheck(updated.date, updated.roomName, startMin, endMin, updated.id);
     if (serverConflicts.length > 0) {
-      toast({ title: 'Dubbele boeking niet toegestaan', description: 'Er is al een reservering of optie op dit tijdslot in deze ruimte.', variant: 'destructive' });
+      const conflictRooms = [...new Set(serverConflicts.map(c => c.roomName))].join(', ');
+      toast({ title: 'Dubbele boeking niet toegestaan', description: `Conflict met: ${conflictRooms}`, variant: 'destructive' });
       await fetchBookings();
-      const conflictBookings: Booking[] = serverConflicts.map((sc: any) => ({
-        id: sc.id,
-        roomName: updated.roomName,
-        date: updated.date,
-        startHour: sc.start_hour,
-        startMinute: sc.start_minute ?? 0,
-        endHour: sc.end_hour,
-        endMinute: sc.end_minute ?? 0,
-        title: '',
-        contactName: '',
-        status: 'confirmed' as const,
-      }));
-      return { success: false, conflicts: conflictBookings };
+      return { success: false, conflicts: serverConflicts };
     }
 
     const { data, error } = await supabase.from('bookings').update({
@@ -301,41 +321,47 @@ export function BookingsProvider({ children }: { children: ReactNode }) {
       return { success: false };
     }
     if (data) {
-      // GHL first: push to GHL before refreshing local state
       try {
-        await supabase.functions.invoke('ghl-sync', {
+        const { error: syncErr } = await supabase.functions.invoke('ghl-sync', {
           body: { action: 'push-booking', booking: data },
         });
-      } catch (err) {
-        console.warn('[VGW Sync] push-booking failed:', err);
+        if (syncErr) throw syncErr;
+        await logSync('update_booking', data.id, { ghl_status: 'success' }, 'success');
+      } catch (err: any) {
+        console.warn('[VGW Sync] push-booking failed, queuing:', err);
+        await queueFailedSync(data.id, 'update', data, err?.message || 'Unknown error');
+        await logSync('update_booking', data.id, { error: err?.message }, 'error');
       }
       await fetchBookings();
     }
     return { success: true };
-  }, [fetchBookings, toast, checkConflicts]);
+  }, [fetchBookings, toast, serverConflictCheck, queueFailedSync, logSync]);
 
   const deleteBooking = useCallback(async (id: string) => {
     const { data: existing } = await supabase.from('bookings').select('ghl_event_id').eq('id', id).single();
     
-    // Delete from GHL FIRST (await it) to prevent auto-sync from re-creating the booking
+    // Delete from GHL FIRST
     if ((existing as any)?.ghl_event_id) {
       try {
-        await supabase.functions.invoke('ghl-sync', {
+        const { error: syncErr } = await supabase.functions.invoke('ghl-sync', {
           body: { action: 'delete-booking', ghl_event_id: (existing as any).ghl_event_id },
         });
-      } catch (err) {
-        console.warn('[VGW Sync] delete-booking failed:', err);
+        if (syncErr) throw syncErr;
+        await logSync('delete_booking', id, { ghl_event_id: (existing as any).ghl_event_id, ghl_status: 'success' }, 'success');
+      } catch (err: any) {
+        console.warn('[VGW Sync] delete-booking failed, queuing:', err);
+        await queueFailedSync(id, 'delete', { ghl_event_id: (existing as any).ghl_event_id }, err?.message || 'Unknown error');
+        await logSync('delete_booking', id, { error: err?.message }, 'error');
       }
     }
     
-    // Then delete from CRM
     const { error } = await supabase.from('bookings').delete().eq('id', id);
     if (error) {
       toast({ title: 'Fout bij verwijderen boeking', description: error.message, variant: 'destructive' });
       return;
     }
     await fetchBookings();
-  }, [fetchBookings, toast]);
+  }, [fetchBookings, toast, queueFailedSync, logSync]);
 
   return (
     <BookingsContext.Provider value={{ bookings, loading, addBooking, addBookings, updateBooking, deleteBooking, refetch: fetchBookings, checkConflicts }}>

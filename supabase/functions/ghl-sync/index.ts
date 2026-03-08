@@ -1828,6 +1828,194 @@ serve(async (req) => {
       });
     }
 
+    // === SYNC QUEUE PROCESSOR ===
+    if (action === 'process-sync-queue') {
+      const { data: items } = await supabase
+        .from('sync_queue')
+        .select('*')
+        .in('status', ['pending', 'retrying'])
+        .lt('retry_count', 5)
+        .order('created_at', { ascending: true })
+        .limit(20);
+
+      let processed = 0;
+      let succeeded = 0;
+      let failed = 0;
+
+      for (const item of items || []) {
+        processed++;
+        try {
+          let success = false;
+          if (item.entity_type === 'booking') {
+            if (item.action_type === 'create' || item.action_type === 'update') {
+              // Re-fetch the booking to get latest data
+              const { data: freshBooking } = await supabase.from('bookings').select('*').eq('id', item.entity_id).maybeSingle();
+              if (freshBooking) {
+                // Recursively call push-booking by making internal request
+                const pushBody = { action: 'push-booking', booking: freshBooking };
+                // We can't easily recurse, so inline the essential push logic
+                let calId: string | null = null;
+                if (freshBooking.room_name) {
+                  const { data: rs } = await supabase.from('room_settings').select('ghl_calendar_id').eq('user_id', item.user_id).eq('room_name', freshBooking.room_name).maybeSingle();
+                  calId = rs?.ghl_calendar_id || null;
+                }
+                if (calId && freshBooking.contact_id) {
+                  const { data: contact } = await supabase.from('contacts').select('ghl_contact_id').eq('id', freshBooking.contact_id).maybeSingle();
+                  if (contact?.ghl_contact_id) {
+                    const probeDateZ = new Date(`${freshBooking.date}T12:00:00Z`);
+                    const amStr = probeDateZ.toLocaleString('en-US', { timeZone: 'Europe/Amsterdam', hour12: false });
+                    const amDate = new Date(amStr);
+                    const offsetH = Math.round((amDate.getTime() - probeDateZ.getTime()) / 3600000);
+                    const tz = `${offsetH >= 0 ? '+' : '-'}${String(Math.abs(offsetH)).padStart(2, '0')}:00`;
+                    const st = `${freshBooking.date}T${String(freshBooking.start_hour).padStart(2, '0')}:${String(freshBooking.start_minute || 0).padStart(2, '0')}:00${tz}`;
+                    const et = `${freshBooking.date}T${String(freshBooking.end_hour).padStart(2, '0')}:${String(freshBooking.end_minute || 0).padStart(2, '0')}:00${tz}`;
+                    const appointmentHeaders = { ...ghlHeaders, 'Version': '2021-04-15' };
+                    const evtPayload: any = {
+                      calendarId: calId, locationId: GHL_LOCATION_ID, contactId: contact.ghl_contact_id,
+                      title: freshBooking.title, startTime: st, endTime: et,
+                      appointmentStatus: freshBooking.status === 'confirmed' ? 'confirmed' : 'new',
+                      ignoreDateRange: true, ignoreFreeSlotValidation: true, toNotify: false,
+                    };
+                    if (freshBooking.ghl_event_id) {
+                      const res = await ghlFetch(`${GHL_API_BASE}/calendars/events/appointments/${freshBooking.ghl_event_id}`, { method: 'PUT', headers: appointmentHeaders, body: JSON.stringify(evtPayload) });
+                      success = res.ok;
+                      if (!res.ok) await res.text();
+                    } else {
+                      const res = await ghlFetch(`${GHL_API_BASE}/calendars/events/appointments`, { method: 'POST', headers: appointmentHeaders, body: JSON.stringify(evtPayload) });
+                      if (res.ok) {
+                        const created = await res.json();
+                        const eid = created.id || created.event?.id;
+                        if (eid) await supabase.from('bookings').update({ ghl_event_id: eid }).eq('id', freshBooking.id);
+                        success = true;
+                      } else { await res.text(); }
+                    }
+                  }
+                }
+              } else {
+                // Booking was deleted, mark as completed
+                success = true;
+              }
+            } else if (item.action_type === 'delete') {
+              const ghlEventId = item.payload?.ghl_event_id;
+              if (ghlEventId) {
+                const res = await ghlFetch(`${GHL_API_BASE}/calendars/events/appointments/${ghlEventId}`, { method: 'DELETE', headers: ghlHeaders });
+                success = res.ok || res.status === 404;
+                if (!success) await res.text();
+              } else {
+                success = true;
+              }
+            }
+          }
+
+          if (success) {
+            await supabase.from('sync_queue').update({ status: 'completed', completed_at: new Date().toISOString() } as any).eq('id', item.id);
+            succeeded++;
+          } else {
+            const newCount = (item.retry_count || 0) + 1;
+            await supabase.from('sync_queue').update({
+              status: newCount >= (item.max_retries || 5) ? 'failed' : 'retrying',
+              retry_count: newCount,
+              last_attempt_at: new Date().toISOString(),
+            } as any).eq('id', item.id);
+            failed++;
+          }
+        } catch (err: any) {
+          const newCount = (item.retry_count || 0) + 1;
+          await supabase.from('sync_queue').update({
+            status: newCount >= (item.max_retries || 5) ? 'failed' : 'retrying',
+            retry_count: newCount,
+            last_error: err?.message || 'Unknown',
+            last_attempt_at: new Date().toISOString(),
+          } as any).eq('id', item.id);
+          failed++;
+        }
+      }
+
+      return new Response(JSON.stringify({ success: true, processed, succeeded, failed }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    // === RECONCILE: Check CRM bookings vs GHL events ===
+    if (action === 'reconcile') {
+      const calRes = await ghlFetch(`${GHL_API_BASE}/calendars/?locationId=${GHL_LOCATION_ID}`, { headers: ghlHeaders });
+      if (!calRes.ok) {
+        return new Response(JSON.stringify({ success: false, error: 'Cannot fetch calendars' }), {
+          status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+      const calData = await calRes.json();
+      const calendars = calData.calendars || [];
+
+      // Get room mapping
+      const { data: roomMappings } = await supabase.from('room_settings').select('room_name, ghl_calendar_id').eq('user_id', user.id).not('ghl_calendar_id', 'is', null);
+      const calIdToRoom: Record<string, string> = {};
+      for (const rm of roomMappings || []) { if (rm.ghl_calendar_id) calIdToRoom[rm.ghl_calendar_id] = rm.room_name; }
+
+      // Fetch future GHL events
+      const now = new Date();
+      const futureEnd = new Date(now); futureEnd.setDate(futureEnd.getDate() + 365);
+      const ghlEventIds = new Set<string>();
+
+      for (const cal of calendars) {
+        const eventsUrl = `${GHL_API_BASE}/calendars/events?locationId=${GHL_LOCATION_ID}&calendarId=${cal.id}&startTime=${now.getTime()}&endTime=${futureEnd.getTime()}`;
+        const eventsRes = await ghlFetch(eventsUrl, { headers: { ...ghlHeaders, 'Version': '2021-04-15' } });
+        if (eventsRes.ok) {
+          const eventsData = await eventsRes.json();
+          for (const evt of eventsData.events || []) { ghlEventIds.add(evt.id); }
+        }
+      }
+
+      // Check CRM bookings that have ghl_event_id but are missing from GHL
+      const { data: crmBookings } = await supabase.from('bookings').select('id, ghl_event_id, room_name, date, title')
+        .eq('user_id', user.id).not('ghl_event_id', 'is', null).gte('date', now.toISOString().split('T')[0]);
+
+      let recreated = 0;
+      let mismatches = 0;
+      for (const b of crmBookings || []) {
+        if (b.ghl_event_id && !ghlEventIds.has(b.ghl_event_id)) {
+          // CRM has booking, GHL doesn't — queue for re-creation
+          await supabase.from('sync_queue').insert({
+            user_id: user.id,
+            entity_type: 'booking',
+            entity_id: b.id,
+            action_type: 'create',
+            payload: b,
+            status: 'pending',
+            last_error: 'Reconcile: missing from GHL',
+          } as any);
+          // Clear stale ghl_event_id
+          await supabase.from('bookings').update({ ghl_event_id: null } as any).eq('id', b.id);
+          recreated++;
+
+          await supabase.from('sync_log').insert({
+            user_id: user.id,
+            entity_type: 'booking',
+            entity_id: b.id,
+            action: 'reconcile_missing_ghl',
+            details: { room: b.room_name, date: b.date, title: b.title },
+            status: 'error',
+          } as any);
+        }
+      }
+
+      // Process the queue immediately
+      if (recreated > 0) {
+        // Fire and forget
+        try {
+          await ghlFetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/ghl-sync`, {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${Deno.env.get('SUPABASE_ANON_KEY')}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: 'process-sync-queue' }),
+          });
+        } catch (_) {}
+      }
+
+      return new Response(JSON.stringify({ success: true, recreated, mismatches, ghl_events: ghlEventIds.size, crm_bookings: (crmBookings || []).length }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
     return new Response(JSON.stringify({ error: `Unknown action: ${action}` }), {
       status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });

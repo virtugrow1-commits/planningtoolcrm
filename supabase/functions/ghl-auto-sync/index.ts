@@ -1150,10 +1150,8 @@ async function syncConversations(supabase: any, ghlHeaders: any, locationId: str
         if (!msgRes.ok) continue;
         
         const msgData = await msgRes.json();
-        const messages = msgData.messages || [];
-        console.log(`Messages fetch for conv ${conv.id}: status=${msgRes.status}`);
-        console.log(`Messages response keys for ${conv.id}: ${JSON.stringify(Object.keys(msgData))}`);
-        console.log(`Found ${messages.length} messages for conv ${conv.id}`);
+        const messages = Array.isArray(msgData.messages) ? msgData.messages : (Array.isArray(msgData) ? msgData : []);
+        console.log(`Messages fetch for conv ${conv.id}: status=${msgRes.status}, count=${messages.length}`);
 
         const msgUpsertRows = [];
         for (const msg of messages) {
