@@ -11,7 +11,6 @@ import {
   Flag,
   CheckCircle2,
   CalendarIcon,
-  Search,
 } from 'lucide-react';
 import KpiCard from '@/components/KpiCard';
 import KpiDetailDialog from '@/components/dashboard/KpiDetailDialog';
