@@ -968,10 +968,9 @@ async function pushLocalInquiries(supabase: any, ghlHeaders: any, locationId: st
 // === BIDIRECTIONAL TASK SYNC ===
 async function syncTasks(supabase: any, ghlHeaders: any, locationId: string, userId: string, results: any, lookups: any) {
   try {
-    // Only sync tasks for contacts that have GHL IDs — limit to 100 contacts per run
+    // Sync tasks for ALL contacts that have GHL IDs (no artificial limit)
     const contactsWithGhl = lookups.existingContacts
-      .filter((c: any) => c.ghl_contact_id)
-      .slice(0, 100);
+      .filter((c: any) => c.ghl_contact_id);
 
     if (contactsWithGhl.length === 0) return;
 
