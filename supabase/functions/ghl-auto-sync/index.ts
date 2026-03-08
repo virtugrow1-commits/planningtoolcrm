@@ -262,8 +262,14 @@ async function syncCalendar(supabase: any, ghlHeaders: any, locationId: string, 
       const targetCalendarId = roomToCalId[booking.room_name] || defaultCalendarId;
       if (!targetCalendarId) continue;
       try {
-        const startTime = `${booking.date}T${String(booking.start_hour).padStart(2, '0')}:${String(booking.start_minute || 0).padStart(2, '0')}:00`;
-        const endTime = `${booking.date}T${String(booking.end_hour).padStart(2, '0')}:${String(booking.end_minute || 0).padStart(2, '0')}:00`;
+        // Dynamic timezone offset for Europe/Amsterdam
+        const probeDate = new Date(`${booking.date}T12:00:00Z`);
+        const amStr = probeDate.toLocaleString('en-US', { timeZone: 'Europe/Amsterdam', hour12: false });
+        const amDate = new Date(amStr);
+        const offsetH = Math.round((amDate.getTime() - probeDate.getTime()) / 3600000);
+        const tz = `${offsetH >= 0 ? '+' : '-'}${String(Math.abs(offsetH)).padStart(2, '0')}:00`;
+        const startTime = `${booking.date}T${String(booking.start_hour).padStart(2, '0')}:${String(booking.start_minute || 0).padStart(2, '0')}:00${tz}`;
+        const endTime = `${booking.date}T${String(booking.end_hour).padStart(2, '0')}:${String(booking.end_minute || 0).padStart(2, '0')}:00${tz}`;
         const res = await fetch(`${GHL_API_BASE}/calendars/events/appointments`, {
           method: 'POST', headers: ghlHeaders,
           body: JSON.stringify({ calendarId: targetCalendarId, locationId, contactId: ghlContactId, title: booking.title || 'CRM Boeking', startTime, endTime, appointmentStatus: booking.status === 'confirmed' ? 'confirmed' : 'new' }),
