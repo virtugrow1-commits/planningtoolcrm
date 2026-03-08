@@ -968,10 +968,9 @@ async function pushLocalInquiries(supabase: any, ghlHeaders: any, locationId: st
 // === BIDIRECTIONAL TASK SYNC ===
 async function syncTasks(supabase: any, ghlHeaders: any, locationId: string, userId: string, results: any, lookups: any) {
   try {
-    // Only sync tasks for contacts that have GHL IDs — limit to 100 contacts per run
+    // Sync tasks for ALL contacts that have GHL IDs (no artificial limit)
     const contactsWithGhl = lookups.existingContacts
-      .filter((c: any) => c.ghl_contact_id)
-      .slice(0, 100);
+      .filter((c: any) => c.ghl_contact_id);
 
     if (contactsWithGhl.length === 0) return;
 
@@ -1065,17 +1064,7 @@ async function syncTasks(supabase: any, ghlHeaders: any, locationId: string, use
     }
 
     // === ORPHAN CLEANUP: Delete CRM tasks whose GHL task no longer exists ===
-    // Only check tasks with ghl_task_id that were NOT seen in GHL fetch above
-    const MAX_TASK_ORPHAN_CHECKS = 15;
-    const linkedTasksNotSeen = lookups.existingContacts.length > 0
-      ? (lookups.existingContacts as any[]).reduce((acc: any[], contact: any) => {
-          // Find CRM tasks linked to this contact with a ghl_task_id not in seenGhlTaskIds
-          const tasks = (lookups.taskByGhlId as Map<string, any>);
-          return acc;
-        }, [])
-      : [];
-
-    // Better approach: iterate all tasks with ghl_task_id from the pre-loaded lookup
+    // Collect ALL tasks with ghl_task_id that were NOT seen in GHL fetch above
     const orphanCandidates: any[] = [];
     for (const [ghlTaskId, task] of lookups.taskByGhlId as Map<string, any>) {
       if (!seenGhlTaskIds.has(ghlTaskId)) {
@@ -1083,34 +1072,52 @@ async function syncTasks(supabase: any, ghlHeaders: any, locationId: string, use
       }
     }
 
-    let tasksDeleted = 0;
-    for (const task of orphanCandidates.slice(0, MAX_TASK_ORPHAN_CHECKS)) {
-      // Verify via GHL API that this task truly doesn't exist anymore
-      // We need the contact's ghl_contact_id
-      const contact = lookups.existingContacts.find((c: any) => c.id === task.contact_id);
-      if (!contact?.ghl_contact_id) continue;
+    console.log(`Task orphan candidates: ${orphanCandidates.length} (seen: ${seenGhlTaskIds.size}, total linked: ${lookups.taskByGhlId.size})`);
 
-      await delay(200);
+    let tasksDeleted = 0;
+    const MAX_TASK_ORPHAN_CHECKS = 100; // Much more aggressive cleanup
+
+    for (const task of orphanCandidates.slice(0, MAX_TASK_ORPHAN_CHECKS)) {
+      const contact = lookups.existingContacts.find((c: any) => c.id === task.contact_id);
+
+      if (!contact?.ghl_contact_id) {
+        // Task has no contact or contact has no GHL ID — if it wasn't seen, it's orphaned
+        // For safety, only delete if the contact was in our fetch scope (has ghl_contact_id)
+        // If contact has no ghl_contact_id, we can't verify — skip for now
+        if (!task.contact_id) {
+          // Task not linked to any contact but has ghl_task_id and wasn't seen → delete
+          const { error: delErr } = await supabase.from('tasks').delete().eq('id', task.id);
+          if (!delErr) {
+            console.log(`Deleted unlinked orphaned CRM task ${task.id} (ghl_task_id: ${task.ghl_task_id})`);
+            tasksDeleted++;
+            await supabase.from('sync_log').insert({
+              user_id: userId, entity_type: 'task', entity_id: task.id,
+              action: 'delete_task_orphan',
+              details: { ghl_task_id: task.ghl_task_id, reason: 'No contact, GHL task not found' },
+              status: 'success',
+            });
+          }
+        }
+        continue;
+      }
+
+      await delay(150);
       try {
         const verifyRes = await fetch(`${GHL_API_BASE}/contacts/${contact.ghl_contact_id}/tasks/${task.ghl_task_id}`, { headers: ghlHeaders });
         if (verifyRes.status === 404 || verifyRes.status === 422 || verifyRes.status === 400) {
-          // Task no longer exists in GHL → delete from CRM
           const { error: delErr } = await supabase.from('tasks').delete().eq('id', task.id);
           if (!delErr) {
             console.log(`Deleted orphaned CRM task ${task.id} (GHL task ${task.ghl_task_id} no longer exists)`);
             tasksDeleted++;
-            // Log the deletion
             await supabase.from('sync_log').insert({
-              user_id: userId,
-              entity_type: 'task',
-              entity_id: task.id,
+              user_id: userId, entity_type: 'task', entity_id: task.id,
               action: 'delete_task_orphan',
-              details: { ghl_task_id: task.ghl_task_id, reason: 'GHL task deleted' },
+              details: { ghl_task_id: task.ghl_task_id, contact_ghl_id: contact.ghl_contact_id, reason: 'GHL task deleted' },
               status: 'success',
             });
           }
         } else {
-          await verifyRes.text(); // consume body
+          await verifyRes.text();
         }
         if (verifyRes.status === 429) await delay(2000);
       } catch (e) { console.error('Task orphan check error:', task.id, e); }
