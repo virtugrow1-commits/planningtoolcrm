@@ -215,7 +215,7 @@ export default function InquiriesPage() {
     });
     setNewOpen(false);
     setNewForm({ contactName: '', contactId: '', eventType: '', preferredDate: '', guestCount: '', budget: '', message: '', source: 'Handmatig', roomPreference: '', status: 'new' });
-    setContactSearch('');
+    
     toast({ title: 'Aanvraag aangemaakt' });
   };
 

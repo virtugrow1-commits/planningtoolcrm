@@ -135,7 +135,7 @@ export default function NewReservationDialog({
         roomSetup: '',
         notes: '',
       });
-      setContactSearch('');
+      
     }
     setLastOpen(open);
   }, [open]);
