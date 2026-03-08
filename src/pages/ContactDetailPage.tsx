@@ -17,7 +17,7 @@ import TasksSection from '@/components/detail/TasksSection';
 import HistorySection from '@/components/detail/HistorySection';
 import { Contact, ROOMS } from '@/types/crm';
 import { InfoField, SectionCard } from '@/components/detail/DetailPageComponents';
-import { mockQuotations } from '@/data/mockData';
+
 import { useDocuments } from '@/hooks/useDocuments';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
