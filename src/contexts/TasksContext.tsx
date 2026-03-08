@@ -107,7 +107,9 @@ export function TasksProvider({ children }: { children: ReactNode }) {
       return;
     }
     if (data) {
-      await pushToGHL('push-task', { task: data });
+      await pushToGHL('push-task', { task: data }, {
+        entityType: 'task', entityId: data.id, actionType: 'create',
+      });
     }
   }, [user, toast]);
 
