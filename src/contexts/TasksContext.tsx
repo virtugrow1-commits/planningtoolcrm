@@ -125,7 +125,9 @@ export function TasksProvider({ children }: { children: ReactNode }) {
         due_date: task.dueDate || null,
         completed_at: task.status === 'completed' ? new Date().toISOString() : null,
         contact_id: task.contactId || null,
-      }});
+      }}, {
+        entityType: 'task', entityId: task.id, actionType: 'update',
+      });
     }
     // Then update local DB
     const completedAt = task.status === 'completed'
