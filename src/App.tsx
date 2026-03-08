@@ -11,7 +11,7 @@ import CompaniesPage from "@/pages/CompaniesPage";
 import CompanyDetailPage from "@/pages/CompanyDetailPage";
 import ContactDetailPage from "@/pages/ContactDetailPage";
 import InquiriesPage from "@/pages/InquiriesPage";
-import QuotationsPage from "@/pages/QuotationsPage";
+
 import DocumentsPage from "@/pages/DocumentsPage";
 import ConversationsPage from "@/pages/ConversationsPage";
 import ReserveringenPage from "@/pages/ReserveringenPage";
