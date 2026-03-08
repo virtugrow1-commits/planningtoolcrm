@@ -1,4 +1,4 @@
-import { Contact, Inquiry, Quotation, Booking } from '@/types/crm';
+import { Contact, Inquiry, Booking } from '@/types/crm';
 
 const today = new Date().toISOString().split('T')[0];
 
