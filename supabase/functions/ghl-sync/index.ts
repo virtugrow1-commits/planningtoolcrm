@@ -842,8 +842,10 @@ serve(async (req) => {
       if (company.email) ghlPayload.email = company.email;
       if (company.phone) ghlPayload.phone = company.phone;
       if (company.website) ghlPayload.website = company.website;
-      if (company.address) ghlPayload.address = company.address;
+      if (company.address) ghlPayload.address1 = company.address;
       if (company.city) ghlPayload.city = company.city;
+      if (company.postcode) ghlPayload.postalCode = company.postcode;
+      if (company.country) ghlPayload.country = company.country;
 
       if (company.ghl_company_id) {
         // Update existing
