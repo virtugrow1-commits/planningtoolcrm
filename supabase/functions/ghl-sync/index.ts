@@ -610,6 +610,17 @@ serve(async (req) => {
           endDate.setDate(endDate.getDate() + 90);
           const endTime = endDate.toISOString();
 
+          // Build room mapping from room_settings
+          const { data: roomMappings } = await supabase
+            .from('room_settings')
+            .select('room_name, ghl_calendar_id')
+            .eq('user_id', user.id)
+            .not('ghl_calendar_id', 'is', null);
+          const calIdToRoom: Record<string, string> = {};
+          for (const rm of roomMappings || []) {
+            if (rm.ghl_calendar_id) calIdToRoom[rm.ghl_calendar_id] = rm.room_name;
+          }
+
           let allEvents: any[] = [];
           for (const cal of calendars) {
             const eventsRes = await ghlFetch(
@@ -618,12 +629,12 @@ serve(async (req) => {
             );
             if (eventsRes.ok) {
               const eventsData = await eventsRes.json();
-              allEvents = allEvents.concat((eventsData.events || []).map((e: any) => ({ ...e, calendarName: cal.name })));
+              allEvents = allEvents.concat((eventsData.events || []).map((e: any) => ({ ...e, calendarName: cal.name, calendarId: cal.id })));
             }
           }
 
           for (const evt of allEvents) {
-          const evtStart = new Date(evt.startTime || evt.start);
+            const evtStart = new Date(evt.startTime || evt.start);
             const evtEnd = new Date(evt.endTime || evt.end);
             // Use Amsterdam timezone for correct local time
             const startStr = evtStart.toLocaleString('en-US', { timeZone: 'Europe/Amsterdam', hour12: false });
@@ -638,6 +649,8 @@ serve(async (req) => {
             const contactName = evt.contact?.name || evt.title || 'GHL Afspraak';
             const title = evt.title || evt.calendarName || 'GHL Afspraak';
             const evtStatus = (evt.status === 'confirmed' || evt.appointmentStatus === 'confirmed') ? 'confirmed' : 'option';
+            // Use room_settings mapping, fallback to calendar name
+            const roomName = calIdToRoom[evt.calendarId] || evt.calendarName || 'Vergaderzaal 100';
 
             const { data: existing } = await supabase
               .from('bookings')
@@ -661,7 +674,7 @@ serve(async (req) => {
               await supabase.from('bookings').insert({
                 user_id: user.id,
                 ghl_event_id: evt.id,
-                room_name: evt.calendarName || 'Vergaderzaal 100',
+                room_name: roomName,
                 date: dateStr,
                 start_hour: startHour,
                 start_minute: startMinute,
@@ -920,8 +933,16 @@ serve(async (req) => {
         });
       }
 
-      const startTime = `${booking.date}T${String(booking.start_hour).padStart(2, '0')}:${String(booking.start_minute || 0).padStart(2, '0')}:00+01:00`;
-      const endTime = `${booking.date}T${String(booking.end_hour).padStart(2, '0')}:${String(booking.end_minute || 0).padStart(2, '0')}:00+01:00`;
+      // Determine correct UTC offset for Europe/Amsterdam (CET +01:00 or CEST +02:00)
+      const probeDateStr = `${booking.date}T12:00:00`;
+      const probeDate = new Date(probeDateStr + 'Z');
+      const amsterdamStr = probeDate.toLocaleString('en-US', { timeZone: 'Europe/Amsterdam', hour12: false });
+      const amsterdamDate = new Date(amsterdamStr);
+      const offsetMs = amsterdamDate.getTime() - probeDate.getTime();
+      const offsetHours = Math.round(offsetMs / 3600000);
+      const tzOffset = `${offsetHours >= 0 ? '+' : '-'}${String(Math.abs(offsetHours)).padStart(2, '0')}:00`;
+      const startTime = `${booking.date}T${String(booking.start_hour).padStart(2, '0')}:${String(booking.start_minute || 0).padStart(2, '0')}:00${tzOffset}`;
+      const endTime = `${booking.date}T${String(booking.end_hour).padStart(2, '0')}:${String(booking.end_minute || 0).padStart(2, '0')}:00${tzOffset}`;
 
       // Try to find the GHL contact ID for this booking's contact
       let ghlContactId: string | null = null;
