@@ -177,7 +177,9 @@ export function CompaniesProvider({ children }: { children: ReactNode }) {
     // GHL first: delete from GHL before local DB
     const { data: existing } = await (supabase as any).from('companies').select('ghl_company_id').eq('id', id).single();
     if (existing?.ghl_company_id) {
-      await pushToGHL('delete-company', { ghl_company_id: existing.ghl_company_id });
+      await pushToGHL('delete-company', { ghl_company_id: existing.ghl_company_id }, {
+        entityType: 'company', entityId: id, actionType: 'delete',
+      });
     }
     const { error } = await (supabase as any).from('companies').delete().eq('id', id);
     if (error) {

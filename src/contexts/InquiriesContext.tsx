@@ -164,7 +164,9 @@ export function InquiriesProvider({ children }: { children: ReactNode }) {
     const { data: existing } = await supabase.from('inquiries').select('ghl_opportunity_id').eq('id', id).single();
     // GHL first: delete from GHL before local DB
     if (existing?.ghl_opportunity_id) {
-      await pushToGHL('delete-inquiry', { ghl_opportunity_id: existing.ghl_opportunity_id });
+      await pushToGHL('delete-inquiry', { ghl_opportunity_id: existing.ghl_opportunity_id }, {
+        entityType: 'inquiry', entityId: id, actionType: 'delete',
+      });
     }
     const { error } = await supabase.from('inquiries').delete().eq('id', id);
     if (error) {
