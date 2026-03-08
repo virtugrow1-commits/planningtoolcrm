@@ -48,7 +48,7 @@ export default function ContactDetailPage() {
   const contactBookings = useMemo(() => contact ? bookings.filter((b) => b.contactId === contact.id) : [], [bookings, contact]);
   const confirmedBookings = useMemo(() => contactBookings.filter((b) => b.status !== 'option'), [contactBookings]);
   const optionBookings = useMemo(() => contactBookings.filter((b) => b.status === 'option'), [contactBookings]);
-  const contactQuotations = useMemo(() => contact ? mockQuotations.filter((q) => q.contactId === contact.id) : [], [contact]);
+  
   const contactTasks = useMemo(() => contact ? tasks.filter((t) => t.contactId === contact.id) : [], [tasks, contact]);
   const contactDocuments = useMemo(() => contact ? documents.filter((d) => d.contactId === contact.id) : [], [documents, contact]);
 
