@@ -129,7 +129,9 @@ export function CompaniesProvider({ children }: { children: ReactNode }) {
       toast({ title: 'Fout bij aanmaken bedrijf', description: error.message, variant: 'destructive' });
     }
     if (data) {
-      await pushToGHL('push-company', { company: data });
+      await pushToGHL('push-company', { company: data }, {
+        entityType: 'company', entityId: data.id, actionType: 'create',
+      });
     }
   }, [user, toast]);
 
