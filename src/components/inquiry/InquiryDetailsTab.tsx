@@ -64,6 +64,7 @@ export default function InquiryDetailsTab({ inquiry, editing, form, setForm, con
     '3kgpapaxtsha4cc3omeu': 'Aantal gasten',
     'Joqfpmtxpjwwri15fhmo': 'Dagdeel',
     'Dey06emx0wklhdik6ugt': 'Gewenste datum',
+    'Xuurzij60jz76tpgjqgn': 'Extra informatie',
   };
 
   const messageLines = inquiry.message ? inquiry.message.split('\n').filter(l => l.trim()) : [];
