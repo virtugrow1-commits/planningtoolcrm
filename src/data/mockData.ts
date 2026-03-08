@@ -1,4 +1,4 @@
-import { Contact, Inquiry, Quotation, Booking } from '@/types/crm';
+import { Contact, Inquiry, Booking } from '@/types/crm';
 
 const today = new Date().toISOString().split('T')[0];
 
@@ -18,10 +18,6 @@ export const mockInquiries: Inquiry[] = [
   { id: 'inq-4', contactId: '2', contactName: 'Maria Jansen', eventType: 'Workshop', preferredDate: '2025-03-05', guestCount: 25, message: 'Workshop fotografie, ruimte met veel daglicht gewenst.', status: 'new', createdAt: '2025-02-19', source: 'Email' },
 ];
 
-export const mockQuotations: Quotation[] = [
-  { id: 'off-1', inquiryId: 'inq-3', contactId: '6', contactName: 'Emma de Groot', title: 'Bruiloft - Grote Zaal - 21 juni', items: [{ description: 'Zaalhuur Grote Zaal (hele dag)', quantity: 1, unitPrice: 3500, total: 3500 }, { description: 'Catering 120 personen', quantity: 120, unitPrice: 75, total: 9000 }, { description: 'Decoratie pakket Premium', quantity: 1, unitPrice: 1500, total: 1500 }], totalAmount: 14000, status: 'sent', validUntil: '2025-03-15', createdAt: '2025-02-16' },
-  { id: 'off-2', contactId: '1', contactName: 'Jan de Vries', title: 'Teambuilding - Atelier', items: [{ description: 'Zaalhuur Atelier (ochtend)', quantity: 1, unitPrice: 600, total: 600 }, { description: 'Koffie & lunch arrangement', quantity: 30, unitPrice: 25, total: 750 }], totalAmount: 1350, status: 'accepted', validUntil: '2025-02-28', createdAt: '2025-02-10' },
-];
 
 export const mockBookings: Booking[] = [
   { id: 'b-1', roomName: 'Vergaderzaal 100', date: today, startHour: 9, startMinute: 0, endHour: 17, endMinute: 0, title: 'Bedrijfsevent Van Dam', contactName: 'R. van Dam', status: 'confirmed' },

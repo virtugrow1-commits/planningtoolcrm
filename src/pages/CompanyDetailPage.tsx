@@ -16,7 +16,7 @@ import { useInquiriesContext } from '@/contexts/InquiriesContext';
 import { useTasksContext } from '@/contexts/TasksContext';
 import { useContactCompanies } from '@/hooks/useContactCompanies';
 import { useToast } from '@/hooks/use-toast';
-import { mockQuotations } from '@/data/mockData';
+
 
 import CompanyActivityTimeline from '@/components/company/CompanyActivityTimeline';
 import { SectionCard } from '@/components/detail/DetailPageComponents';
@@ -389,8 +389,6 @@ export default function CompanyDetailPage() {
             inquiriesEmptyText="Geen aanvragen van dit bedrijf."
           />
 
-          {/* Offertes */}
-          <OffertesSection contactIds={contactIds} navigate={navigate} />
 
           {/* Contactpersonen */}
           <SectionCard title="Contactpersonen" count={companyContacts.length} onAdd={() => { setAddContactOpen(true); setAddContactTab('link'); setLinkSearch(''); setNewContactForm({ firstName: '', lastName: '', email: '', phone: '' }); }}>
@@ -533,36 +531,6 @@ export default function CompanyDetailPage() {
         </DialogContent>
       </Dialog>
     </div>
-  );
-}
-
-function OffertesSection({ contactIds, navigate }: { contactIds: Set<string>; navigate: (path: string) => void }) {
-  const quotations = useMemo(() => mockQuotations.filter((q) => contactIds.has(q.contactId)), [contactIds]);
-
-  return (
-    <SectionCard title="Offertes" count={quotations.length} linkLabel="Bekijk offertes" onLink={() => navigate('/quotations')}>
-      {quotations.length === 0 ? (
-        <p className="text-xs text-muted-foreground">Geen offertes</p>
-      ) : (
-        <div className="space-y-1">
-          {quotations.slice(0, 8).map((q) => (
-            <button
-              key={q.id}
-              onClick={() => navigate('/quotations')}
-              className="w-full flex items-center justify-between py-1.5 px-2 rounded-md hover:bg-muted/50 transition-colors text-left text-xs"
-            >
-              <div>
-                <span className="font-medium text-foreground">{q.title}</span>
-                <span className="text-muted-foreground ml-2">€{q.totalAmount.toLocaleString()}</span>
-              </div>
-              <Badge variant="outline" className="text-[10px]">
-                {q.status === 'draft' ? 'Concept' : q.status === 'sent' ? 'Verzonden' : q.status === 'accepted' ? 'Geaccepteerd' : q.status === 'declined' ? 'Afgewezen' : 'Verlopen'}
-              </Badge>
-            </button>
-          ))}
-        </div>
-      )}
-    </SectionCard>
   );
 }
 

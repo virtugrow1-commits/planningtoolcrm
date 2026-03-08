@@ -35,25 +35,6 @@ export interface Inquiry {
   preferredEndTime?: string;
 }
 
-export interface Quotation {
-  id: string;
-  inquiryId?: string;
-  contactId: string;
-  contactName: string;
-  title: string;
-  items: QuotationItem[];
-  totalAmount: number;
-  status: 'draft' | 'sent' | 'accepted' | 'declined' | 'expired';
-  validUntil: string;
-  createdAt: string;
-}
-
-export interface QuotationItem {
-  description: string;
-  quantity: number;
-  unitPrice: number;
-  total: number;
-}
 
 export const ROOMS = [
   'Vergaderzaal 100',

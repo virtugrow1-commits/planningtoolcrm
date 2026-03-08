@@ -17,7 +17,7 @@ import TasksSection from '@/components/detail/TasksSection';
 import HistorySection from '@/components/detail/HistorySection';
 import { Contact, ROOMS } from '@/types/crm';
 import { InfoField, SectionCard } from '@/components/detail/DetailPageComponents';
-import { mockQuotations } from '@/data/mockData';
+
 import { useDocuments } from '@/hooks/useDocuments';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -48,7 +48,7 @@ export default function ContactDetailPage() {
   const contactBookings = useMemo(() => contact ? bookings.filter((b) => b.contactId === contact.id) : [], [bookings, contact]);
   const confirmedBookings = useMemo(() => contactBookings.filter((b) => b.status !== 'option'), [contactBookings]);
   const optionBookings = useMemo(() => contactBookings.filter((b) => b.status === 'option'), [contactBookings]);
-  const contactQuotations = useMemo(() => contact ? mockQuotations.filter((q) => q.contactId === contact.id) : [], [contact]);
+  
   const contactTasks = useMemo(() => contact ? tasks.filter((t) => t.contactId === contact.id) : [], [tasks, contact]);
   const contactDocuments = useMemo(() => contact ? documents.filter((d) => d.contactId === contact.id) : [], [documents, contact]);
 
@@ -327,30 +327,6 @@ export default function ContactDetailPage() {
             )}
           </SectionCard>
 
-          {/* Offertes */}
-          <SectionCard title="Offertes" linkLabel="Bekijk offertes" onLink={() => navigate('/quotations')}>
-            {contactQuotations.length === 0 ? (
-              <p className="text-xs text-muted-foreground">Geen offertes</p>
-            ) : (
-              <div className="space-y-1">
-                {contactQuotations.slice(0, 8).map((q) => (
-                  <button
-                    key={q.id}
-                    onClick={() => navigate('/quotations')}
-                    className="w-full flex items-center justify-between py-1.5 px-2 rounded-md hover:bg-muted/50 transition-colors text-left text-xs"
-                  >
-                    <div>
-                      <span className="font-medium text-foreground">{q.title}</span>
-                      <span className="text-muted-foreground ml-2">€{q.totalAmount.toLocaleString()}</span>
-                    </div>
-                    <Badge variant="outline" className="text-[10px]">
-                      {q.status === 'draft' ? 'Concept' : q.status === 'sent' ? 'Verzonden' : q.status === 'accepted' ? 'Geaccepteerd' : q.status === 'declined' ? 'Afgewezen' : 'Verlopen'}
-                    </Badge>
-                  </button>
-                ))}
-              </div>
-            )}
-          </SectionCard>
 
           {/* Documenten */}
           <SectionCard title="Documenten" linkLabel="Alle documenten" onLink={() => navigate('/documents')}>
