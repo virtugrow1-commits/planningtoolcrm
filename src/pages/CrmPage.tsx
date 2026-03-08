@@ -365,19 +365,10 @@ export default function CrmPage() {
                 <td className="px-4 py-3 text-muted-foreground">{c.email || '—'}</td>
                 <td className="px-4 py-3 text-muted-foreground hidden md:table-cell">{c.phone || '—'}</td>
                 <td className="px-4 py-3 text-muted-foreground hidden lg:table-cell">{c.city || '—'}</td>
-                <td className="px-4 py-3 hidden lg:table-cell" onClick={(e) => e.stopPropagation()}>
-                  <Select value={c.crmGroup || 'lead'} onValueChange={async (v) => { await updateCompany({ ...c, crmGroup: v }); toast({ title: 'Status bijgewerkt' }); }}>
-                    <SelectTrigger className="h-7 w-[140px] text-xs border-0 bg-transparent hover:bg-muted/50">
-                      <SelectValue>{STATUS_LABELS[c.crmGroup || 'lead'] || c.crmGroup || 'Lead'}</SelectValue>
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="prospect">Prospect</SelectItem>
-                      <SelectItem value="lead">Lead</SelectItem>
-                      <SelectItem value="client">Klant</SelectItem>
-                      <SelectItem value="inactive">Inactief</SelectItem>
-                      <SelectItem value="do_not_contact">Niet benaderen</SelectItem>
-                    </SelectContent>
-                  </Select>
+                <td className="px-4 py-3 hidden lg:table-cell">
+                  <span className="text-xs text-muted-foreground truncate max-w-[200px] inline-block">
+                    {c.crmGroup || '—'}
+                  </span>
                 </td>
               </tr>
             ))}
