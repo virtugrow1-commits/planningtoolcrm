@@ -306,7 +306,7 @@ export default function CrmPage() {
                   <Checkbox checked={selected.has(c.id)} onCheckedChange={() => toggleSelect(c.id)} />
                 </td>
                 <td className="px-4 py-3 text-xs font-mono text-muted-foreground">{c.displayNumber || '—'}</td>
-                <td className="px-4 py-3 font-medium text-foreground">{c.firstName} {c.lastName}</td>
+                <td className="px-4 py-3 font-medium text-foreground">{[c.firstName, c.lastName].filter(n => n && n !== '—').join(' ') || '—'}</td>
                 <td className="px-4 py-3 text-muted-foreground">{c.email || '—'}</td>
                 <td className="px-4 py-3 text-muted-foreground hidden md:table-cell">{c.phone || '—'}</td>
                 <td className="px-4 py-3 text-muted-foreground hidden lg:table-cell">{c.company || '—'}</td>
