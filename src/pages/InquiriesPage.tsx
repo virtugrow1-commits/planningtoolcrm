@@ -204,6 +204,7 @@ export default function InquiriesPage() {
     await addInquiry({
       contactId: newForm.contactId || '',
       contactName: newForm.contactName,
+      companyId: newForm.companyId || undefined,
       eventType: newForm.eventType,
       preferredDate: newForm.preferredDate,
       roomPreference: newForm.roomPreference || undefined,
@@ -214,7 +215,7 @@ export default function InquiriesPage() {
       source: newForm.source || 'Handmatig',
     });
     setNewOpen(false);
-    setNewForm({ contactName: '', contactId: '', eventType: '', preferredDate: '', guestCount: '', budget: '', message: '', source: 'Handmatig', roomPreference: '', status: 'new' });
+    setNewForm({ contactName: '', contactId: '', companyId: '', eventType: '', preferredDate: '', guestCount: '', budget: '', message: '', source: 'Handmatig', roomPreference: '', status: 'new' });
     
     toast({ title: 'Aanvraag aangemaakt' });
   };
