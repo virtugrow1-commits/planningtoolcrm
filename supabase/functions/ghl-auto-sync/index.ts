@@ -90,10 +90,10 @@ serve(async (req) => {
       // PRE-LOAD: Fetch all existing CRM records into lookup Maps ONCE
       // This eliminates thousands of individual DB queries
       const [existingContacts, existingCompanies, existingInquiries, existingTasks] = await Promise.all([
-        fetchAll(supabase, 'contacts', 'id, ghl_contact_id, first_name, last_name, email, phone, company, company_id, status, updated_at', { user_id: userId }),
-        fetchAll(supabase, 'companies', 'id, ghl_company_id, name, email, phone, website, address, city, updated_at', { user_id: userId }),
-        fetchAll(supabase, 'inquiries', 'id, ghl_opportunity_id, status, budget, event_type, contact_name, contact_id, updated_at', { user_id: userId }),
-        fetchAll(supabase, 'tasks', 'id, ghl_task_id, title, description, status, updated_at, contact_id', { user_id: userId }),
+        fetchAll(supabase, 'contacts', 'id, ghl_contact_id, first_name, last_name, email, phone, company, company_id, status, updated_at', {}),
+        fetchAll(supabase, 'companies', 'id, ghl_company_id, name, email, phone, website, address, city, updated_at', {}),
+        fetchAll(supabase, 'inquiries', 'id, ghl_opportunity_id, status, budget, event_type, contact_name, contact_id, updated_at', {}),
+        fetchAll(supabase, 'tasks', 'id, ghl_task_id, title, description, status, updated_at, contact_id', {}),
       ]);
 
       // Build lookup maps
@@ -164,7 +164,7 @@ async function syncCalendar(supabase: any, ghlHeaders: any, locationId: string, 
     const { data: roomMappings } = await supabase
       .from('room_settings')
       .select('room_name, ghl_calendar_id')
-      .eq('user_id', userId)
+      .not('id', 'is', null)
       .not('ghl_calendar_id', 'is', null);
     
     const calIdToRoom: Record<string, string> = {};
@@ -278,7 +278,7 @@ async function syncCalendar(supabase: any, ghlHeaders: any, locationId: string, 
 
     // Push local bookings
     const defaultCalendarId = calendars[0]?.id;
-    const { data: localBookings } = await supabase.from('bookings').select('*, contacts!bookings_contact_id_fkey(ghl_contact_id)').eq('user_id', userId).is('ghl_event_id', null);
+    const { data: localBookings } = await supabase.from('bookings').select('*, contacts!bookings_contact_id_fkey(ghl_contact_id)').not('id', 'is', null).is('ghl_event_id', null);
     for (const booking of localBookings || []) {
       const ghlContactId = (booking as any).contacts?.ghl_contact_id || null;
       if (!ghlContactId) continue;
@@ -485,7 +485,7 @@ async function syncOpportunities(supabase: any, ghlHeaders: any, locationId: str
     const { data: recentlyChanged } = await supabase
       .from('inquiries')
       .select('id, ghl_opportunity_id, status, event_type, budget, contact_name')
-      .eq('user_id', userId)
+      .not('id', 'is', null)
       .not('ghl_opportunity_id', 'is', null)
       .gt('updated_at', recentThreshold);
 
@@ -645,7 +645,7 @@ async function syncContacts(supabase: any, ghlHeaders: any, locationId: string, 
             if (insertErr.message?.includes('contacts_unique_name_email')) {
               console.log(`Duplicate contact \\${firstName} ${lastName}, linking to GHL ${ghlContact.id}`);
               await supabase.from('contacts').update({ ghl_contact_id: ghlContact.id })
-                .eq('user_id', userId)
+                .not('id', 'is', null)
                 .ilike('first_name', firstName.trim())
                 .ilike('last_name', lastName.trim());
             }
@@ -664,7 +664,7 @@ async function syncContacts(supabase: any, ghlHeaders: any, locationId: string, 
     const { data: recentlyChanged } = await supabase
       .from('contacts')
       .select('id, ghl_contact_id, first_name, last_name, email, phone, company')
-      .eq('user_id', userId)
+      .not('id', 'is', null)
       .not('ghl_contact_id', 'is', null)
       .gt('updated_at', recentThreshold);
 
@@ -879,7 +879,7 @@ async function syncCompanies(supabase: any, ghlHeaders: any, locationId: string,
 
 async function pushLocalInquiries(supabase: any, ghlHeaders: any, locationId: string, userId: string, results: any) {
   try {
-    const { data: localInquiries } = await supabase.from('inquiries').select('*').eq('user_id', userId).is('ghl_opportunity_id', null).limit(50);
+    const { data: localInquiries } = await supabase.from('inquiries').select('*').not('id', 'is', null).is('ghl_opportunity_id', null).limit(50);
     if (!localInquiries || localInquiries.length === 0) return;
 
     const pipelinesRes = await fetch(`${GHL_API_BASE}/opportunities/pipelines?locationId=${locationId}`, { headers: ghlHeaders });
@@ -1129,7 +1129,7 @@ async function syncTasks(supabase: any, ghlHeaders: any, locationId: string, use
 
     // Push local tasks without GHL ID
     const localTasks = lookups.existingContacts.length > 0
-      ? (await supabase.from('tasks').select('*').eq('user_id', userId).is('ghl_task_id', null).not('contact_id', 'is', null).limit(20)).data || []
+      ? (await supabase.from('tasks').select('*').not('id', 'is', null).is('ghl_task_id', null).not('contact_id', 'is', null).limit(20)).data || []
       : [];
 
     for (const task of localTasks) {
