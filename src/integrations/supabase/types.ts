@@ -17,6 +17,7 @@ export type Database = {
       bookings: {
         Row: {
           assigned_to: string | null
+          company_id: string | null
           contact_id: string | null
           contact_name: string
           created_at: string
@@ -41,6 +42,7 @@ export type Database = {
         }
         Insert: {
           assigned_to?: string | null
+          company_id?: string | null
           contact_id?: string | null
           contact_name?: string
           created_at?: string
@@ -65,6 +67,7 @@ export type Database = {
         }
         Update: {
           assigned_to?: string | null
+          company_id?: string | null
           contact_id?: string | null
           contact_name?: string
           created_at?: string
@@ -88,6 +91,13 @@ export type Database = {
           user_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "bookings_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "bookings_contact_id_fkey"
             columns: ["contact_id"]
@@ -445,6 +455,7 @@ export type Database = {
         Row: {
           assigned_to: string | null
           budget: number | null
+          company_id: string | null
           contact_id: string | null
           contact_name: string
           created_at: string
@@ -467,6 +478,7 @@ export type Database = {
         Insert: {
           assigned_to?: string | null
           budget?: number | null
+          company_id?: string | null
           contact_id?: string | null
           contact_name: string
           created_at?: string
@@ -489,6 +501,7 @@ export type Database = {
         Update: {
           assigned_to?: string | null
           budget?: number | null
+          company_id?: string | null
           contact_id?: string | null
           contact_name?: string
           created_at?: string
@@ -509,6 +522,13 @@ export type Database = {
           user_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "inquiries_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "inquiries_contact_id_fkey"
             columns: ["contact_id"]
