@@ -144,6 +144,7 @@ export function InquiriesProvider({ children }: { children: ReactNode }) {
     const { error } = await supabase.from('inquiries').update({
       contact_id: inquiry.contactId || null,
       contact_name: inquiry.contactName,
+      company_id: inquiry.companyId || null,
       event_type: inquiry.eventType,
       preferred_date: inquiry.preferredDate || null,
       room_preference: inquiry.roomPreference || null,
