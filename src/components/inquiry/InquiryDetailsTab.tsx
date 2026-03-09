@@ -55,6 +55,7 @@ interface Props {
 export default function InquiryDetailsTab({ inquiry, editing, form, setForm, contact, company, onSave, onCancel, onDelete, onStartEdit, onConvert, refetch }: Props) {
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { companies } = useCompaniesContext();
   const [enriching, setEnriching] = useState(false);
   const col = PIPELINE_COLUMNS.find(c => c.key === inquiry.status);
 
