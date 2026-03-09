@@ -19,6 +19,7 @@ export interface Inquiry {
   displayNumber?: string;
   contactId: string;
   contactName: string;
+  companyId?: string;
   eventType: string;
   preferredDate: string;
   roomPreference?: string;
