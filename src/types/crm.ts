@@ -19,6 +19,7 @@ export interface Inquiry {
   displayNumber?: string;
   contactId: string;
   contactName: string;
+  companyId?: string;
   eventType: string;
   preferredDate: string;
   roomPreference?: string;
@@ -61,6 +62,7 @@ export interface Booking {
   title: string;
   contactName: string;
   contactId?: string;
+  companyId?: string;
   status: 'confirmed' | 'option';
   notes?: string;
   color?: string;

@@ -15,6 +15,8 @@ import { useToast } from '@/hooks/use-toast';
 import { useState } from 'react';
 import { InfoRow } from '@/components/detail/DetailPageComponents';
 import TeamMemberSelect from '@/components/TeamMemberSelect';
+import CrmCombobox from '@/components/CrmCombobox';
+import { useCompaniesContext } from '@/contexts/CompaniesContext';
 
 const PIPELINE_COLUMNS: { key: Inquiry['status']; label: string; badgeClass: string }[] = [
   { key: 'new', label: 'Nieuwe Aanvraag', badgeClass: 'status-new' },
@@ -53,6 +55,7 @@ interface Props {
 export default function InquiryDetailsTab({ inquiry, editing, form, setForm, contact, company, onSave, onCancel, onDelete, onStartEdit, onConvert, refetch }: Props) {
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { companies } = useCompaniesContext();
   const [enriching, setEnriching] = useState(false);
   const col = PIPELINE_COLUMNS.find(c => c.key === inquiry.status);
 
@@ -97,6 +100,22 @@ export default function InquiryDetailsTab({ inquiry, editing, form, setForm, con
           {editing ? (
             <div className="space-y-3">
               <div><Label>Contactpersoon</Label><Input value={form!.contactName} onChange={(e) => setForm({ ...form!, contactName: e.target.value })} /></div>
+              <div>
+                <Label>Bedrijf</Label>
+                <CrmCombobox
+                  options={companies.map(co => ({
+                    id: co.id,
+                    label: co.name,
+                    secondary: co.city || co.email || undefined,
+                    searchText: `${co.name} ${co.city || ''} ${co.kvk || ''} ${co.email || ''}`,
+                  }))}
+                  value={form!.companyId || ''}
+                  onSelect={(id) => setForm({ ...form!, companyId: id || undefined })}
+                  placeholder="Selecteer bedrijf..."
+                  searchPlaceholder="Zoek bedrijf..."
+                  popoverWidth="w-[340px]"
+                />
+              </div>
               <div><Label>Type evenement</Label><Input value={form!.eventType} onChange={(e) => setForm({ ...form!, eventType: e.target.value })} /></div>
               <div><Label>Voorkeursdatum</Label><Input type="date" value={form!.preferredDate} onChange={(e) => setForm({ ...form!, preferredDate: e.target.value })} /></div>
               <div className="grid grid-cols-2 gap-2">

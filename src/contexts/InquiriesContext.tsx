@@ -57,6 +57,7 @@ export function InquiriesProvider({ children }: { children: ReactNode }) {
         displayNumber: (i as any).display_number ? (i as any).display_number.replace(/^ANV-/, '#') : undefined,
         contactId: i.contact_id || '',
         contactName: i.contact_name,
+        companyId: (i as any).company_id || undefined,
         eventType: i.event_type,
         preferredDate: i.preferred_date || '',
         roomPreference: i.room_preference || undefined,
@@ -96,6 +97,7 @@ export function InquiriesProvider({ children }: { children: ReactNode }) {
       user_id: user.id,
       contact_id: inquiry.contactId || null,
       contact_name: inquiry.contactName,
+      company_id: inquiry.companyId || null,
       event_type: inquiry.eventType,
       preferred_date: inquiry.preferredDate || null,
       room_preference: inquiry.roomPreference || null,
@@ -142,6 +144,7 @@ export function InquiriesProvider({ children }: { children: ReactNode }) {
     const { error } = await supabase.from('inquiries').update({
       contact_id: inquiry.contactId || null,
       contact_name: inquiry.contactName,
+      company_id: inquiry.companyId || null,
       event_type: inquiry.eventType,
       preferred_date: inquiry.preferredDate || null,
       room_preference: inquiry.roomPreference || null,

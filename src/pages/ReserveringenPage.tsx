@@ -63,9 +63,14 @@ export default function ReserveringenPage() {
   const enrichedBookings = useMemo<EnrichedBooking[]>(() => {
     return bookings
       .map(b => {
-        const contact = b.contactId ? contacts.find(c => c.id === b.contactId) : null;
-        const companyName = contact?.company || (contact?.companyId ? companies.find(co => co.id === contact.companyId)?.name : null) || '-';
-        return { ...b, company: companyName, isPast: b.date < todayStr };
+        // First try direct company_id on booking
+        let companyName = b.companyId ? companies.find(co => co.id === b.companyId)?.name : null;
+        // Fallback to contact's company
+        if (!companyName) {
+          const contact = b.contactId ? contacts.find(c => c.id === b.contactId) : null;
+          companyName = contact?.company || (contact?.companyId ? companies.find(co => co.id === contact.companyId)?.name : null) || null;
+        }
+        return { ...b, company: companyName || '-', isPast: b.date < todayStr };
       });
   }, [bookings, contacts, companies, todayStr]);
 

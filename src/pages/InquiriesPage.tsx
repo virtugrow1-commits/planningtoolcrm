@@ -89,7 +89,7 @@ export default function InquiriesPage() {
   const [viewMode, setViewMode] = useState<'cards' | 'list'>('cards');
   const [detailOpen, setDetailOpen] = useState(false);
   const [editInquiry, setEditInquiry] = useState<Inquiry | null>(null);
-  const [newForm, setNewForm] = useState({ contactName: '', contactId: '', eventType: '', preferredDate: '', guestCount: '', budget: '', message: '', source: 'Handmatig', roomPreference: '', status: 'new' as Inquiry['status'] });
+  const [newForm, setNewForm] = useState({ contactName: '', contactId: '', companyId: '', eventType: '', preferredDate: '', guestCount: '', budget: '', message: '', source: 'Handmatig', roomPreference: '', status: 'new' as Inquiry['status'] });
   
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [bulkDeleteConfirmOpen, setBulkDeleteConfirmOpen] = useState(false);
@@ -204,6 +204,7 @@ export default function InquiriesPage() {
     await addInquiry({
       contactId: newForm.contactId || '',
       contactName: newForm.contactName,
+      companyId: newForm.companyId || undefined,
       eventType: newForm.eventType,
       preferredDate: newForm.preferredDate,
       roomPreference: newForm.roomPreference || undefined,
@@ -214,7 +215,7 @@ export default function InquiriesPage() {
       source: newForm.source || 'Handmatig',
     });
     setNewOpen(false);
-    setNewForm({ contactName: '', contactId: '', eventType: '', preferredDate: '', guestCount: '', budget: '', message: '', source: 'Handmatig', roomPreference: '', status: 'new' });
+    setNewForm({ contactName: '', contactId: '', companyId: '', eventType: '', preferredDate: '', guestCount: '', budget: '', message: '', source: 'Handmatig', roomPreference: '', status: 'new' });
     
     toast({ title: 'Aanvraag aangemaakt' });
   };
@@ -812,6 +813,24 @@ export default function InquiriesPage() {
           </DialogHeader>
           <div className="grid gap-4 py-2">
             <div className="grid gap-1.5">
+              <Label>Bedrijf</Label>
+              <CrmCombobox
+                options={companies.map(co => ({
+                  id: co.id,
+                  label: co.name,
+                  secondary: co.city || co.email || undefined,
+                  searchText: `${co.name} ${co.city || ''} ${co.kvk || ''} ${co.email || ''}`,
+                }))}
+                value={newForm.companyId}
+                onSelect={(id) => {
+                  setNewForm({ ...newForm, companyId: id });
+                }}
+                placeholder="Selecteer bedrijf..."
+                searchPlaceholder="Zoek bedrijf..."
+                popoverWidth="w-[340px]"
+              />
+            </div>
+            <div className="grid gap-1.5">
               <Label>Contactpersoon *</Label>
               <CrmCombobox
                 options={contacts.map(c => ({
@@ -822,7 +841,13 @@ export default function InquiriesPage() {
                 }))}
                 value={newForm.contactId}
                 onSelect={(id, opt) => {
-                  setNewForm({ ...newForm, contactName: opt?.label || '', contactId: id });
+                  const selectedContact = contacts.find(c => c.id === id);
+                  const updates: any = { ...newForm, contactName: opt?.label || '', contactId: id };
+                  // Auto-suggest company from contact
+                  if (selectedContact?.companyId && !newForm.companyId) {
+                    updates.companyId = selectedContact.companyId;
+                  }
+                  setNewForm(updates);
                 }}
                 placeholder="Selecteer contactpersoon..."
                 searchPlaceholder="Zoek contactpersoon..."

@@ -134,9 +134,9 @@ export default function CompanyDetailPage() {
 
   const contactIds = useMemo(() => new Set(companyContacts.map((c) => c.id)), [companyContacts]);
 
-  const confirmedBookings = useMemo(() => bookings.filter((b) => b.contactId && contactIds.has(b.contactId) && b.status !== 'option'), [bookings, contactIds]);
-  const optionBookings = useMemo(() => bookings.filter((b) => b.contactId && contactIds.has(b.contactId) && b.status === 'option'), [bookings, contactIds]);
-  const companyInquiries = useMemo(() => inquiries.filter((i) => i.contactId && contactIds.has(i.contactId)), [inquiries, contactIds]);
+  const confirmedBookings = useMemo(() => bookings.filter((b) => (b.companyId === company?.id || (b.contactId && contactIds.has(b.contactId))) && b.status !== 'option'), [bookings, contactIds, company]);
+  const optionBookings = useMemo(() => bookings.filter((b) => (b.companyId === company?.id || (b.contactId && contactIds.has(b.contactId))) && b.status === 'option'), [bookings, contactIds, company]);
+  const companyInquiries = useMemo(() => inquiries.filter((i) => i.companyId === company?.id || (i.contactId && contactIds.has(i.contactId))), [inquiries, contactIds, company]);
   const companyTasks = useMemo(() => tasks.filter((t) => (t.contactId && contactIds.has(t.contactId)) || (t.companyId === company?.id)), [tasks, contactIds, company]);
 
   const visibleContacts = showAllContacts ? companyContacts : companyContacts.slice(0, 4);
