@@ -62,6 +62,7 @@ export interface Booking {
   title: string;
   contactName: string;
   contactId?: string;
+  companyId?: string;
   status: 'confirmed' | 'option';
   notes?: string;
   color?: string;
