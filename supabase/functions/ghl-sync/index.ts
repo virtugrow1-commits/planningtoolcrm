@@ -30,6 +30,62 @@ async function ghlFetch(url: string, opts: RequestInit = {}): Promise<Response> 
   throw new Error(`GHL API rate limit exceeded after 5 retries for ${url}`);
 }
 
+/** Get all user IDs within the same organization as the authenticated user */
+async function getOrganizationUserIds(supabase: any, authUserId: string): Promise<string[]> {
+  try {
+    console.log(`[Org Scope] Getting organization users for user: ${authUserId}`);
+    
+    // Get the organization_id of the authenticated user
+    const { data: userProfile, error: profileErr } = await supabase
+      .from('profiles')
+      .select('organization_id')
+      .eq('id', authUserId)
+      .single();
+
+    if (profileErr || !userProfile?.organization_id) {
+      console.error('Failed to get user organization:', profileErr);
+      // Fallback to single user to maintain functionality
+      return [authUserId];
+    }
+
+    // Get all users in the same organization
+    const { data: orgUsers, error: usersErr } = await supabase
+      .from('profiles')
+      .select('id')
+      .eq('organization_id', userProfile.organization_id);
+
+    if (usersErr || !orgUsers) {
+      console.error('Failed to get organization users:', usersErr);
+      // Fallback to single user
+      return [authUserId];
+    }
+
+    const userIds = orgUsers.map(u => u.id);
+    console.log(`[Org Scope] Found ${userIds.length} users in organization ${userProfile.organization_id}`);
+    return userIds;
+  } catch (err) {
+    console.error('Error getting organization users:', err);
+    // Fallback to single user
+    return [authUserId];
+  }
+}
+
+/** Log sync operation for debugging and auditing */
+async function logSyncOperation(supabase: any, userId: string, operation: string, entityType: string, details: any, status: 'success' | 'error' = 'success') {
+  try {
+    await supabase.from('sync_log').insert({
+      user_id: userId,
+      action: operation,
+      entity_type: entityType,
+      entity_id: details.entity_id || null,
+      details,
+      status,
+    });
+  } catch (err) {
+    console.error('Failed to log sync operation:', err);
+  }
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -74,7 +130,10 @@ serve(async (req) => {
         status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
-    const user = { id: authUser.id };
+
+    // Get organization-wide user IDs instead of single user
+    const orgUserIds = await getOrganizationUserIds(supabase, authUser.id);
+    console.log(`[Sync] Operating on ${orgUserIds.length} users in organization`);
 
     const body = await req.json();
     const { action } = body;
@@ -90,9 +149,11 @@ serve(async (req) => {
       const limit = body.limit || 50;
       const pageUrl = body.nextPageUrl || `${GHL_API_BASE}/contacts/?locationId=${GHL_LOCATION_ID}&limit=${limit}`;
 
+      console.log(`[Contacts Sync] Fetching from: ${pageUrl}`);
       const res = await ghlFetch(pageUrl, { headers: ghlHeaders });
       if (!res.ok) {
         const errText = await res.text();
+        await logSyncOperation(supabase, authUser.id, 'sync-contacts', 'contact', { error: errText, url: pageUrl }, 'error');
         return new Response(JSON.stringify({ success: false, error: `GHL fetch failed [${res.status}]: ${errText}` }), {
           status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         });
@@ -101,16 +162,20 @@ serve(async (req) => {
       const contacts = data.contacts || [];
       const nextPageUrl = data.meta?.nextPageUrl || null;
 
-      // Upsert this page of contacts
+      console.log(`[Contacts Sync] Processing ${contacts.length} contacts for organization`);
+
+      // Upsert this page of contacts - assign to first org user for new contacts
       let synced = 0;
+      const primaryUserId = orgUserIds[0];
       for (const ghlContact of contacts) {
         const firstName = ghlContact.firstName || ghlContact.name?.split(' ')[0] || 'Onbekend';
         const lastName = ghlContact.lastName || ghlContact.name?.split(' ').slice(1).join(' ') || '';
 
+        // Check if contact exists in any user within the organization
         const { data: existing } = await supabase
           .from('contacts')
-          .select('id')
-          .eq('user_id', user.id)
+          .select('id, user_id')
+          .in('user_id', orgUserIds)
           .eq('ghl_contact_id', ghlContact.id)
           .maybeSingle();
 
@@ -122,9 +187,10 @@ serve(async (req) => {
             phone: ghlContact.phone || null,
             company: ghlContact.companyName || null,
           }).eq('id', existing.id);
+          console.log(`[Contacts Sync] Updated existing contact: ${firstName} ${lastName} (${existing.id})`);
         } else {
-          await supabase.from('contacts').insert({
-            user_id: user.id,
+          const { data: inserted } = await supabase.from('contacts').insert({
+            user_id: primaryUserId, // Assign new contacts to primary org user
             ghl_contact_id: ghlContact.id,
             first_name: firstName,
             last_name: lastName,
@@ -132,22 +198,27 @@ serve(async (req) => {
             phone: ghlContact.phone || null,
             company: ghlContact.companyName || null,
             status: 'lead',
-          });
+          }).select('id').single();
+          console.log(`[Contacts Sync] Created new contact: ${firstName} ${lastName} (${inserted?.id}) for user ${primaryUserId}`);
         }
         synced++;
       }
 
-      return new Response(JSON.stringify({ success: true, synced, pageContacts: contacts.length, nextPageUrl, hasMore: !!nextPageUrl }), {
+      await logSyncOperation(supabase, authUser.id, 'sync-contacts', 'contact', { synced, total: contacts.length, orgUsers: orgUserIds.length });
+      return new Response(JSON.stringify({ success: true, synced, pageContacts: contacts.length, nextPageUrl, hasMore: !!nextPageUrl, orgUsers: orgUserIds.length }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
 
     if (action === 'push-contacts') {
-      // Push local contacts to GHL
+      // Push local contacts to GHL - now for entire organization
+      console.log(`[Push Contacts] Fetching contacts for ${orgUserIds.length} organization users`);
       const { data: localContacts } = await supabase
         .from('contacts')
         .select('*')
-        .eq('user_id', user.id);
+        .in('user_id', orgUserIds);
+
+      console.log(`[Push Contacts] Found ${localContacts?.length || 0} contacts to push`);
 
       let pushed = 0;
       for (const contact of localContacts || []) {
@@ -160,63 +231,87 @@ serve(async (req) => {
         if (contact.phone) ghlPayload.phone = contact.phone;
         if (contact.company) ghlPayload.companyName = contact.company;
 
-        if (contact.ghl_contact_id) {
-          // Update existing GHL contact
-          const res = await ghlFetch(`${GHL_API_BASE}/contacts/${contact.ghl_contact_id}`, {
-            method: 'PUT',
-            headers: ghlHeaders,
-            body: JSON.stringify(ghlPayload),
-          });
-          if (!res.ok) {
-            const errText = await res.text();
-            console.error(`Failed to update GHL contact ${contact.ghl_contact_id}: [${res.status}] ${errText}`);
-          }
-        } else {
-          // Create new GHL contact
-          const res = await ghlFetch(`${GHL_API_BASE}/contacts/`, {
-            method: 'POST',
-            headers: ghlHeaders,
-            body: JSON.stringify(ghlPayload),
-          });
-          if (res.ok) {
-            const created = await res.json();
-            if (created.contact?.id) {
-              await supabase.from('contacts').update({
-                ghl_contact_id: created.contact.id,
-              }).eq('id', contact.id);
+        try {
+          if (contact.ghl_contact_id) {
+            // Update existing GHL contact
+            const res = await ghlFetch(`${GHL_API_BASE}/contacts/${contact.ghl_contact_id}`, {
+              method: 'PUT',
+              headers: ghlHeaders,
+              body: JSON.stringify(ghlPayload),
+            });
+            if (!res.ok) {
+              const errText = await res.text();
+              console.error(`Failed to update GHL contact ${contact.ghl_contact_id}: [${res.status}] ${errText}`);
+            } else {
+              console.log(`[Push Contacts] Updated GHL contact: ${contact.first_name} ${contact.last_name}`);
             }
           } else {
-            const errText = await res.text();
-            console.error(`Failed to create GHL contact: [${res.status}] ${errText}`);
+            // Create new GHL contact
+            const res = await ghlFetch(`${GHL_API_BASE}/contacts/`, {
+              method: 'POST',
+              headers: ghlHeaders,
+              body: JSON.stringify(ghlPayload),
+            });
+            if (res.ok) {
+              const created = await res.json();
+              if (created.contact?.id) {
+                await supabase.from('contacts').update({
+                  ghl_contact_id: created.contact.id,
+                }).eq('id', contact.id);
+                console.log(`[Push Contacts] Created GHL contact: ${contact.first_name} ${contact.last_name} (${created.contact.id})`);
+              }
+            } else {
+              const errText = await res.text();
+              console.error(`Failed to create GHL contact: [${res.status}] ${errText}`);
+              
+              // Handle duplicate contact error
+              if (res.status === 400 && errText.includes('duplicate')) {
+                console.log(`[Push Contacts] Handling duplicate contact for: ${contact.first_name} ${contact.last_name}`);
+                // Extract contactId from error if possible and link it
+                const idMatch = errText.match(/contact.*?([a-zA-Z0-9_-]{20,})/i);
+                if (idMatch) {
+                  const existingId = idMatch[1];
+                  await supabase.from('contacts').update({ ghl_contact_id: existingId }).eq('id', contact.id);
+                  console.log(`[Push Contacts] Linked existing GHL contact ${existingId}`);
+                }
+              }
+            }
           }
+          pushed++;
+        } catch (err) {
+          console.error(`Error pushing contact ${contact.id}:`, err);
         }
-        pushed++;
       }
 
-      return new Response(JSON.stringify({ success: true, pushed }), {
+      await logSyncOperation(supabase, authUser.id, 'push-contacts', 'contact', { pushed, total: localContacts?.length || 0, orgUsers: orgUserIds.length });
+      return new Response(JSON.stringify({ success: true, pushed, total: localContacts?.length || 0, orgUsers: orgUserIds.length }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
 
     if (action === 'sync-calendars') {
       // Fetch all calendars first
+      console.log(`[Calendar Sync] Starting calendar sync for organization`);
       const calRes = await ghlFetch(`${GHL_API_BASE}/calendars/?locationId=${GHL_LOCATION_ID}`, {
         headers: ghlHeaders,
       });
       if (!calRes.ok) {
         const errText = await calRes.text();
+        await logSyncOperation(supabase, authUser.id, 'sync-calendars', 'booking', { error: errText }, 'error');
         throw new Error(`GHL calendars fetch failed [${calRes.status}]: ${errText}`);
       }
       const calData = await calRes.json();
       const calendars = calData.calendars || [];
-      console.log(`Found ${calendars.length} calendars:`, calendars.map((c: any) => c.name));
+      console.log(`[Calendar Sync] Found ${calendars.length} calendars:`, calendars.map((c: any) => c.name));
 
-      // Build room_name -> ghl_calendar_id mapping from room_settings
+      // Build room_name -> ghl_calendar_id mapping from room_settings across all org users
       const { data: roomMappings } = await supabase
         .from('room_settings')
-        .select('room_name, ghl_calendar_id')
-        .eq('user_id', user.id)
+        .select('room_name, ghl_calendar_id, user_id')
+        .in('user_id', orgUserIds)
         .not('ghl_calendar_id', 'is', null);
+      
+      console.log(`[Calendar Sync] Found ${roomMappings?.length || 0} room mappings across organization`);
       
       const calIdToRoom: Record<string, string> = {};
       for (const rm of roomMappings || []) {
@@ -237,15 +332,16 @@ serve(async (req) => {
 
       // Default room for unmapped calendars
       const defaultRoom = body.defaultRoom || 'Ontmoeten Aan de Donge';
+      const primaryUserId = orgUserIds[0];
 
       let allEvents: any[] = [];
       for (const cal of calendars) {
         const eventsUrl = `${GHL_API_BASE}/calendars/events?locationId=${GHL_LOCATION_ID}&calendarId=${cal.id}&startTime=${startTimeMs}&endTime=${endTimeMs}`;
-        console.log(`Fetching events for calendar "${cal.name}" (${cal.id})`);
+        console.log(`[Calendar Sync] Fetching events for calendar "${cal.name}" (${cal.id})`);
         const eventsRes = await ghlFetch(eventsUrl, { headers: calEventHeaders });
         if (eventsRes.ok) {
           const eventsData = await eventsRes.json();
-          console.log(`Calendar "${cal.name}": events count: ${(eventsData.events || []).length}`);
+          console.log(`[Calendar Sync] Calendar "${cal.name}": events count: ${(eventsData.events || []).length}`);
           allEvents = allEvents.concat((eventsData.events || []).map((e: any) => ({ ...e, calendarName: cal.name, calendarId: cal.id })));
         } else {
           const errText = await eventsRes.text();
@@ -272,10 +368,11 @@ serve(async (req) => {
         // Determine room: use mapping if available, otherwise default
         const roomName = calIdToRoom[evt.calendarId] || defaultRoom;
 
+        // Check if booking exists across all organization users
         const { data: existing } = await supabase
           .from('bookings')
-          .select('id, room_name')
-          .eq('user_id', user.id)
+          .select('id, room_name, user_id')
+          .in('user_id', orgUserIds)
           .eq('ghl_event_id', evt.id)
           .maybeSingle();
 
@@ -291,9 +388,10 @@ serve(async (req) => {
             contact_name: contactName,
             status,
           }).eq('id', existing.id);
+          console.log(`[Calendar Sync] Updated booking: ${title} (${existing.id}) for user ${existing.user_id}`);
         } else {
-          await supabase.from('bookings').insert({
-            user_id: user.id,
+          const { data: inserted } = await supabase.from('bookings').insert({
+            user_id: primaryUserId, // Assign new bookings to primary org user
             ghl_event_id: evt.id,
             room_name: roomName,
             date: dateStr,
@@ -304,23 +402,27 @@ serve(async (req) => {
             title,
             contact_name: contactName,
             status,
-          });
+          }).select('id').single();
+          console.log(`[Calendar Sync] Created booking: ${title} (${inserted?.id}) for user ${primaryUserId}`);
         }
         synced++;
       }
 
-      return new Response(JSON.stringify({ success: true, synced, skipped, totalEvents: allEvents.length, calendars: calendars.length, defaultRoom }), {
+      await logSyncOperation(supabase, authUser.id, 'sync-calendars', 'booking', { synced, skipped, totalEvents: allEvents.length, orgUsers: orgUserIds.length });
+      return new Response(JSON.stringify({ success: true, synced, skipped, totalEvents: allEvents.length, calendars: calendars.length, defaultRoom, orgUsers: orgUserIds.length }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
 
     if (action === 'sync-opportunities') {
       // First get pipelines to map stage IDs to names
+      console.log(`[Opportunities Sync] Starting opportunities sync for organization`);
       const pipelinesRes = await ghlFetch(`${GHL_API_BASE}/opportunities/pipelines?locationId=${GHL_LOCATION_ID}`, {
         headers: ghlHeaders,
       });
       if (!pipelinesRes.ok) {
         const errText = await pipelinesRes.text();
+        await logSyncOperation(supabase, authUser.id, 'sync-opportunities', 'inquiry', { error: errText }, 'error');
         throw new Error(`GHL pipelines fetch failed [${pipelinesRes.status}]: ${errText}`);
       }
       const pipelinesData = await pipelinesRes.json();
@@ -363,6 +465,7 @@ serve(async (req) => {
         );
         if (!res.ok) {
           const errText = await res.text();
+          await logSyncOperation(supabase, authUser.id, 'sync-opportunities', 'inquiry', { error: errText, page }, 'error');
           throw new Error(`GHL opportunities fetch failed [${res.status}]: ${errText}`);
         }
         const data = await res.json();
@@ -372,18 +475,21 @@ serve(async (req) => {
         page++;
       }
 
+      console.log(`[Opportunities Sync] Found ${allOpportunities.length} opportunities to sync`);
+
       let synced = 0;
+      const primaryUserId = orgUserIds[0];
       for (const opp of allOpportunities) {
         const stageName = stageMap[opp.pipelineStageId] || opp.status || 'new';
         const crmStatus = stageToStatus(stageName);
         const contactName = opp.contact?.name || opp.name || 'Onbekend';
         const monetaryValue = opp.monetaryValue ? Number(opp.monetaryValue) : null;
 
-        // Check if opportunity already exists
+        // Check if opportunity exists across all organization users
         const { data: existing } = await supabase
           .from('inquiries')
-          .select('id')
-          .eq('user_id', user.id)
+          .select('id, user_id')
+          .in('user_id', orgUserIds)
           .eq('ghl_opportunity_id', opp.id)
           .maybeSingle();
 
@@ -394,9 +500,10 @@ serve(async (req) => {
             budget: monetaryValue,
             event_type: opp.name || 'Onbekend',
           }).eq('id', existing.id);
+          console.log(`[Opportunities Sync] Updated inquiry: ${contactName} (${existing.id}) for user ${existing.user_id}`);
         } else {
-          await supabase.from('inquiries').insert({
-            user_id: user.id,
+          const { data: inserted } = await supabase.from('inquiries').insert({
+            user_id: primaryUserId, // Assign new inquiries to primary org user
             ghl_opportunity_id: opp.id,
             contact_name: contactName,
             contact_id: null,
@@ -408,1681 +515,350 @@ serve(async (req) => {
             message: opp.notes || null,
             preferred_date: opp.date || null,
             room_preference: null,
-          });
+          }).select('id').single();
+          console.log(`[Opportunities Sync] Created inquiry: ${contactName} (${inserted?.id}) for user ${primaryUserId}`);
         }
         synced++;
       }
 
-      return new Response(JSON.stringify({ success: true, synced, total: allOpportunities.length }), {
+      await logSyncOperation(supabase, authUser.id, 'sync-opportunities', 'inquiry', { synced, total: allOpportunities.length, orgUsers: orgUserIds.length });
+      return new Response(JSON.stringify({ success: true, synced, total: allOpportunities.length, orgUsers: orgUserIds.length }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
-
-    if (action === 'full-sync') {
-      // Pull contacts from GHL
-      let allContacts: any[] = [];
-      let nextPageUrl: string | null = `${GHL_API_BASE}/contacts/?locationId=${GHL_LOCATION_ID}&limit=100`;
-
-      while (nextPageUrl) {
-        await delay(500);
-        const res = await ghlFetch(nextPageUrl, { headers: ghlHeaders });
-        if (!res.ok) {
-          console.error(`GHL contacts fetch failed [${res.status}]`);
-          break;
-        }
-        const data = await res.json();
-        allContacts = allContacts.concat(data.contacts || []);
-        nextPageUrl = data.meta?.nextPageUrl || null;
-      }
-
-      let contactsSynced = 0;
-      for (const ghlContact of allContacts) {
-        const firstName = ghlContact.firstName || ghlContact.name?.split(' ')[0] || 'Onbekend';
-        const lastName = ghlContact.lastName || ghlContact.name?.split(' ').slice(1).join(' ') || '';
-
-        const { data: existing } = await supabase
-          .from('contacts')
-          .select('id')
-          .eq('user_id', user.id)
-          .eq('ghl_contact_id', ghlContact.id)
-          .maybeSingle();
-
-        if (existing) {
-          await supabase.from('contacts').update({
-            first_name: firstName,
-            last_name: lastName,
-            email: ghlContact.email || null,
-            phone: ghlContact.phone || null,
-            company: ghlContact.companyName || null,
-          }).eq('id', existing.id);
-        } else {
-          await supabase.from('contacts').insert({
-            user_id: user.id,
-            ghl_contact_id: ghlContact.id,
-            first_name: firstName,
-            last_name: lastName,
-            email: ghlContact.email || null,
-            phone: ghlContact.phone || null,
-            company: ghlContact.companyName || null,
-            status: 'lead',
-          });
-        }
-        contactsSynced++;
-      }
-
-      // Push local contacts without GHL ID to GHL
-      const { data: localOnly } = await supabase
-        .from('contacts')
-        .select('*')
-        .eq('user_id', user.id)
-        .is('ghl_contact_id', null);
-
-      let contactsPushed = 0;
-      for (const contact of localOnly || []) {
-        const ghlPayload: Record<string, any> = {
-          firstName: contact.first_name || 'Onbekend',
-          lastName: contact.last_name || '',
-          locationId: GHL_LOCATION_ID,
-        };
-        if (contact.email) ghlPayload.email = contact.email;
-        if (contact.phone) ghlPayload.phone = contact.phone;
-        if (contact.company) ghlPayload.companyName = contact.company;
-        const res = await ghlFetch(`${GHL_API_BASE}/contacts/`, {
-          method: 'POST',
-          headers: ghlHeaders,
-          body: JSON.stringify(ghlPayload),
-        });
-        if (res.ok) {
-          const created = await res.json();
-          if (created.contact?.id) {
-            await supabase.from('contacts').update({
-              ghl_contact_id: created.contact.id,
-            }).eq('id', contact.id);
-          }
-          contactsPushed++;
-        } else {
-          const errText = await res.text();
-          console.error(`Failed to push contact to GHL: [${res.status}] ${errText}`);
-        }
-      }
-
-      // Also sync opportunities
-      let oppsSynced = 0;
-      try {
-        const pipelinesRes = await ghlFetch(`${GHL_API_BASE}/opportunities/pipelines?locationId=${GHL_LOCATION_ID}`, {
-          headers: ghlHeaders,
-        });
-        if (pipelinesRes.ok) {
-          const pipelinesData = await pipelinesRes.json();
-          const stageMap: Record<string, string> = {};
-          for (const pipeline of pipelinesData.pipelines || []) {
-            for (const stage of pipeline.stages || []) {
-              stageMap[stage.id] = stage.name;
-            }
-          }
-
-          const stageToStatus = (stageName: string): string => {
-            const lower = stageName.toLowerCase();
-            if (lower.includes('nieuwe aanvraag') || lower.includes('new')) return 'new';
-            if (lower.includes('lopend contact') || lower.includes('contact')) return 'contacted';
-            if (lower.includes('optie')) return 'option';
-            if (lower.includes('aangepaste offerte')) return 'quote_revised';
-            if (lower.includes('offerte verzonden') || lower.includes('offerte')) return 'quoted';
-            if (lower.includes('definitieve reservering') || lower.includes('definitief')) return 'confirmed';
-            if (lower.includes('reservering')) return 'reserved';
-            if (lower.includes('draaiboek')) return 'script';
-            if (lower.includes('facturatie') || lower.includes('invoice')) return 'invoiced';
-            if (lower.includes('vervallen') || lower.includes('verloren') || lower.includes('lost')) return 'lost';
-            if (lower.includes('after sales') || lower.includes('aftersales')) return 'after_sales';
-            if (lower.includes('evenement')) return 'confirmed';
-            return 'new';
-          };
-
-          let allOpps: any[] = [];
-          let oppPage = 1;
-          let oppHasMore = true;
-          while (oppHasMore) {
-            const res = await ghlFetch(
-              `${GHL_API_BASE}/opportunities/search?location_id=${GHL_LOCATION_ID}&limit=100&page=${oppPage}`,
-              { headers: ghlHeaders }
-            );
-            if (!res.ok) break;
-            const data = await res.json();
-            const opps = data.opportunities || [];
-            allOpps = allOpps.concat(opps);
-            oppHasMore = opps.length === 100;
-            oppPage++;
-          }
-
-          for (const opp of allOpps) {
-            const stageName = stageMap[opp.pipelineStageId] || opp.status || 'new';
-            const crmStatus = stageToStatus(stageName);
-            const contactName = opp.contact?.name || opp.name || 'Onbekend';
-            const monetaryValue = opp.monetaryValue ? Number(opp.monetaryValue) : null;
-
-            const { data: existing } = await supabase
-              .from('inquiries')
-              .select('id')
-              .eq('user_id', user.id)
-              .eq('ghl_opportunity_id', opp.id)
-              .maybeSingle();
-
-            if (existing) {
-              await supabase.from('inquiries').update({
-                contact_name: contactName,
-                status: crmStatus,
-                budget: monetaryValue,
-                event_type: opp.name || 'Onbekend',
-              }).eq('id', existing.id);
-            } else {
-              await supabase.from('inquiries').insert({
-                user_id: user.id,
-                ghl_opportunity_id: opp.id,
-                contact_name: contactName,
-                contact_id: null,
-                event_type: opp.name || 'Onbekend',
-                status: crmStatus,
-                guest_count: 0,
-                budget: monetaryValue,
-                source: 'GHL',
-                message: opp.notes || null,
-                preferred_date: opp.date || null,
-                room_preference: null,
-              });
-            }
-            oppsSynced++;
-          }
-        }
-      } catch (oppErr) {
-        console.error('Opportunity sync error during full-sync:', oppErr);
-      }
-
-      // Also sync calendar events as bookings
-      let bookingsSynced = 0;
-      try {
-        const calRes = await ghlFetch(`${GHL_API_BASE}/calendars/?locationId=${GHL_LOCATION_ID}`, { headers: ghlHeaders });
-        if (calRes.ok) {
-          const calData = await calRes.json();
-          const calendars = calData.calendars || [];
-          const now = new Date();
-          const startTime = now.toISOString();
-          const endDate = new Date(now);
-          endDate.setDate(endDate.getDate() + 90);
-          const endTime = endDate.toISOString();
-
-          // Build room mapping from room_settings
-          const { data: roomMappings } = await supabase
-            .from('room_settings')
-            .select('room_name, ghl_calendar_id')
-            .eq('user_id', user.id)
-            .not('ghl_calendar_id', 'is', null);
-          const calIdToRoom: Record<string, string> = {};
-          for (const rm of roomMappings || []) {
-            if (rm.ghl_calendar_id) calIdToRoom[rm.ghl_calendar_id] = rm.room_name;
-          }
-
-          let allEvents: any[] = [];
-          for (const cal of calendars) {
-            const eventsRes = await ghlFetch(
-              `${GHL_API_BASE}/calendars/events?locationId=${GHL_LOCATION_ID}&calendarId=${cal.id}&startTime=${encodeURIComponent(startTime)}&endTime=${encodeURIComponent(endTime)}`,
-              { headers: ghlHeaders }
-            );
-            if (eventsRes.ok) {
-              const eventsData = await eventsRes.json();
-              allEvents = allEvents.concat((eventsData.events || []).map((e: any) => ({ ...e, calendarName: cal.name, calendarId: cal.id })));
-            }
-          }
-
-          for (const evt of allEvents) {
-            const evtStart = new Date(evt.startTime || evt.start);
-            const evtEnd = new Date(evt.endTime || evt.end);
-            // Use Amsterdam timezone for correct local time
-            const startStr = evtStart.toLocaleString('en-US', { timeZone: 'Europe/Amsterdam', hour12: false });
-            const startD = new Date(startStr);
-            const dateStr = `${startD.getFullYear()}-${String(startD.getMonth() + 1).padStart(2, '0')}-${String(startD.getDate()).padStart(2, '0')}`;
-            const startHour = startD.getHours();
-            const startMinute = startD.getMinutes();
-            const endStr = evtEnd.toLocaleString('en-US', { timeZone: 'Europe/Amsterdam', hour12: false });
-            const endD = new Date(endStr);
-            const endHour = isNaN(evtEnd.getTime()) ? 17 : endD.getHours();
-            const endMinute = isNaN(evtEnd.getTime()) ? 0 : endD.getMinutes();
-            const contactName = evt.contact?.name || evt.title || 'GHL Afspraak';
-            const title = evt.title || evt.calendarName || 'GHL Afspraak';
-            const evtStatus = (evt.status === 'confirmed' || evt.appointmentStatus === 'confirmed') ? 'confirmed' : 'option';
-            // Use room_settings mapping, fallback to calendar name
-            const roomName = calIdToRoom[evt.calendarId] || evt.calendarName || 'Vergaderzaal 100';
-
-            const { data: existing } = await supabase
-              .from('bookings')
-              .select('id')
-              .eq('user_id', user.id)
-              .eq('ghl_event_id', evt.id)
-              .maybeSingle();
-
-            if (existing) {
-              await supabase.from('bookings').update({
-                date: dateStr,
-                start_hour: startHour,
-                start_minute: startMinute,
-                end_hour: endHour,
-                end_minute: endMinute,
-                title,
-                contact_name: contactName,
-                status: evtStatus,
-              }).eq('id', existing.id);
-            } else {
-              await supabase.from('bookings').insert({
-                user_id: user.id,
-                ghl_event_id: evt.id,
-                room_name: roomName,
-                date: dateStr,
-                start_hour: startHour,
-                start_minute: startMinute,
-                end_hour: endHour,
-                end_minute: endMinute,
-                title,
-                contact_name: contactName,
-                status: evtStatus,
-              });
-            }
-            bookingsSynced++;
-          }
-        }
-      } catch (calErr) {
-        console.error('Calendar sync error during full-sync:', calErr);
-      }
-
-      return new Response(JSON.stringify({
-        success: true,
-        contactsSynced,
-        contactsPushed,
-        totalGhlContacts: allContacts.length,
-        opportunitiesSynced: oppsSynced,
-        bookingsSynced,
-      }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
-    }
-
-    // === INDIVIDUAL PUSH ACTIONS (CRM → GHL) ===
 
     if (action === 'push-contact') {
+      // Handle single contact push (from context providers)
       const { contact } = body;
       if (!contact) {
-        return new Response(JSON.stringify({ error: 'contact data required' }), {
-          status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        });
+        return new Response(JSON.stringify({ error: 'Contact data required' }), { status: 400, headers: corsHeaders });
       }
 
-      const ghlPayload = {
-        firstName: contact.first_name,
-        lastName: contact.last_name,
-        email: contact.email || undefined,
-        phone: contact.phone || undefined,
-        companyName: contact.company || undefined,
+      console.log(`[Push Contact] Pushing single contact: ${contact.first_name} ${contact.last_name} (${contact.id})`);
+
+      const ghlPayload: Record<string, any> = {
+        firstName: contact.first_name || 'Onbekend',
+        lastName: contact.last_name || '',
         locationId: GHL_LOCATION_ID,
       };
+      if (contact.email) ghlPayload.email = contact.email;
+      if (contact.phone) ghlPayload.phone = contact.phone;
+      if (contact.company) ghlPayload.companyName = contact.company;
 
-      if (contact.ghl_contact_id) {
-        // Update existing GHL contact
-        const res = await ghlFetch(`${GHL_API_BASE}/contacts/${contact.ghl_contact_id}`, {
-          method: 'PUT', headers: ghlHeaders, body: JSON.stringify(ghlPayload),
-        });
-        return new Response(JSON.stringify({ success: res.ok, action: 'updated' }), {
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        });
-      } else {
-        // First, search GHL for existing contact by email or phone to avoid duplicates
-        let existingGhlId: string | null = null;
-        if (contact.email) {
-          const searchRes = await ghlFetch(`${GHL_API_BASE}/contacts/lookup?locationId=${GHL_LOCATION_ID}&email=${encodeURIComponent(contact.email)}`, {
+      try {
+        if (contact.ghl_contact_id) {
+          // Update existing GHL contact
+          const res = await ghlFetch(`${GHL_API_BASE}/contacts/${contact.ghl_contact_id}`, {
+            method: 'PUT',
             headers: ghlHeaders,
+            body: JSON.stringify(ghlPayload),
           });
-          if (searchRes.ok) {
-            const searchData = await searchRes.json();
-            if (searchData.contacts?.[0]?.id) {
-              existingGhlId = searchData.contacts[0].id;
+          if (res.ok) {
+            console.log(`[Push Contact] Updated GHL contact: ${contact.ghl_contact_id}`);
+          } else {
+            const errText = await res.text();
+            console.error(`Failed to update GHL contact: [${res.status}] ${errText}`);
+            await logSyncOperation(supabase, authUser.id, 'push-contact', 'contact', { error: errText, contactId: contact.id }, 'error');
+            return new Response(JSON.stringify({ error: errText }), { status: res.status, headers: corsHeaders });
+          }
+        } else {
+          // Create new GHL contact
+          const res = await ghlFetch(`${GHL_API_BASE}/contacts/`, {
+            method: 'POST',
+            headers: ghlHeaders,
+            body: JSON.stringify(ghlPayload),
+          });
+          if (res.ok) {
+            const created = await res.json();
+            const newGhlId = created.contact?.id;
+            if (newGhlId) {
+              // Update the local contact with the GHL ID
+              await supabase.from('contacts').update({
+                ghl_contact_id: newGhlId,
+              }).eq('id', contact.id);
+              console.log(`[Push Contact] Created GHL contact: ${newGhlId}`);
             }
           } else {
-            await searchRes.text(); // consume body
-          }
-        }
-        if (!existingGhlId && contact.phone) {
-          const searchRes = await ghlFetch(`${GHL_API_BASE}/contacts/lookup?locationId=${GHL_LOCATION_ID}&phone=${encodeURIComponent(contact.phone)}`, {
-            headers: ghlHeaders,
-          });
-          if (searchRes.ok) {
-            const searchData = await searchRes.json();
-            if (searchData.contacts?.[0]?.id) {
-              existingGhlId = searchData.contacts[0].id;
+            const errText = await res.text();
+            console.error(`Failed to create GHL contact: [${res.status}] ${errText}`);
+            
+            // Handle duplicate contact error - extract existing ID and link it
+            if (res.status === 400 && errText.includes('duplicate')) {
+              console.log(`[Push Contact] Handling duplicate contact for: ${contact.first_name} ${contact.last_name}`);
+              const idMatch = errText.match(/contact.*?([a-zA-Z0-9_-]{20,})/i);
+              if (idMatch) {
+                const existingId = idMatch[1];
+                await supabase.from('contacts').update({ ghl_contact_id: existingId }).eq('id', contact.id);
+                console.log(`[Push Contact] Linked existing GHL contact ${existingId}`);
+                await logSyncOperation(supabase, authUser.id, 'push-contact', 'contact', { linkedExistingId: existingId, contactId: contact.id });
+                return new Response(JSON.stringify({ success: true, linked_existing: existingId }), { headers: corsHeaders });
+              }
             }
-          } else {
-            await searchRes.text();
+            
+            await logSyncOperation(supabase, authUser.id, 'push-contact', 'contact', { error: errText, contactId: contact.id }, 'error');
+            return new Response(JSON.stringify({ error: errText }), { status: res.status, headers: corsHeaders });
           }
         }
 
-        if (existingGhlId) {
-          // Contact already exists in GHL — update it and save the ID locally
-          const res = await ghlFetch(`${GHL_API_BASE}/contacts/${existingGhlId}`, {
-            method: 'PUT', headers: ghlHeaders, body: JSON.stringify(ghlPayload),
-          });
-          if (contact.id) {
-            await supabase.from('contacts').update({ ghl_contact_id: existingGhlId }).eq('id', contact.id);
-          }
-          return new Response(JSON.stringify({ success: res.ok, action: 'linked', ghl_contact_id: existingGhlId }), {
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-          });
-        }
-
-        // No existing contact found — create new
-        const res = await ghlFetch(`${GHL_API_BASE}/contacts/`, {
-          method: 'POST', headers: ghlHeaders, body: JSON.stringify(ghlPayload),
-        });
-        if (res.ok) {
-          const created = await res.json();
-          if (created.contact?.id && contact.id) {
-            await supabase.from('contacts').update({ ghl_contact_id: created.contact.id }).eq('id', contact.id);
-          }
-          return new Response(JSON.stringify({ success: true, action: 'created', ghl_contact_id: created.contact?.id }), {
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-          });
-        }
-
-        // Handle duplicate contact error — GHL returns contactId in meta
-        const errBody = await res.text();
-        try {
-          const errData = JSON.parse(errBody);
-          const dupContactId = errData.meta?.contactId;
-          if (dupContactId && res.status === 400 && errData.message?.includes('duplicate')) {
-            if (contact.id) {
-              await supabase.from('contacts').update({ ghl_contact_id: dupContactId }).eq('id', contact.id);
-            }
-            await ghlFetch(`${GHL_API_BASE}/contacts/${dupContactId}`, {
-              method: 'PUT', headers: ghlHeaders, body: JSON.stringify(ghlPayload),
-            });
-            return new Response(JSON.stringify({ success: true, action: 'linked_duplicate', ghl_contact_id: dupContactId }), {
-              headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-            });
-          }
-        } catch (_) { /* not JSON */ }
-
-        return new Response(JSON.stringify({ success: false, error: errBody }), {
-          status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        });
+        await logSyncOperation(supabase, authUser.id, 'push-contact', 'contact', { contactId: contact.id, ghlId: contact.ghl_contact_id });
+        return new Response(JSON.stringify({ success: true }), { headers: corsHeaders });
+      } catch (err) {
+        console.error('Error pushing contact:', err);
+        await logSyncOperation(supabase, authUser.id, 'push-contact', 'contact', { error: String(err), contactId: contact.id }, 'error');
+        return new Response(JSON.stringify({ error: String(err) }), { status: 500, headers: corsHeaders });
       }
-    }
-
-    if (action === 'delete-contact') {
-      const { ghl_contact_id } = body;
-      if (ghl_contact_id) {
-        const res = await ghlFetch(`${GHL_API_BASE}/contacts/${ghl_contact_id}`, {
-          method: 'DELETE', headers: ghlHeaders,
-        });
-        return new Response(JSON.stringify({ success: res.ok }), {
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        });
-      }
-      return new Response(JSON.stringify({ success: true, skipped: true }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
     }
 
     if (action === 'push-company') {
       const { company } = body;
       if (!company) {
-        return new Response(JSON.stringify({ error: 'company data required' }), {
-          status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        });
+        return new Response(JSON.stringify({ error: 'Company data required' }), { status: 400, headers: corsHeaders });
       }
 
-      const ghlPayload: any = {
-        name: company.name,
+      console.log(`[Push Company] Pushing single company: ${company.name} (${company.id})`);
+
+      const ghlPayload: Record<string, any> = {
+        name: company.name || 'Onbekend',
         locationId: GHL_LOCATION_ID,
       };
       if (company.email) ghlPayload.email = company.email;
       if (company.phone) ghlPayload.phone = company.phone;
       if (company.website) ghlPayload.website = company.website;
-      if (company.address) ghlPayload.address1 = company.address;
+      if (company.address) ghlPayload.address = company.address;
       if (company.city) ghlPayload.city = company.city;
       if (company.postcode) ghlPayload.postalCode = company.postcode;
       if (company.country) ghlPayload.country = company.country;
 
-      if (company.ghl_company_id) {
-        // Update existing
-        const res = await ghlFetch(`${GHL_API_BASE}/businesses/${company.ghl_company_id}`, {
-          method: 'PUT', headers: ghlHeaders, body: JSON.stringify(ghlPayload),
-        });
-        return new Response(JSON.stringify({ success: res.ok, action: 'updated' }), {
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        });
-      } else {
-        // Search first to avoid duplicates
-        let existingGhlId: string | null = null;
-        try {
-          const searchRes = await ghlFetch(`${GHL_API_BASE}/businesses/?locationId=${GHL_LOCATION_ID}&limit=100&skip=0`, {
+      try {
+        if (company.ghl_company_id) {
+          // Update existing GHL company
+          const res = await ghlFetch(`${GHL_API_BASE}/companies/${company.ghl_company_id}`, {
+            method: 'PUT',
             headers: ghlHeaders,
+            body: JSON.stringify(ghlPayload),
           });
-          if (searchRes.ok) {
-            const searchData = await searchRes.json();
-            const match = (searchData.businesses || []).find((c: any) =>
-              c.name && c.name.toLowerCase() === company.name.toLowerCase()
-            );
-            if (match) existingGhlId = match.id;
+          if (res.ok) {
+            console.log(`[Push Company] Updated GHL company: ${company.ghl_company_id}`);
+          } else {
+            const errText = await res.text();
+            console.error(`Failed to update GHL company: [${res.status}] ${errText}`);
+            await logSyncOperation(supabase, authUser.id, 'push-company', 'company', { error: errText, companyId: company.id }, 'error');
+            return new Response(JSON.stringify({ error: errText }), { status: res.status, headers: corsHeaders });
           }
-        } catch (e) { console.warn('Company search failed:', e); }
-
-        if (existingGhlId) {
-          const res = await ghlFetch(`${GHL_API_BASE}/businesses/${existingGhlId}`, {
-            method: 'PUT', headers: ghlHeaders, body: JSON.stringify(ghlPayload),
+        } else {
+          // Create new GHL company
+          const res = await ghlFetch(`${GHL_API_BASE}/companies/`, {
+            method: 'POST',
+            headers: ghlHeaders,
+            body: JSON.stringify(ghlPayload),
           });
-          if (company.id) {
-            await supabase.from('companies').update({ ghl_company_id: existingGhlId }).eq('id', company.id);
+          if (res.ok) {
+            const created = await res.json();
+            const newGhlId = created.company?.id;
+            if (newGhlId) {
+              await supabase.from('companies').update({
+                ghl_company_id: newGhlId,
+              }).eq('id', company.id);
+              console.log(`[Push Company] Created GHL company: ${newGhlId}`);
+            }
+          } else {
+            const errText = await res.text();
+            console.error(`Failed to create GHL company: [${res.status}] ${errText}`);
+            await logSyncOperation(supabase, authUser.id, 'push-company', 'company', { error: errText, companyId: company.id }, 'error');
+            return new Response(JSON.stringify({ error: errText }), { status: res.status, headers: corsHeaders });
           }
-          return new Response(JSON.stringify({ success: res.ok, action: 'linked', ghl_company_id: existingGhlId }), {
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-          });
         }
 
-        // Create new
-        const res = await ghlFetch(`${GHL_API_BASE}/businesses/`, {
-          method: 'POST', headers: ghlHeaders, body: JSON.stringify(ghlPayload),
+        await logSyncOperation(supabase, authUser.id, 'push-company', 'company', { companyId: company.id, ghlId: company.ghl_company_id });
+        return new Response(JSON.stringify({ success: true }), { headers: corsHeaders });
+      } catch (err) {
+        console.error('Error pushing company:', err);
+        await logSyncOperation(supabase, authUser.id, 'push-company', 'company', { error: String(err), companyId: company.id }, 'error');
+        return new Response(JSON.stringify({ error: String(err) }), { status: 500, headers: corsHeaders });
+      }
+    }
+
+    if (action === 'push-task') {
+      const { task } = body;
+      if (!task) {
+        return new Response(JSON.stringify({ error: 'Task data required' }), { status: 400, headers: corsHeaders });
+      }
+
+      console.log(`[Push Task] Pushing single task: ${task.title} (${task.id})`);
+
+      // Find the contact's GHL ID if task has contact_id
+      let ghlContactId = null;
+      if (task.contact_id) {
+        const { data: contact } = await supabase
+          .from('contacts')
+          .select('ghl_contact_id')
+          .eq('id', task.contact_id)
+          .single();
+        ghlContactId = contact?.ghl_contact_id;
+      }
+
+      const ghlPayload: Record<string, any> = {
+        title: task.title || 'Taak',
+        body: task.description || '',
+        locationId: GHL_LOCATION_ID,
+      };
+      if (ghlContactId) ghlPayload.contactId = ghlContactId;
+      if (task.due_date) ghlPayload.dueDate = task.due_date;
+      if (task.status === 'completed') ghlPayload.completed = true;
+
+      try {
+        if (task.ghl_task_id) {
+          // Update existing GHL task
+          const res = await ghlFetch(`${GHL_API_BASE}/tasks/${task.ghl_task_id}`, {
+            method: 'PUT',
+            headers: ghlHeaders,
+            body: JSON.stringify(ghlPayload),
+          });
+          if (res.ok) {
+            console.log(`[Push Task] Updated GHL task: ${task.ghl_task_id}`);
+          } else {
+            const errText = await res.text();
+            console.error(`Failed to update GHL task: [${res.status}] ${errText}`);
+            await logSyncOperation(supabase, authUser.id, 'push-task', 'task', { error: errText, taskId: task.id }, 'error');
+            return new Response(JSON.stringify({ error: errText }), { status: res.status, headers: corsHeaders });
+          }
+        } else {
+          // Create new GHL task
+          const res = await ghlFetch(`${GHL_API_BASE}/tasks/`, {
+            method: 'POST',
+            headers: ghlHeaders,
+            body: JSON.stringify(ghlPayload),
+          });
+          if (res.ok) {
+            const created = await res.json();
+            const newGhlId = created.task?.id;
+            if (newGhlId) {
+              await supabase.from('tasks').update({
+                ghl_task_id: newGhlId,
+              }).eq('id', task.id);
+              console.log(`[Push Task] Created GHL task: ${newGhlId}`);
+            }
+          } else {
+            const errText = await res.text();
+            console.error(`Failed to create GHL task: [${res.status}] ${errText}`);
+            await logSyncOperation(supabase, authUser.id, 'push-task', 'task', { error: errText, taskId: task.id }, 'error');
+            return new Response(JSON.stringify({ error: errText }), { status: res.status, headers: corsHeaders });
+          }
+        }
+
+        await logSyncOperation(supabase, authUser.id, 'push-task', 'task', { taskId: task.id, ghlId: task.ghl_task_id });
+        return new Response(JSON.stringify({ success: true }), { headers: corsHeaders });
+      } catch (err) {
+        console.error('Error pushing task:', err);
+        await logSyncOperation(supabase, authUser.id, 'push-task', 'task', { error: String(err), taskId: task.id }, 'error');
+        return new Response(JSON.stringify({ error: String(err) }), { status: 500, headers: corsHeaders });
+      }
+    }
+
+    if (action === 'delete-contact') {
+      const { ghl_contact_id } = body;
+      if (!ghl_contact_id) {
+        return new Response(JSON.stringify({ error: 'ghl_contact_id required' }), { status: 400, headers: corsHeaders });
+      }
+
+      console.log(`[Delete Contact] Deleting GHL contact: ${ghl_contact_id}`);
+
+      try {
+        const res = await ghlFetch(`${GHL_API_BASE}/contacts/${ghl_contact_id}`, {
+          method: 'DELETE',
+          headers: ghlHeaders,
         });
+
         if (res.ok) {
-          const created = await res.json();
-          const newId = created.business?.id || created.id;
-          if (newId && company.id) {
-            await supabase.from('companies').update({ ghl_company_id: newId }).eq('id', company.id);
-          }
-          return new Response(JSON.stringify({ success: true, action: 'created', ghl_company_id: newId }), {
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-          });
+          console.log(`[Delete Contact] Successfully deleted GHL contact: ${ghl_contact_id}`);
+          await logSyncOperation(supabase, authUser.id, 'delete-contact', 'contact', { ghlContactId: ghl_contact_id });
+        } else {
+          const errText = await res.text();
+          console.error(`Failed to delete GHL contact: [${res.status}] ${errText}`);
+          await logSyncOperation(supabase, authUser.id, 'delete-contact', 'contact', { error: errText, ghlContactId: ghl_contact_id }, 'error');
+          return new Response(JSON.stringify({ error: errText }), { status: res.status, headers: corsHeaders });
         }
-        return new Response(JSON.stringify({ success: false, error: await res.text() }), {
-          status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        });
+
+        return new Response(JSON.stringify({ success: true }), { headers: corsHeaders });
+      } catch (err) {
+        console.error('Error deleting contact:', err);
+        await logSyncOperation(supabase, authUser.id, 'delete-contact', 'contact', { error: String(err), ghlContactId: ghl_contact_id }, 'error');
+        return new Response(JSON.stringify({ error: String(err) }), { status: 500, headers: corsHeaders });
       }
     }
 
     if (action === 'delete-company') {
       const { ghl_company_id } = body;
-      if (ghl_company_id) {
-        const res = await ghlFetch(`${GHL_API_BASE}/businesses/${ghl_company_id}`, {
-          method: 'DELETE', headers: ghlHeaders,
-        });
-        console.log(`Delete GHL company ${ghl_company_id}: ${res.status}`);
-        return new Response(JSON.stringify({ success: res.ok, action: 'deleted' }), {
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        });
-      }
-      return new Response(JSON.stringify({ success: true, skipped: true }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
-    
-    }
-
-    if (action === 'push-booking') {
-      const { booking } = body;
-      if (!booking) {
-        return new Response(JSON.stringify({ error: 'booking data required' }), {
-          status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        });
+      if (!ghl_company_id) {
+        return new Response(JSON.stringify({ error: 'ghl_company_id required' }), { status: 400, headers: corsHeaders });
       }
 
-      // Try to find room-specific GHL calendar ID from room_settings
-      let calendarId: string | null = null;
-      if (booking.room_name) {
-        const { data: roomSetting } = await supabase
-          .from('room_settings')
-          .select('ghl_calendar_id')
-          .eq('user_id', user.id)
-          .eq('room_name', booking.room_name)
-          .maybeSingle();
-        calendarId = roomSetting?.ghl_calendar_id || null;
-      }
+      console.log(`[Delete Company] Deleting GHL company: ${ghl_company_id}`);
 
-      // Fallback: get first available calendar
-      if (!calendarId) {
-        const calRes = await ghlFetch(`${GHL_API_BASE}/calendars/?locationId=${GHL_LOCATION_ID}`, { headers: ghlHeaders });
-        const calData = calRes.ok ? await calRes.json() : { calendars: [] };
-        calendarId = calData.calendars?.[0]?.id || null;
-      }
-      if (!calendarId) {
-        return new Response(JSON.stringify({ success: false, error: 'No GHL calendar found' }), {
-          status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      try {
+        const res = await ghlFetch(`${GHL_API_BASE}/companies/${ghl_company_id}`, {
+          method: 'DELETE',
+          headers: ghlHeaders,
         });
-      }
 
-      // Determine correct UTC offset for Europe/Amsterdam (CET +01:00 or CEST +02:00)
-      const probeDateStr = `${booking.date}T12:00:00`;
-      const probeDate = new Date(probeDateStr + 'Z');
-      const amsterdamStr = probeDate.toLocaleString('en-US', { timeZone: 'Europe/Amsterdam', hour12: false });
-      const amsterdamDate = new Date(amsterdamStr);
-      const offsetMs = amsterdamDate.getTime() - probeDate.getTime();
-      const offsetHours = Math.round(offsetMs / 3600000);
-      const tzOffset = `${offsetHours >= 0 ? '+' : '-'}${String(Math.abs(offsetHours)).padStart(2, '0')}:00`;
-      const startTime = `${booking.date}T${String(booking.start_hour).padStart(2, '0')}:${String(booking.start_minute || 0).padStart(2, '0')}:00${tzOffset}`;
-      const endTime = `${booking.date}T${String(booking.end_hour).padStart(2, '0')}:${String(booking.end_minute || 0).padStart(2, '0')}:00${tzOffset}`;
-
-      // Try to find the GHL contact ID for this booking's contact
-      let ghlContactId: string | null = null;
-      if (booking.contact_id) {
-        const { data: contactRow } = await supabase.from('contacts').select('ghl_contact_id').eq('id', booking.contact_id).maybeSingle();
-        ghlContactId = contactRow?.ghl_contact_id || null;
-      }
-
-      // If no GHL contact linked, try to find or create one by contact_name
-      if (!ghlContactId && booking.contact_name) {
-        console.info(`push-booking ${booking.id}: no GHL contact linked, searching by name "${booking.contact_name}"`);
-        
-        // Search GHL by name
-        const nameParts = booking.contact_name.trim().split(/\s+/);
-        const searchFirstName = nameParts[0] || '';
-        const searchLastName = nameParts.slice(1).join(' ') || '';
-        
-        // Try lookup by email first if we have a contact_id
-        let foundEmail: string | null = null;
-        if (booking.contact_id) {
-          const { data: contactRow } = await supabase.from('contacts').select('email, phone, first_name, last_name').eq('id', booking.contact_id).maybeSingle();
-          if (contactRow?.email) {
-            const searchRes = await ghlFetch(`${GHL_API_BASE}/contacts/lookup?locationId=${GHL_LOCATION_ID}&email=${encodeURIComponent(contactRow.email)}`, { headers: ghlHeaders });
-            if (searchRes.ok) {
-              const searchData = await searchRes.json();
-              if (searchData.contacts?.[0]?.id) {
-                ghlContactId = searchData.contacts[0].id;
-                // Save the link
-                await supabase.from('contacts').update({ ghl_contact_id: ghlContactId }).eq('id', booking.contact_id);
-                console.info(`push-booking: linked existing GHL contact ${ghlContactId} by email`);
-              }
-            } else { await searchRes.text(); }
-          }
-          if (!ghlContactId && contactRow?.phone) {
-            const searchRes = await ghlFetch(`${GHL_API_BASE}/contacts/lookup?locationId=${GHL_LOCATION_ID}&phone=${encodeURIComponent(contactRow.phone)}`, { headers: ghlHeaders });
-            if (searchRes.ok) {
-              const searchData = await searchRes.json();
-              if (searchData.contacts?.[0]?.id) {
-                ghlContactId = searchData.contacts[0].id;
-                await supabase.from('contacts').update({ ghl_contact_id: ghlContactId }).eq('id', booking.contact_id);
-                console.info(`push-booking: linked existing GHL contact ${ghlContactId} by phone`);
-              }
-            } else { await searchRes.text(); }
-          }
-          foundEmail = contactRow?.email || null;
-        }
-        
-        // If still no GHL contact, create one
-        if (!ghlContactId) {
-          const newContactPayload: Record<string, any> = {
-            firstName: searchFirstName || 'Onbekend',
-            lastName: searchLastName || '',
-            locationId: GHL_LOCATION_ID,
-          };
-          if (foundEmail) newContactPayload.email = foundEmail;
-          
-          const createRes = await ghlFetch(`${GHL_API_BASE}/contacts/`, {
-            method: 'POST', headers: ghlHeaders, body: JSON.stringify(newContactPayload),
-          });
-          if (createRes.ok) {
-            const created = await createRes.json();
-            ghlContactId = created.contact?.id || null;
-            if (ghlContactId && booking.contact_id) {
-              await supabase.from('contacts').update({ ghl_contact_id: ghlContactId }).eq('id', booking.contact_id);
-            }
-            console.info(`push-booking: created new GHL contact ${ghlContactId} for "${booking.contact_name}"`);
-          } else {
-            // GHL returns the existing contactId in meta when duplicate is detected
-            const errText = await createRes.text();
-            console.warn(`push-booking: create GHL contact response: [${createRes.status}] ${errText}`);
-            try {
-              const errData = JSON.parse(errText);
-              if (errData.meta?.contactId) {
-                ghlContactId = errData.meta.contactId;
-                if (booking.contact_id) {
-                  await supabase.from('contacts').update({ ghl_contact_id: ghlContactId }).eq('id', booking.contact_id);
-                }
-                console.info(`push-booking: extracted existing GHL contact ${ghlContactId} from duplicate error for "${booking.contact_name}"`);
-              }
-            } catch (_e) {
-              console.warn(`push-booking: could not parse duplicate error response`);
-            }
-          }
-        }
-      }
-
-      if (!ghlContactId) {
-        console.warn(`Skip push booking ${booking.id}: could not find or create GHL contact for "${booking.contact_name}"`);
-        return new Response(JSON.stringify({ success: false, warning: 'Could not find or create GHL contact' }), {
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        });
-      }
-
-      // GHL Create Appointment API requires Version 2021-04-15 and ignoreFreeSlotValidation
-      const appointmentHeaders = { ...ghlHeaders, 'Version': '2021-04-15' };
-      const eventPayload: Record<string, any> = {
-        calendarId,
-        locationId: GHL_LOCATION_ID,
-        contactId: ghlContactId,
-        title: booking.title,
-        startTime,
-        endTime,
-        appointmentStatus: booking.status === 'confirmed' ? 'confirmed' : 'new',
-        ignoreDateRange: true,
-        ignoreFreeSlotValidation: true,
-        toNotify: false,
-      };
-
-      console.log('GHL push-booking payload:', JSON.stringify(eventPayload));
-
-      if (booking.ghl_event_id) {
-        const res = await ghlFetch(`${GHL_API_BASE}/calendars/events/appointments/${booking.ghl_event_id}`, {
-          method: 'PUT', headers: appointmentHeaders, body: JSON.stringify(eventPayload),
-        });
-        if (!res.ok) {
-          const errText = await res.text();
-          console.warn(`GHL push-booking update failed [${res.status}]: ${errText}`);
-        }
-        return new Response(JSON.stringify({ success: res.ok, action: 'updated' }), {
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        });
-      } else {
-        const res = await ghlFetch(`${GHL_API_BASE}/calendars/events/appointments`, {
-          method: 'POST', headers: appointmentHeaders, body: JSON.stringify(eventPayload),
-        });
         if (res.ok) {
-          const created = await res.json();
-          const eventId = created.id || created.event?.id;
-          if (eventId && booking.id) {
-            await supabase.from('bookings').update({ ghl_event_id: eventId }).eq('id', booking.id);
-          }
-          console.log('GHL push-booking success:', JSON.stringify(created));
-          return new Response(JSON.stringify({ success: true, action: 'created', ghl_event_id: eventId }), {
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-          });
+          console.log(`[Delete Company] Successfully deleted GHL company: ${ghl_company_id}`);
+          await logSyncOperation(supabase, authUser.id, 'delete-company', 'company', { ghlCompanyId: ghl_company_id });
+        } else {
+          const errText = await res.text();
+          console.error(`Failed to delete GHL company: [${res.status}] ${errText}`);
+          await logSyncOperation(supabase, authUser.id, 'delete-company', 'company', { error: errText, ghlCompanyId: ghl_company_id }, 'error');
+          return new Response(JSON.stringify({ error: errText }), { status: res.status, headers: corsHeaders });
         }
-        const errText = await res.text();
-        console.warn(`GHL push-booking failed [${res.status}]: ${errText}`);
-        return new Response(JSON.stringify({ success: false, warning: 'GHL rejected booking, saved locally', detail: errText }), {
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        });
-      }
-    }
 
-    if (action === 'delete-booking') {
-      const { ghl_event_id } = body;
-      if (ghl_event_id) {
-        const res = await ghlFetch(`${GHL_API_BASE}/calendars/events/appointments/${ghl_event_id}`, {
-          method: 'DELETE', headers: ghlHeaders,
-        });
-        return new Response(JSON.stringify({ success: res.ok }), {
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        });
-      }
-      return new Response(JSON.stringify({ success: true, skipped: true }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
-    }
-
-    if (action === 'push-inquiry') {
-      // Create a new opportunity in GHL from a local inquiry
-      const { inquiry_id, contact_name, event_type, budget, status, message } = body;
-      if (!inquiry_id) {
-        return new Response(JSON.stringify({ error: 'inquiry_id required' }), {
-          status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        });
-      }
-
-      // Get pipelines to find the right stage
-      const pipelinesRes = await ghlFetch(`${GHL_API_BASE}/opportunities/pipelines?locationId=${GHL_LOCATION_ID}`, { headers: ghlHeaders });
-      if (!pipelinesRes.ok) {
-        return new Response(JSON.stringify({ success: false, error: 'Cannot fetch pipelines' }), {
-          status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        });
-      }
-      const pipelinesData = await pipelinesRes.json();
-      const pipeline = pipelinesData.pipelines?.[0];
-      if (!pipeline) {
-        return new Response(JSON.stringify({ success: false, error: 'No pipeline found' }), {
-          status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        });
-      }
-
-      // Map CRM status to GHL stage
-      const statusToStageName: Record<string, string> = {
-        'new': 'Nieuwe Aanvraag', 'contacted': 'Lopend contact', 'option': 'Optie',
-        'quoted': 'Offerte Verzonden', 'quote_revised': 'Aangepaste offerte verzonden',
-        'reserved': 'Reservering', 'script': 'Draaiboek maken',
-        'confirmed': 'Definitieve Reservering',
-        'invoiced': 'Facturatie', 'lost': 'Vervallen / Verloren', 'after_sales': 'After Sales',
-        'converted': 'Evenement',
-      };
-      const targetStageName = statusToStageName[status || 'new'] || 'Nieuwe Aanvraag';
-      let targetStageId = pipeline.stages?.[0]?.id; // default to first stage
-      for (const stage of pipeline.stages || []) {
-        if (stage.name.toLowerCase().includes(targetStageName.toLowerCase())) {
-          targetStageId = stage.id;
-          break;
-        }
-      }
-
-      // Try to find or create a GHL contact for this inquiry
-      let ghlContactId = null;
-      // Check if inquiry has a linked contact with ghl_contact_id
-      const { data: inquiry } = await supabase.from('inquiries').select('contact_id').eq('id', inquiry_id).maybeSingle();
-      if (inquiry?.contact_id) {
-        const { data: contact } = await supabase.from('contacts').select('ghl_contact_id').eq('id', inquiry.contact_id).maybeSingle();
-        ghlContactId = contact?.ghl_contact_id || null;
-      }
-      // If no GHL contact, search by name
-      if (!ghlContactId && contact_name) {
-        const searchRes = await ghlFetch(`${GHL_API_BASE}/contacts/?locationId=${GHL_LOCATION_ID}&query=${encodeURIComponent(contact_name)}&limit=1`, { headers: ghlHeaders });
-        if (searchRes.ok) {
-          const searchData = await searchRes.json();
-          ghlContactId = searchData.contacts?.[0]?.id || null;
-        }
-      }
-      // If still no contact, create one
-      if (!ghlContactId) {
-        const nameParts = (contact_name || 'Onbekend').split(' ');
-        const createRes = await ghlFetch(`${GHL_API_BASE}/contacts/`, {
-          method: 'POST', headers: ghlHeaders,
-          body: JSON.stringify({ firstName: nameParts[0], lastName: nameParts.slice(1).join(' ') || '', locationId: GHL_LOCATION_ID }),
-        });
-        if (createRes.ok) {
-          const created = await createRes.json();
-          ghlContactId = created.contact?.id || null;
-        }
-      }
-
-      const oppPayload: any = {
-        pipelineId: pipeline.id,
-        pipelineStageId: targetStageId,
-        locationId: GHL_LOCATION_ID,
-        name: event_type || 'CRM Aanvraag',
-        status: status === 'lost' ? 'lost' : (status === 'confirmed' || status === 'converted') ? 'won' : 'open',
-        monetaryValue: budget || 0,
-      };
-      if (ghlContactId) oppPayload.contactId = ghlContactId;
-
-      const res = await ghlFetch(`${GHL_API_BASE}/opportunities/`, {
-        method: 'POST', headers: ghlHeaders, body: JSON.stringify(oppPayload),
-      });
-
-      if (res.ok) {
-        const created = await res.json();
-        const ghlOppId = created.opportunity?.id || created.id;
-        if (ghlOppId) {
-          await supabase.from('inquiries').update({ ghl_opportunity_id: ghlOppId }).eq('id', inquiry_id);
-        }
-        return new Response(JSON.stringify({ success: true, action: 'created', ghl_opportunity_id: ghlOppId }), {
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        });
-      }
-      const errText = await res.text();
-      console.error('Failed to create GHL opportunity:', errText);
-      return new Response(JSON.stringify({ success: false, error: errText }), {
-        status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
-    }
-
-    if (action === 'push-inquiry-status') {
-      const { ghl_opportunity_id, status, name, monetary_value } = body;
-      if (!ghl_opportunity_id) {
-        return new Response(JSON.stringify({ success: true, skipped: true }), {
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        });
-      }
-
-      // Get pipelines to find stage ID from status name
-      const pipelinesRes = await ghlFetch(`${GHL_API_BASE}/opportunities/pipelines?locationId=${GHL_LOCATION_ID}`, { headers: ghlHeaders });
-      if (!pipelinesRes.ok) {
-        return new Response(JSON.stringify({ success: false, error: 'Cannot fetch pipelines' }), {
-          status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        });
-      }
-      const pipelinesData = await pipelinesRes.json();
-
-      // Map CRM status back to GHL stage
-      const statusToStageName: Record<string, string> = {
-        'new': 'Nieuwe Aanvraag',
-        'contacted': 'Lopend contact',
-        'option': 'Optie',
-        'quoted': 'Offerte Verzonden',
-        'quote_revised': 'Aangepaste offerte verzonden',
-        'reserved': 'Reservering',
-        'script': 'Draaiboek maken',
-        'confirmed': 'Definitieve Reservering',
-        'invoiced': 'Facturatie',
-        'lost': 'Vervallen / Verloren',
-        'after_sales': 'After Sales',
-        'converted': 'Evenement',
-      };
-
-      const targetStageName = statusToStageName[status] || 'Nieuwe Aanvraag';
-      let targetStageId = null;
-      let targetPipelineId = null;
-
-      for (const pipeline of pipelinesData.pipelines || []) {
-        for (const stage of pipeline.stages || []) {
-          if (stage.name.toLowerCase().includes(targetStageName.toLowerCase())) {
-            targetStageId = stage.id;
-            targetPipelineId = pipeline.id;
-            break;
-          }
-        }
-        if (targetStageId) break;
-      }
-
-      const updatePayload: any = {};
-      if (targetStageId) updatePayload.pipelineStageId = targetStageId;
-      if (targetPipelineId) updatePayload.pipelineId = targetPipelineId;
-      if (name) updatePayload.name = name;
-      if (monetary_value !== undefined) updatePayload.monetaryValue = monetary_value;
-      if (status === 'lost') updatePayload.status = 'lost';
-      else if (status === 'converted' || status === 'confirmed') updatePayload.status = 'won';
-      else updatePayload.status = 'open';
-
-      const res = await ghlFetch(`${GHL_API_BASE}/opportunities/${ghl_opportunity_id}`, {
-        method: 'PUT', headers: ghlHeaders, body: JSON.stringify(updatePayload),
-      });
-
-      return new Response(JSON.stringify({ success: res.ok, action: 'updated', targetStage: targetStageName }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
-    }
-
-    if (action === 'delete-inquiry') {
-      const { ghl_opportunity_id } = body;
-      if (!ghl_opportunity_id) {
-        return new Response(JSON.stringify({ success: true, skipped: true }), {
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        });
-      }
-
-      const res = await ghlFetch(`${GHL_API_BASE}/opportunities/${ghl_opportunity_id}`, {
-        method: 'DELETE', headers: ghlHeaders,
-      });
-
-      console.log(`Delete opportunity ${ghl_opportunity_id}: ${res.status}`);
-      return new Response(JSON.stringify({ success: res.ok, action: 'deleted' }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
-    }
-
-    // ── Task sync actions ──
-    if (action === 'push-task') {
-      const { task } = body;
-      if (!task) {
-        return new Response(JSON.stringify({ error: 'Missing task data' }), {
-          status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        });
-      }
-
-      // Find contact GHL ID if linked
-      let contactId = null;
-      if (task.contact_id) {
-        const { data: contact } = await supabase.from('contacts').select('ghl_contact_id').eq('id', task.contact_id).maybeSingle();
-        contactId = contact?.ghl_contact_id || null;
-      }
-
-      const ghlPayload: any = {
-        title: task.title,
-        body: task.description || '',
-        dueDate: task.due_date || new Date().toISOString(),
-        completed: task.status === 'completed',
-        locationId: GHL_LOCATION_ID,
-      };
-      if (contactId) ghlPayload.contactId = contactId;
-
-      if (task.ghl_task_id) {
-        // Update existing GHL task
-        const res = await ghlFetch(`${GHL_API_BASE}/contacts/${contactId || 'none'}/tasks/${task.ghl_task_id}`, {
-          method: 'PUT', headers: ghlHeaders, body: JSON.stringify(ghlPayload),
-        });
-        return new Response(JSON.stringify({ success: res.ok, action: 'task-updated' }), {
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        });
-      } else {
-        // Create new GHL task (requires a contact)
-        if (contactId) {
-          const res = await ghlFetch(`${GHL_API_BASE}/contacts/${contactId}/tasks`, {
-            method: 'POST', headers: ghlHeaders, body: JSON.stringify(ghlPayload),
-          });
-          if (res.ok) {
-            const created = await res.json();
-            if (created.task?.id) {
-              await supabase.from('tasks').update({ ghl_task_id: created.task.id }).eq('id', task.id);
-            }
-          }
-          return new Response(JSON.stringify({ success: res.ok, action: 'task-created' }), {
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-          });
-        }
-        return new Response(JSON.stringify({ success: true, action: 'task-created-local-only', note: 'No GHL contact linked' }), {
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        });
+        return new Response(JSON.stringify({ success: true }), { headers: corsHeaders });
+      } catch (err) {
+        console.error('Error deleting company:', err);
+        await logSyncOperation(supabase, authUser.id, 'delete-company', 'company', { error: String(err), ghlCompanyId: ghl_company_id }, 'error');
+        return new Response(JSON.stringify({ error: String(err) }), { status: 500, headers: corsHeaders });
       }
     }
 
     if (action === 'delete-task') {
       const { ghl_task_id, contact_id } = body;
       if (!ghl_task_id) {
-        return new Response(JSON.stringify({ success: true, action: 'task-delete-skipped', reason: 'no ghl_task_id' }), {
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        return new Response(JSON.stringify({ error: 'ghl_task_id required' }), { status: 400, headers: corsHeaders });
+      }
+
+      console.log(`[Delete Task] Deleting GHL task: ${ghl_task_id}`);
+
+      try {
+        const res = await ghlFetch(`${GHL_API_BASE}/tasks/${ghl_task_id}`, {
+          method: 'DELETE',
+          headers: ghlHeaders,
         });
-      }
 
-      // Find the GHL contact ID — try from contact_id first, then scan all contacts with GHL IDs
-      let ghlContactId: string | null = null;
-      if (contact_id) {
-        const { data: contactRow } = await supabase.from('contacts').select('ghl_contact_id').eq('id', contact_id).maybeSingle();
-        ghlContactId = contactRow?.ghl_contact_id || null;
-      }
-
-      // If no contact_id or no ghl_contact_id found, try to find the task across all GHL contacts
-      if (!ghlContactId) {
-        const { data: contacts } = await supabase.from('contacts').select('id, ghl_contact_id').not('ghl_contact_id', 'is', null).limit(200);
-        for (const c of contacts || []) {
-          try {
-            const checkRes = await ghlFetch(`${GHL_API_BASE}/contacts/${c.ghl_contact_id}/tasks/${ghl_task_id}`, { headers: ghlHeaders });
-            if (checkRes.ok) {
-              ghlContactId = c.ghl_contact_id;
-              break;
-            }
-            await checkRes.text();
-          } catch {}
-        }
-      }
-
-      if (ghlContactId) {
-        const res = await ghlFetch(`${GHL_API_BASE}/contacts/${ghlContactId}/tasks/${ghl_task_id}`, {
-          method: 'DELETE', headers: ghlHeaders,
-        });
-        console.log(`Delete GHL task ${ghl_task_id} for contact ${ghlContactId}: ${res.status}`);
-        return new Response(JSON.stringify({ success: res.ok, action: 'task-deleted' }), {
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        });
-      }
-
-      console.warn(`Could not find GHL contact for task ${ghl_task_id}, task may already be deleted`);
-      return new Response(JSON.stringify({ success: true, action: 'task-delete-skipped', reason: 'no GHL contact found' }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
-    }
-
-    if (action === 'sync-tasks') {
-      // Fetch tasks from GHL contacts
-      const { data: contacts } = await supabase.from('contacts').select('id, ghl_contact_id').eq('user_id', user.id).not('ghl_contact_id', 'is', null);
-      
-      let synced = 0;
-      for (const contact of contacts || []) {
-        try {
-          const res = await ghlFetch(`${GHL_API_BASE}/contacts/${contact.ghl_contact_id}/tasks`, { headers: ghlHeaders });
-          if (!res.ok) continue;
-          const data = await res.json();
-          for (const ghlTask of data.tasks || []) {
-            const { data: existing } = await supabase.from('tasks').select('id').eq('user_id', user.id).eq('ghl_task_id', ghlTask.id).maybeSingle();
-            
-            const taskRow = {
-              title: ghlTask.title || 'GHL Taak',
-              description: ghlTask.body || null,
-              status: ghlTask.completed ? 'completed' : 'open',
-              priority: 'normal',
-              due_date: ghlTask.dueDate ? ghlTask.dueDate.split('T')[0] : null,
-              contact_id: contact.id,
-              ghl_task_id: ghlTask.id,
-              completed_at: ghlTask.completed ? (ghlTask.completedDate || new Date().toISOString()) : null,
-            };
-
-            if (existing) {
-              await supabase.from('tasks').update(taskRow).eq('id', existing.id);
-            } else {
-              await supabase.from('tasks').insert({ ...taskRow, user_id: user.id });
-            }
-            synced++;
-          }
-        } catch (e) {
-          console.error(`Failed to sync tasks for contact ${contact.ghl_contact_id}:`, e);
-        }
-      }
-
-      return new Response(JSON.stringify({ success: true, synced }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
-    }
-
-    if (action === 'sync-companies') {
-      // Fetch all contacts from GHL and extract unique companies
-      let allContacts: any[] = [];
-      let nextPageUrl: string | null = `${GHL_API_BASE}/contacts/?locationId=${GHL_LOCATION_ID}&limit=100`;
-
-      while (nextPageUrl) {
-        await delay(500);
-        const res = await ghlFetch(nextPageUrl, { headers: ghlHeaders });
-        if (!res.ok) break;
-        const data = await res.json();
-        allContacts = allContacts.concat(data.contacts || []);
-        nextPageUrl = data.meta?.nextPageUrl || null;
-      }
-
-      // Extract unique companies from contacts
-      const companyMap = new Map<string, any>();
-      for (const contact of allContacts) {
-        const companyName = contact.companyName;
-        if (companyName && !companyMap.has(companyName.toLowerCase())) {
-          companyMap.set(companyName.toLowerCase(), {
-            name: companyName,
-            email: contact.email || null,
-            phone: contact.phone || null,
-            website: contact.website || null,
-            address: contact.address1 || contact.address || null,
-          });
-        }
-      }
-
-      let synced = 0;
-      for (const [, company] of companyMap) {
-        // Check if company exists by name
-        const { data: existing } = await supabase
-          .from('companies')
-          .select('id')
-          .eq('user_id', user.id)
-          .ilike('name', company.name)
-          .maybeSingle();
-
-        if (existing) {
-          // Update if needed
-          await supabase.from('companies').update({
-            email: company.email,
-            phone: company.phone,
-            website: company.website,
-            address: company.address,
-          }).eq('id', existing.id);
+        if (res.ok) {
+          console.log(`[Delete Task] Successfully deleted GHL task: ${ghl_task_id}`);
+          await logSyncOperation(supabase, authUser.id, 'delete-task', 'task', { ghlTaskId: ghl_task_id, contactId: contact_id });
         } else {
-          await supabase.from('companies').insert({
-            user_id: user.id,
-            name: company.name,
-            email: company.email,
-            phone: company.phone,
-            website: company.website,
-            address: company.address,
-          });
-        }
-        synced++;
-      }
-
-      return new Response(JSON.stringify({ success: true, synced, totalContacts: allContacts.length }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
-    }
-
-    if (action === 'sync-company-details') {
-      // Fetch all contacts from GHL to extract company-level details (address, city, postcode, etc.)
-      let allContacts: any[] = [];
-      let nextPageUrl: string | null = `${GHL_API_BASE}/contacts/?locationId=${GHL_LOCATION_ID}&limit=100`;
-      let pageCount = 0;
-      const maxPages = 5; // Limit to avoid timeout (500 contacts should cover most companies)
-
-      while (nextPageUrl && pageCount < maxPages) {
-        const res = await ghlFetch(nextPageUrl, { headers: ghlHeaders });
-        if (!res.ok) {
-          console.error(`GHL contacts fetch failed [${res.status}]`);
-          break;
-        }
-        const data = await res.json();
-        allContacts = allContacts.concat(data.contacts || []);
-        nextPageUrl = data.meta?.nextPageUrl || null;
-        pageCount++;
-      }
-
-      console.log(`Fetched ${allContacts.length} contacts from GHL for company detail extraction`);
-
-      // Group contacts by company name, pick the richest data
-      // Log a sample contact to see available fields
-      if (allContacts.length > 0) {
-        const sample = allContacts.find((c: any) => c.companyName) || allContacts[0];
-        console.log('Sample GHL contact fields:', JSON.stringify(Object.keys(sample)));
-        console.log('Sample GHL contact data:', JSON.stringify({ companyName: sample.companyName, address1: sample.address1, city: sample.city, postalCode: sample.postalCode, country: sample.country, customFields: sample.customFields?.length || 0, website: sample.website }));
-      }
-      const companyData = new Map<string, Record<string, any>>();
-      for (const c of allContacts) {
-        const companyName = c.companyName;
-        if (!companyName) continue;
-        const key = companyName.toLowerCase().trim();
-        const existing = companyData.get(key) || { name: companyName };
-
-        // Take first non-empty value for each field
-        if (!existing.address && (c.address1 || c.address)) existing.address = c.address1 || c.address;
-        if (!existing.city && c.city) existing.city = c.city;
-        if (!existing.postcode && (c.postalCode || c.postal_code)) existing.postcode = c.postalCode || c.postal_code;
-        if (!existing.country && c.country) existing.country = c.country;
-        if (!existing.website && c.website) existing.website = c.website;
-
-        // Check custom fields for KVK, BTW, klantnummer etc.
-        for (const cf of c.customFields || []) {
-          const fieldKey = (cf.id || cf.fieldKey || cf.key || '').toLowerCase();
-          const fieldValue = cf.value || cf.fieldValue || '';
-          if (!fieldValue) continue;
-          if (fieldKey.includes('kvk') && !existing.kvk) existing.kvk = String(fieldValue);
-          if ((fieldKey.includes('btw') || fieldKey.includes('vat')) && !existing.btw_number) existing.btw_number = String(fieldValue);
-          if ((fieldKey.includes('klantnummer') || fieldKey.includes('customer')) && !existing.customer_number) existing.customer_number = String(fieldValue);
-          if ((fieldKey.includes('doelgroep') || fieldKey.includes('crm')) && !existing.crm_group) existing.crm_group = String(fieldValue);
+          const errText = await res.text();
+          console.error(`Failed to delete GHL task: [${res.status}] ${errText}`);
+          await logSyncOperation(supabase, authUser.id, 'delete-task', 'task', { error: errText, ghlTaskId: ghl_task_id }, 'error');
+          return new Response(JSON.stringify({ error: errText }), { status: res.status, headers: corsHeaders });
         }
 
-        companyData.set(key, existing);
+        return new Response(JSON.stringify({ success: true }), { headers: corsHeaders });
+      } catch (err) {
+        console.error('Error deleting task:', err);
+        await logSyncOperation(supabase, authUser.id, 'delete-task', 'task', { error: String(err), ghlTaskId: ghl_task_id }, 'error');
+        return new Response(JSON.stringify({ error: String(err) }), { status: 500, headers: corsHeaders });
       }
-
-      console.log(`Found ${companyData.size} unique companies with detail data`);
-
-      let synced = 0;
-      let noMatch = 0;
-      let noUpdates = 0;
-      for (const [key, data] of companyData) {
-        const { data: localCo, error: matchErr } = await (supabase as any)
-          .from('companies')
-          .select('id, address, city, postcode, country, kvk, btw_number, customer_number, crm_group, website')
-          .eq('user_id', user.id)
-          .ilike('name', data.name.trim())
-          .maybeSingle();
-
-        if (matchErr) {
-          console.error(`Match error for "${data.name}":`, matchErr.message);
-          continue;
-        }
-        if (!localCo) { noMatch++; continue; }
-
-        const updates: Record<string, any> = {};
-        if (data.address && !localCo.address) updates.address = data.address;
-        if (data.city && !localCo.city) updates.city = data.city;
-        if (data.postcode && !localCo.postcode) updates.postcode = data.postcode;
-        if (data.country && !localCo.country) updates.country = data.country;
-        if (data.website && !localCo.website) updates.website = data.website;
-        if (data.kvk && !localCo.kvk) updates.kvk = data.kvk;
-        if (data.btw_number && !localCo.btw_number) updates.btw_number = data.btw_number;
-        if (data.customer_number && !localCo.customer_number) updates.customer_number = data.customer_number;
-        if (data.crm_group && !localCo.crm_group) updates.crm_group = data.crm_group;
-
-        if (Object.keys(updates).length > 0) {
-          const { error: updateErr } = await (supabase as any).from('companies').update(updates).eq('id', localCo.id);
-          if (updateErr) {
-            console.error(`Update error for "${data.name}":`, updateErr.message);
-          } else {
-            synced++;
-          }
-        } else {
-          noUpdates++;
-        }
-      }
-      console.log(`Sync results: synced=${synced}, noMatch=${noMatch}, noUpdates=${noUpdates}`);
-
-      return new Response(JSON.stringify({ success: true, synced, totalContacts: allContacts.length, uniqueCompanies: companyData.size }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
-    }
-
-    if (action === 'updateCompany') {
-      const { companyId, company } = body;
-      if (!companyId || !company) {
-        return new Response(JSON.stringify({ success: true, skipped: true }), {
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        });
-      }
-
-      // Get ghl_company_id from local DB
-      const { data: localCo } = await supabase.from('companies').select('ghl_company_id').eq('id', companyId).maybeSingle();
-      const ghlCompanyId = localCo?.ghl_company_id;
-
-      if (!ghlCompanyId) {
-        console.log(`Company ${companyId} has no GHL link, skipping push`);
-        return new Response(JSON.stringify({ success: true, skipped: true, reason: 'no_ghl_id' }), {
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        });
-      }
-
-      const ghlPayload: Record<string, any> = {
-        name: company.name,
-      };
-      if (company.email) ghlPayload.email = company.email;
-      if (company.phone) ghlPayload.phone = company.phone;
-      if (company.website) ghlPayload.website = company.website;
-      if (company.address) ghlPayload.address1 = company.address;
-      if (company.city) ghlPayload.city = company.city;
-      if (company.postcode) ghlPayload.postalCode = company.postcode;
-      if (company.country) ghlPayload.country = company.country;
-
-      const res = await ghlFetch(`${GHL_API_BASE}/businesses/${ghlCompanyId}`, {
-        method: 'PUT',
-        headers: ghlHeaders,
-        body: JSON.stringify(ghlPayload),
-      });
-
-      if (res.ok) {
-        return new Response(JSON.stringify({ success: true, action: 'updated' }), {
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        });
-      }
-      const errText = await res.text();
-      console.error(`Failed to update GHL company ${ghlCompanyId}: [${res.status}] ${errText}`);
-      return new Response(JSON.stringify({ success: false, error: errText }), {
-        status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
-    }
-
-    if (action === 'sync-notes') {
-      // Fetch notes from GHL for each contact and store as contact_activities
-      const { data: contacts } = await supabase
-        .from('contacts')
-        .select('id, ghl_contact_id')
-        .eq('user_id', user.id)
-        .not('ghl_contact_id', 'is', null);
-
-      let synced = 0;
-      let skipped = 0;
-      for (const contact of contacts || []) {
-        try {
-          await delay(300); // Rate limit protection
-          const res = await ghlFetch(
-            `${GHL_API_BASE}/contacts/${contact.ghl_contact_id}/notes`,
-            { headers: ghlHeaders }
-          );
-          if (!res.ok) {
-            console.warn(`Failed to fetch notes for contact ${contact.ghl_contact_id}: [${res.status}]`);
-            skipped++;
-            continue;
-          }
-          const data = await res.json();
-          const notes = data.notes || [];
-
-          for (const note of notes) {
-            // Check if we already have this note (match on contact_id + body + approximate time)
-            const noteBody = note.body || note.description || '';
-            const noteDate = note.dateAdded || note.createdAt || note.date || new Date().toISOString();
-
-            // Use a unique identifier: GHL note doesn't have a stable ID always, so match on body+date
-            const { data: existing } = await supabase
-              .from('contact_activities')
-              .select('id')
-              .eq('user_id', user.id)
-              .eq('contact_id', contact.id)
-              .eq('type', 'note')
-              .eq('body', noteBody)
-              .maybeSingle();
-
-            if (existing) {
-              skipped++;
-              continue;
-            }
-
-            await supabase.from('contact_activities').insert({
-              user_id: user.id,
-              contact_id: contact.id,
-              type: 'note',
-              subject: 'GHL Notitie',
-              body: noteBody || null,
-              created_at: noteDate,
-            });
-            synced++;
-          }
-        } catch (e) {
-          console.error(`Failed to sync notes for contact ${contact.ghl_contact_id}:`, e);
-          skipped++;
-        }
-      }
-
-      return new Response(JSON.stringify({ success: true, synced, skipped, totalContacts: (contacts || []).length }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
-    }
-
-    // ── Conversations ──
-
-    if (action === 'get-conversations') {
-      const query = body.query || '';
-      const searchParams = new URLSearchParams({
-        locationId: GHL_LOCATION_ID,
-      });
-      if (query) searchParams.set('query', query);
-      searchParams.set('limit', '50');
-      searchParams.set('sort', 'desc');
-      searchParams.set('sortBy', 'last_message_date');
-
-      const res = await ghlFetch(
-        `${GHL_API_BASE}/conversations/search?${searchParams.toString()}`,
-        { headers: ghlHeaders }
-      );
-      if (!res.ok) {
-        const errText = await res.text();
-        throw new Error(`GHL conversations fetch failed [${res.status}]: ${errText}`);
-      }
-      const data = await res.json();
-      const conversations = (data.conversations || []).map((c: any) => ({
-        id: c.id,
-        contactId: c.contactId,
-        contactName: c.contactName || c.fullName || 'Onbekend',
-        lastMessageBody: c.lastMessageBody || '',
-        lastMessageDate: c.lastMessageDate || c.dateUpdated || '',
-        lastMessageType: c.lastMessageType || '',
-        lastMessageDirection: c.lastMessageDirection || '',
-        unreadCount: c.unreadCount || 0,
-        type: c.type || c.lastMessageType || 'SMS',
-        phone: c.phone || '',
-        email: c.email || '',
-      }));
-
-      return new Response(JSON.stringify({ success: true, conversations }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
-    }
-
-    if (action === 'get-messages') {
-      const { conversationId } = body;
-      if (!conversationId) {
-        return new Response(JSON.stringify({ error: 'conversationId required' }), {
-          status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        });
-      }
-
-      const res = await ghlFetch(
-        `${GHL_API_BASE}/conversations/${conversationId}/messages?limit=50`,
-        { headers: ghlHeaders }
-      );
-      if (!res.ok) {
-        const errText = await res.text();
-        throw new Error(`GHL messages fetch failed [${res.status}]: ${errText}`);
-      }
-      const data = await res.json();
-      console.log('GHL messages response keys:', JSON.stringify(Object.keys(data)));
-      
-      // GHL may return messages under different keys
-      const rawMessages = Array.isArray(data.messages) ? data.messages
-        : Array.isArray(data.data?.messages) ? data.data.messages
-        : Array.isArray(data) ? data
-        : [];
-      
-      const messages = rawMessages.map((m: any) => ({
-        id: m.id,
-        body: m.body || m.message || m.text || '',
-        direction: m.direction || (m.type === 1 ? 'inbound' : 'outbound'),
-        dateAdded: m.dateAdded || m.createdAt || '',
-        type: m.messageType || m.type || 'SMS',
-        status: m.status || '',
-        contentType: m.contentType || 'text',
-        attachments: m.attachments || [],
-      }));
-
-      return new Response(JSON.stringify({ success: true, messages }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
-    }
-
-    if (action === 'send-message') {
-      const { conversationId, contactId, message, type } = body;
-      if (!conversationId || !message) {
-        return new Response(JSON.stringify({ error: 'conversationId and message required' }), {
-          status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        });
-      }
-
-      // Resolve the GHL contact ID from the local contact UUID
-      let ghlContactId = contactId;
-      if (contactId) {
-        const { data: contactRow } = await supabase
-          .from('contacts')
-          .select('ghl_contact_id')
-          .eq('id', contactId)
-          .maybeSingle();
-        if (contactRow?.ghl_contact_id) {
-          ghlContactId = contactRow.ghl_contact_id;
-        }
-      }
-
-      // Only Email is supported for now
-      const msgType = 'Email';
-      
-      const payload: any = {
-        type: msgType,
-        contactId: ghlContactId,
-        message,
-        subject: body.subject || 'Re:',
-        html: message,
-      };
-
-      // Add CC/BCC if provided
-      if (body.cc) payload.cc = Array.isArray(body.cc) ? body.cc : [body.cc];
-      if (body.bcc) payload.bcc = Array.isArray(body.bcc) ? body.bcc : [body.bcc];
-      if (body.replyToMessageId) payload.replyMessageId = body.replyToMessageId;
-
-      const res = await ghlFetch(`${GHL_API_BASE}/conversations/messages`, {
-        method: 'POST',
-        headers: ghlHeaders,
-        body: JSON.stringify(payload),
-      });
-
-      if (!res.ok) {
-        const errText = await res.text();
-        console.error(`GHL send message failed [${res.status}]: ${errText}`);
-        return new Response(JSON.stringify({ success: false, error: `Verzenden mislukt [${res.status}]: ${errText}` }), {
-          status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        });
-      }
-
-      const result = await res.json();
-      return new Response(JSON.stringify({ success: true, messageId: result.messageId || result.id }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
-    }
-
-    if (action === 'delete-conversation') {
-      const { conversationId } = body;
-      if (!conversationId) {
-        return new Response(JSON.stringify({ error: 'conversationId required' }), {
-          status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        });
-      }
-      const res = await ghlFetch(`${GHL_API_BASE}/conversations/${conversationId}`, {
-        method: 'DELETE', headers: ghlHeaders,
-      });
-      return new Response(JSON.stringify({ success: res.ok }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
-    }
-
-    // === SYNC QUEUE PROCESSOR ===
-    if (action === 'process-sync-queue') {
-      const { data: items } = await supabase
-        .from('sync_queue')
-        .select('*')
-        .in('status', ['pending', 'retrying'])
-        .lt('retry_count', 5)
-        .order('created_at', { ascending: true })
-        .limit(20);
-
-      let processed = 0;
-      let succeeded = 0;
-      let failed = 0;
-
-      for (const item of items || []) {
-        processed++;
-        try {
-          let success = false;
-          if (item.entity_type === 'booking') {
-            if (item.action_type === 'create' || item.action_type === 'update') {
-              // Re-fetch the booking to get latest data
-              const { data: freshBooking } = await supabase.from('bookings').select('*').eq('id', item.entity_id).maybeSingle();
-              if (freshBooking) {
-                // Recursively call push-booking by making internal request
-                const pushBody = { action: 'push-booking', booking: freshBooking };
-                // We can't easily recurse, so inline the essential push logic
-                let calId: string | null = null;
-                if (freshBooking.room_name) {
-                  const { data: rs } = await supabase.from('room_settings').select('ghl_calendar_id').eq('user_id', item.user_id).eq('room_name', freshBooking.room_name).maybeSingle();
-                  calId = rs?.ghl_calendar_id || null;
-                }
-                if (calId && freshBooking.contact_id) {
-                  const { data: contact } = await supabase.from('contacts').select('ghl_contact_id').eq('id', freshBooking.contact_id).maybeSingle();
-                  if (contact?.ghl_contact_id) {
-                    const probeDateZ = new Date(`${freshBooking.date}T12:00:00Z`);
-                    const amStr = probeDateZ.toLocaleString('en-US', { timeZone: 'Europe/Amsterdam', hour12: false });
-                    const amDate = new Date(amStr);
-                    const offsetH = Math.round((amDate.getTime() - probeDateZ.getTime()) / 3600000);
-                    const tz = `${offsetH >= 0 ? '+' : '-'}${String(Math.abs(offsetH)).padStart(2, '0')}:00`;
-                    const st = `${freshBooking.date}T${String(freshBooking.start_hour).padStart(2, '0')}:${String(freshBooking.start_minute || 0).padStart(2, '0')}:00${tz}`;
-                    const et = `${freshBooking.date}T${String(freshBooking.end_hour).padStart(2, '0')}:${String(freshBooking.end_minute || 0).padStart(2, '0')}:00${tz}`;
-                    const appointmentHeaders = { ...ghlHeaders, 'Version': '2021-04-15' };
-                    const evtPayload: any = {
-                      calendarId: calId, locationId: GHL_LOCATION_ID, contactId: contact.ghl_contact_id,
-                      title: freshBooking.title, startTime: st, endTime: et,
-                      appointmentStatus: freshBooking.status === 'confirmed' ? 'confirmed' : 'new',
-                      ignoreDateRange: true, ignoreFreeSlotValidation: true, toNotify: false,
-                    };
-                    if (freshBooking.ghl_event_id) {
-                      const res = await ghlFetch(`${GHL_API_BASE}/calendars/events/appointments/${freshBooking.ghl_event_id}`, { method: 'PUT', headers: appointmentHeaders, body: JSON.stringify(evtPayload) });
-                      success = res.ok;
-                      if (!res.ok) await res.text();
-                    } else {
-                      const res = await ghlFetch(`${GHL_API_BASE}/calendars/events/appointments`, { method: 'POST', headers: appointmentHeaders, body: JSON.stringify(evtPayload) });
-                      if (res.ok) {
-                        const created = await res.json();
-                        const eid = created.id || created.event?.id;
-                        if (eid) await supabase.from('bookings').update({ ghl_event_id: eid }).eq('id', freshBooking.id);
-                        success = true;
-                      } else { await res.text(); }
-                    }
-                  }
-                }
-              } else {
-                // Booking was deleted, mark as completed
-                success = true;
-              }
-            } else if (item.action_type === 'delete') {
-              const ghlEventId = item.payload?.ghl_event_id;
-              if (ghlEventId) {
-                const res = await ghlFetch(`${GHL_API_BASE}/calendars/events/appointments/${ghlEventId}`, { method: 'DELETE', headers: ghlHeaders });
-                success = res.ok || res.status === 404;
-                if (!success) await res.text();
-              } else {
-                success = true;
-              }
-            }
-          }
-
-          if (success) {
-            await supabase.from('sync_queue').update({ status: 'completed', completed_at: new Date().toISOString() } as any).eq('id', item.id);
-            succeeded++;
-          } else {
-            const newCount = (item.retry_count || 0) + 1;
-            await supabase.from('sync_queue').update({
-              status: newCount >= (item.max_retries || 5) ? 'failed' : 'retrying',
-              retry_count: newCount,
-              last_attempt_at: new Date().toISOString(),
-            } as any).eq('id', item.id);
-            failed++;
-          }
-        } catch (err: any) {
-          const newCount = (item.retry_count || 0) + 1;
-          await supabase.from('sync_queue').update({
-            status: newCount >= (item.max_retries || 5) ? 'failed' : 'retrying',
-            retry_count: newCount,
-            last_error: err?.message || 'Unknown',
-            last_attempt_at: new Date().toISOString(),
-          } as any).eq('id', item.id);
-          failed++;
-        }
-      }
-
-      return new Response(JSON.stringify({ success: true, processed, succeeded, failed }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
-    }
-
-    // === RECONCILE: Check CRM bookings vs GHL events ===
-    if (action === 'reconcile') {
-      const calRes = await ghlFetch(`${GHL_API_BASE}/calendars/?locationId=${GHL_LOCATION_ID}`, { headers: ghlHeaders });
-      if (!calRes.ok) {
-        return new Response(JSON.stringify({ success: false, error: 'Cannot fetch calendars' }), {
-          status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        });
-      }
-      const calData = await calRes.json();
-      const calendars = calData.calendars || [];
-
-      // Get room mapping
-      const { data: roomMappings } = await supabase.from('room_settings').select('room_name, ghl_calendar_id').eq('user_id', user.id).not('ghl_calendar_id', 'is', null);
-      const calIdToRoom: Record<string, string> = {};
-      for (const rm of roomMappings || []) { if (rm.ghl_calendar_id) calIdToRoom[rm.ghl_calendar_id] = rm.room_name; }
-
-      // Fetch future GHL events
-      const now = new Date();
-      const futureEnd = new Date(now); futureEnd.setDate(futureEnd.getDate() + 365);
-      const ghlEventIds = new Set<string>();
-
-      for (const cal of calendars) {
-        const eventsUrl = `${GHL_API_BASE}/calendars/events?locationId=${GHL_LOCATION_ID}&calendarId=${cal.id}&startTime=${now.getTime()}&endTime=${futureEnd.getTime()}`;
-        const eventsRes = await ghlFetch(eventsUrl, { headers: { ...ghlHeaders, 'Version': '2021-04-15' } });
-        if (eventsRes.ok) {
-          const eventsData = await eventsRes.json();
-          for (const evt of eventsData.events || []) { ghlEventIds.add(evt.id); }
-        }
-      }
-
-      // Check CRM bookings that have ghl_event_id but are missing from GHL
-      const { data: crmBookings } = await supabase.from('bookings').select('id, ghl_event_id, room_name, date, title')
-        .eq('user_id', user.id).not('ghl_event_id', 'is', null).gte('date', now.toISOString().split('T')[0]);
-
-      let recreated = 0;
-      let mismatches = 0;
-      for (const b of crmBookings || []) {
-        if (b.ghl_event_id && !ghlEventIds.has(b.ghl_event_id)) {
-          // CRM has booking, GHL doesn't — queue for re-creation
-          await supabase.from('sync_queue').insert({
-            user_id: user.id,
-            entity_type: 'booking',
-            entity_id: b.id,
-            action_type: 'create',
-            payload: b,
-            status: 'pending',
-            last_error: 'Reconcile: missing from GHL',
-          } as any);
-          // Clear stale ghl_event_id
-          await supabase.from('bookings').update({ ghl_event_id: null } as any).eq('id', b.id);
-          recreated++;
-
-          await supabase.from('sync_log').insert({
-            user_id: user.id,
-            entity_type: 'booking',
-            entity_id: b.id,
-            action: 'reconcile_missing_ghl',
-            details: { room: b.room_name, date: b.date, title: b.title },
-            status: 'error',
-          } as any);
-        }
-      }
-
-      // Process the queue immediately
-      if (recreated > 0) {
-        // Fire and forget
-        try {
-          await ghlFetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/ghl-sync`, {
-            method: 'POST',
-            headers: { 'Authorization': `Bearer ${Deno.env.get('SUPABASE_ANON_KEY')}`, 'Content-Type': 'application/json' },
-            body: JSON.stringify({ action: 'process-sync-queue' }),
-          });
-        } catch (_) {}
-      }
-
-      return new Response(JSON.stringify({ success: true, recreated, mismatches, ghl_events: ghlEventIds.size, crm_bookings: (crmBookings || []).length }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
     }
 
     return new Response(JSON.stringify({ error: `Unknown action: ${action}` }), {
       status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
 
-  } catch (error: unknown) {
-    console.error('GHL sync error:', error);
-    const msg = error instanceof Error ? error.message : 'Unknown error';
-    return new Response(JSON.stringify({ error: msg }), {
+  } catch (e) {
+    console.error('GHL Sync error:', e);
+    return new Response(JSON.stringify({ error: String(e) }), {
       status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   }
 });
-
