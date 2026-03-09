@@ -62,6 +62,7 @@ export function BookingsProvider({ children }: { children: ReactNode }) {
       title: b.title,
       contactName: b.contact_name,
       contactId: b.contact_id || undefined,
+      companyId: (b as any).company_id || undefined,
       status: b.status as 'confirmed' | 'option',
       notes: b.notes || undefined,
       guestCount: (b as any).guest_count ?? 0,
