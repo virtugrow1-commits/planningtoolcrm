@@ -57,6 +57,7 @@ export function InquiriesProvider({ children }: { children: ReactNode }) {
         displayNumber: (i as any).display_number ? (i as any).display_number.replace(/^ANV-/, '#') : undefined,
         contactId: i.contact_id || '',
         contactName: i.contact_name,
+        companyId: (i as any).company_id || undefined,
         eventType: i.event_type,
         preferredDate: i.preferred_date || '',
         roomPreference: i.room_preference || undefined,
