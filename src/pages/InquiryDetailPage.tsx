@@ -57,7 +57,14 @@ export default function InquiryDetailPage() {
   }, [inquiry?.id, inquiry?.isRead, markAsRead]);
 
   const contact = useMemo(() => inquiry?.contactId ? contacts.find(c => c.id === inquiry.contactId) : null, [inquiry, contacts]);
-  const company = useMemo(() => contact?.companyId ? companies.find(co => co.id === contact.companyId) : null, [contact, companies]);
+  const company = useMemo(() => {
+    if (!inquiry) return null;
+    // First try direct company_id on inquiry
+    if (inquiry.companyId) return companies.find(co => co.id === inquiry.companyId) || null;
+    // Fallback to contact's company
+    if (contact?.companyId) return companies.find(co => co.id === contact.companyId) || null;
+    return null;
+  }, [inquiry, contact, companies]);
   const contactBookings = useMemo(() => inquiry?.contactId ? bookings.filter(b => b.contactId === inquiry.contactId) : [], [bookings, inquiry]);
   const companyBookings = useMemo(() => company?.id ? bookings.filter(b => {
     const bc = contacts.find(c => c.id === b.contactId);
