@@ -15,6 +15,8 @@ import { useToast } from '@/hooks/use-toast';
 import { useState } from 'react';
 import { InfoRow } from '@/components/detail/DetailPageComponents';
 import TeamMemberSelect from '@/components/TeamMemberSelect';
+import CrmCombobox from '@/components/CrmCombobox';
+import { useCompaniesContext } from '@/contexts/CompaniesContext';
 
 const PIPELINE_COLUMNS: { key: Inquiry['status']; label: string; badgeClass: string }[] = [
   { key: 'new', label: 'Nieuwe Aanvraag', badgeClass: 'status-new' },
