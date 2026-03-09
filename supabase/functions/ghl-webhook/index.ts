@@ -276,7 +276,7 @@ async function handleFormSubmission(supabase: any, userId: string, payload: any)
     const { data: existingByContact } = await supabase
       .from('inquiries')
       .select('id')
-      .eq('user_id', userId)
+      .not('id', 'is', null)
       .eq('contact_id', contactId)
       .eq('event_type', eventType)
       .order('created_at', { ascending: false })
@@ -298,7 +298,7 @@ async function handleFormSubmission(supabase: any, userId: string, payload: any)
     const { data: existingByName } = await supabase
       .from('inquiries')
       .select('id')
-      .eq('user_id', userId)
+      .not('id', 'is', null)
       .ilike('contact_name', contactName)
       .eq('event_type', eventType)
       .order('created_at', { ascending: false })
@@ -320,7 +320,7 @@ async function handleFormSubmission(supabase: any, userId: string, payload: any)
     const { data: existingByGhl } = await supabase
       .from('inquiries')
       .select('id')
-      .eq('user_id', userId)
+      .not('id', 'is', null)
       .eq('contact_id', contactId)
       .order('created_at', { ascending: false })
       .limit(1)
@@ -375,7 +375,7 @@ async function handleOpportunityDelete(supabase: any, userId: string, payload: a
   const { data: existing } = await supabase
     .from('inquiries')
     .select('id, contact_name')
-    .eq('user_id', userId)
+    .not('id', 'is', null)
     .eq('ghl_opportunity_id', oppId)
     .maybeSingle();
 
@@ -437,7 +437,7 @@ async function handleOpportunityFromWebhookPayload(supabase: any, ghlHeaders: an
 
   if (!ghlOppId) { console.log('No GHL opportunity ID resolved'); return; }
 
-  const { data: existing } = await supabase.from('inquiries').select('id, updated_at').eq('user_id', userId).eq('ghl_opportunity_id', ghlOppId).maybeSingle();
+  const { data: existing } = await supabase.from('inquiries').select('id, updated_at').not('id', 'is', null).eq('ghl_opportunity_id', ghlOppId).maybeSingle();
 
   if (existing) {
     // Skip if CRM was updated in the last 5 minutes (prevents echo from CRM->GHL->webhook)
@@ -463,7 +463,7 @@ async function handleOpportunityFromWebhookPayload(supabase: any, ghlHeaders: an
       const { data: nameMatch } = await supabase
         .from('contacts')
         .select('id')
-        .eq('user_id', userId)
+        .not('id', 'is', null)
         .ilike('first_name', contactName.split(' ')[0] || '')
         .ilike('last_name', contactName.split(' ').slice(1).join(' ') || '')
         .limit(1)
@@ -478,7 +478,7 @@ async function handleOpportunityFromWebhookPayload(supabase: any, ghlHeaders: an
     if (contactId) {
       const { data: formMatch } = await supabase.from('inquiries')
         .select('id')
-        .eq('user_id', userId)
+        .not('id', 'is', null)
         .eq('contact_id', contactId)
         .is('ghl_opportunity_id', null)
         .gt('created_at', recentCutoff)
@@ -489,7 +489,7 @@ async function handleOpportunityFromWebhookPayload(supabase: any, ghlHeaders: an
     if (!mergedExisting && contactName && contactName !== 'Onbekend') {
       const { data: nameMatch } = await supabase.from('inquiries')
         .select('id')
-        .eq('user_id', userId)
+        .not('id', 'is', null)
         .ilike('contact_name', contactName)
         .is('ghl_opportunity_id', null)
         .gt('created_at', recentCutoff)
@@ -579,7 +579,7 @@ async function handleContactWebhook(supabase: any, userId: string, payload: any)
   const firstName = payload.firstName || payload.first_name || payload.name?.split(' ')[0] || 'Onbekend';
   const lastName = payload.lastName || payload.last_name || payload.name?.split(' ').slice(1).join(' ') || '';
 
-  const { data: existing } = await supabase.from('contacts').select('id').eq('user_id', userId).eq('ghl_contact_id', contactId).maybeSingle();
+  const { data: existing } = await supabase.from('contacts').select('id').not('id', 'is', null).eq('ghl_contact_id', contactId).maybeSingle();
 
   if (existing) {
     await supabase.from('contacts').update({
@@ -603,14 +603,14 @@ async function handleContactWebhook(supabase: any, userId: string, payload: any)
       const { data: orphanedInquiries } = await supabase
         .from('inquiries')
         .select('id')
-        .eq('user_id', userId)
+        .not('id', 'is', null)
         .is('contact_id', null)
         .ilike('contact_name', contactFullName);
       if (orphanedInquiries && orphanedInquiries.length > 0) {
         await supabase
           .from('inquiries')
           .update({ contact_id: resolvedContactId })
-          .eq('user_id', userId)
+          .not('id', 'is', null)
           .is('contact_id', null)
           .ilike('contact_name', contactFullName);
         console.log(`Webhook: Retroactively linked ${orphanedInquiries.length} orphaned inquiries to contact ${resolvedContactId}`);
@@ -642,7 +642,7 @@ async function handleAppointmentWebhook(supabase: any, userId: string, payload: 
   const contactName = payload.contact?.name || title;
   const status = (payload.status === 'confirmed' || payload.appointmentStatus === 'confirmed') ? 'confirmed' : 'option';
 
-  const { data: existing } = await supabase.from('bookings').select('id').eq('user_id', userId).eq('ghl_event_id', eventId).maybeSingle();
+  const { data: existing } = await supabase.from('bookings').select('id').not('id', 'is', null).eq('ghl_event_id', eventId).maybeSingle();
 
   if (existing) {
     await supabase.from('bookings').update({
