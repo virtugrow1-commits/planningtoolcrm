@@ -851,6 +851,85 @@ serve(async (req) => {
       }
     }
 
+    if (action === 'push-inquiry-status') {
+      const { ghl_opportunity_id, status, name, monetary_value, contact_name, guest_count } = body;
+      if (!ghl_opportunity_id) {
+        return new Response(JSON.stringify({ error: 'ghl_opportunity_id required' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      }
+
+      console.log(`[Push Inquiry Status] Updating GHL opportunity: ${ghl_opportunity_id}, status: ${status}`);
+
+      // Map CRM status back to GHL pipeline stage
+      // We need to find the correct pipeline and stage
+      try {
+        const pipelinesRes = await ghlFetch(`${GHL_API_BASE}/opportunities/pipelines?locationId=${GHL_LOCATION_ID}`, { headers: ghlHeaders });
+        let stageId: string | null = null;
+        let pipelineId: string | null = null;
+
+        if (pipelinesRes.ok) {
+          const pipelinesData = await pipelinesRes.json();
+          const statusToStageKeywords: Record<string, string[]> = {
+            'new': ['nieuwe aanvraag', 'new'],
+            'contacted': ['lopend contact'],
+            'option': ['optie'],
+            'quote_revised': ['aangepaste offerte'],
+            'quoted': ['offerte verzonden', 'offerte'],
+            'confirmed': ['definitieve reservering', 'definitief'],
+            'reserved': ['reservering'],
+            'script': ['draaiboek'],
+            'invoiced': ['facturatie', 'invoice'],
+            'lost': ['vervallen', 'verloren', 'lost'],
+            'after_sales': ['after sales', 'aftersales'],
+            'converted': ['evenement'],
+          };
+
+          const keywords = statusToStageKeywords[status] || [];
+          for (const pipeline of pipelinesData.pipelines || []) {
+            for (const stage of pipeline.stages || []) {
+              const stageLower = stage.name.toLowerCase();
+              if (keywords.some((kw: string) => stageLower.includes(kw))) {
+                stageId = stage.id;
+                pipelineId = pipeline.id;
+                break;
+              }
+            }
+            if (stageId) break;
+          }
+        } else {
+          await pipelinesRes.text();
+        }
+
+        const ghlPayload: Record<string, any> = {};
+        if (stageId) ghlPayload.pipelineStageId = stageId;
+        if (pipelineId) ghlPayload.pipelineId = pipelineId;
+        if (name) ghlPayload.name = name;
+        if (monetary_value != null) ghlPayload.monetaryValue = monetary_value;
+        if (status) ghlPayload.status = status === 'lost' ? 'lost' : status === 'converted' ? 'won' : 'open';
+
+        const res = await ghlFetch(`${GHL_API_BASE}/opportunities/${ghl_opportunity_id}`, {
+          method: 'PUT',
+          headers: ghlHeaders,
+          body: JSON.stringify(ghlPayload),
+        });
+
+        if (res.ok) {
+          console.log(`[Push Inquiry Status] Updated GHL opportunity: ${ghl_opportunity_id}`);
+          await logSyncOperation(supabase, authUser.id, 'push-inquiry-status', 'inquiry', { ghlOpportunityId: ghl_opportunity_id, status, stageId });
+        } else {
+          const errText = await res.text();
+          console.error(`Failed to update GHL opportunity: [${res.status}] ${errText}`);
+          await logSyncOperation(supabase, authUser.id, 'push-inquiry-status', 'inquiry', { error: errText, ghlOpportunityId: ghl_opportunity_id }, 'error');
+          return new Response(JSON.stringify({ error: errText }), { status: res.status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+        }
+
+        return new Response(JSON.stringify({ success: true, stageId, pipelineId }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      } catch (err) {
+        console.error('Error pushing inquiry status:', err);
+        await logSyncOperation(supabase, authUser.id, 'push-inquiry-status', 'inquiry', { error: String(err), ghlOpportunityId: ghl_opportunity_id }, 'error');
+        return new Response(JSON.stringify({ error: String(err) }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      }
+    }
+
     return new Response(JSON.stringify({ error: `Unknown action: ${action}` }), {
       status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
