@@ -170,7 +170,7 @@ export default function SettingsPage() {
         } catch (e) { console.error('Cal sync error:', e); }
 
         // 4. Tasks
-        await new Promise(r => setTimeout(r, 1500));
+        await new Promise(r => setTimeout(r, 3000));
         try {
           const { data } = await supabase.functions.invoke('ghl-sync', { body: { action: 'sync-tasks' } });
           results.push(`${data?.synced || 0} taken`);
