@@ -70,11 +70,12 @@ Deno.serve(async (req) => {
     'Version': '2021-07-28',
   };
 
-  // Get one user_id (primary user)
+  // Get one user_id (primary user) - also check profiles as fallback when tables are empty
   const { data: anyUser } = await supabase.from('contacts').select('user_id').limit(1).maybeSingle();
   const { data: anyBookingUser } = await supabase.from('bookings').select('user_id').limit(1).maybeSingle();
   const { data: anyInqUser } = await supabase.from('inquiries').select('user_id').limit(1).maybeSingle();
-  const userId = anyUser?.user_id || anyBookingUser?.user_id || anyInqUser?.user_id;
+  const { data: anyProfile } = await supabase.from('profiles').select('id').limit(1).maybeSingle();
+  const userId = anyUser?.user_id || anyBookingUser?.user_id || anyInqUser?.user_id || anyProfile?.id;
   
   if (!userId) {
     console.log('No user found, skipping sync');
