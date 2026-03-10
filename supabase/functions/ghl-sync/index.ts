@@ -1275,17 +1275,7 @@ Deno.serve(async (req) => {
         .in('user_id', orgUserIds)
         .order('date', { ascending: true });
 
-      // Pre-load contact GHL IDs
-      const { data: contacts } = await supabase
-        .from('contacts')
-        .select('id, ghl_contact_id')
-        .in('user_id', orgUserIds)
-        .not('ghl_contact_id', 'is', null);
-
-      const contactGhlMap: Record<string, string> = {};
-      for (const c of contacts || []) {
-        if (c.ghl_contact_id) contactGhlMap[c.id] = c.ghl_contact_id;
-      }
+      // Note: block-slots endpoint does not use contactId, no need for contact lookup
 
       const calEventHeaders = { ...ghlHeaders, 'Version': '2021-04-15' };
       let pushed = 0;
@@ -1313,26 +1303,6 @@ Deno.serve(async (req) => {
         const tz = `${offsetH >= 0 ? '+' : '-'}${String(Math.abs(offsetH)).padStart(2, '0')}:00`;
         const startISO = `${booking.date}T${startH}:${startM}:00${tz}`;
         const endISO = `${booking.date}T${endH}:${endM}:00${tz}`;
-
-        let ghlContactId = booking.contact_id ? contactGhlMap[booking.contact_id] : null;
-
-        // If no contact, try to find or create one (required for appointments endpoint)
-        if (!ghlContactId) {
-          const contactName = booking.contact_name || 'Onbekend';
-          const searchRes = await ghlFetch(`${GHL_API_BASE}/contacts/?locationId=${GHL_LOCATION_ID}&query=${encodeURIComponent(contactName)}&limit=1`, { headers: ghlHeaders });
-          if (searchRes.ok) {
-            const sd = await searchRes.json();
-            ghlContactId = sd.contacts?.[0]?.id || null;
-          }
-          if (!ghlContactId) {
-            const nameParts = contactName.split(' ');
-            const cr = await ghlFetch(`${GHL_API_BASE}/contacts/`, {
-              method: 'POST', headers: ghlHeaders,
-              body: JSON.stringify({ firstName: nameParts[0] || 'Onbekend', lastName: nameParts.slice(1).join(' ') || '', locationId: GHL_LOCATION_ID }),
-            });
-            if (cr.ok) { const cd = await cr.json(); ghlContactId = cd.contact?.id || null; }
-          }
-        }
 
         // Block-slots endpoint does NOT accept contactId or appointmentStatus
         const ghlPayload: Record<string, any> = {
