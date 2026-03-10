@@ -111,8 +111,12 @@ serve(async (req) => {
     // Handle different webhook types
     const isOpportunityDelete = type.includes('OpportunityDelete') || type.includes('opportunity.deleted') || 
                                  (type.includes('opportunity') && (type.includes('delete') || type.includes('Delete')));
+    const isContactDelete = type.includes('ContactDelete') || type.includes('contact.delete') ||
+                             (type.includes('contact') && (type.includes('delete') || type.includes('Delete')));
 
-    if (isOpportunityDelete) {
+    if (isContactDelete) {
+      await handleContactDelete(supabase, userId, payload);
+    } else if (isOpportunityDelete) {
       await handleOpportunityDelete(supabase, userId, payload);
     } else if (hasDocumentData) {
       await handleDocumentWebhook(supabase, ghlHeaders, userId, payload, type);
