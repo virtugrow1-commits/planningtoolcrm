@@ -1277,7 +1277,6 @@ Deno.serve(async (req) => {
     // =================== push-all-bookings ===================
     if (action === 'push-all-bookings') {
       console.log(`[Push All Bookings] Starting bulk push to GHL calendars`);
-      const primaryUserId = orgUserIds[0];
 
       // Load room → calendar mapping
       const { data: roomSettings } = await supabase
@@ -1290,7 +1289,7 @@ Deno.serve(async (req) => {
       for (const rs of roomSettings || []) {
         if (rs.ghl_calendar_id) roomToCalendar[rs.room_name] = rs.ghl_calendar_id;
       }
-      console.log(`[Push All Bookings] Room mappings:`, Object.keys(roomToCalendar));
+      console.log(`[Push All Bookings] Room mappings:`, JSON.stringify(roomToCalendar));
 
       // Load all bookings
       const { data: allBookings } = await supabase
@@ -1299,17 +1298,7 @@ Deno.serve(async (req) => {
         .in('user_id', orgUserIds)
         .order('date', { ascending: true });
 
-      // Pre-load contact GHL IDs for appointments endpoint
-      const { data: contacts } = await supabase
-        .from('contacts')
-        .select('id, ghl_contact_id')
-        .in('user_id', orgUserIds)
-        .not('ghl_contact_id', 'is', null);
-
-      const contactGhlMap: Record<string, string> = {};
-      for (const c of contacts || []) {
-        if (c.ghl_contact_id) contactGhlMap[c.id] = c.ghl_contact_id;
-      }
+      console.log(`[Push All Bookings] Found ${allBookings?.length || 0} bookings to push`);
 
       const calEventHeaders = { ...ghlHeaders, 'Version': '2021-04-15' };
       let pushed = 0;
