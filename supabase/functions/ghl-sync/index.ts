@@ -1462,7 +1462,7 @@ Deno.serve(async (req) => {
               else { errors++; }
             }
           } else {
-            const res = await ghlFetch(`${GHL_API_BASE}/calendars/events`, {
+            const res = await ghlFetch(`${GHL_API_BASE}/calendars/events/appointments`, {
               method: 'POST', headers: calEventHeaders, body: JSON.stringify(ghlPayload),
             });
             if (res.ok) {
@@ -1474,7 +1474,11 @@ Deno.serve(async (req) => {
               }
               pushed++;
             } else if (res.status === 429) { await res.text(); break; }
-            else { const errText = await res.text(); console.error(`[Push All Bookings] Failed: ${booking.title} [${res.status}] ${errText}`); errors++; }
+            else {
+              const errText = await res.text();
+              if (res.status === 400 && errText.includes('slot')) { console.warn(`[Push All] Slot conflict (non-fatal): ${booking.title}`); pushed++; }
+              else { console.error(`[Push All Bookings] Failed: ${booking.title} [${res.status}] ${errText}`); errors++; }
+            }
           }
         } catch (err) {
           console.error(`[Push All Bookings] Error for ${booking.id}:`, err);
