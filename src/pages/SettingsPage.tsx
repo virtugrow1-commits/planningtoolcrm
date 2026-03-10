@@ -184,7 +184,7 @@ export default function SettingsPage() {
         } catch (e) { console.error('Company sync error:', e); }
 
         // 6. Notes/Gesprekken
-        await new Promise(r => setTimeout(r, 1500));
+        await new Promise(r => setTimeout(r, 3000));
         try {
           const { data } = await supabase.functions.invoke('ghl-sync', { body: { action: 'sync-notes' } });
           results.push(`${data?.synced || 0} gesprekken`);
