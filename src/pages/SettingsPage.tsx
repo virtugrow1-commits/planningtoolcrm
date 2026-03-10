@@ -191,6 +191,35 @@ export default function SettingsPage() {
         } catch (e) { console.error('Notes sync error:', e); }
 
         toast({ title: '✅ Volledige sync voltooid', description: results.join(', ') });
+      } else if (action === 'push-all-bookings') {
+        // Batch push: process 5 bookings at a time to avoid timeouts
+        let totalPushed = 0;
+        let totalSkipped = 0;
+        let totalErrors = 0;
+        let totalRemaining = 0;
+        let batchNum = 0;
+
+        while (true) {
+          batchNum++;
+          toast({ title: `⏳ Batch ${batchNum} wordt verwerkt...`, description: `${totalPushed} reserveringen gepusht tot nu toe` });
+          const { data, error } = await supabase.functions.invoke('ghl-sync', {
+            body: { action: 'push-all-bookings', onlyMissing: true, batchSize: 5, offset: 0 },
+          });
+          if (error) throw error;
+          totalPushed += data.pushed || 0;
+          totalSkipped += data.skipped || 0;
+          totalErrors += data.errors || 0;
+          totalRemaining = data.total || 0;
+
+          if (!data.hasMore || data.batchProcessed === 0) break;
+          // Wait between batches to respect rate limits
+          await new Promise(r => setTimeout(r, 3000));
+        }
+
+        toast({
+          title: '✅ Alle reserveringen gesynchroniseerd',
+          description: `${totalPushed} gepusht, ${totalSkipped} overgeslagen, ${totalErrors} fouten`,
+        });
       } else {
         const { data, error } = await supabase.functions.invoke('ghl-sync', { body: { action } });
         if (error) throw error;
@@ -206,8 +235,6 @@ export default function SettingsPage() {
             ? `${data.synced} bedrijven opgehaald uit VirtuGrow`
             : action === 'sync-notes'
             ? `${data.synced} gesprekken opgehaald uit VirtuGrow (${data.skipped || 0} overgeslagen)`
-            : action === 'push-all-bookings'
-            ? `${data.pushed} reserveringen naar VirtuGrow gestuurd (${data.skipped || 0} overgeslagen, ${data.errors || 0} fouten)`
             : `${data.pushed || data.synced || 0} items gesynchroniseerd`,
         });
       }
