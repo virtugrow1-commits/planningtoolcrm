@@ -1193,36 +1193,116 @@ Deno.serve(async (req) => {
       const startISOwTZ = `${startISO}${tz}`;
       const endISOwTZ = `${endISO}${tz}`;
 
+      // Resolve GHL contact ID for the booking
+      let ghlContactId: string | null = null;
+      if (booking.contact_id) {
+        const { data: contactRow } = await supabase
+          .from('contacts')
+          .select('ghl_contact_id, first_name, last_name, email, phone')
+          .eq('id', booking.contact_id)
+          .single();
+        ghlContactId = contactRow?.ghl_contact_id || null;
+
+        // If contact exists locally but not in GHL, create it
+        if (!ghlContactId && contactRow) {
+          const cPayload: Record<string, any> = {
+            firstName: contactRow.first_name || 'Onbekend',
+            lastName: contactRow.last_name || '',
+            locationId: GHL_LOCATION_ID,
+          };
+          if (contactRow.email) cPayload.email = contactRow.email;
+          if (contactRow.phone) cPayload.phone = contactRow.phone;
+          const cRes = await ghlFetch(`${GHL_API_BASE}/contacts/`, { method: 'POST', headers: ghlHeaders, body: JSON.stringify(cPayload) });
+          if (cRes.ok) {
+            const cData = await cRes.json();
+            ghlContactId = cData.contact?.id || null;
+            if (ghlContactId) {
+              await supabase.from('contacts').update({ ghl_contact_id: ghlContactId }).eq('id', booking.contact_id);
+              console.log(`[Push Booking] Created GHL contact: ${ghlContactId}`);
+            }
+          } else {
+            const cErr = await cRes.text();
+            console.warn(`[Push Booking] Failed to create GHL contact: ${cErr}`);
+            // Try to extract existing ID from duplicate error
+            if (cRes.status === 400 || cRes.status === 409) {
+              const idMatch = cErr.match(/"id"\s*:\s*"([^"]+)"/);
+              if (idMatch) {
+                ghlContactId = idMatch[1];
+                await supabase.from('contacts').update({ ghl_contact_id: ghlContactId }).eq('id', booking.contact_id);
+              }
+            }
+          }
+        }
+      }
+
+      // If still no GHL contact, search by name or create a minimal one
+      if (!ghlContactId) {
+        const searchName = booking.contact_name || booking.title || 'Reservering';
+        const searchRes = await ghlFetch(`${GHL_API_BASE}/contacts/?locationId=${GHL_LOCATION_ID}&query=${encodeURIComponent(searchName)}&limit=1`, { headers: ghlHeaders });
+        if (searchRes.ok) {
+          const searchData = await searchRes.json();
+          if (searchData.contacts?.length > 0) {
+            ghlContactId = searchData.contacts[0].id;
+          }
+        } else { await searchRes.text(); }
+
+        if (!ghlContactId) {
+          const nameParts = (booking.contact_name || 'Reservering').split(' ');
+          const cPayload = { firstName: nameParts[0], lastName: nameParts.slice(1).join(' ') || '-', locationId: GHL_LOCATION_ID };
+          const cRes = await ghlFetch(`${GHL_API_BASE}/contacts/`, { method: 'POST', headers: ghlHeaders, body: JSON.stringify(cPayload) });
+          if (cRes.ok) {
+            const cData = await cRes.json();
+            ghlContactId = cData.contact?.id || null;
+            console.log(`[Push Booking] Created minimal GHL contact: ${ghlContactId}`);
+          } else {
+            const cErr = await cRes.text();
+            console.warn(`[Push Booking] Could not create GHL contact: ${cErr}`);
+            // Try to extract ID from duplicate error
+            const idMatch = cErr.match(/"id"\s*:\s*"([^"]+)"/);
+            if (idMatch) ghlContactId = idMatch[1];
+          }
+        }
+      }
+
+      if (!ghlContactId) {
+        console.error(`[Push Booking] Cannot push booking without GHL contactId`);
+        return new Response(JSON.stringify({ success: false, error: 'Could not resolve GHL contact' }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
       const calEventHeaders = { ...ghlHeaders, 'Version': '2021-04-15' };
 
-      // block-slots payload — no contactId or appointmentStatus needed
+      // Appointments payload
       const eventPayload: Record<string, any> = {
         calendarId: roomSetting.ghl_calendar_id,
         locationId: GHL_LOCATION_ID,
+        contactId: ghlContactId,
         title: booking.title || 'Reservering',
         startTime: startISOwTZ,
         endTime: endISOwTZ,
+        appointmentStatus: booking.status === 'confirmed' ? 'confirmed' : 'new',
+        ignoreDateRange: true,
+        ignoreValidation: true,
       };
       if (booking.notes) eventPayload.notes = booking.notes;
 
-      console.log(`[Push Booking] Calendar: ${roomSetting.ghl_calendar_id}, Payload: ${JSON.stringify(eventPayload)}`);
+      console.log(`[Push Booking] Calendar: ${roomSetting.ghl_calendar_id}, Contact: ${ghlContactId}, Payload: ${JSON.stringify(eventPayload)}`);
 
       try {
         if (booking.ghl_event_id) {
-          // Update existing block-slot
-          const res = await ghlFetch(`${GHL_API_BASE}/calendars/events/block-slots/${booking.ghl_event_id}`, {
-            method: 'PUT',
-            headers: calEventHeaders,
-            body: JSON.stringify(eventPayload),
+          // Update existing appointment
+          const res = await ghlFetch(`${GHL_API_BASE}/calendars/events/appointments/${booking.ghl_event_id}`, {
+            method: 'PUT', headers: calEventHeaders, body: JSON.stringify(eventPayload),
           });
           if (res.ok) {
             const resData = await res.json().catch(() => ({}));
-            console.log(`[Push Booking] Updated GHL block-slot: ${booking.ghl_event_id}, response: ${JSON.stringify(resData)}`);
+            console.log(`[Push Booking] Updated GHL appointment: ${booking.ghl_event_id}`);
           } else {
             const errText = await res.text();
             if (res.status === 404) {
-              console.log(`[Push Booking] Block-slot not found (404), creating new one`);
-              const createRes = await ghlFetch(`${GHL_API_BASE}/calendars/events/block-slots`, {
+              console.log(`[Push Booking] Appointment not found (404), creating new one`);
+              const createRes = await ghlFetch(`${GHL_API_BASE}/calendars/events/appointments`, {
                 method: 'POST', headers: calEventHeaders, body: JSON.stringify(eventPayload),
               });
               if (createRes.ok) {
@@ -1230,7 +1310,7 @@ Deno.serve(async (req) => {
                 const newId = created.id || created.event?.id;
                 if (newId) {
                   await supabase.from('bookings').update({ ghl_event_id: newId }).eq('id', booking.id);
-                  console.log(`[Push Booking] Re-created block-slot: ${newId}`);
+                  console.log(`[Push Booking] Re-created appointment: ${newId}`);
                 }
               } else {
                 const createErr = await createRes.text();
@@ -1241,30 +1321,28 @@ Deno.serve(async (req) => {
             }
           }
         } else {
-          // Create new block-slot
-          const res = await ghlFetch(`${GHL_API_BASE}/calendars/events/block-slots`, {
-            method: 'POST',
-            headers: calEventHeaders,
-            body: JSON.stringify(eventPayload),
+          // Create new appointment
+          const res = await ghlFetch(`${GHL_API_BASE}/calendars/events/appointments`, {
+            method: 'POST', headers: calEventHeaders, body: JSON.stringify(eventPayload),
           });
           if (res.ok) {
             const created = await res.json();
             const newId = created.id || created.event?.id;
             if (newId) {
               await supabase.from('bookings').update({ ghl_event_id: newId }).eq('id', booking.id);
-              console.log(`[Push Booking] Created GHL block-slot: ${newId}`);
+              console.log(`[Push Booking] Created GHL appointment: ${newId}`);
             } else {
               console.log(`[Push Booking] Created but no ID in response:`, JSON.stringify(created));
             }
           } else {
             const errText = await res.text();
-            console.error(`[Push Booking] Failed to create block-slot: [${res.status}] ${errText}`);
+            console.error(`[Push Booking] Failed to create appointment: [${res.status}] ${errText}`);
           }
         }
 
         await logSyncOperation(supabase, authUser.id, 'push-booking', 'booking', {
           entity_id: booking.id, bookingId: booking.id, room: booking.room_name,
-          calendarId: roomSetting.ghl_calendar_id, title: booking.title,
+          calendarId: roomSetting.ghl_calendar_id, contactId: ghlContactId, title: booking.title,
         });
         return new Response(JSON.stringify({ success: true }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
       } catch (err) {
