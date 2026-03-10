@@ -580,11 +580,11 @@ async function syncContacts(supabase: any, ghlHeaders: any, locationId: string, 
 
     for (const ghlContact of ghlContacts) {
       seenGhlContactIds.add(ghlContact.id);
-      const firstName = ghlContact.firstName || ghlContact.name?.split(' ')[0] || 'Onbekend';
-      const lastName = ghlContact.lastName || ghlContact.name?.split(' ').slice(1).join(' ') || '';
+      const firstName = fixEnc(ghlContact.firstName || ghlContact.name?.split(' ')[0] || 'Onbekend');
+      const lastName = fixEnc(ghlContact.lastName || ghlContact.name?.split(' ').slice(1).join(' ') || '');
       const ghlEmail = ghlContact.email || null;
       const ghlPhone = ghlContact.phone || null;
-      const ghlCompanyName = ghlContact.companyName || null;
+      const ghlCompanyName = fixEnc(ghlContact.companyName || null);
 
       // Use pre-loaded lookup instead of DB query
       const existing = lookups.contactByGhlId.get(ghlContact.id);
