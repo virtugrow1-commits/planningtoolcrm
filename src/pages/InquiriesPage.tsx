@@ -22,6 +22,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import CrmCombobox, { ComboboxOption } from '@/components/CrmCombobox';
+import NewInquiryDialog from '@/components/inquiry/NewInquiryDialog';
 import { Checkbox } from '@/components/ui/checkbox';
 import { cn } from '@/lib/utils';
 import ConflictAlertDialog from '@/components/calendar/ConflictAlertDialog';
@@ -89,7 +90,7 @@ export default function InquiriesPage() {
   const [viewMode, setViewMode] = useState<'cards' | 'list'>('cards');
   const [detailOpen, setDetailOpen] = useState(false);
   const [editInquiry, setEditInquiry] = useState<Inquiry | null>(null);
-  const [newForm, setNewForm] = useState({ contactName: '', contactId: '', companyId: '', eventType: '', preferredDate: '', guestCount: '', budget: '', message: '', source: 'Handmatig', roomPreference: '', status: 'new' as Inquiry['status'] });
+  
   
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [bulkDeleteConfirmOpen, setBulkDeleteConfirmOpen] = useState(false);
@@ -196,28 +197,8 @@ export default function InquiriesPage() {
     toast({ title: 'Aanvraag verwijderd', description: editInquiry.eventType });
   };
 
-  const handleAddInquiry = async () => {
-    if (!newForm.contactName || !newForm.eventType) {
-      toast({ title: 'Vul minimaal naam en type in', variant: 'destructive' });
-      return;
-    }
-    await addInquiry({
-      contactId: newForm.contactId || '',
-      contactName: newForm.contactName,
-      companyId: newForm.companyId || undefined,
-      eventType: newForm.eventType,
-      preferredDate: newForm.preferredDate,
-      roomPreference: newForm.roomPreference || undefined,
-      guestCount: Number(newForm.guestCount) || 0,
-      budget: Number(newForm.budget) || undefined,
-      message: newForm.message,
-      status: newForm.status,
-      source: newForm.source || 'Handmatig',
-    });
-    setNewOpen(false);
-    setNewForm({ contactName: '', contactId: '', companyId: '', eventType: '', preferredDate: '', guestCount: '', budget: '', message: '', source: 'Handmatig', roomPreference: '', status: 'new' });
-    
-    toast({ title: 'Aanvraag aangemaakt' });
+  const handleAddInquiry = async (inquiryData: Omit<Inquiry, 'id' | 'createdAt'>) => {
+    await addInquiry(inquiryData);
   };
 
   const handleDragStart = useCallback((e: DragEvent, id: string) => {
@@ -806,118 +787,13 @@ export default function InquiriesPage() {
       </Dialog>
 
       {/* New Inquiry Dialog */}
-      <Dialog open={newOpen} onOpenChange={setNewOpen}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>Nieuwe Aanvraag</DialogTitle>
-          </DialogHeader>
-          <div className="grid gap-4 py-2">
-            <div className="grid gap-1.5">
-              <Label>Bedrijf</Label>
-              <CrmCombobox
-                options={companies.map(co => ({
-                  id: co.id,
-                  label: co.name,
-                  secondary: co.city || co.email || undefined,
-                  searchText: `${co.name} ${co.city || ''} ${co.kvk || ''} ${co.email || ''}`,
-                }))}
-                value={newForm.companyId}
-                onSelect={(id) => {
-                  setNewForm({ ...newForm, companyId: id });
-                }}
-                placeholder="Selecteer bedrijf..."
-                searchPlaceholder="Zoek bedrijf..."
-                popoverWidth="w-[340px]"
-              />
-            </div>
-            <div className="grid gap-1.5">
-              <Label>Contactpersoon *</Label>
-              <CrmCombobox
-                options={contacts.map(c => ({
-                  id: c.id,
-                  label: [c.firstName, c.lastName].filter(n => n && n !== '—').join(' ') || c.email || 'Onbekend',
-                  secondary: c.company || c.email || undefined,
-                  searchText: `${c.firstName} ${c.lastName} ${c.email || ''} ${c.company || ''} ${c.phone || ''}`,
-                }))}
-                value={newForm.contactId}
-                onSelect={(id, opt) => {
-                  const selectedContact = contacts.find(c => c.id === id);
-                  const updates: any = { ...newForm, contactName: opt?.label || '', contactId: id };
-                  // Auto-suggest company from contact
-                  if (selectedContact?.companyId && !newForm.companyId) {
-                    updates.companyId = selectedContact.companyId;
-                  }
-                  setNewForm(updates);
-                }}
-                placeholder="Selecteer contactpersoon..."
-                searchPlaceholder="Zoek contactpersoon..."
-                popoverWidth="w-[340px]"
-              />
-            </div>
-            <div className="grid gap-1.5">
-              <Label>Type evenement *</Label>
-              <Input placeholder="Bijv. Vergadering, Bruiloft, Workshop" value={newForm.eventType} onChange={(e) => setNewForm({ ...newForm, eventType: e.target.value })} />
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="grid gap-1.5">
-                <Label>Voorkeursdatum</Label>
-                <Input type="date" value={newForm.preferredDate} onChange={(e) => setNewForm({ ...newForm, preferredDate: e.target.value })} />
-              </div>
-              <div className="grid gap-1.5">
-                <Label>Aantal gasten</Label>
-                <Input type="number" min="1" placeholder="0" value={newForm.guestCount} onChange={(e) => setNewForm({ ...newForm, guestCount: e.target.value })} />
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="grid gap-1.5">
-                <Label>Ruimte voorkeur</Label>
-                <Select value={newForm.roomPreference} onValueChange={(v) => setNewForm({ ...newForm, roomPreference: v })}>
-                  <SelectTrigger className="text-sm"><SelectValue placeholder="Optioneel" /></SelectTrigger>
-                  <SelectContent>
-                    {ROOMS.map((r) => <SelectItem key={r} value={r}>{r}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="grid gap-1.5">
-                <Label>Budget (€)</Label>
-                <Input type="number" min="0" placeholder="0" value={newForm.budget} onChange={(e) => setNewForm({ ...newForm, budget: e.target.value })} />
-              </div>
-            </div>
-            <div className="grid gap-1.5">
-              <Label>Bron</Label>
-              <Select value={newForm.source} onValueChange={(v) => setNewForm({ ...newForm, source: v })}>
-                <SelectTrigger className="text-sm"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="Handmatig">Handmatig</SelectItem>
-                  <SelectItem value="Website">Website</SelectItem>
-                  <SelectItem value="Telefoon">Telefoon</SelectItem>
-                  <SelectItem value="Email">Email</SelectItem>
-                  <SelectItem value="GHL">VirtuGrow</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="grid gap-1.5">
-              <Label>Stadium</Label>
-              <Select value={newForm.status} onValueChange={(v: Inquiry['status']) => setNewForm({ ...newForm, status: v })}>
-                <SelectTrigger className="text-sm"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {PIPELINE_COLUMNS.map((col) => (
-                    <SelectItem key={col.key} value={col.key}>{col.label}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="grid gap-1.5">
-              <Label>Bericht / Notities</Label>
-              <Textarea placeholder="Omschrijving van de aanvraag..." value={newForm.message} onChange={(e) => setNewForm({ ...newForm, message: e.target.value })} />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setNewOpen(false)}>Annuleren</Button>
-            <Button onClick={handleAddInquiry}>Toevoegen</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <NewInquiryDialog
+        open={newOpen}
+        onOpenChange={setNewOpen}
+        contacts={contacts}
+        companies={companies}
+        onInquiryAdded={handleAddInquiry}
+      />
 
       {/* Detail / Edit Dialog - Comprehensive Inquiry Card */}
       <Dialog open={detailOpen} onOpenChange={setDetailOpen}>
