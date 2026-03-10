@@ -206,6 +206,8 @@ export default function SettingsPage() {
             ? `${data.synced} bedrijven opgehaald uit VirtuGrow`
             : action === 'sync-notes'
             ? `${data.synced} gesprekken opgehaald uit VirtuGrow (${data.skipped || 0} overgeslagen)`
+            : action === 'push-all-bookings'
+            ? `${data.pushed} reserveringen naar VirtuGrow gestuurd (${data.skipped || 0} overgeslagen, ${data.errors || 0} fouten)`
             : `${data.pushed || data.synced || 0} items gesynchroniseerd`,
         });
       }
