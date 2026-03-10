@@ -1244,61 +1244,64 @@ Deno.serve(async (req) => {
       if (ghlContactId) ghlPayload.contactId = ghlContactId;
       if (booking.notes) ghlPayload.notes = booking.notes;
 
+      // Build event payload for generic events endpoint (no slot availability check)
+      const eventPayload: Record<string, any> = {
+        calendarId: roomSetting.ghl_calendar_id,
+        locationId: GHL_LOCATION_ID,
+        title: booking.title || 'Reservering',
+        startTime: startISOwTZ,
+        endTime: endISOwTZ,
+      };
+      if (ghlContactId) eventPayload.contactId = ghlContactId;
+      if (booking.notes) eventPayload.notes = booking.notes;
+
       try {
         if (booking.ghl_event_id) {
-          // Update existing appointment
-          const res = await ghlFetch(`${GHL_API_BASE}/calendars/events/appointments/${booking.ghl_event_id}`, {
+          // Update existing event via generic events endpoint
+          const res = await ghlFetch(`${GHL_API_BASE}/calendars/events/${booking.ghl_event_id}`, {
             method: 'PUT',
             headers: calEventHeaders,
-            body: JSON.stringify(ghlPayload),
+            body: JSON.stringify(eventPayload),
           });
           if (res.ok) {
-            console.log(`[Push Booking] Updated GHL appointment: ${booking.ghl_event_id}`);
+            console.log(`[Push Booking] Updated GHL event: ${booking.ghl_event_id}`);
           } else {
             const errText = await res.text();
             console.error(`[Push Booking] Failed to update: [${res.status}] ${errText}`);
             // If 404, event was deleted in GHL — create new one
             if (res.status === 404) {
-              console.log(`[Push Booking] Appointment not found in GHL, creating new one`);
-              if (!ghlContactId) {
-                console.error(`[Push Booking] Cannot create appointment without contactId`);
-              } else {
-                const createRes = await ghlFetch(`${GHL_API_BASE}/calendars/events/appointments`, {
-                  method: 'POST',
-                  headers: calEventHeaders,
-                  body: JSON.stringify(ghlPayload),
-                });
-                if (createRes.ok) {
-                  const created = await createRes.json();
-                  const newId = created.id || created.event?.id;
-                  if (newId) {
-                    await supabase.from('bookings').update({ ghl_event_id: newId }).eq('id', booking.id);
-                    console.log(`[Push Booking] Re-created GHL appointment: ${newId}`);
-                  }
-                } else {
-                  const createErr = await createRes.text();
-                  console.error(`[Push Booking] Failed to re-create: ${createErr}`);
+              console.log(`[Push Booking] Event not found in GHL, creating new one`);
+              const createRes = await ghlFetch(`${GHL_API_BASE}/calendars/events`, {
+                method: 'POST',
+                headers: calEventHeaders,
+                body: JSON.stringify(eventPayload),
+              });
+              if (createRes.ok) {
+                const created = await createRes.json();
+                const newId = created.id || created.event?.id;
+                if (newId) {
+                  await supabase.from('bookings').update({ ghl_event_id: newId }).eq('id', booking.id);
+                  console.log(`[Push Booking] Re-created GHL event: ${newId}`);
                 }
+              } else {
+                const createErr = await createRes.text();
+                console.error(`[Push Booking] Failed to re-create: ${createErr}`);
               }
             }
           }
         } else {
-          // Create new appointment
-          if (!ghlContactId) {
-            console.error(`[Push Booking] Cannot create appointment without contactId for booking ${booking.id}`);
-            return new Response(JSON.stringify({ error: 'No GHL contact found for this booking. Link a contact first.' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
-          }
-          const res = await ghlFetch(`${GHL_API_BASE}/calendars/events/appointments`, {
+          // Create new event via generic events endpoint (no availability check)
+          const res = await ghlFetch(`${GHL_API_BASE}/calendars/events`, {
             method: 'POST',
             headers: calEventHeaders,
-            body: JSON.stringify(ghlPayload),
+            body: JSON.stringify(eventPayload),
           });
           if (res.ok) {
             const created = await res.json();
             const newId = created.id || created.event?.id;
             if (newId) {
               await supabase.from('bookings').update({ ghl_event_id: newId }).eq('id', booking.id);
-              console.log(`[Push Booking] Created GHL appointment: ${newId}`);
+              console.log(`[Push Booking] Created GHL event: ${newId}`);
             }
           } else {
             const errText = await res.text();
