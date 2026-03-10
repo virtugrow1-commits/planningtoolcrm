@@ -1437,7 +1437,7 @@ Deno.serve(async (req) => {
             } else if (res.status === 429) { await res.text(); break; }
             else { await res.text(); errors++; }
           } else {
-            const res = await ghlFetch(`${GHL_API_BASE}/calendars/events/appointments`, {
+            const res = await ghlFetch(`${GHL_API_BASE}/calendars/events`, {
               method: 'POST', headers: calEventHeaders, body: JSON.stringify(ghlPayload),
             });
             if (res.ok) {
