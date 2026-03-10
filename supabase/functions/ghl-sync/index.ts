@@ -1375,7 +1375,32 @@ Deno.serve(async (req) => {
       };
       if (booking.notes) eventPayload.notes = booking.notes;
 
-      console.log(`[Push Booking] Calendar: ${roomSetting.ghl_calendar_id}, Contact: ${ghlContactId}, Payload: ${JSON.stringify(eventPayload)}`);
+      console.log(`[Push Booking] Calendar: ${roomSetting.ghl_calendar_id}, Contact: ${ghlContactId}, Room: ${booking.room_name}, Payload: ${JSON.stringify(eventPayload)}`);
+
+      // Helper: fallback to block-slots when appointments endpoint fails (e.g. contact-level conflict or inactive calendar)
+      const createViaBlockSlots = async (): Promise<string | null> => {
+        console.log(`[Push Booking] Falling back to block-slots for room: ${booking.room_name}, calendar: ${roomSetting.ghl_calendar_id}`);
+        const blockPayload: Record<string, any> = {
+          calendarId: roomSetting.ghl_calendar_id,
+          locationId: GHL_LOCATION_ID,
+          title: booking.title || 'Reservering',
+          startTime: startISOwTZ,
+          endTime: endISOwTZ,
+        };
+        const blockRes = await ghlFetch(`${GHL_API_BASE}/calendars/events/block-slots`, {
+          method: 'POST', headers: calEventHeaders, body: JSON.stringify(blockPayload),
+        });
+        if (blockRes.ok) {
+          const blockData = await blockRes.json();
+          const blockId = blockData.id || blockData.event?.id;
+          console.log(`[Push Booking] Created via block-slots: ${blockId}`);
+          return blockId || null;
+        } else {
+          const blockErr = await blockRes.text();
+          console.error(`[Push Booking] Block-slots also failed: [${blockRes.status}] ${blockErr}`);
+          return null;
+        }
+      };
 
       try {
         if (booking.ghl_event_id) {
@@ -1384,12 +1409,12 @@ Deno.serve(async (req) => {
             method: 'PUT', headers: calEventHeaders, body: JSON.stringify(eventPayload),
           });
           if (res.ok) {
-            const resData = await res.json().catch(() => ({}));
-            console.log(`[Push Booking] Updated GHL appointment: ${booking.ghl_event_id}`);
+            await res.json().catch(() => ({}));
+            console.log(`[Push Booking] Updated GHL appointment: ${booking.ghl_event_id}, room: ${booking.room_name}, calendar: ${roomSetting.ghl_calendar_id}`);
           } else {
             const errText = await res.text();
             if (res.status === 404) {
-              console.log(`[Push Booking] Appointment not found (404), creating new one`);
+              console.log(`[Push Booking] Appointment ${booking.ghl_event_id} not found, creating new one for room: ${booking.room_name}`);
               const createRes = await ghlFetch(`${GHL_API_BASE}/calendars/events/appointments`, {
                 method: 'POST', headers: calEventHeaders, body: JSON.stringify(eventPayload),
               });
@@ -1398,14 +1423,19 @@ Deno.serve(async (req) => {
                 const newId = created.id || created.event?.id;
                 if (newId) {
                   await supabase.from('bookings').update({ ghl_event_id: newId }).eq('id', booking.id);
-                  console.log(`[Push Booking] Re-created appointment: ${newId}`);
+                  console.log(`[Push Booking] Re-created appointment: ${newId}, room: ${booking.room_name}`);
                 }
               } else {
                 const createErr = await createRes.text();
-                console.error(`[Push Booking] Failed to re-create: [${createRes.status}] ${createErr}`);
+                console.warn(`[Push Booking] Appointment re-create failed: [${createRes.status}] ${createErr}, trying block-slots`);
+                const blockId = await createViaBlockSlots();
+                if (blockId) await supabase.from('bookings').update({ ghl_event_id: blockId }).eq('id', booking.id);
               }
             } else {
-              console.error(`[Push Booking] Failed to update: [${res.status}] ${errText}`);
+              console.warn(`[Push Booking] Update failed: [${res.status}] ${errText}, trying block-slots`);
+              // Try to delete old and create new via block-slots
+              const blockId = await createViaBlockSlots();
+              if (blockId) await supabase.from('bookings').update({ ghl_event_id: blockId }).eq('id', booking.id);
             }
           }
         } else {
@@ -1418,13 +1448,18 @@ Deno.serve(async (req) => {
             const newId = created.id || created.event?.id;
             if (newId) {
               await supabase.from('bookings').update({ ghl_event_id: newId }).eq('id', booking.id);
-              console.log(`[Push Booking] Created GHL appointment: ${newId}`);
+              console.log(`[Push Booking] Created GHL appointment: ${newId}, room: ${booking.room_name}, calendar: ${roomSetting.ghl_calendar_id}`);
             } else {
               console.log(`[Push Booking] Created but no ID in response:`, JSON.stringify(created));
             }
           } else {
             const errText = await res.text();
-            console.error(`[Push Booking] Failed to create appointment: [${res.status}] ${errText}`);
+            console.warn(`[Push Booking] Appointment create failed: [${res.status}] ${errText}, trying block-slots fallback for room: ${booking.room_name}`);
+            // Fallback: use block-slots (no contact-level conflict, works with inactive calendars too)
+            const blockId = await createViaBlockSlots();
+            if (blockId) {
+              await supabase.from('bookings').update({ ghl_event_id: blockId }).eq('id', booking.id);
+            }
           }
         }
 
@@ -1434,8 +1469,8 @@ Deno.serve(async (req) => {
         });
         return new Response(JSON.stringify({ success: true }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
       } catch (err) {
-        console.error('[Push Booking] Error:', err);
-        await logSyncOperation(supabase, authUser.id, 'push-booking', 'booking', { error: String(err), bookingId: booking.id }, 'error');
+        console.error(`[Push Booking] Error for room ${booking.room_name}, calendar ${roomSetting.ghl_calendar_id}:`, err);
+        await logSyncOperation(supabase, authUser.id, 'push-booking', 'booking', { error: String(err), bookingId: booking.id, room: booking.room_name, calendarId: roomSetting.ghl_calendar_id }, 'error');
         return new Response(JSON.stringify({ error: String(err) }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
       }
     }
