@@ -132,7 +132,7 @@ export default function SettingsPage() {
           nextPageUrl = data.nextPageUrl || null;
           hasMore = !!data.hasMore;
           // Small delay between pages to avoid rate limits
-          if (hasMore) await new Promise(r => setTimeout(r, 1000));
+          if (hasMore) await new Promise(r => setTimeout(r, 2000));
         }
         toast({ title: '✅ Synchronisatie voltooid', description: `${totalSynced} contacten opgehaald uit VirtuGrow (${page} pagina's)` });
       } else if (action === 'full-sync') {
@@ -151,40 +151,40 @@ export default function SettingsPage() {
           totalContacts += data.synced || 0;
           nextPageUrl = data.nextPageUrl || null;
           hasMore = !!data.hasMore;
-          if (hasMore) await new Promise(r => setTimeout(r, 1000));
+          if (hasMore) await new Promise(r => setTimeout(r, 2000));
         }
         results.push(`${totalContacts} contacten`);
 
         // 2. Opportunities
-        await new Promise(r => setTimeout(r, 1500));
+        await new Promise(r => setTimeout(r, 3000));
         try {
           const { data } = await supabase.functions.invoke('ghl-sync', { body: { action: 'sync-opportunities' } });
           results.push(`${data?.synced || 0} opportunities`);
         } catch (e) { console.error('Opp sync error:', e); }
 
         // 3. Calendars
-        await new Promise(r => setTimeout(r, 1500));
+        await new Promise(r => setTimeout(r, 3000));
         try {
           const { data } = await supabase.functions.invoke('ghl-sync', { body: { action: 'sync-calendars' } });
           results.push(`${data?.synced || 0} boekingen`);
         } catch (e) { console.error('Cal sync error:', e); }
 
         // 4. Tasks
-        await new Promise(r => setTimeout(r, 1500));
+        await new Promise(r => setTimeout(r, 3000));
         try {
           const { data } = await supabase.functions.invoke('ghl-sync', { body: { action: 'sync-tasks' } });
           results.push(`${data?.synced || 0} taken`);
         } catch (e) { console.error('Task sync error:', e); }
 
         // 5. Companies
-        await new Promise(r => setTimeout(r, 1500));
+        await new Promise(r => setTimeout(r, 3000));
         try {
           const { data } = await supabase.functions.invoke('ghl-sync', { body: { action: 'sync-companies' } });
           results.push(`${data?.synced || 0} bedrijven`);
         } catch (e) { console.error('Company sync error:', e); }
 
         // 6. Notes/Gesprekken
-        await new Promise(r => setTimeout(r, 1500));
+        await new Promise(r => setTimeout(r, 3000));
         try {
           const { data } = await supabase.functions.invoke('ghl-sync', { body: { action: 'sync-notes' } });
           results.push(`${data?.synced || 0} gesprekken`);
