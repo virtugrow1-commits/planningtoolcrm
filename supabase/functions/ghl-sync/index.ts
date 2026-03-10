@@ -1177,8 +1177,27 @@ Deno.serve(async (req) => {
 
       // Note: block-slots endpoint does not use contactId, so no need to look up GHL contact
 
+      // Build start/end ISO timestamps (Europe/Amsterdam)
+      const dateStr = booking.date; // "YYYY-MM-DD"
+      const startH = String(booking.start_hour).padStart(2, '0');
+      const startM = String(booking.start_minute ?? 0).padStart(2, '0');
+      const endH = String(booking.end_hour).padStart(2, '0');
+      const endM = String(booking.end_minute ?? 0).padStart(2, '0');
+      const startISO = `${dateStr}T${startH}:${startM}:00`;
+      const endISO = `${dateStr}T${endH}:${endM}:00`;
+
+      const calEventHeaders = { ...ghlHeaders, 'Version': '2021-04-15' };
+
+      // Calculate Europe/Amsterdam timezone offset for correct ISO timestamps
+      const probeDate = new Date(`${dateStr}T12:00:00Z`);
+      const amStr = probeDate.toLocaleString('en-US', { timeZone: 'Europe/Amsterdam', hour12: false });
+      const amDate = new Date(amStr);
+      const offsetH = Math.round((amDate.getTime() - probeDate.getTime()) / 3600000);
+      const tz = `${offsetH >= 0 ? '+' : '-'}${String(Math.abs(offsetH)).padStart(2, '0')}:00`;
+      const startISOwTZ = `${startISO}${tz}`;
+      const endISOwTZ = `${endISO}${tz}`;
+
       // Block-slots endpoint only accepts: calendarId, locationId, title, startTime, endTime, notes
-      // It does NOT accept: appointmentStatus, contactId
       const eventPayload: Record<string, any> = {
         calendarId: roomSetting.ghl_calendar_id,
         locationId: GHL_LOCATION_ID,
