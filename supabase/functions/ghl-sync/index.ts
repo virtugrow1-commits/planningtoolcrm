@@ -1175,84 +1175,17 @@ Deno.serve(async (req) => {
         });
       }
 
-      // Look up GHL contact ID
-      let ghlContactId: string | null = null;
-      if (booking.contact_id) {
-        const { data: contact } = await supabase
-          .from('contacts')
-          .select('ghl_contact_id')
-          .eq('id', booking.contact_id)
-          .maybeSingle();
-        ghlContactId = contact?.ghl_contact_id || null;
-      }
+      // Note: block-slots endpoint does not use contactId, so no need to look up GHL contact
 
-      // Build start/end ISO timestamps (Europe/Amsterdam)
-      const dateStr = booking.date; // "YYYY-MM-DD"
-      const startH = String(booking.start_hour).padStart(2, '0');
-      const startM = String(booking.start_minute ?? 0).padStart(2, '0');
-      const endH = String(booking.end_hour).padStart(2, '0');
-      const endM = String(booking.end_minute ?? 0).padStart(2, '0');
-      const startISO = `${dateStr}T${startH}:${startM}:00`;
-      const endISO = `${dateStr}T${endH}:${endM}:00`;
-
-      const calEventHeaders = { ...ghlHeaders, 'Version': '2021-04-15' };
-
-      // Calculate Europe/Amsterdam timezone offset for correct ISO timestamps
-      const probeDate = new Date(`${dateStr}T12:00:00Z`);
-      const amStr = probeDate.toLocaleString('en-US', { timeZone: 'Europe/Amsterdam', hour12: false });
-      const amDate = new Date(amStr);
-      const offsetH = Math.round((amDate.getTime() - probeDate.getTime()) / 3600000);
-      const tz = `${offsetH >= 0 ? '+' : '-'}${String(Math.abs(offsetH)).padStart(2, '0')}:00`;
-      const startISOwTZ = `${startISO}${tz}`;
-      const endISOwTZ = `${endISO}${tz}`;
-
-      // If no contactId, try to find or create one in GHL (required for appointments endpoint)
-      if (!ghlContactId) {
-        // Search for contact by name
-        const contactSearchName = booking.contact_name || 'Onbekend';
-        const searchRes = await ghlFetch(`${GHL_API_BASE}/contacts/?locationId=${GHL_LOCATION_ID}&query=${encodeURIComponent(contactSearchName)}&limit=1`, { headers: ghlHeaders });
-        if (searchRes.ok) {
-          const searchData = await searchRes.json();
-          ghlContactId = searchData.contacts?.[0]?.id || null;
-        }
-        // Create contact if still not found
-        if (!ghlContactId) {
-          const nameParts = contactSearchName.split(' ');
-          const createContactRes = await ghlFetch(`${GHL_API_BASE}/contacts/`, {
-            method: 'POST', headers: ghlHeaders,
-            body: JSON.stringify({ firstName: nameParts[0] || 'Onbekend', lastName: nameParts.slice(1).join(' ') || '', locationId: GHL_LOCATION_ID }),
-          });
-          if (createContactRes.ok) {
-            const created = await createContactRes.json();
-            ghlContactId = created.contact?.id || null;
-            // Link back to CRM contact if we have contact_id
-            if (ghlContactId && booking.contact_id) {
-              await supabase.from('contacts').update({ ghl_contact_id: ghlContactId }).eq('id', booking.contact_id);
-            }
-          }
-        }
-      }
-
-      const ghlPayload: Record<string, any> = {
-        calendarId: roomSetting.ghl_calendar_id,
-        locationId: GHL_LOCATION_ID,
-        title: booking.title || 'Reservering',
-        startTime: startISOwTZ,
-        endTime: endISOwTZ,
-        appointmentStatus: booking.status === 'confirmed' ? 'confirmed' : 'new',
-      };
-      if (ghlContactId) ghlPayload.contactId = ghlContactId;
-      if (booking.notes) ghlPayload.notes = booking.notes;
-
+      // Block-slots endpoint only accepts: calendarId, locationId, title, startTime, endTime, notes
+      // It does NOT accept: appointmentStatus, contactId
       const eventPayload: Record<string, any> = {
         calendarId: roomSetting.ghl_calendar_id,
         locationId: GHL_LOCATION_ID,
         title: booking.title || 'Reservering',
         startTime: startISOwTZ,
         endTime: endISOwTZ,
-        appointmentStatus: booking.status === 'confirmed' ? 'confirmed' : 'new',
       };
-      if (ghlContactId) eventPayload.contactId = ghlContactId;
       if (booking.notes) eventPayload.notes = booking.notes;
 
       try {
@@ -1342,17 +1275,7 @@ Deno.serve(async (req) => {
         .in('user_id', orgUserIds)
         .order('date', { ascending: true });
 
-      // Pre-load contact GHL IDs
-      const { data: contacts } = await supabase
-        .from('contacts')
-        .select('id, ghl_contact_id')
-        .in('user_id', orgUserIds)
-        .not('ghl_contact_id', 'is', null);
-
-      const contactGhlMap: Record<string, string> = {};
-      for (const c of contacts || []) {
-        if (c.ghl_contact_id) contactGhlMap[c.id] = c.ghl_contact_id;
-      }
+      // Note: block-slots endpoint does not use contactId, no need for contact lookup
 
       const calEventHeaders = { ...ghlHeaders, 'Version': '2021-04-15' };
       let pushed = 0;
@@ -1381,26 +1304,7 @@ Deno.serve(async (req) => {
         const startISO = `${booking.date}T${startH}:${startM}:00${tz}`;
         const endISO = `${booking.date}T${endH}:${endM}:00${tz}`;
 
-        let ghlContactId = booking.contact_id ? contactGhlMap[booking.contact_id] : null;
-
-        // If no contact, try to find or create one (required for appointments endpoint)
-        if (!ghlContactId) {
-          const contactName = booking.contact_name || 'Onbekend';
-          const searchRes = await ghlFetch(`${GHL_API_BASE}/contacts/?locationId=${GHL_LOCATION_ID}&query=${encodeURIComponent(contactName)}&limit=1`, { headers: ghlHeaders });
-          if (searchRes.ok) {
-            const sd = await searchRes.json();
-            ghlContactId = sd.contacts?.[0]?.id || null;
-          }
-          if (!ghlContactId) {
-            const nameParts = contactName.split(' ');
-            const cr = await ghlFetch(`${GHL_API_BASE}/contacts/`, {
-              method: 'POST', headers: ghlHeaders,
-              body: JSON.stringify({ firstName: nameParts[0] || 'Onbekend', lastName: nameParts.slice(1).join(' ') || '', locationId: GHL_LOCATION_ID }),
-            });
-            if (cr.ok) { const cd = await cr.json(); ghlContactId = cd.contact?.id || null; }
-          }
-        }
-
+        // Block-slots endpoint does NOT accept contactId or appointmentStatus
         const ghlPayload: Record<string, any> = {
           calendarId,
           locationId: GHL_LOCATION_ID,
@@ -1408,7 +1312,6 @@ Deno.serve(async (req) => {
           startTime: startISO,
           endTime: endISO,
         };
-        if (ghlContactId) ghlPayload.contactId = ghlContactId;
         if (booking.notes) ghlPayload.notes = booking.notes;
 
         try {
