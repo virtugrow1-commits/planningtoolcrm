@@ -1425,7 +1425,7 @@ Deno.serve(async (req) => {
             if (res.ok) {
               pushed++;
             } else if (res.status === 404) {
-              const createRes = await ghlFetch(`${GHL_API_BASE}/calendars/events/appointments`, {
+              const createRes = await ghlFetch(`${GHL_API_BASE}/calendars/events`, {
                 method: 'POST', headers: calEventHeaders, body: JSON.stringify(ghlPayload),
               });
               if (createRes.ok) {
