@@ -331,6 +331,9 @@ export default function SettingsPage() {
                 <Button variant="outline" size="sm" disabled={syncing} onClick={() => handleSync('sync-notes')}>
                   <RefreshCw size={14} className={`mr-1.5 ${syncing ? 'animate-spin' : ''}`} /> Gesprekken VGW → CRM
                 </Button>
+                <Button variant="outline" size="sm" disabled={syncing} onClick={() => handleSync('push-all-bookings')}>
+                  <RefreshCw size={14} className={`mr-1.5 ${syncing ? 'animate-spin' : ''}`} /> Reserveringen CRM → VGW
+                </Button>
                 <Button size="sm" disabled={syncing} onClick={() => handleSync('full-sync')}>
                   <RefreshCw size={14} className={`mr-1.5 ${syncing ? 'animate-spin' : ''}`} /> Volledige Sync
                 </Button>
