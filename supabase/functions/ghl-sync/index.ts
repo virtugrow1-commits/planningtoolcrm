@@ -1400,7 +1400,6 @@ Deno.serve(async (req) => {
             if (cr.ok) { const cd = await cr.json(); ghlContactId = cd.contact?.id || null; }
           }
         }
-        if (!ghlContactId) { skipped++; continue; }
 
         const ghlPayload: Record<string, any> = {
           calendarId,
@@ -1408,9 +1407,8 @@ Deno.serve(async (req) => {
           title: booking.title || 'Reservering',
           startTime: startISO,
           endTime: endISO,
-          appointmentStatus: booking.status === 'confirmed' ? 'confirmed' : 'new',
-          contactId: ghlContactId,
         };
+        if (ghlContactId) ghlPayload.contactId = ghlContactId;
         if (booking.notes) ghlPayload.notes = booking.notes;
 
         try {
