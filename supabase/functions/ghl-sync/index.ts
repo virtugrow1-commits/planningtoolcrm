@@ -1595,6 +1595,28 @@ Deno.serve(async (req) => {
         try {
           await delay(500);
 
+          // Helper for block-slots fallback in bulk push
+          const bulkBlockSlotsFallback = async (): Promise<string | null> => {
+            console.log(`[Push All] Falling back to block-slots for: ${booking.title}, calendar: ${calendarId}`);
+            const blockPayload = {
+              calendarId,
+              locationId: GHL_LOCATION_ID,
+              title: booking.title || 'Reservering',
+              startTime: startISO,
+              endTime: endISO,
+            };
+            const blockRes = await ghlFetch(`${GHL_API_BASE}/calendars/events/block-slots`, {
+              method: 'POST', headers: calEventHeaders, body: JSON.stringify(blockPayload),
+            });
+            if (blockRes.ok) {
+              const blockData = await blockRes.json();
+              return blockData.id || blockData.event?.id || null;
+            }
+            const blockErr = await blockRes.text();
+            console.error(`[Push All] Block-slots also failed: [${blockRes.status}] ${blockErr}`);
+            return null;
+          };
+
           if (booking.ghl_event_id) {
             const res = await ghlFetch(`${GHL_API_BASE}/calendars/events/appointments/${booking.ghl_event_id}`, {
               method: 'PUT', headers: calEventHeaders, body: JSON.stringify(ghlPayload),
@@ -1614,12 +1636,18 @@ Deno.serve(async (req) => {
                 pushed++;
               } else {
                 const ce = await createRes.text();
-                console.error(`[Push All] Create failed: [${createRes.status}] ${ce}`); errors++;
+                console.warn(`[Push All] Appointment failed: [${createRes.status}] ${ce}, trying block-slots`);
+                const blockId = await bulkBlockSlotsFallback();
+                if (blockId) { await supabase.from('bookings').update({ ghl_event_id: blockId }).eq('id', booking.id); pushed++; }
+                else errors++;
               }
             } else if (res.status === 429) { await res.text(); break; }
             else {
               const et = await res.text();
-              console.error(`[Push All] Update failed: [${res.status}] ${et}`); errors++;
+              console.warn(`[Push All] Update failed: [${res.status}] ${et}, trying block-slots`);
+              const blockId = await bulkBlockSlotsFallback();
+              if (blockId) { await supabase.from('bookings').update({ ghl_event_id: blockId }).eq('id', booking.id); pushed++; }
+              else errors++;
             }
           } else {
             const res = await ghlFetch(`${GHL_API_BASE}/calendars/events/appointments`, {
@@ -1630,13 +1658,19 @@ Deno.serve(async (req) => {
               const newId = created.id || created.event?.id;
               if (newId) {
                 await supabase.from('bookings').update({ ghl_event_id: newId }).eq('id', booking.id);
-                console.log(`[Push All Bookings] Created: ${booking.title} → ${newId} (cal: ${calendarId})`);
+                console.log(`[Push All Bookings] Created: ${booking.title} → ${newId} (cal: ${calendarId}, room: ${booking.room_name})`);
               }
               pushed++;
             } else if (res.status === 429) { await res.text(); break; }
             else {
               const errText = await res.text();
-              console.error(`[Push All Bookings] Failed: ${booking.title} [${res.status}] ${errText}`); errors++;
+              console.warn(`[Push All Bookings] Appointment failed: ${booking.title} [${res.status}] ${errText}, trying block-slots`);
+              const blockId = await bulkBlockSlotsFallback();
+              if (blockId) {
+                await supabase.from('bookings').update({ ghl_event_id: blockId }).eq('id', booking.id);
+                console.log(`[Push All Bookings] Created via block-slots: ${booking.title} → ${blockId} (cal: ${calendarId}, room: ${booking.room_name})`);
+                pushed++;
+              } else errors++;
             }
           }
         } catch (err) {
