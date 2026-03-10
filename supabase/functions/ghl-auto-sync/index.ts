@@ -789,7 +789,7 @@ async function syncCompanies(supabase: any, ghlHeaders: any, locationId: string,
     // 2. Upsert GHL companies — all lookups are in-memory now
     for (const ghlCompany of ghlCompanies) {
       seenGhlCompanyIds.add(ghlCompany.id);
-      const ghlName = ghlCompany.name || 'Onbekend';
+      const ghlName = fixEnc(ghlCompany.name || 'Onbekend');
       const ghlEmail = ghlCompany.email || null;
       const ghlPhone = ghlCompany.phone || null;
       const ghlWebsite = ghlCompany.website || null;
