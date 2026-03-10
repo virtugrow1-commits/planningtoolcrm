@@ -929,6 +929,39 @@ Deno.serve(async (req) => {
       }
     }
 
+    if (action === 'delete-inquiry') {
+      const { ghl_opportunity_id } = body;
+      if (!ghl_opportunity_id) {
+        return new Response(JSON.stringify({ success: true, skipped: 'no ghl_opportunity_id' }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+      try {
+        const res = await ghlFetch(`${GHL_API_BASE}/opportunities/${ghl_opportunity_id}`, {
+          method: 'DELETE',
+          headers: ghlHeaders,
+        });
+        if (res.ok || res.status === 404) {
+          await res.text();
+          console.log(`[Delete Inquiry] Deleted GHL opportunity: ${ghl_opportunity_id}`);
+          await logSyncOperation(supabase, authUser.id, 'delete-inquiry', 'inquiry', { ghlOpportunityId: ghl_opportunity_id });
+        } else {
+          const errText = await res.text();
+          console.error(`Failed to delete GHL opportunity: [${res.status}] ${errText}`);
+          await logSyncOperation(supabase, authUser.id, 'delete-inquiry', 'inquiry', { error: errText, ghlOpportunityId: ghl_opportunity_id }, 'error');
+        }
+        return new Response(JSON.stringify({ success: true }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      } catch (err) {
+        console.error('Error deleting inquiry from GHL:', err);
+        await logSyncOperation(supabase, authUser.id, 'delete-inquiry', 'inquiry', { error: String(err) }, 'error');
+        return new Response(JSON.stringify({ error: String(err) }), {
+          status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+    }
+
     return new Response(JSON.stringify({ error: `Unknown action: ${action}` }), {
       status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
