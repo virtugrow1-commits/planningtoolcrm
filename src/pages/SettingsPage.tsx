@@ -156,7 +156,7 @@ export default function SettingsPage() {
         results.push(`${totalContacts} contacten`);
 
         // 2. Opportunities
-        await new Promise(r => setTimeout(r, 1500));
+        await new Promise(r => setTimeout(r, 3000));
         try {
           const { data } = await supabase.functions.invoke('ghl-sync', { body: { action: 'sync-opportunities' } });
           results.push(`${data?.synced || 0} opportunities`);
