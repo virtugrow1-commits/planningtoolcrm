@@ -1436,7 +1436,7 @@ Deno.serve(async (req) => {
           await delay(500);
 
           if (booking.ghl_event_id) {
-            const res = await ghlFetch(`${GHL_API_BASE}/calendars/events/${booking.ghl_event_id}`, {
+            const res = await ghlFetch(`${GHL_API_BASE}/calendars/events/appointments/${booking.ghl_event_id}`, {
               method: 'PUT', headers: calEventHeaders, body: JSON.stringify(ghlPayload),
             });
             if (res.ok) {
