@@ -1233,26 +1233,15 @@ Deno.serve(async (req) => {
         }
       }
 
-      const ghlPayload: Record<string, any> = {
-        calendarId: roomSetting.ghl_calendar_id,
-        locationId: GHL_LOCATION_ID,
-        title: booking.title || 'Reservering',
-        startTime: startISOwTZ,
-        endTime: endISOwTZ,
-        appointmentStatus: booking.status === 'confirmed' ? 'confirmed' : 'new',
-      };
-      if (ghlContactId) ghlPayload.contactId = ghlContactId;
-      if (booking.notes) ghlPayload.notes = booking.notes;
-
+      // Block-slots endpoint only accepts: calendarId, locationId, title, startTime, endTime, notes
+      // It does NOT accept: appointmentStatus, contactId
       const eventPayload: Record<string, any> = {
         calendarId: roomSetting.ghl_calendar_id,
         locationId: GHL_LOCATION_ID,
         title: booking.title || 'Reservering',
         startTime: startISOwTZ,
         endTime: endISOwTZ,
-        appointmentStatus: booking.status === 'confirmed' ? 'confirmed' : 'new',
       };
-      if (ghlContactId) eventPayload.contactId = ghlContactId;
       if (booking.notes) eventPayload.notes = booking.notes;
 
       try {
