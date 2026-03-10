@@ -151,7 +151,7 @@ export default function SettingsPage() {
           totalContacts += data.synced || 0;
           nextPageUrl = data.nextPageUrl || null;
           hasMore = !!data.hasMore;
-          if (hasMore) await new Promise(r => setTimeout(r, 1000));
+          if (hasMore) await new Promise(r => setTimeout(r, 2000));
         }
         results.push(`${totalContacts} contacten`);
 
