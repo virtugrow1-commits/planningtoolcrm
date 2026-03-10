@@ -163,7 +163,7 @@ export default function SettingsPage() {
         } catch (e) { console.error('Opp sync error:', e); }
 
         // 3. Calendars
-        await new Promise(r => setTimeout(r, 1500));
+        await new Promise(r => setTimeout(r, 3000));
         try {
           const { data } = await supabase.functions.invoke('ghl-sync', { body: { action: 'sync-calendars' } });
           results.push(`${data?.synced || 0} boekingen`);
