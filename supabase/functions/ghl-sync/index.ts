@@ -1494,7 +1494,9 @@ Deno.serve(async (req) => {
 
     // =================== push-all-bookings ===================
     if (action === 'push-all-bookings') {
-      console.log(`[Push All Bookings] Starting bulk push to GHL calendars`);
+      const batchSize = body.batchSize || 5;
+      const offset = body.offset || 0;
+      console.log(`[Push All Bookings] Batch push offset=${offset}, batchSize=${batchSize}`);
 
       // Load room → calendar mapping
       const { data: roomSettings } = await supabase
@@ -1507,15 +1509,23 @@ Deno.serve(async (req) => {
       for (const rs of roomSettings || []) {
         if (rs.ghl_calendar_id) roomToCalendar[rs.room_name] = rs.ghl_calendar_id;
       }
-      console.log(`[Push All Bookings] Room mappings:`, JSON.stringify(roomToCalendar));
 
-      // Load all bookings without ghl_event_id (only missing ones)
+      // Count total missing first
       const onlyMissing = body.onlyMissing !== false;
+      let countQuery = supabase
+        .from('bookings')
+        .select('id', { count: 'exact', head: true })
+        .in('user_id', orgUserIds);
+      if (onlyMissing) countQuery = countQuery.is('ghl_event_id', null);
+      const { count: totalCount } = await countQuery;
+
+      // Load batch of bookings
       let bookingsQuery = supabase
         .from('bookings')
         .select('*')
         .in('user_id', orgUserIds)
-        .order('date', { ascending: true });
+        .order('date', { ascending: true })
+        .range(offset, offset + batchSize - 1);
       if (onlyMissing) {
         bookingsQuery = bookingsQuery.is('ghl_event_id', null);
       }
@@ -1696,8 +1706,14 @@ Deno.serve(async (req) => {
         }
       }
 
-      await logSyncOperation(supabase, authUser.id, 'push-all-bookings', 'booking', { pushed, skipped, errors, total: allBookings?.length || 0 });
-      return new Response(JSON.stringify({ success: true, pushed, skipped, errors, total: allBookings?.length || 0 }), {
+      const batchProcessed = allBookings?.length || 0;
+      const hasMore = onlyMissing ? (pushed + skipped + errors) < (totalCount || 0) - offset : batchProcessed === batchSize;
+      // For onlyMissing: since successfully pushed items lose their NULL ghl_event_id,
+      // the next call with offset=0 will get the next batch automatically
+      const nextOffset = onlyMissing ? 0 : offset + batchSize;
+
+      await logSyncOperation(supabase, authUser.id, 'push-all-bookings', 'booking', { pushed, skipped, errors, batchProcessed, totalRemaining: totalCount || 0, offset });
+      return new Response(JSON.stringify({ success: true, pushed, skipped, errors, total: totalCount || 0, batchProcessed, hasMore: (totalCount || 0) > batchProcessed, nextOffset }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
