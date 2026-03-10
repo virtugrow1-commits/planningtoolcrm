@@ -1377,7 +1377,7 @@ Deno.serve(async (req) => {
 
       console.log(`[Push Booking] Calendar: ${roomSetting.ghl_calendar_id}, Contact: ${ghlContactId}, Room: ${booking.room_name}, Payload: ${JSON.stringify(eventPayload)}`);
 
-      // Helper: fallback to block-slots when appointments endpoint fails (e.g. contact-level conflict or inactive calendar)
+      // Helper: fallback to block-slots when appointments endpoint fails
       const createViaBlockSlots = async (): Promise<string | null> => {
         console.log(`[Push Booking] Falling back to block-slots for room: ${booking.room_name}, calendar: ${roomSetting.ghl_calendar_id}`);
         const blockPayload: Record<string, any> = {
@@ -1393,7 +1393,7 @@ Deno.serve(async (req) => {
         if (blockRes.ok) {
           const blockData = await blockRes.json();
           const blockId = blockData.id || blockData.event?.id;
-          console.log(`[Push Booking] Created via block-slots: ${blockId}`);
+          console.log(`[Push Booking] Created via block-slots: ${blockId}, room: ${booking.room_name}, calendar: ${roomSetting.ghl_calendar_id}`);
           return blockId || null;
         } else {
           const blockErr = await blockRes.text();
@@ -1402,72 +1402,89 @@ Deno.serve(async (req) => {
         }
       };
 
+      // Helper: delete an existing GHL appointment (for room changes)
+      const deleteOldAppointment = async (eventId: string): Promise<void> => {
+        try {
+          const delRes = await ghlFetch(`${GHL_API_BASE}/calendars/events/appointments/${eventId}`, {
+            method: 'DELETE', headers: calEventHeaders,
+          });
+          if (delRes.ok || delRes.status === 404) {
+            await delRes.text();
+            console.log(`[Push Booking] Deleted old appointment: ${eventId}`);
+          } else {
+            const delErr = await delRes.text();
+            console.warn(`[Push Booking] Failed to delete old appointment ${eventId}: ${delErr}`);
+            // Also try block-slots delete
+            const delRes2 = await ghlFetch(`${GHL_API_BASE}/calendars/events/block-slots/${eventId}`, {
+              method: 'DELETE', headers: calEventHeaders,
+            });
+            await delRes2.text();
+          }
+        } catch (e) {
+          console.warn(`[Push Booking] Error deleting old appointment: ${e}`);
+        }
+      };
+
+      // Helper: create appointment with block-slots fallback, returns new event ID or null
+      const createNewAppointment = async (): Promise<string | null> => {
+        const res = await ghlFetch(`${GHL_API_BASE}/calendars/events/appointments`, {
+          method: 'POST', headers: calEventHeaders, body: JSON.stringify(eventPayload),
+        });
+        if (res.ok) {
+          const created = await res.json();
+          const newId = created.id || created.event?.id;
+          console.log(`[Push Booking] Created GHL appointment: ${newId}, room: ${booking.room_name}, calendar: ${roomSetting.ghl_calendar_id}`);
+          return newId || null;
+        }
+        const errText = await res.text();
+        console.warn(`[Push Booking] Appointment create failed: [${res.status}] ${errText}, trying block-slots for room: ${booking.room_name}`);
+        return await createViaBlockSlots();
+      };
+
+      let syncSuccess = false;
       try {
         if (booking.ghl_event_id) {
-          // Update existing appointment
+          // Try updating existing appointment
           const res = await ghlFetch(`${GHL_API_BASE}/calendars/events/appointments/${booking.ghl_event_id}`, {
             method: 'PUT', headers: calEventHeaders, body: JSON.stringify(eventPayload),
           });
           if (res.ok) {
             await res.json().catch(() => ({}));
             console.log(`[Push Booking] Updated GHL appointment: ${booking.ghl_event_id}, room: ${booking.room_name}, calendar: ${roomSetting.ghl_calendar_id}`);
+            syncSuccess = true;
           } else {
             const errText = await res.text();
-            if (res.status === 404) {
-              console.log(`[Push Booking] Appointment ${booking.ghl_event_id} not found, creating new one for room: ${booking.room_name}`);
-              const createRes = await ghlFetch(`${GHL_API_BASE}/calendars/events/appointments`, {
-                method: 'POST', headers: calEventHeaders, body: JSON.stringify(eventPayload),
-              });
-              if (createRes.ok) {
-                const created = await createRes.json();
-                const newId = created.id || created.event?.id;
-                if (newId) {
-                  await supabase.from('bookings').update({ ghl_event_id: newId }).eq('id', booking.id);
-                  console.log(`[Push Booking] Re-created appointment: ${newId}, room: ${booking.room_name}`);
-                }
-              } else {
-                const createErr = await createRes.text();
-                console.warn(`[Push Booking] Appointment re-create failed: [${createRes.status}] ${createErr}, trying block-slots`);
-                const blockId = await createViaBlockSlots();
-                if (blockId) await supabase.from('bookings').update({ ghl_event_id: blockId }).eq('id', booking.id);
-              }
-            } else {
-              console.warn(`[Push Booking] Update failed: [${res.status}] ${errText}, trying block-slots`);
-              // Try to delete old and create new via block-slots
-              const blockId = await createViaBlockSlots();
-              if (blockId) await supabase.from('bookings').update({ ghl_event_id: blockId }).eq('id', booking.id);
+            console.warn(`[Push Booking] Update failed [${res.status}]: ${errText}. Deleting old and creating new in correct calendar.`);
+            // Room may have changed, or appointment doesn't exist anymore → delete old + create new
+            await deleteOldAppointment(booking.ghl_event_id);
+            const newId = await createNewAppointment();
+            if (newId) {
+              await supabase.from('bookings').update({ ghl_event_id: newId }).eq('id', booking.id);
+              syncSuccess = true;
             }
           }
         } else {
-          // Create new appointment
-          const res = await ghlFetch(`${GHL_API_BASE}/calendars/events/appointments`, {
-            method: 'POST', headers: calEventHeaders, body: JSON.stringify(eventPayload),
-          });
-          if (res.ok) {
-            const created = await res.json();
-            const newId = created.id || created.event?.id;
-            if (newId) {
-              await supabase.from('bookings').update({ ghl_event_id: newId }).eq('id', booking.id);
-              console.log(`[Push Booking] Created GHL appointment: ${newId}, room: ${booking.room_name}, calendar: ${roomSetting.ghl_calendar_id}`);
-            } else {
-              console.log(`[Push Booking] Created but no ID in response:`, JSON.stringify(created));
-            }
-          } else {
-            const errText = await res.text();
-            console.warn(`[Push Booking] Appointment create failed: [${res.status}] ${errText}, trying block-slots fallback for room: ${booking.room_name}`);
-            // Fallback: use block-slots (no contact-level conflict, works with inactive calendars too)
-            const blockId = await createViaBlockSlots();
-            if (blockId) {
-              await supabase.from('bookings').update({ ghl_event_id: blockId }).eq('id', booking.id);
-            }
+          // No existing GHL event → create new
+          const newId = await createNewAppointment();
+          if (newId) {
+            await supabase.from('bookings').update({ ghl_event_id: newId }).eq('id', booking.id);
+            syncSuccess = true;
           }
         }
 
         await logSyncOperation(supabase, authUser.id, 'push-booking', 'booking', {
           entity_id: booking.id, bookingId: booking.id, room: booking.room_name,
           calendarId: roomSetting.ghl_calendar_id, contactId: ghlContactId, title: booking.title,
-        });
-        return new Response(JSON.stringify({ success: true }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+          syncSuccess,
+        }, syncSuccess ? 'success' : 'error');
+
+        if (syncSuccess) {
+          return new Response(JSON.stringify({ success: true }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+        } else {
+          return new Response(JSON.stringify({ success: false, error: 'Both appointment and block-slots creation failed' }), {
+            status: 502, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
+        }
       } catch (err) {
         console.error(`[Push Booking] Error for room ${booking.room_name}, calendar ${roomSetting.ghl_calendar_id}:`, err);
         await logSyncOperation(supabase, authUser.id, 'push-booking', 'booking', { error: String(err), bookingId: booking.id, room: booking.room_name, calendarId: roomSetting.ghl_calendar_id }, 'error');
