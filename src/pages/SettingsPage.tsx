@@ -132,7 +132,7 @@ export default function SettingsPage() {
           nextPageUrl = data.nextPageUrl || null;
           hasMore = !!data.hasMore;
           // Small delay between pages to avoid rate limits
-          if (hasMore) await new Promise(r => setTimeout(r, 1000));
+          if (hasMore) await new Promise(r => setTimeout(r, 2000));
         }
         toast({ title: '✅ Synchronisatie voltooid', description: `${totalSynced} contacten opgehaald uit VirtuGrow (${page} pagina's)` });
       } else if (action === 'full-sync') {
