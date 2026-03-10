@@ -1706,8 +1706,14 @@ Deno.serve(async (req) => {
         }
       }
 
-      await logSyncOperation(supabase, authUser.id, 'push-all-bookings', 'booking', { pushed, skipped, errors, total: allBookings?.length || 0 });
-      return new Response(JSON.stringify({ success: true, pushed, skipped, errors, total: allBookings?.length || 0 }), {
+      const batchProcessed = allBookings?.length || 0;
+      const hasMore = onlyMissing ? (pushed + skipped + errors) < (totalCount || 0) - offset : batchProcessed === batchSize;
+      // For onlyMissing: since successfully pushed items lose their NULL ghl_event_id,
+      // the next call with offset=0 will get the next batch automatically
+      const nextOffset = onlyMissing ? 0 : offset + batchSize;
+
+      await logSyncOperation(supabase, authUser.id, 'push-all-bookings', 'booking', { pushed, skipped, errors, batchProcessed, totalRemaining: totalCount || 0, offset });
+      return new Response(JSON.stringify({ success: true, pushed, skipped, errors, total: totalCount || 0, batchProcessed, hasMore: (totalCount || 0) > batchProcessed, nextOffset }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
