@@ -1337,41 +1337,13 @@ Deno.serve(async (req) => {
         const startISO = `${booking.date}T${startH}:${startM}:00${tz}`;
         const endISO = `${booking.date}T${endH}:${endM}:00${tz}`;
 
-        let ghlContactId = booking.contact_id ? contactGhlMap[booking.contact_id] : null;
-
-        // If no contact, search or create
-        if (!ghlContactId) {
-          const contactName = booking.contact_name || 'Onbekend';
-          const searchRes = await ghlFetch(`${GHL_API_BASE}/contacts/?locationId=${GHL_LOCATION_ID}&query=${encodeURIComponent(contactName)}&limit=1`, { headers: ghlHeaders });
-          if (searchRes.ok) {
-            const sd = await searchRes.json();
-            ghlContactId = sd.contacts?.[0]?.id || null;
-          }
-          if (!ghlContactId) {
-            const nameParts = contactName.split(' ');
-            const cr = await ghlFetch(`${GHL_API_BASE}/contacts/`, {
-              method: 'POST', headers: ghlHeaders,
-              body: JSON.stringify({ firstName: nameParts[0] || 'Onbekend', lastName: nameParts.slice(1).join(' ') || '', locationId: GHL_LOCATION_ID }),
-            });
-            if (cr.ok) { const cd = await cr.json(); ghlContactId = cd.contact?.id || null; }
-          }
-        }
-
-        if (!ghlContactId) {
-          console.warn(`[Push All] No GHL contact for: ${booking.contact_name}, skipping`);
-          skipped++;
-          continue;
-        }
-
+        // block-slots payload — no contactId or appointmentStatus needed
         const ghlPayload: Record<string, any> = {
           calendarId,
           locationId: GHL_LOCATION_ID,
-          contactId: ghlContactId,
           title: booking.title || 'Reservering',
           startTime: startISO,
           endTime: endISO,
-          appointmentStatus: booking.status === 'confirmed' ? 'confirmed' : 'new',
-          ignoreDateRange: true,
         };
         if (booking.notes) ghlPayload.notes = booking.notes;
 
@@ -1379,13 +1351,13 @@ Deno.serve(async (req) => {
           await delay(500);
 
           if (booking.ghl_event_id) {
-            const res = await ghlFetch(`${GHL_API_BASE}/calendars/events/appointments/${booking.ghl_event_id}`, {
+            const res = await ghlFetch(`${GHL_API_BASE}/calendars/events/block-slots/${booking.ghl_event_id}`, {
               method: 'PUT', headers: calEventHeaders, body: JSON.stringify(ghlPayload),
             });
             if (res.ok) {
               pushed++;
             } else if (res.status === 404) {
-              const createRes = await ghlFetch(`${GHL_API_BASE}/calendars/events/appointments`, {
+              const createRes = await ghlFetch(`${GHL_API_BASE}/calendars/events/block-slots`, {
                 method: 'POST', headers: calEventHeaders, body: JSON.stringify(ghlPayload),
               });
               if (createRes.ok) {
@@ -1395,20 +1367,15 @@ Deno.serve(async (req) => {
                 pushed++;
               } else {
                 const ce = await createRes.text();
-                console.error(`[Push All] Create failed: ${ce}`); errors++;
+                console.error(`[Push All] Create failed: [${createRes.status}] ${ce}`); errors++;
               }
             } else if (res.status === 429) { await res.text(); break; }
             else {
               const et = await res.text();
-              if (res.status === 400 && et.toLowerCase().includes('slot')) {
-                console.warn(`[Push All] Slot not available (non-fatal): ${booking.title}`);
-                pushed++; // Count as synced, just slot issue
-              } else {
-                console.error(`[Push All] Update failed: ${et}`); errors++;
-              }
+              console.error(`[Push All] Update failed: [${res.status}] ${et}`); errors++;
             }
           } else {
-            const res = await ghlFetch(`${GHL_API_BASE}/calendars/events/appointments`, {
+            const res = await ghlFetch(`${GHL_API_BASE}/calendars/events/block-slots`, {
               method: 'POST', headers: calEventHeaders, body: JSON.stringify(ghlPayload),
             });
             if (res.ok) {
@@ -1422,12 +1389,7 @@ Deno.serve(async (req) => {
             } else if (res.status === 429) { await res.text(); break; }
             else {
               const errText = await res.text();
-              if (res.status === 400 && errText.toLowerCase().includes('slot')) {
-                console.warn(`[Push All] Slot not available (non-fatal): ${booking.title}`);
-                pushed++;
-              } else {
-                console.error(`[Push All Bookings] Failed: ${booking.title} [${res.status}] ${errText}`); errors++;
-              }
+              console.error(`[Push All Bookings] Failed: ${booking.title} [${res.status}] ${errText}`); errors++;
             }
           }
         } catch (err) {
