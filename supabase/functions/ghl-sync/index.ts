@@ -1476,7 +1476,7 @@ Deno.serve(async (req) => {
       const calEventHeaders = { ...ghlHeaders, 'Version': '2021-04-15' };
 
       try {
-        const res = await ghlFetch(`${GHL_API_BASE}/calendars/events/appointments/${ghl_event_id}`, {
+        const res = await ghlFetch(`${GHL_API_BASE}/calendars/events/${ghl_event_id}`, {
           method: 'DELETE',
           headers: calEventHeaders,
         });
