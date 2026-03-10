@@ -7,9 +7,24 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version',
 };
 
+/** Fix common UTF-8 mojibake patterns */
+const MOJIBAKE: [string, string][] = [
+  ['Ã©', 'é'], ['Ã«', 'ë'], ['Ã¶', 'ö'], ['Ã¼', 'ü'], ['Ã¡', 'á'], ['Ã³', 'ó'],
+  ['Ã¨', 'è'], ['Ã¯', 'ï'], ['Ã§', 'ç'], ['Ã®', 'î'], ['Ã¢', 'â'], ['Ã´', 'ô'],
+  ['Ã»', 'û'], ['Ã±', 'ñ'], ['Ã¤', 'ä'], ['Ã¥', 'å'], ['Ã¦', 'æ'], ['Ã°', 'ð'],
+  ['Ã½', 'ý'], ['Ã¿', 'ÿ'], ['ã©', 'é'], ['ã«', 'ë'], ['ã¶', 'ö'], ['ã¼', 'ü'],
+  ['ã¨', 'è'], ['ã¯', 'ï'],
+];
+function fixEnc(text: string | null | undefined): string {
+  if (!text) return text ?? '';
+  let r = text;
+  for (const [bad, good] of MOJIBAKE) r = r.split(bad).join(good);
+  return r;
+}
+
 /** Normalize string for comparison (lowercase, trim, collapse whitespace) */
 function norm(s: string | null | undefined): string {
-  return (s || '').toLowerCase().trim().replace(/\s+/g, ' ');
+  return fixEnc((s || '')).toLowerCase().trim().replace(/\s+/g, ' ');
 }
 
 /** Rate-limit delay to avoid 429 errors */
@@ -565,11 +580,11 @@ async function syncContacts(supabase: any, ghlHeaders: any, locationId: string, 
 
     for (const ghlContact of ghlContacts) {
       seenGhlContactIds.add(ghlContact.id);
-      const firstName = ghlContact.firstName || ghlContact.name?.split(' ')[0] || 'Onbekend';
-      const lastName = ghlContact.lastName || ghlContact.name?.split(' ').slice(1).join(' ') || '';
+      const firstName = fixEnc(ghlContact.firstName || ghlContact.name?.split(' ')[0] || 'Onbekend');
+      const lastName = fixEnc(ghlContact.lastName || ghlContact.name?.split(' ').slice(1).join(' ') || '');
       const ghlEmail = ghlContact.email || null;
       const ghlPhone = ghlContact.phone || null;
-      const ghlCompanyName = ghlContact.companyName || null;
+      const ghlCompanyName = fixEnc(ghlContact.companyName || null);
 
       // Use pre-loaded lookup instead of DB query
       const existing = lookups.contactByGhlId.get(ghlContact.id);
@@ -774,7 +789,7 @@ async function syncCompanies(supabase: any, ghlHeaders: any, locationId: string,
     // 2. Upsert GHL companies — all lookups are in-memory now
     for (const ghlCompany of ghlCompanies) {
       seenGhlCompanyIds.add(ghlCompany.id);
-      const ghlName = ghlCompany.name || 'Onbekend';
+      const ghlName = fixEnc(ghlCompany.name || 'Onbekend');
       const ghlEmail = ghlCompany.email || null;
       const ghlPhone = ghlCompany.phone || null;
       const ghlWebsite = ghlCompany.website || null;
