@@ -1442,7 +1442,7 @@ Deno.serve(async (req) => {
             if (res.ok) {
               pushed++;
             } else if (res.status === 404) {
-              const createRes = await ghlFetch(`${GHL_API_BASE}/calendars/events`, {
+              const createRes = await ghlFetch(`${GHL_API_BASE}/calendars/events/appointments`, {
                 method: 'POST', headers: calEventHeaders, body: JSON.stringify(ghlPayload),
               });
               if (createRes.ok) {
@@ -1450,9 +1450,17 @@ Deno.serve(async (req) => {
                 const newId = created.id || created.event?.id;
                 if (newId) await supabase.from('bookings').update({ ghl_event_id: newId }).eq('id', booking.id);
                 pushed++;
-              } else { await createRes.text(); errors++; }
+              } else {
+                const ce = await createRes.text();
+                if (createRes.status === 400 && ce.includes('slot')) { console.warn(`[Push All] Slot conflict (non-fatal): ${booking.title}`); pushed++; }
+                else { console.error(`[Push All] Create failed: ${ce}`); errors++; }
+              }
             } else if (res.status === 429) { await res.text(); break; }
-            else { await res.text(); errors++; }
+            else {
+              const et = await res.text();
+              if (res.status === 400 && et.includes('slot')) { console.warn(`[Push All] Slot conflict (non-fatal): ${booking.title}`); pushed++; }
+              else { errors++; }
+            }
           } else {
             const res = await ghlFetch(`${GHL_API_BASE}/calendars/events`, {
               method: 'POST', headers: calEventHeaders, body: JSON.stringify(ghlPayload),
