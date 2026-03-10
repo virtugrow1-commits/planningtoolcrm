@@ -1150,6 +1150,309 @@ Deno.serve(async (req) => {
       });
     }
 
+    // =================== push-booking (single) ===================
+    if (action === 'push-booking') {
+      const { booking } = body;
+      if (!booking) {
+        return new Response(JSON.stringify({ error: 'Booking data required' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      }
+
+      console.log(`[Push Booking] Pushing booking: ${booking.title || booking.id}`);
+
+      // Get room → calendar mapping
+      const { data: roomSetting } = await supabase
+        .from('room_settings')
+        .select('ghl_calendar_id')
+        .eq('room_name', booking.room_name)
+        .not('ghl_calendar_id', 'is', null)
+        .limit(1)
+        .maybeSingle();
+
+      if (!roomSetting?.ghl_calendar_id) {
+        console.warn(`[Push Booking] No GHL calendar mapped for room: ${booking.room_name}`);
+        return new Response(JSON.stringify({ success: false, error: `No GHL calendar for room: ${booking.room_name}` }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      // Look up GHL contact ID
+      let ghlContactId: string | null = null;
+      if (booking.contact_id) {
+        const { data: contact } = await supabase
+          .from('contacts')
+          .select('ghl_contact_id')
+          .eq('id', booking.contact_id)
+          .maybeSingle();
+        ghlContactId = contact?.ghl_contact_id || null;
+      }
+
+      // Build start/end ISO timestamps (Europe/Amsterdam)
+      const dateStr = booking.date; // "YYYY-MM-DD"
+      const startH = String(booking.start_hour).padStart(2, '0');
+      const startM = String(booking.start_minute ?? 0).padStart(2, '0');
+      const endH = String(booking.end_hour).padStart(2, '0');
+      const endM = String(booking.end_minute ?? 0).padStart(2, '0');
+      const startISO = `${dateStr}T${startH}:${startM}:00`;
+      const endISO = `${dateStr}T${endH}:${endM}:00`;
+
+      const calEventHeaders = { ...ghlHeaders, 'Version': '2021-04-15' };
+
+      const ghlPayload: Record<string, any> = {
+        calendarId: roomSetting.ghl_calendar_id,
+        locationId: GHL_LOCATION_ID,
+        title: booking.title || 'Reservering',
+        startTime: startISO,
+        endTime: endISO,
+        status: booking.status === 'confirmed' ? 'confirmed' : 'new',
+        appointmentStatus: booking.status === 'confirmed' ? 'confirmed' : 'new',
+      };
+      if (ghlContactId) ghlPayload.contactId = ghlContactId;
+      if (booking.notes) ghlPayload.notes = booking.notes;
+
+      try {
+        if (booking.ghl_event_id) {
+          // Update existing
+          const res = await ghlFetch(`${GHL_API_BASE}/calendars/events/${booking.ghl_event_id}`, {
+            method: 'PUT',
+            headers: calEventHeaders,
+            body: JSON.stringify(ghlPayload),
+          });
+          if (res.ok) {
+            console.log(`[Push Booking] Updated GHL event: ${booking.ghl_event_id}`);
+          } else {
+            const errText = await res.text();
+            console.error(`[Push Booking] Failed to update: [${res.status}] ${errText}`);
+            // If 404, event was deleted in GHL — create new one
+            if (res.status === 404) {
+              console.log(`[Push Booking] Event not found in GHL, creating new one`);
+              const createRes = await ghlFetch(`${GHL_API_BASE}/calendars/events`, {
+                method: 'POST',
+                headers: calEventHeaders,
+                body: JSON.stringify(ghlPayload),
+              });
+              if (createRes.ok) {
+                const created = await createRes.json();
+                const newId = created.id || created.event?.id;
+                if (newId) {
+                  await supabase.from('bookings').update({ ghl_event_id: newId }).eq('id', booking.id);
+                  console.log(`[Push Booking] Re-created GHL event: ${newId}`);
+                }
+              } else {
+                const createErr = await createRes.text();
+                console.error(`[Push Booking] Failed to re-create: ${createErr}`);
+              }
+            }
+          }
+        } else {
+          // Create new
+          const res = await ghlFetch(`${GHL_API_BASE}/calendars/events`, {
+            method: 'POST',
+            headers: calEventHeaders,
+            body: JSON.stringify(ghlPayload),
+          });
+          if (res.ok) {
+            const created = await res.json();
+            const newId = created.id || created.event?.id;
+            if (newId) {
+              await supabase.from('bookings').update({ ghl_event_id: newId }).eq('id', booking.id);
+              console.log(`[Push Booking] Created GHL event: ${newId}`);
+            }
+          } else {
+            const errText = await res.text();
+            console.error(`[Push Booking] Failed to create: [${res.status}] ${errText}`);
+            return new Response(JSON.stringify({ error: errText }), { status: res.status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+          }
+        }
+
+        await logSyncOperation(supabase, authUser.id, 'push-booking', 'booking', { bookingId: booking.id, room: booking.room_name });
+        return new Response(JSON.stringify({ success: true }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      } catch (err) {
+        console.error('[Push Booking] Error:', err);
+        await logSyncOperation(supabase, authUser.id, 'push-booking', 'booking', { error: String(err), bookingId: booking.id }, 'error');
+        return new Response(JSON.stringify({ error: String(err) }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      }
+    }
+
+    // =================== push-all-bookings ===================
+    if (action === 'push-all-bookings') {
+      console.log(`[Push All Bookings] Starting bulk push to GHL calendars`);
+      const primaryUserId = orgUserIds[0];
+
+      // Load room → calendar mapping
+      const { data: roomSettings } = await supabase
+        .from('room_settings')
+        .select('room_name, ghl_calendar_id')
+        .in('user_id', orgUserIds)
+        .not('ghl_calendar_id', 'is', null);
+
+      const roomToCalendar: Record<string, string> = {};
+      for (const rs of roomSettings || []) {
+        if (rs.ghl_calendar_id) roomToCalendar[rs.room_name] = rs.ghl_calendar_id;
+      }
+      console.log(`[Push All Bookings] Room mappings:`, Object.keys(roomToCalendar));
+
+      // Load all bookings
+      const { data: allBookings } = await supabase
+        .from('bookings')
+        .select('*')
+        .in('user_id', orgUserIds)
+        .order('date', { ascending: true });
+
+      // Pre-load contact GHL IDs
+      const { data: contacts } = await supabase
+        .from('contacts')
+        .select('id, ghl_contact_id')
+        .in('user_id', orgUserIds)
+        .not('ghl_contact_id', 'is', null);
+
+      const contactGhlMap: Record<string, string> = {};
+      for (const c of contacts || []) {
+        if (c.ghl_contact_id) contactGhlMap[c.id] = c.ghl_contact_id;
+      }
+
+      const calEventHeaders = { ...ghlHeaders, 'Version': '2021-04-15' };
+      let pushed = 0;
+      let skipped = 0;
+      let errors = 0;
+
+      for (const booking of allBookings || []) {
+        const calendarId = roomToCalendar[booking.room_name];
+        if (!calendarId) {
+          console.warn(`[Push All Bookings] No calendar for room: ${booking.room_name}, skipping`);
+          skipped++;
+          continue;
+        }
+
+        const startH = String(booking.start_hour).padStart(2, '0');
+        const startM = String(booking.start_minute ?? 0).padStart(2, '0');
+        const endH = String(booking.end_hour).padStart(2, '0');
+        const endM = String(booking.end_minute ?? 0).padStart(2, '0');
+        const startISO = `${booking.date}T${startH}:${startM}:00`;
+        const endISO = `${booking.date}T${endH}:${endM}:00`;
+
+        const ghlContactId = booking.contact_id ? contactGhlMap[booking.contact_id] : null;
+
+        const ghlPayload: Record<string, any> = {
+          calendarId,
+          locationId: GHL_LOCATION_ID,
+          title: booking.title || 'Reservering',
+          startTime: startISO,
+          endTime: endISO,
+          status: booking.status === 'confirmed' ? 'confirmed' : 'new',
+          appointmentStatus: booking.status === 'confirmed' ? 'confirmed' : 'new',
+        };
+        if (ghlContactId) ghlPayload.contactId = ghlContactId;
+        if (booking.notes) ghlPayload.notes = booking.notes;
+
+        try {
+          await delay(500); // Rate limit protection
+
+          if (booking.ghl_event_id) {
+            // Update existing event
+            const res = await ghlFetch(`${GHL_API_BASE}/calendars/events/${booking.ghl_event_id}`, {
+              method: 'PUT',
+              headers: calEventHeaders,
+              body: JSON.stringify(ghlPayload),
+            });
+            if (res.ok) {
+              pushed++;
+              console.log(`[Push All Bookings] Updated: ${booking.title} (${booking.ghl_event_id})`);
+            } else if (res.status === 404) {
+              // Event deleted in GHL, create new
+              const createRes = await ghlFetch(`${GHL_API_BASE}/calendars/events`, {
+                method: 'POST',
+                headers: calEventHeaders,
+                body: JSON.stringify(ghlPayload),
+              });
+              if (createRes.ok) {
+                const created = await createRes.json();
+                const newId = created.id || created.event?.id;
+                if (newId) {
+                  await supabase.from('bookings').update({ ghl_event_id: newId }).eq('id', booking.id);
+                }
+                pushed++;
+              } else {
+                await createRes.text();
+                errors++;
+              }
+            } else if (res.status === 429) {
+              console.warn(`[Push All Bookings] Rate limited after ${pushed} bookings`);
+              await res.text();
+              break;
+            } else {
+              await res.text();
+              errors++;
+            }
+          } else {
+            // Create new event
+            const res = await ghlFetch(`${GHL_API_BASE}/calendars/events`, {
+              method: 'POST',
+              headers: calEventHeaders,
+              body: JSON.stringify(ghlPayload),
+            });
+            if (res.ok) {
+              const created = await res.json();
+              const newId = created.id || created.event?.id;
+              if (newId) {
+                await supabase.from('bookings').update({ ghl_event_id: newId }).eq('id', booking.id);
+                console.log(`[Push All Bookings] Created: ${booking.title} → ${newId}`);
+              }
+              pushed++;
+            } else if (res.status === 429) {
+              console.warn(`[Push All Bookings] Rate limited after ${pushed} bookings`);
+              await res.text();
+              break;
+            } else {
+              const errText = await res.text();
+              console.error(`[Push All Bookings] Failed: ${booking.title} [${res.status}] ${errText}`);
+              errors++;
+            }
+          }
+        } catch (err) {
+          console.error(`[Push All Bookings] Error for ${booking.id}:`, err);
+          errors++;
+        }
+      }
+
+      await logSyncOperation(supabase, authUser.id, 'push-all-bookings', 'booking', { pushed, skipped, errors, total: allBookings?.length || 0 });
+      return new Response(JSON.stringify({ success: true, pushed, skipped, errors, total: allBookings?.length || 0 }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    // =================== delete-booking ===================
+    if (action === 'delete-booking') {
+      const { ghl_event_id } = body;
+      if (!ghl_event_id) {
+        return new Response(JSON.stringify({ success: true, skipped: 'no ghl_event_id' }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      console.log(`[Delete Booking] Deleting GHL event: ${ghl_event_id}`);
+      const calEventHeaders = { ...ghlHeaders, 'Version': '2021-04-15' };
+
+      try {
+        const res = await ghlFetch(`${GHL_API_BASE}/calendars/events/${ghl_event_id}`, {
+          method: 'DELETE',
+          headers: calEventHeaders,
+        });
+        if (res.ok || res.status === 404) {
+          await res.text();
+          console.log(`[Delete Booking] Deleted GHL event: ${ghl_event_id}`);
+          await logSyncOperation(supabase, authUser.id, 'delete-booking', 'booking', { ghlEventId: ghl_event_id });
+        } else {
+          const errText = await res.text();
+          console.error(`[Delete Booking] Failed: [${res.status}] ${errText}`);
+          await logSyncOperation(supabase, authUser.id, 'delete-booking', 'booking', { error: errText, ghlEventId: ghl_event_id }, 'error');
+        }
+        return new Response(JSON.stringify({ success: true }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      } catch (err) {
+        console.error('[Delete Booking] Error:', err);
+        return new Response(JSON.stringify({ error: String(err) }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      }
+    }
+
     return new Response(JSON.stringify({ error: `Unknown action: ${action}` }), {
       status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });

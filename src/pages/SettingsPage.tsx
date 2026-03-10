@@ -206,6 +206,8 @@ export default function SettingsPage() {
             ? `${data.synced} bedrijven opgehaald uit VirtuGrow`
             : action === 'sync-notes'
             ? `${data.synced} gesprekken opgehaald uit VirtuGrow (${data.skipped || 0} overgeslagen)`
+            : action === 'push-all-bookings'
+            ? `${data.pushed} reserveringen naar VirtuGrow gestuurd (${data.skipped || 0} overgeslagen, ${data.errors || 0} fouten)`
             : `${data.pushed || data.synced || 0} items gesynchroniseerd`,
         });
       }
@@ -330,6 +332,9 @@ export default function SettingsPage() {
                 </Button>
                 <Button variant="outline" size="sm" disabled={syncing} onClick={() => handleSync('sync-notes')}>
                   <RefreshCw size={14} className={`mr-1.5 ${syncing ? 'animate-spin' : ''}`} /> Gesprekken VGW → CRM
+                </Button>
+                <Button variant="outline" size="sm" disabled={syncing} onClick={() => handleSync('push-all-bookings')}>
+                  <RefreshCw size={14} className={`mr-1.5 ${syncing ? 'animate-spin' : ''}`} /> Reserveringen CRM → VGW
                 </Button>
                 <Button size="sm" disabled={syncing} onClick={() => handleSync('full-sync')}>
                   <RefreshCw size={14} className={`mr-1.5 ${syncing ? 'animate-spin' : ''}`} /> Volledige Sync
