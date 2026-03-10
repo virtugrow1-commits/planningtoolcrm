@@ -1417,13 +1417,13 @@ Deno.serve(async (req) => {
           await delay(500);
 
           if (booking.ghl_event_id) {
-            const res = await ghlFetch(`${GHL_API_BASE}/calendars/events/appointments/${booking.ghl_event_id}`, {
+            const res = await ghlFetch(`${GHL_API_BASE}/calendars/events/block-slots/${booking.ghl_event_id}`, {
               method: 'PUT', headers: calEventHeaders, body: JSON.stringify(ghlPayload),
             });
             if (res.ok) {
               pushed++;
             } else if (res.status === 404) {
-              const createRes = await ghlFetch(`${GHL_API_BASE}/calendars/events/appointments`, {
+              const createRes = await ghlFetch(`${GHL_API_BASE}/calendars/events/block-slots`, {
                 method: 'POST', headers: calEventHeaders, body: JSON.stringify(ghlPayload),
               });
               if (createRes.ok) {
@@ -1433,17 +1433,15 @@ Deno.serve(async (req) => {
                 pushed++;
               } else {
                 const ce = await createRes.text();
-                if (createRes.status === 400 && ce.includes('slot')) { console.warn(`[Push All] Slot conflict (non-fatal): ${booking.title}`); pushed++; }
-                else { console.error(`[Push All] Create failed: ${ce}`); errors++; }
+                console.error(`[Push All] Create failed: ${ce}`); errors++;
               }
             } else if (res.status === 429) { await res.text(); break; }
             else {
               const et = await res.text();
-              if (res.status === 400 && et.includes('slot')) { console.warn(`[Push All] Slot conflict (non-fatal): ${booking.title}`); pushed++; }
-              else { errors++; }
+              console.error(`[Push All] Update failed: ${et}`); errors++;
             }
           } else {
-            const res = await ghlFetch(`${GHL_API_BASE}/calendars/events/appointments`, {
+            const res = await ghlFetch(`${GHL_API_BASE}/calendars/events/block-slots`, {
               method: 'POST', headers: calEventHeaders, body: JSON.stringify(ghlPayload),
             });
             if (res.ok) {
@@ -1457,8 +1455,7 @@ Deno.serve(async (req) => {
             } else if (res.status === 429) { await res.text(); break; }
             else {
               const errText = await res.text();
-              if (res.status === 400 && errText.includes('slot')) { console.warn(`[Push All] Slot conflict (non-fatal): ${booking.title}`); pushed++; }
-              else { console.error(`[Push All Bookings] Failed: ${booking.title} [${res.status}] ${errText}`); errors++; }
+              console.error(`[Push All Bookings] Failed: ${booking.title} [${res.status}] ${errText}`); errors++;
             }
           }
         } catch (err) {
