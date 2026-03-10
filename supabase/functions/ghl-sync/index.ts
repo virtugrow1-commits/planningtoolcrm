@@ -1390,6 +1390,7 @@ Deno.serve(async (req) => {
           }
         }
 
+        // Block-slots endpoint does NOT accept contactId or appointmentStatus
         const ghlPayload: Record<string, any> = {
           calendarId,
           locationId: GHL_LOCATION_ID,
@@ -1397,7 +1398,6 @@ Deno.serve(async (req) => {
           startTime: startISO,
           endTime: endISO,
         };
-        if (ghlContactId) ghlPayload.contactId = ghlContactId;
         if (booking.notes) ghlPayload.notes = booking.notes;
 
         try {
