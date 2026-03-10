@@ -197,28 +197,8 @@ export default function InquiriesPage() {
     toast({ title: 'Aanvraag verwijderd', description: editInquiry.eventType });
   };
 
-  const handleAddInquiry = async () => {
-    if (!newForm.contactName || !newForm.eventType) {
-      toast({ title: 'Vul minimaal naam en type in', variant: 'destructive' });
-      return;
-    }
-    await addInquiry({
-      contactId: newForm.contactId || '',
-      contactName: newForm.contactName,
-      companyId: newForm.companyId || undefined,
-      eventType: newForm.eventType,
-      preferredDate: newForm.preferredDate,
-      roomPreference: newForm.roomPreference || undefined,
-      guestCount: Number(newForm.guestCount) || 0,
-      budget: Number(newForm.budget) || undefined,
-      message: newForm.message,
-      status: newForm.status,
-      source: newForm.source || 'Handmatig',
-    });
-    setNewOpen(false);
-    setNewForm({ contactName: '', contactId: '', companyId: '', eventType: '', preferredDate: '', guestCount: '', budget: '', message: '', source: 'Handmatig', roomPreference: '', status: 'new' });
-    
-    toast({ title: 'Aanvraag aangemaakt' });
+  const handleAddInquiry = async (inquiryData: Omit<Inquiry, 'id' | 'createdAt'>) => {
+    await addInquiry(inquiryData);
   };
 
   const handleDragStart = useCallback((e: DragEvent, id: string) => {
