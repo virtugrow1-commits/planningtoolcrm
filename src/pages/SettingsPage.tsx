@@ -177,7 +177,7 @@ export default function SettingsPage() {
         } catch (e) { console.error('Task sync error:', e); }
 
         // 5. Companies
-        await new Promise(r => setTimeout(r, 1500));
+        await new Promise(r => setTimeout(r, 3000));
         try {
           const { data } = await supabase.functions.invoke('ghl-sync', { body: { action: 'sync-companies' } });
           results.push(`${data?.synced || 0} bedrijven`);
