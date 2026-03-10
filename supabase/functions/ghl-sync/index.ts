@@ -860,6 +860,94 @@ Deno.serve(async (req) => {
       }
     }
 
+    if (action === 'push-inquiry') {
+      // Create a new GHL opportunity from a CRM inquiry
+      const { inquiry_id, contact_name, event_type, budget, status, message } = body;
+      if (!inquiry_id) {
+        return new Response(JSON.stringify({ error: 'inquiry_id required' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      }
+
+      console.log(`[Push Inquiry] Creating GHL opportunity for inquiry: ${inquiry_id}, contact: ${contact_name}`);
+
+      try {
+        // Get pipelines to find the correct stage
+        const pipelinesRes = await ghlFetch(`${GHL_API_BASE}/opportunities/pipelines?locationId=${GHL_LOCATION_ID}`, { headers: ghlHeaders });
+        let pipelineId: string | null = null;
+        let stageId: string | null = null;
+
+        if (pipelinesRes.ok) {
+          const pipelinesData = await pipelinesRes.json();
+          // Use first pipeline, find stage matching status
+          const pipeline = pipelinesData.pipelines?.[0];
+          if (pipeline) {
+            pipelineId = pipeline.id;
+            // Default to first stage
+            stageId = pipeline.stages?.[0]?.id || null;
+          }
+        } else {
+          await pipelinesRes.text();
+        }
+
+        if (!pipelineId) {
+          console.warn('[Push Inquiry] No pipeline found in GHL');
+          return new Response(JSON.stringify({ success: false, error: 'No GHL pipeline found' }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+        }
+
+        // Resolve GHL contact
+        let ghlContactId: string | null = null;
+        const { data: inquiryRow } = await supabase.from('inquiries').select('contact_id').eq('id', inquiry_id).single();
+        if (inquiryRow?.contact_id) {
+          const { data: contactRow } = await supabase.from('contacts').select('ghl_contact_id').eq('id', inquiryRow.contact_id).single();
+          ghlContactId = contactRow?.ghl_contact_id || null;
+        }
+        if (!ghlContactId) {
+          // Search or create contact
+          const searchRes = await ghlFetch(`${GHL_API_BASE}/contacts/?locationId=${GHL_LOCATION_ID}&query=${encodeURIComponent(contact_name || 'Onbekend')}&limit=1`, { headers: ghlHeaders });
+          if (searchRes.ok) {
+            const sd = await searchRes.json();
+            ghlContactId = sd.contacts?.[0]?.id || null;
+          } else { await searchRes.text(); }
+          if (!ghlContactId) {
+            const nameParts = (contact_name || 'Onbekend').split(' ');
+            const cRes = await ghlFetch(`${GHL_API_BASE}/contacts/`, { method: 'POST', headers: ghlHeaders, body: JSON.stringify({ firstName: nameParts[0], lastName: nameParts.slice(1).join(' ') || '-', locationId: GHL_LOCATION_ID }) });
+            if (cRes.ok) { const cd = await cRes.json(); ghlContactId = cd.contact?.id || null; }
+            else { await cRes.text(); }
+          }
+        }
+
+        const oppPayload: Record<string, any> = {
+          pipelineId,
+          locationId: GHL_LOCATION_ID,
+          name: event_type || contact_name || 'Aanvraag',
+          status: 'open',
+          contactId: ghlContactId || undefined,
+        };
+        if (stageId) oppPayload.pipelineStageId = stageId;
+        if (budget) oppPayload.monetaryValue = budget;
+
+        const res = await ghlFetch(`${GHL_API_BASE}/opportunities/`, { method: 'POST', headers: ghlHeaders, body: JSON.stringify(oppPayload) });
+        if (res.ok) {
+          const created = await res.json();
+          const newOppId = created.opportunity?.id;
+          if (newOppId) {
+            await supabase.from('inquiries').update({ ghl_opportunity_id: newOppId }).eq('id', inquiry_id);
+            console.log(`[Push Inquiry] Created GHL opportunity: ${newOppId}`);
+          }
+          await logSyncOperation(supabase, authUser.id, 'push-inquiry', 'inquiry', { inquiryId: inquiry_id, ghlOppId: newOppId });
+        } else {
+          const errText = await res.text();
+          console.error(`[Push Inquiry] Failed: [${res.status}] ${errText}`);
+          await logSyncOperation(supabase, authUser.id, 'push-inquiry', 'inquiry', { error: errText, inquiryId: inquiry_id }, 'error');
+        }
+
+        return new Response(JSON.stringify({ success: true }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      } catch (err) {
+        console.error('[Push Inquiry] Error:', err);
+        await logSyncOperation(supabase, authUser.id, 'push-inquiry', 'inquiry', { error: String(err), inquiryId: inquiry_id }, 'error');
+        return new Response(JSON.stringify({ error: String(err) }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      }
+    }
+
     if (action === 'push-inquiry-status') {
       const { ghl_opportunity_id, status, name, monetary_value, contact_name, guest_count } = body;
       if (!ghl_opportunity_id) {
