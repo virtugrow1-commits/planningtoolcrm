@@ -22,6 +22,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import CrmCombobox, { ComboboxOption } from '@/components/CrmCombobox';
+import NewInquiryDialog from '@/components/inquiry/NewInquiryDialog';
 import { Checkbox } from '@/components/ui/checkbox';
 import { cn } from '@/lib/utils';
 import ConflictAlertDialog from '@/components/calendar/ConflictAlertDialog';
