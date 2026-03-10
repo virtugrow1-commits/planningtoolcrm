@@ -972,6 +972,184 @@ Deno.serve(async (req) => {
       }
     }
 
+    // =================== sync-companies ===================
+    if (action === 'sync-companies') {
+      console.log(`[Companies Sync] Starting companies sync for organization`);
+      const primaryUserId = orgUserIds[0];
+      let synced = 0;
+
+      // GHL doesn't have a dedicated companies list endpoint with locationId filter
+      // Instead, we extract unique companies from contacts
+      const { data: localContacts } = await supabase
+        .from('contacts')
+        .select('company, company_id')
+        .in('user_id', orgUserIds)
+        .not('company', 'is', null);
+
+      const uniqueCompanies = new Set<string>();
+      for (const c of localContacts || []) {
+        if (c.company && c.company.trim()) uniqueCompanies.add(c.company.trim());
+      }
+
+      // Ensure each company exists in the companies table
+      for (const companyName of uniqueCompanies) {
+        const { data: existing } = await supabase
+          .from('companies')
+          .select('id')
+          .in('user_id', orgUserIds)
+          .ilike('name', companyName)
+          .maybeSingle();
+
+        if (!existing) {
+          await supabase.from('companies').insert({
+            user_id: primaryUserId,
+            name: companyName,
+          });
+          synced++;
+        }
+      }
+
+      await logSyncOperation(supabase, authUser.id, 'sync-companies', 'company', { synced, total: uniqueCompanies.size });
+      return new Response(JSON.stringify({ success: true, synced, total: uniqueCompanies.size }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    // =================== sync-tasks ===================
+    if (action === 'sync-tasks') {
+      console.log(`[Tasks Sync] Starting tasks sync for organization`);
+      const primaryUserId = orgUserIds[0];
+
+      // Fetch contacts with ghl_contact_id to get tasks per contact
+      const { data: linkedContacts } = await supabase
+        .from('contacts')
+        .select('id, ghl_contact_id')
+        .in('user_id', orgUserIds)
+        .not('ghl_contact_id', 'is', null);
+
+      let synced = 0;
+      for (const contact of linkedContacts || []) {
+        await delay(300); // Rate limit protection between contacts
+        const res = await ghlFetch(`${GHL_API_BASE}/contacts/${contact.ghl_contact_id}/tasks?locationId=${GHL_LOCATION_ID}`, {
+          headers: ghlHeaders,
+        });
+        if (!res.ok) {
+          if (res.status === 429) {
+            console.warn(`[Tasks Sync] Rate limited, stopping task sync early`);
+            break;
+          }
+          await res.text();
+          continue;
+        }
+        const data = await res.json();
+        const tasks = data.tasks || [];
+
+        for (const ghlTask of tasks) {
+          const { data: existing } = await supabase
+            .from('tasks')
+            .select('id')
+            .in('user_id', orgUserIds)
+            .eq('ghl_task_id', ghlTask.id)
+            .maybeSingle();
+
+          if (existing) {
+            await supabase.from('tasks').update({
+              title: ghlTask.title || 'Taak',
+              description: ghlTask.body || null,
+              status: ghlTask.completed ? 'completed' : 'open',
+              due_date: ghlTask.dueDate || null,
+            }).eq('id', existing.id);
+          } else {
+            await supabase.from('tasks').insert({
+              user_id: primaryUserId,
+              ghl_task_id: ghlTask.id,
+              contact_id: contact.id,
+              title: ghlTask.title || 'Taak',
+              description: ghlTask.body || null,
+              status: ghlTask.completed ? 'completed' : 'open',
+              due_date: ghlTask.dueDate || null,
+              priority: 'medium',
+            });
+          }
+          synced++;
+        }
+      }
+
+      await logSyncOperation(supabase, authUser.id, 'sync-tasks', 'task', { synced, contactsChecked: linkedContacts?.length || 0 });
+      return new Response(JSON.stringify({ success: true, synced, contactsChecked: linkedContacts?.length || 0 }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    // =================== sync-notes ===================
+    if (action === 'sync-notes') {
+      console.log(`[Notes Sync] Starting notes/conversations sync for organization`);
+      const primaryUserId = orgUserIds[0];
+
+      // Fetch conversations from GHL
+      let synced = 0;
+      let skipped = 0;
+      const res = await ghlFetch(`${GHL_API_BASE}/conversations/search?locationId=${GHL_LOCATION_ID}&limit=50`, {
+        method: 'GET',
+        headers: ghlHeaders,
+      });
+
+      if (!res.ok) {
+        if (res.status === 429) {
+          return new Response(JSON.stringify({ success: true, synced: 0, skipped: 0, rateLimited: true }), {
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
+        }
+        const errText = await res.text();
+        await logSyncOperation(supabase, authUser.id, 'sync-notes', 'conversation', { error: errText }, 'error');
+        return new Response(JSON.stringify({ success: false, error: errText }), {
+          status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      const data = await res.json();
+      const conversations = data.conversations || [];
+
+      for (const conv of conversations) {
+        const contactName = conv.contactName || conv.fullName || 'Onbekend';
+        const { data: existing } = await supabase
+          .from('conversations')
+          .select('id')
+          .in('user_id', orgUserIds)
+          .eq('ghl_conversation_id', conv.id)
+          .maybeSingle();
+
+        if (existing) {
+          await supabase.from('conversations').update({
+            contact_name: contactName,
+            last_message_body: conv.lastMessageBody || null,
+            last_message_date: conv.lastMessageDate || null,
+            last_message_direction: conv.lastMessageDirection || null,
+            unread: conv.unreadCount > 0,
+          }).eq('id', existing.id);
+          synced++;
+        } else {
+          await supabase.from('conversations').insert({
+            user_id: primaryUserId,
+            ghl_conversation_id: conv.id,
+            contact_name: contactName,
+            email: conv.email || null,
+            phone: conv.phone || null,
+            last_message_body: conv.lastMessageBody || null,
+            last_message_date: conv.lastMessageDate || null,
+            last_message_direction: conv.lastMessageDirection || null,
+            unread: conv.unreadCount > 0,
+          });
+          synced++;
+        }
+      }
+
+      await logSyncOperation(supabase, authUser.id, 'sync-notes', 'conversation', { synced, skipped, total: conversations.length });
+      return new Response(JSON.stringify({ success: true, synced, skipped, total: conversations.length }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
     return new Response(JSON.stringify({ error: `Unknown action: ${action}` }), {
       status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
