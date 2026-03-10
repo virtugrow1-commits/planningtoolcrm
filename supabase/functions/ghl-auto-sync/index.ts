@@ -574,40 +574,21 @@ async function syncContacts(supabase: any, ghlHeaders: any, locationId: string, 
       const existing = lookups.contactByGhlId.get(ghlContact.id);
 
       if (existing) {
-        const crmRecentlyUpdated = existing.updated_at > recentThreshold;
+        // GHL is always source of truth → overwrite CRM with GHL data
         const crmDiffers = norm(existing.first_name) !== norm(firstName) ||
                            norm(existing.last_name) !== norm(lastName) ||
                            norm(existing.email) !== norm(ghlEmail) ||
                            norm(existing.phone) !== norm(ghlPhone) ||
                            (ghlCompanyName && norm(existing.company) !== norm(ghlCompanyName));
 
-        if (crmRecentlyUpdated && crmDiffers) {
-          // CRM wins → push to GHL
-          const pushPayload: any = {
-            firstName: existing.first_name,
-            lastName: existing.last_name,
-            email: existing.email || undefined,
-            phone: existing.phone || undefined,
-            companyName: existing.company || undefined,
-          };
-          await delay(300);
-          const pushRes = await fetch(`${GHL_API_BASE}/contacts/${ghlContact.id}`, {
-            method: 'PUT', headers: ghlHeaders, body: JSON.stringify(pushPayload),
-          });
-          if (pushRes.ok) {
-            results.contacts_pushed++;
-          } else if (pushRes.status === 429) {
-            await delay(2000);
-          }
-        } else if (crmDiffers) {
-          // GHL wins → update CRM (never overwrite status!)
+        if (crmDiffers) {
           const updatePayload: any = {
             first_name: firstName,
             last_name: lastName,
             email: ghlEmail,
             phone: ghlPhone,
           };
-          if (ghlCompanyName && !existing.company) {
+          if (ghlCompanyName) {
             updatePayload.company = ghlCompanyName;
           }
           await supabase.from('contacts').update(updatePayload).eq('id', existing.id);
@@ -803,26 +784,15 @@ async function syncCompanies(supabase: any, ghlHeaders: any, locationId: string,
       const existing = lookups.companyByGhlId.get(ghlCompany.id);
 
       if (existing) {
-        const crmRecentlyUpdated = existing.updated_at > recentThreshold;
+        // GHL is always source of truth → overwrite CRM with GHL data
         const crmDiffers = norm(existing.name) !== norm(ghlName) ||
                            norm(existing.email) !== norm(ghlEmail) ||
-                           norm(existing.phone) !== norm(ghlPhone);
+                           norm(existing.phone) !== norm(ghlPhone) ||
+                           norm(existing.website) !== norm(ghlWebsite) ||
+                           norm(existing.address) !== norm(ghlAddress) ||
+                           norm(existing.city) !== norm(ghlCity);
 
-        if (crmRecentlyUpdated && crmDiffers) {
-          // CRM wins
-          const pushPayload: any = { name: existing.name };
-          if (existing.email) pushPayload.email = existing.email;
-          if (existing.phone) pushPayload.phone = existing.phone;
-          if (existing.website) pushPayload.website = existing.website;
-          if (existing.address) pushPayload.address = existing.address;
-          if (existing.city) pushPayload.city = existing.city;
-          pushPayload.locationId = locationId;
-          await fetch(`${GHL_API_BASE}/businesses/${ghlCompany.id}`, {
-            method: 'PUT', headers: ghlHeaders, body: JSON.stringify(pushPayload),
-          });
-          results.companies_pushed++;
-        } else if (crmDiffers) {
-          // GHL wins
+        if (crmDiffers) {
           await supabase.from('companies').update({
             name: ghlName, email: ghlEmail, phone: ghlPhone,
             website: ghlWebsite, address: ghlAddress, city: ghlCity,
