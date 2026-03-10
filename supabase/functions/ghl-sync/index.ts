@@ -1244,69 +1244,86 @@ Deno.serve(async (req) => {
       if (ghlContactId) ghlPayload.contactId = ghlContactId;
       if (booking.notes) ghlPayload.notes = booking.notes;
 
-      // Build event payload for generic events endpoint (no slot availability check)
       const eventPayload: Record<string, any> = {
         calendarId: roomSetting.ghl_calendar_id,
         locationId: GHL_LOCATION_ID,
         title: booking.title || 'Reservering',
         startTime: startISOwTZ,
         endTime: endISOwTZ,
+        appointmentStatus: booking.status === 'confirmed' ? 'confirmed' : 'new',
       };
       if (ghlContactId) eventPayload.contactId = ghlContactId;
       if (booking.notes) eventPayload.notes = booking.notes;
 
       try {
         if (booking.ghl_event_id) {
-          // Update existing event via generic events endpoint
-          const res = await ghlFetch(`${GHL_API_BASE}/calendars/events/${booking.ghl_event_id}`, {
+          // Update existing appointment
+          const res = await ghlFetch(`${GHL_API_BASE}/calendars/events/appointments/${booking.ghl_event_id}`, {
             method: 'PUT',
             headers: calEventHeaders,
             body: JSON.stringify(eventPayload),
           });
           if (res.ok) {
-            console.log(`[Push Booking] Updated GHL event: ${booking.ghl_event_id}`);
+            console.log(`[Push Booking] Updated GHL appointment: ${booking.ghl_event_id}`);
           } else {
             const errText = await res.text();
-            console.error(`[Push Booking] Failed to update: [${res.status}] ${errText}`);
-            // If 404, event was deleted in GHL — create new one
-            if (res.status === 404) {
-              console.log(`[Push Booking] Event not found in GHL, creating new one`);
-              const createRes = await ghlFetch(`${GHL_API_BASE}/calendars/events`, {
-                method: 'POST',
-                headers: calEventHeaders,
-                body: JSON.stringify(eventPayload),
-              });
-              if (createRes.ok) {
-                const created = await createRes.json();
-                const newId = created.id || created.event?.id;
-                if (newId) {
-                  await supabase.from('bookings').update({ ghl_event_id: newId }).eq('id', booking.id);
-                  console.log(`[Push Booking] Re-created GHL event: ${newId}`);
+            // Handle "slot not available" gracefully — log but don't fail
+            if (res.status === 400 && errText.includes('slot')) {
+              console.warn(`[Push Booking] Slot conflict (non-fatal), appointment kept as-is: ${errText}`);
+            } else if (res.status === 404) {
+              // Event deleted in GHL — recreate
+              console.log(`[Push Booking] Appointment not found in GHL, creating new one`);
+              if (ghlContactId) {
+                const createRes = await ghlFetch(`${GHL_API_BASE}/calendars/events/appointments`, {
+                  method: 'POST', headers: calEventHeaders, body: JSON.stringify(eventPayload),
+                });
+                if (createRes.ok) {
+                  const created = await createRes.json();
+                  const newId = created.id || created.event?.id;
+                  if (newId) {
+                    await supabase.from('bookings').update({ ghl_event_id: newId }).eq('id', booking.id);
+                    console.log(`[Push Booking] Re-created GHL appointment: ${newId}`);
+                  }
+                } else {
+                  const createErr = await createRes.text();
+                  // Non-fatal slot conflict on re-create
+                  if (createRes.status === 400 && createErr.includes('slot')) {
+                    console.warn(`[Push Booking] Slot conflict on re-create (non-fatal): ${createErr}`);
+                  } else {
+                    console.error(`[Push Booking] Failed to re-create: [${createRes.status}] ${createErr}`);
+                  }
                 }
-              } else {
-                const createErr = await createRes.text();
-                console.error(`[Push Booking] Failed to re-create: ${createErr}`);
               }
+            } else {
+              console.error(`[Push Booking] Failed to update: [${res.status}] ${errText}`);
             }
           }
         } else {
-          // Create new event via generic events endpoint (no availability check)
-          const res = await ghlFetch(`${GHL_API_BASE}/calendars/events`, {
-            method: 'POST',
-            headers: calEventHeaders,
-            body: JSON.stringify(eventPayload),
-          });
-          if (res.ok) {
-            const created = await res.json();
-            const newId = created.id || created.event?.id;
-            if (newId) {
-              await supabase.from('bookings').update({ ghl_event_id: newId }).eq('id', booking.id);
-              console.log(`[Push Booking] Created GHL event: ${newId}`);
-            }
+          // Create new appointment
+          if (!ghlContactId) {
+            console.warn(`[Push Booking] No GHL contact for booking ${booking.id}, skipping GHL sync`);
           } else {
-            const errText = await res.text();
-            console.error(`[Push Booking] Failed to create: [${res.status}] ${errText}`);
-            return new Response(JSON.stringify({ error: errText }), { status: res.status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+            const res = await ghlFetch(`${GHL_API_BASE}/calendars/events/appointments`, {
+              method: 'POST',
+              headers: calEventHeaders,
+              body: JSON.stringify(eventPayload),
+            });
+            if (res.ok) {
+              const created = await res.json();
+              const newId = created.id || created.event?.id;
+              if (newId) {
+                await supabase.from('bookings').update({ ghl_event_id: newId }).eq('id', booking.id);
+                console.log(`[Push Booking] Created GHL appointment: ${newId}`);
+              }
+            } else {
+              const errText = await res.text();
+              // Non-fatal slot conflict
+              if (res.status === 400 && errText.includes('slot')) {
+                console.warn(`[Push Booking] Slot conflict (non-fatal): ${errText}`);
+              } else {
+                console.error(`[Push Booking] Failed to create: [${res.status}] ${errText}`);
+              }
+            }
           }
         }
 
@@ -1419,13 +1436,13 @@ Deno.serve(async (req) => {
           await delay(500);
 
           if (booking.ghl_event_id) {
-            const res = await ghlFetch(`${GHL_API_BASE}/calendars/events/${booking.ghl_event_id}`, {
+            const res = await ghlFetch(`${GHL_API_BASE}/calendars/events/appointments/${booking.ghl_event_id}`, {
               method: 'PUT', headers: calEventHeaders, body: JSON.stringify(ghlPayload),
             });
             if (res.ok) {
               pushed++;
             } else if (res.status === 404) {
-              const createRes = await ghlFetch(`${GHL_API_BASE}/calendars/events`, {
+              const createRes = await ghlFetch(`${GHL_API_BASE}/calendars/events/appointments`, {
                 method: 'POST', headers: calEventHeaders, body: JSON.stringify(ghlPayload),
               });
               if (createRes.ok) {
@@ -1433,11 +1450,19 @@ Deno.serve(async (req) => {
                 const newId = created.id || created.event?.id;
                 if (newId) await supabase.from('bookings').update({ ghl_event_id: newId }).eq('id', booking.id);
                 pushed++;
-              } else { await createRes.text(); errors++; }
+              } else {
+                const ce = await createRes.text();
+                if (createRes.status === 400 && ce.includes('slot')) { console.warn(`[Push All] Slot conflict (non-fatal): ${booking.title}`); pushed++; }
+                else { console.error(`[Push All] Create failed: ${ce}`); errors++; }
+              }
             } else if (res.status === 429) { await res.text(); break; }
-            else { await res.text(); errors++; }
+            else {
+              const et = await res.text();
+              if (res.status === 400 && et.includes('slot')) { console.warn(`[Push All] Slot conflict (non-fatal): ${booking.title}`); pushed++; }
+              else { errors++; }
+            }
           } else {
-            const res = await ghlFetch(`${GHL_API_BASE}/calendars/events`, {
+            const res = await ghlFetch(`${GHL_API_BASE}/calendars/events/appointments`, {
               method: 'POST', headers: calEventHeaders, body: JSON.stringify(ghlPayload),
             });
             if (res.ok) {
@@ -1449,7 +1474,11 @@ Deno.serve(async (req) => {
               }
               pushed++;
             } else if (res.status === 429) { await res.text(); break; }
-            else { const errText = await res.text(); console.error(`[Push All Bookings] Failed: ${booking.title} [${res.status}] ${errText}`); errors++; }
+            else {
+              const errText = await res.text();
+              if (res.status === 400 && errText.includes('slot')) { console.warn(`[Push All] Slot conflict (non-fatal): ${booking.title}`); pushed++; }
+              else { console.error(`[Push All Bookings] Failed: ${booking.title} [${res.status}] ${errText}`); errors++; }
+            }
           }
         } catch (err) {
           console.error(`[Push All Bookings] Error for ${booking.id}:`, err);
@@ -1476,7 +1505,7 @@ Deno.serve(async (req) => {
       const calEventHeaders = { ...ghlHeaders, 'Version': '2021-04-15' };
 
       try {
-        const res = await ghlFetch(`${GHL_API_BASE}/calendars/events/${ghl_event_id}`, {
+        const res = await ghlFetch(`${GHL_API_BASE}/calendars/events/appointments/${ghl_event_id}`, {
           method: 'DELETE',
           headers: calEventHeaders,
         });
