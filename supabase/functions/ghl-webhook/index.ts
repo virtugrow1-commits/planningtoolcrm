@@ -369,6 +369,41 @@ async function handleFormSubmission(supabase: any, userId: string, payload: any)
   }
 }
 
+async function handleContactDelete(supabase: any, userId: string, payload: any) {
+  const ghlContactId = payload.id || payload.contactId || payload.contact_id || payload.data?.id;
+  if (!ghlContactId) {
+    console.log('Webhook: ContactDelete but no ID found in payload');
+    return;
+  }
+
+  const { data: existing } = await supabase
+    .from('contacts')
+    .select('id, first_name, last_name')
+    .eq('ghl_contact_id', ghlContactId)
+    .maybeSingle();
+
+  if (existing) {
+    // Log before deleting
+    await supabase.from('sync_log').insert({
+      user_id: userId,
+      action: 'delete_contact',
+      entity_type: 'contact',
+      entity_id: existing.id,
+      details: { ghl_contact_id: ghlContactId, name: `${existing.first_name} ${existing.last_name}`, source: 'webhook' },
+      status: 'success',
+    });
+
+    const { error } = await supabase.from('contacts').delete().eq('id', existing.id);
+    if (!error) {
+      console.log(`Webhook: Deleted contact ${existing.id} (${existing.first_name} ${existing.last_name}, GHL ${ghlContactId})`);
+    } else {
+      console.error(`Webhook: Failed to delete contact ${existing.id}:`, error.message);
+    }
+  } else {
+    console.log(`Webhook: ContactDelete for GHL ${ghlContactId} but no matching CRM contact found`);
+  }
+}
+
 async function handleOpportunityDelete(supabase: any, userId: string, payload: any) {
   const oppId = payload.id || payload.opportunityId || payload.data?.id;
   if (!oppId) {

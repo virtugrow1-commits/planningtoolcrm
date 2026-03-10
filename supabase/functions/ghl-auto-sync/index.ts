@@ -728,6 +728,43 @@ async function syncContacts(supabase: any, ghlHeaders: any, locationId: string, 
         await supabase.from('contacts').update({ company: companyRow.name }).eq('id', c.id);
       }
     }
+
+    // 5. Orphan cleanup — remove CRM contacts whose ghl_contact_id no longer exists in GHL
+    const linkedNotSeen = lookups.existingContacts.filter((c: any) =>
+      c.ghl_contact_id && !seenGhlContactIds.has(c.ghl_contact_id)
+    );
+
+    let contactsDeleted = 0;
+    const MAX_CONTACT_ORPHAN_CHECKS = 10;
+    console.log(`Contact orphan candidates: ${linkedNotSeen.length} (seen: ${seenGhlContactIds.size}, total linked: ${lookups.existingContacts.filter((c: any) => c.ghl_contact_id).length})`);
+
+    for (const contact of linkedNotSeen.slice(0, MAX_CONTACT_ORPHAN_CHECKS)) {
+      await delay(200);
+      const verifyRes = await fetch(`${GHL_API_BASE}/contacts/${contact.ghl_contact_id}`, { headers: ghlHeaders });
+      if (verifyRes.status === 404 || verifyRes.status === 422 || verifyRes.status === 400) {
+        // Contact no longer exists in GHL → log and delete from CRM
+        await supabase.from('sync_log').insert({
+          user_id: userId,
+          action: 'delete_contact',
+          entity_type: 'contact',
+          entity_id: contact.id,
+          details: { ghl_contact_id: contact.ghl_contact_id, name: `${contact.first_name} ${contact.last_name}`, source: 'orphan_cleanup' },
+          status: 'success',
+        });
+        const { error: delErr } = await supabase.from('contacts').delete().eq('id', contact.id);
+        if (!delErr) {
+          console.log(`Deleted orphaned contact ${contact.id} (${contact.first_name} ${contact.last_name}, GHL ${contact.ghl_contact_id})`);
+          contactsDeleted++;
+        }
+      } else {
+        await verifyRes.text(); // consume body
+      }
+      if (verifyRes.status === 429) await delay(2000);
+    }
+    if (contactsDeleted > 0) {
+      results.contacts_deleted = contactsDeleted;
+      console.log(`Cleaned up ${contactsDeleted} orphaned contacts`);
+    }
   } catch (e) { console.error('Contact sync error:', e); }
 }
 
