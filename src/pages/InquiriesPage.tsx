@@ -787,118 +787,13 @@ export default function InquiriesPage() {
       </Dialog>
 
       {/* New Inquiry Dialog */}
-      <Dialog open={newOpen} onOpenChange={setNewOpen}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>Nieuwe Aanvraag</DialogTitle>
-          </DialogHeader>
-          <div className="grid gap-4 py-2">
-            <div className="grid gap-1.5">
-              <Label>Bedrijf</Label>
-              <CrmCombobox
-                options={companies.map(co => ({
-                  id: co.id,
-                  label: co.name,
-                  secondary: co.city || co.email || undefined,
-                  searchText: `${co.name} ${co.city || ''} ${co.kvk || ''} ${co.email || ''}`,
-                }))}
-                value={newForm.companyId}
-                onSelect={(id) => {
-                  setNewForm({ ...newForm, companyId: id });
-                }}
-                placeholder="Selecteer bedrijf..."
-                searchPlaceholder="Zoek bedrijf..."
-                popoverWidth="w-[340px]"
-              />
-            </div>
-            <div className="grid gap-1.5">
-              <Label>Contactpersoon *</Label>
-              <CrmCombobox
-                options={contacts.map(c => ({
-                  id: c.id,
-                  label: [c.firstName, c.lastName].filter(n => n && n !== '—').join(' ') || c.email || 'Onbekend',
-                  secondary: c.company || c.email || undefined,
-                  searchText: `${c.firstName} ${c.lastName} ${c.email || ''} ${c.company || ''} ${c.phone || ''}`,
-                }))}
-                value={newForm.contactId}
-                onSelect={(id, opt) => {
-                  const selectedContact = contacts.find(c => c.id === id);
-                  const updates: any = { ...newForm, contactName: opt?.label || '', contactId: id };
-                  // Auto-suggest company from contact
-                  if (selectedContact?.companyId && !newForm.companyId) {
-                    updates.companyId = selectedContact.companyId;
-                  }
-                  setNewForm(updates);
-                }}
-                placeholder="Selecteer contactpersoon..."
-                searchPlaceholder="Zoek contactpersoon..."
-                popoverWidth="w-[340px]"
-              />
-            </div>
-            <div className="grid gap-1.5">
-              <Label>Type evenement *</Label>
-              <Input placeholder="Bijv. Vergadering, Bruiloft, Workshop" value={newForm.eventType} onChange={(e) => setNewForm({ ...newForm, eventType: e.target.value })} />
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="grid gap-1.5">
-                <Label>Voorkeursdatum</Label>
-                <Input type="date" value={newForm.preferredDate} onChange={(e) => setNewForm({ ...newForm, preferredDate: e.target.value })} />
-              </div>
-              <div className="grid gap-1.5">
-                <Label>Aantal gasten</Label>
-                <Input type="number" min="1" placeholder="0" value={newForm.guestCount} onChange={(e) => setNewForm({ ...newForm, guestCount: e.target.value })} />
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="grid gap-1.5">
-                <Label>Ruimte voorkeur</Label>
-                <Select value={newForm.roomPreference} onValueChange={(v) => setNewForm({ ...newForm, roomPreference: v })}>
-                  <SelectTrigger className="text-sm"><SelectValue placeholder="Optioneel" /></SelectTrigger>
-                  <SelectContent>
-                    {ROOMS.map((r) => <SelectItem key={r} value={r}>{r}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="grid gap-1.5">
-                <Label>Budget (€)</Label>
-                <Input type="number" min="0" placeholder="0" value={newForm.budget} onChange={(e) => setNewForm({ ...newForm, budget: e.target.value })} />
-              </div>
-            </div>
-            <div className="grid gap-1.5">
-              <Label>Bron</Label>
-              <Select value={newForm.source} onValueChange={(v) => setNewForm({ ...newForm, source: v })}>
-                <SelectTrigger className="text-sm"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="Handmatig">Handmatig</SelectItem>
-                  <SelectItem value="Website">Website</SelectItem>
-                  <SelectItem value="Telefoon">Telefoon</SelectItem>
-                  <SelectItem value="Email">Email</SelectItem>
-                  <SelectItem value="GHL">VirtuGrow</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="grid gap-1.5">
-              <Label>Stadium</Label>
-              <Select value={newForm.status} onValueChange={(v: Inquiry['status']) => setNewForm({ ...newForm, status: v })}>
-                <SelectTrigger className="text-sm"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {PIPELINE_COLUMNS.map((col) => (
-                    <SelectItem key={col.key} value={col.key}>{col.label}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="grid gap-1.5">
-              <Label>Bericht / Notities</Label>
-              <Textarea placeholder="Omschrijving van de aanvraag..." value={newForm.message} onChange={(e) => setNewForm({ ...newForm, message: e.target.value })} />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setNewOpen(false)}>Annuleren</Button>
-            <Button onClick={handleAddInquiry}>Toevoegen</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <NewInquiryDialog
+        open={newOpen}
+        onOpenChange={setNewOpen}
+        contacts={contacts}
+        companies={companies}
+        onInquiryAdded={handleAddInquiry}
+      />
 
       {/* Detail / Edit Dialog - Comprehensive Inquiry Card */}
       <Dialog open={detailOpen} onOpenChange={setDetailOpen}>
