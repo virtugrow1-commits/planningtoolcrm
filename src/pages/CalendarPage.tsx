@@ -145,10 +145,10 @@ export default function CalendarPage() {
     const updated = { ...booking, roomName: targetRoom, startHour, startMinute, endHour, endMinute };
     const startMin = startHour * 60 + startMinute;
     const endMin = endHour * 60 + endMinute;
-    const conflicts = checkConflicts(booking.date, targetRoom, startMin, endMin, booking.id);
+    const conflicts = checkConflicts(booking.date, targetRoom, startMin, endMin, booking.id, booking.status);
     if (conflicts.length > 0) {
       setConflictPopup({ conflicts });
-      toast({ title: 'Dubbele boeking niet toegestaan', description: 'Er is al een reservering op dit tijdslot.', variant: 'destructive' });
+      toast({ title: 'Dubbele boeking niet toegestaan', description: 'Er is al een bevestigde reservering op dit tijdslot.', variant: 'destructive' });
       return;
     }
     const desc = `${booking.title} → ${getDisplayName(targetRoom)}, ${String(startHour).padStart(2,'0')}:${String(startMinute).padStart(2,'0')}–${String(endHour).padStart(2,'0')}:${String(endMinute).padStart(2,'0')}`;
