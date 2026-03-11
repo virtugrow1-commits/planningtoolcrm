@@ -1442,7 +1442,7 @@ Deno.serve(async (req) => {
         }
       };
 
-      // Helper: create appointment with block-slots fallback, returns new event ID or null
+      // Helper: create appointment with /calendars/events fallback, returns new event ID or null
       const createNewAppointment = async (): Promise<string | null> => {
         const res = await ghlFetch(`${GHL_API_BASE}/calendars/events/appointments`, {
           method: 'POST', headers: calEventHeaders, body: JSON.stringify(eventPayload),
@@ -1454,8 +1454,8 @@ Deno.serve(async (req) => {
           return newId || null;
         }
         const errText = await res.text();
-        console.warn(`[Push Booking] Appointment create failed: [${res.status}] ${errText}, trying block-slots for room: ${booking.room_name}`);
-        return await createViaBlockSlots();
+        console.warn(`[Push Booking] Appointment create failed: [${res.status}] ${errText}, trying /calendars/events for room: ${booking.room_name}`);
+        return await createViaCalendarEvents();
       };
 
       let syncSuccess = false;
