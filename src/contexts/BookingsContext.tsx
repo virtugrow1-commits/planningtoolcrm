@@ -181,7 +181,7 @@ export function BookingsProvider({ children }: { children: ReactNode }) {
     const endMin = booking.endHour * 60 + (booking.endMinute ?? 0);
 
     // Local conflict check (includes combined room logic)
-    const localConflicts = checkConflicts(booking.date, booking.roomName, startMin, endMin);
+    const localConflicts = checkConflicts(booking.date, booking.roomName, startMin, endMin, undefined, booking.status);
     if (localConflicts.length > 0) {
       const conflictRooms = [...new Set(localConflicts.map(c => c.roomName))].join(', ');
       toast({ title: 'Dubbele boeking niet toegestaan', description: `Conflict met: ${conflictRooms}`, variant: 'destructive' });
@@ -190,7 +190,7 @@ export function BookingsProvider({ children }: { children: ReactNode }) {
     }
 
     // Server-side conflict check (includes combined room logic)
-    const serverConflicts = await serverConflictCheck(booking.date, booking.roomName, startMin, endMin);
+    const serverConflicts = await serverConflictCheck(booking.date, booking.roomName, startMin, endMin, undefined, booking.status);
     if (serverConflicts.length > 0) {
       const conflictRooms = [...new Set(serverConflicts.map(c => c.roomName))].join(', ');
       toast({ title: 'Dubbele boeking niet toegestaan', description: `Server conflict met: ${conflictRooms}`, variant: 'destructive' });
