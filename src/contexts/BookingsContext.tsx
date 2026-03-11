@@ -301,7 +301,7 @@ export function BookingsProvider({ children }: { children: ReactNode }) {
     const endMin = updated.endHour * 60 + (updated.endMinute ?? 0);
 
     // Server-side conflict check with combined room logic
-    const serverConflicts = await serverConflictCheck(updated.date, updated.roomName, startMin, endMin, updated.id);
+    const serverConflicts = await serverConflictCheck(updated.date, updated.roomName, startMin, endMin, updated.id, updated.status);
     if (serverConflicts.length > 0) {
       const conflictRooms = [...new Set(serverConflicts.map(c => c.roomName))].join(', ');
       toast({ title: 'Dubbele boeking niet toegestaan', description: `Conflict met: ${conflictRooms}`, variant: 'destructive' });
