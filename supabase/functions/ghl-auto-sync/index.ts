@@ -154,6 +154,9 @@ Deno.serve(async (req) => {
       // Push local inquiries without GHL opportunity ID
       await pushLocalInquiries(supabase, ghlHeaders, GHL_LOCATION_ID, userId, results);
 
+      // Process sync queue (retry failed items)
+      await processSyncQueue(supabase, ghlHeaders, GHL_LOCATION_ID, userId, results);
+
       console.log('Auto-sync completed:', JSON.stringify(results));
     } catch (err) {
       console.error('Background sync error:', err);
