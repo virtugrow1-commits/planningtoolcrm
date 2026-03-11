@@ -18,6 +18,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { useRoomSettings } from '@/hooks/useRoomSettings';
 import { useContactsContext } from '@/contexts/ContactsContext';
+import { useCompaniesContext } from '@/contexts/CompaniesContext';
 
 type CalendarViewMode = 'day' | 'week' | 'month';
 
@@ -51,6 +52,7 @@ export default function CalendarPage() {
   const { settings: roomSettings, displayNames, ghlCalendarIds, enabledRooms, updateRoomSettings, getMaxGuests, getDisplayName, isRoomEnabled } = useRoomSettings();
   const { contacts: fullContacts, loading: contactsLoading } = useContactsContext();
   const contacts = fullContacts.map(c => ({ id: c.id, firstName: c.firstName, lastName: c.lastName, email: c.email || null, company: c.company || null }));
+  const { companies } = useCompaniesContext();
 
   const dateStr = formatDate(currentDate);
 
@@ -370,6 +372,7 @@ export default function CalendarPage() {
         onSubmit={handleNewReservation}
         contacts={contacts}
         contactsLoading={contactsLoading}
+        companies={companies}
         conflictAlert={reservationConflict}
         getRoomDisplayName={getDisplayName}
         initialStartHour={reservationInitial.hour}

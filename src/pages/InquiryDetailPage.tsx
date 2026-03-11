@@ -279,6 +279,7 @@ export default function InquiryDetailPage() {
       <NewReservationDialog
         open={showReservationDialog}
         onOpenChange={setShowReservationDialog}
+        companies={companies}
         onSubmit={async (resForm) => {
           // addBooking has built-in conflict checking
           const result = await addBooking({
