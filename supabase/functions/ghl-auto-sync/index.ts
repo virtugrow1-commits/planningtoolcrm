@@ -1452,6 +1452,44 @@ async function processSyncQueue(supabase: any, ghlHeaders: any, locationId: stri
             if (res.ok) { const td = await res.json(); if (td.task?.id) await supabase.from('tasks').update({ ghl_task_id: td.task.id }).eq('id', task.id); success = true; }
             else { await res.text(); }
           }
+        } else if (item.entity_type === 'inquiry' && (item.action_type === 'create' || item.action_type === 'update')) {
+          const { data: inquiry } = await supabase.from('inquiries').select('*').eq('id', item.entity_id).single();
+          if (!inquiry) { await supabase.from('sync_queue').delete().eq('id', item.id); continue; }
+          // Find pipeline and stage
+          const pipelinesRes = await fetch(`${GHL_API_BASE}/opportunities/pipelines?locationId=${locationId}`, { headers: ghlHeaders });
+          if (pipelinesRes.ok) {
+            const pData = await pipelinesRes.json();
+            const pipeline = pData.pipelines?.[0];
+            if (pipeline) {
+              const stage = pipeline.stages?.[0];
+              const oppPayload: Record<string, any> = {
+                pipelineId: pipeline.id,
+                pipelineStageId: stage?.id,
+                name: inquiry.event_type || 'Aanvraag',
+                locationId,
+                status: 'open',
+                contactId: null,
+              };
+              if (inquiry.budget) oppPayload.monetaryValue = inquiry.budget;
+              // Try to find GHL contact
+              if (inquiry.contact_id) {
+                const { data: c } = await supabase.from('contacts').select('ghl_contact_id').eq('id', inquiry.contact_id).single();
+                if (c?.ghl_contact_id) oppPayload.contactId = c.ghl_contact_id;
+              }
+              if (inquiry.ghl_opportunity_id) {
+                const res = await fetch(`${GHL_API_BASE}/opportunities/${inquiry.ghl_opportunity_id}`, { method: 'PUT', headers: ghlHeaders, body: JSON.stringify(oppPayload) });
+                success = res.ok; await res.text();
+              } else if (oppPayload.contactId) {
+                const res = await fetch(`${GHL_API_BASE}/opportunities/`, { method: 'POST', headers: ghlHeaders, body: JSON.stringify(oppPayload) });
+                if (res.ok) { const od = await res.json(); if (od.opportunity?.id) await supabase.from('inquiries').update({ ghl_opportunity_id: od.opportunity.id }).eq('id', inquiry.id); success = true; }
+                else { await res.text(); }
+              } else {
+                // No GHL contact to link opportunity to - mark as failed with clear message
+                await supabase.from('sync_queue').update({ status: 'failed', last_error: 'Geen gekoppeld GHL-contact voor opportunity' }).eq('id', item.id);
+                failed++; continue;
+              }
+            }
+          }
         } else if (item.entity_type === 'inquiry' && item.action_type === 'delete') {
           const ghlOppId = (item.payload as any)?.ghl_opportunity_id;
           if (ghlOppId) { const res = await fetch(`${GHL_API_BASE}/opportunities/${ghlOppId}`, { method: 'DELETE', headers: ghlHeaders }); success = res.ok || res.status === 404; await res.text(); }
