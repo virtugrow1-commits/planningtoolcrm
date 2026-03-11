@@ -1385,9 +1385,18 @@ async function processSyncQueue(supabase: any, ghlHeaders: any, locationId: stri
             ignoreDateRange: true, ignoreValidation: true, ignoreFreeSlotValidation: true,
             selectedTimezone: 'Europe/Amsterdam',
           };
+          // Skip inactive calendars
+          const calCheck = await fetch(`${GHL_API_BASE}/calendars/${calendarId}`, { headers: ghlHeaders });
+          const calInfo = calCheck.ok ? await calCheck.json() : null;
+          if (calInfo?.calendar?.isActive === false) {
+            await supabase.from('sync_queue').update({ status: 'failed', last_error: 'GHL kalender is inactief' }).eq('id', item.id);
+            failed++; continue;
+          }
           if (booking.ghl_event_id) {
             const res = await fetch(`${GHL_API_BASE}/calendars/events/appointments/${booking.ghl_event_id}`, { method: 'PUT', headers: ghlHeaders, body: JSON.stringify(payload) });
-            success = res.ok; await res.text();
+            success = res.ok;
+            if (!res.ok) { const e = await res.text(); console.error(`[Queue] Update appointment failed: ${e}`); }
+            else { await res.text(); }
           } else {
             const res = await fetch(`${GHL_API_BASE}/calendars/events/appointments`, { method: 'POST', headers: ghlHeaders, body: JSON.stringify(payload) });
             if (res.ok) {
@@ -1396,11 +1405,8 @@ async function processSyncQueue(supabase: any, ghlHeaders: any, locationId: stri
               if (ghlId) await supabase.from('bookings').update({ ghl_event_id: ghlId }).eq('id', booking.id);
               success = true;
             } else {
-              await res.text();
-              const evtPayload = { calendarId, locationId, contactId: ghlContactId, title: payload.title, startTime, endTime, appointmentStatus: payload.appointmentStatus, selectedTimezone: 'Europe/Amsterdam' };
-              const evtRes = await fetch(`${GHL_API_BASE}/calendars/events`, { method: 'POST', headers: { ...ghlHeaders, 'Version': '2021-07-28' }, body: JSON.stringify(evtPayload) });
-              if (evtRes.ok) { const d = await evtRes.json(); const id = d.id || d.event?.id; if (id) await supabase.from('bookings').update({ ghl_event_id: id }).eq('id', booking.id); success = true; }
-              else { await evtRes.text(); }
+              const errText = await res.text();
+              console.error(`[Queue] Create appointment failed: ${errText}`);
             }
           }
         } else if (item.entity_type === 'booking' && item.action_type === 'delete') {

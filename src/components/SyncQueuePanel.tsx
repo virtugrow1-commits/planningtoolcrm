@@ -1,9 +1,11 @@
 import { useSyncQueue } from '@/hooks/useSyncQueue';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { RefreshCw, Trash2, RotateCcw, CheckCircle2, AlertCircle, Clock } from 'lucide-react';
+import { RefreshCw, Trash2, RotateCcw, CheckCircle2, AlertCircle, Clock, Loader2 } from 'lucide-react';
 import { format } from 'date-fns';
 import { nl } from 'date-fns/locale';
+import { useState } from 'react';
+import { toast } from 'sonner';
 
 const statusConfig: Record<string, { label: string; variant: 'default' | 'destructive' | 'secondary' | 'outline' }> = {
   pending: { label: 'Wachtend', variant: 'secondary' },
@@ -14,9 +16,36 @@ const statusConfig: Record<string, { label: string; variant: 'default' | 'destru
 
 export default function SyncQueuePanel() {
   const { queue, logs, loading, retryItem, dismissItem, retryAll, refetch } = useSyncQueue();
+  const [refreshing, setRefreshing] = useState(false);
+  const [retrying, setRetrying] = useState(false);
 
   const failedCount = queue.filter(q => q.status === 'failed').length;
   const pendingCount = queue.filter(q => q.status === 'pending' || q.status === 'retrying').length;
+
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    try {
+      await refetch();
+      toast.success('Sync status vernieuwd');
+    } catch {
+      toast.error('Kon status niet vernieuwen');
+    } finally {
+      setRefreshing(false);
+    }
+  };
+
+  const handleRetryAll = async () => {
+    setRetrying(true);
+    try {
+      await retryAll();
+      toast.success('Alle mislukte items worden opnieuw geprobeerd');
+      await refetch();
+    } catch {
+      toast.error('Kon items niet opnieuw proberen');
+    } finally {
+      setRetrying(false);
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -26,16 +55,29 @@ export default function SyncQueuePanel() {
           <h3 className="text-lg font-semibold">Sync Wachtrij</h3>
           {pendingCount > 0 && <Badge variant="secondary"><Clock size={12} className="mr-1" />{pendingCount} wachtend</Badge>}
           {failedCount > 0 && <Badge variant="destructive"><AlertCircle size={12} className="mr-1" />{failedCount} mislukt</Badge>}
-          {queue.length === 0 && <Badge variant="default"><CheckCircle2 size={12} className="mr-1" />Alles gesynchroniseerd</Badge>}
+          {queue.length === 0 && !loading && <Badge variant="default"><CheckCircle2 size={12} className="mr-1" />Alles gesynchroniseerd</Badge>}
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" size="sm" onClick={refetch}><RefreshCw size={14} className="mr-1" />Vernieuwen</Button>
-          {failedCount > 0 && <Button variant="default" size="sm" onClick={retryAll}><RotateCcw size={14} className="mr-1" />Alles opnieuw</Button>}
+          <Button variant="outline" size="sm" onClick={handleRefresh} disabled={refreshing}>
+            {refreshing ? <Loader2 size={14} className="mr-1 animate-spin" /> : <RefreshCw size={14} className="mr-1" />}
+            Vernieuwen
+          </Button>
+          {failedCount > 0 && (
+            <Button variant="default" size="sm" onClick={handleRetryAll} disabled={retrying}>
+              {retrying ? <Loader2 size={14} className="mr-1 animate-spin" /> : <RotateCcw size={14} className="mr-1" />}
+              Alles opnieuw
+            </Button>
+          )}
         </div>
       </div>
 
       {/* Queue items */}
-      {queue.length > 0 && (
+      {loading ? (
+        <div className="flex items-center gap-2 text-sm text-muted-foreground py-4">
+          <Loader2 size={16} className="animate-spin" />
+          Laden...
+        </div>
+      ) : queue.length > 0 ? (
         <div className="rounded-lg border">
           <table className="w-full text-sm">
             <thead><tr className="border-b bg-muted/50">
@@ -78,13 +120,16 @@ export default function SyncQueuePanel() {
             </tbody>
           </table>
         </div>
-      )}
+      ) : null}
 
       {/* Recent sync logs */}
       <div>
         <h3 className="text-lg font-semibold mb-3">Recente Sync Log</h3>
         {loading ? (
-          <p className="text-sm text-muted-foreground">Laden...</p>
+          <div className="flex items-center gap-2 text-sm text-muted-foreground py-4">
+            <Loader2 size={16} className="animate-spin" />
+            Laden...
+          </div>
         ) : logs.length === 0 ? (
           <p className="text-sm text-muted-foreground">Nog geen sync activiteit.</p>
         ) : (
