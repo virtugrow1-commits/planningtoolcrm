@@ -3,6 +3,70 @@ import { Booking, ROOMS, RoomName } from '@/types/crm';
 import { cn } from '@/lib/utils';
 import { GripVertical, Plus } from 'lucide-react';
 
+// Compute column layout for overlapping options within a room
+function computeColumns(roomBookings: Booking[]): Map<string, { col: number; totalCols: number }> {
+  const result = new Map<string, { col: number; totalCols: number }>();
+  if (roomBookings.length === 0) return result;
+
+  // Sort by start time
+  const sorted = [...roomBookings].sort((a, b) => {
+    const aStart = a.startHour * 60 + (a.startMinute || 0);
+    const bStart = b.startHour * 60 + (b.startMinute || 0);
+    return aStart - bStart;
+  });
+
+  // Group overlapping bookings
+  const groups: Booking[][] = [];
+  let currentGroup: Booking[] = [];
+  let groupEnd = -1;
+
+  for (const b of sorted) {
+    const bStart = b.startHour * 60 + (b.startMinute || 0);
+    const bEnd = b.endHour * 60 + (b.endMinute || 0);
+    if (currentGroup.length === 0 || bStart < groupEnd) {
+      currentGroup.push(b);
+      groupEnd = Math.max(groupEnd, bEnd);
+    } else {
+      groups.push(currentGroup);
+      currentGroup = [b];
+      groupEnd = bEnd;
+    }
+  }
+  if (currentGroup.length > 0) groups.push(currentGroup);
+
+  for (const group of groups) {
+    if (group.length === 1) {
+      result.set(group[0].id, { col: 0, totalCols: 1 });
+    } else {
+      // Assign columns greedily
+      const cols: { endMin: number }[] = [];
+      for (const b of group) {
+        const bStart = b.startHour * 60 + (b.startMinute || 0);
+        const bEnd = b.endHour * 60 + (b.endMinute || 0);
+        let placed = false;
+        for (let c = 0; c < cols.length; c++) {
+          if (bStart >= cols[c].endMin) {
+            cols[c].endMin = bEnd;
+            result.set(b.id, { col: c, totalCols: 0 }); // totalCols set later
+            placed = true;
+            break;
+          }
+        }
+        if (!placed) {
+          result.set(b.id, { col: cols.length, totalCols: 0 });
+          cols.push({ endMin: bEnd });
+        }
+      }
+      const totalCols = cols.length;
+      for (const b of group) {
+        const entry = result.get(b.id)!;
+        entry.totalCols = totalCols;
+      }
+    }
+  }
+  return result;
+}
+
 const HOUR_HEIGHT = 36; // px per hour — compact to fit full day in view
 const QUARTER_HEIGHT = HOUR_HEIGHT / 4; // 9px per 15min
 const HOURS = [...Array.from({ length: 17 }, (_, i) => i + 7), 0, 1]; // 07:00–01:00
