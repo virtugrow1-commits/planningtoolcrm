@@ -18,7 +18,7 @@ interface BookingsContextType {
   updateBooking: (booking: Booking) => Promise<{ success: boolean; conflicts?: Booking[] }>;
   deleteBooking: (id: string) => Promise<void>;
   refetch: () => Promise<void>;
-  checkConflicts: (date: string, room: RoomName, startMin: number, endMin: number, excludeId?: string) => Booking[];
+  checkConflicts: (date: string, room: RoomName, startMin: number, endMin: number, excludeId?: string, newStatus?: string) => Booking[];
 }
 
 const BookingsContext = createContext<BookingsContextType | null>(null);
