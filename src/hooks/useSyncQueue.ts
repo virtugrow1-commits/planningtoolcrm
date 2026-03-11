@@ -92,5 +92,5 @@ export function useSyncQueue() {
     await fetchQueue();
   }, [fetchQueue]);
 
-  return { queue, logs, loading, retryItem, dismissItem, retryAll, refetch: () => { fetchQueue(); fetchLogs(); } };
+  return { queue, logs, loading, retryItem, dismissItem, retryAll, refetch: async () => { await fetchQueue(); await fetchLogs(); } };
 }
