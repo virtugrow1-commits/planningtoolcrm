@@ -1335,5 +1335,166 @@ async function syncConversations(supabase: any, ghlHeaders: any, locationId: str
         console.error(`Messages sync error for ${conv.id}:`, msgErr);
       }
     }
-  } catch (e) { console.error('Conversation sync error:', e); }
+}
+
+// === PROCESS SYNC QUEUE ===
+async function processSyncQueue(supabase: any, ghlHeaders: any, locationId: string, userId: string, results: any) {
+  try {
+    const { data: pendingItems } = await supabase
+      .from('sync_queue')
+      .select('*')
+      .in('status', ['pending', 'retrying'])
+      .order('created_at', { ascending: true })
+      .limit(10);
+
+    if (!pendingItems || pendingItems.length === 0) return;
+
+    console.log(`[Queue] Processing ${pendingItems.length} pending items`);
+
+    const { data: roomSettings } = await supabase
+      .from('room_settings')
+      .select('room_name, ghl_calendar_id')
+      .not('ghl_calendar_id', 'is', null);
+    const roomToCalId: Record<string, string> = {};
+    for (const rs of roomSettings || []) {
+      if (rs.ghl_calendar_id) roomToCalId[rs.room_name] = rs.ghl_calendar_id;
+    }
+
+    let succeeded = 0, failed = 0;
+
+    for (const item of pendingItems) {
+      await supabase.from('sync_queue').update({
+        status: 'retrying',
+        retry_count: (item.retry_count || 0) + 1,
+        last_attempt_at: new Date().toISOString(),
+      }).eq('id', item.id);
+
+      try {
+        let success = false;
+
+        if (item.entity_type === 'booking' && (item.action_type === 'create' || item.action_type === 'update')) {
+          const { data: booking } = await supabase.from('bookings').select('*, contacts!bookings_contact_id_fkey(ghl_contact_id)').eq('id', item.entity_id).single();
+          if (!booking) { await supabase.from('sync_queue').delete().eq('id', item.id); continue; }
+          const ghlContactId = (booking as any).contacts?.ghl_contact_id;
+          const calendarId = roomToCalId[booking.room_name];
+          if (!ghlContactId || !calendarId) {
+            const nr = (item.retry_count || 0) + 1;
+            await supabase.from('sync_queue').update({ status: nr >= 5 ? 'failed' : 'pending', last_error: 'Missing GHL contact or calendar mapping', retry_count: nr }).eq('id', item.id);
+            failed++; continue;
+          }
+          const probeDate = new Date(`${booking.date}T12:00:00Z`);
+          const amStr = probeDate.toLocaleString('en-US', { timeZone: 'Europe/Amsterdam', hour12: false });
+          const amDate = new Date(amStr);
+          const offsetH = Math.round((amDate.getTime() - probeDate.getTime()) / 3600000);
+          const tz = `${offsetH >= 0 ? '+' : '-'}${String(Math.abs(offsetH)).padStart(2, '0')}:00`;
+          const startTime = `${booking.date}T${String(booking.start_hour).padStart(2, '0')}:${String(booking.start_minute || 0).padStart(2, '0')}:00${tz}`;
+          const endTime = `${booking.date}T${String(booking.end_hour).padStart(2, '0')}:${String(booking.end_minute || 0).padStart(2, '0')}:00${tz}`;
+          const payload: Record<string, any> = {
+            calendarId, locationId, contactId: ghlContactId,
+            title: booking.title || 'Reservering', startTime, endTime,
+            appointmentStatus: booking.status === 'confirmed' ? 'confirmed' : 'new',
+            ignoreDateRange: true, ignoreValidation: true, ignoreFreeSlotValidation: true,
+            selectedTimezone: 'Europe/Amsterdam',
+          };
+          if (booking.ghl_event_id) {
+            const res = await fetch(`${GHL_API_BASE}/calendars/events/appointments/${booking.ghl_event_id}`, { method: 'PUT', headers: ghlHeaders, body: JSON.stringify(payload) });
+            success = res.ok; await res.text();
+          } else {
+            const res = await fetch(`${GHL_API_BASE}/calendars/events/appointments`, { method: 'POST', headers: ghlHeaders, body: JSON.stringify(payload) });
+            if (res.ok) {
+              const created = await res.json();
+              const ghlId = created.id || created.event?.id;
+              if (ghlId) await supabase.from('bookings').update({ ghl_event_id: ghlId }).eq('id', booking.id);
+              success = true;
+            } else {
+              await res.text();
+              const evtPayload = { calendarId, locationId, contactId: ghlContactId, title: payload.title, startTime, endTime, appointmentStatus: payload.appointmentStatus, selectedTimezone: 'Europe/Amsterdam' };
+              const evtRes = await fetch(`${GHL_API_BASE}/calendars/events`, { method: 'POST', headers: { ...ghlHeaders, 'Version': '2021-07-28' }, body: JSON.stringify(evtPayload) });
+              if (evtRes.ok) { const d = await evtRes.json(); const id = d.id || d.event?.id; if (id) await supabase.from('bookings').update({ ghl_event_id: id }).eq('id', booking.id); success = true; }
+              else { await evtRes.text(); }
+            }
+          }
+        } else if (item.entity_type === 'booking' && item.action_type === 'delete') {
+          const ghlEventId = (item.payload as any)?.ghl_event_id;
+          if (ghlEventId) { const res = await fetch(`${GHL_API_BASE}/calendars/events/appointments/${ghlEventId}`, { method: 'DELETE', headers: ghlHeaders }); success = res.ok || res.status === 404; await res.text(); }
+          else { success = true; }
+        } else if (item.entity_type === 'contact' && (item.action_type === 'create' || item.action_type === 'update')) {
+          const { data: contact } = await supabase.from('contacts').select('*').eq('id', item.entity_id).single();
+          if (!contact) { await supabase.from('sync_queue').delete().eq('id', item.id); continue; }
+          const cPayload: Record<string, any> = { firstName: contact.first_name || 'Onbekend', lastName: contact.last_name || '', locationId };
+          if (contact.email) cPayload.email = contact.email;
+          if (contact.phone) cPayload.phone = contact.phone;
+          if (contact.ghl_contact_id) {
+            const res = await fetch(`${GHL_API_BASE}/contacts/${contact.ghl_contact_id}`, { method: 'PUT', headers: ghlHeaders, body: JSON.stringify(cPayload) });
+            success = res.ok; await res.text();
+          } else {
+            const res = await fetch(`${GHL_API_BASE}/contacts/`, { method: 'POST', headers: ghlHeaders, body: JSON.stringify(cPayload) });
+            if (res.ok) { const cd = await res.json(); if (cd.contact?.id) await supabase.from('contacts').update({ ghl_contact_id: cd.contact.id }).eq('id', contact.id); success = true; }
+            else { await res.text(); }
+          }
+        } else if (item.entity_type === 'contact' && item.action_type === 'delete') {
+          const ghlId = (item.payload as any)?.ghl_contact_id;
+          if (ghlId) { const res = await fetch(`${GHL_API_BASE}/contacts/${ghlId}`, { method: 'DELETE', headers: ghlHeaders }); success = res.ok || res.status === 404; await res.text(); }
+          else { success = true; }
+        } else if (item.entity_type === 'company' && (item.action_type === 'create' || item.action_type === 'update')) {
+          const { data: company } = await supabase.from('companies').select('*').eq('id', item.entity_id).single();
+          if (!company) { await supabase.from('sync_queue').delete().eq('id', item.id); continue; }
+          const coPayload: Record<string, any> = { name: company.name, locationId };
+          if (company.ghl_company_id) {
+            const res = await fetch(`${GHL_API_BASE}/companies/${company.ghl_company_id}`, { method: 'PUT', headers: ghlHeaders, body: JSON.stringify(coPayload) });
+            success = res.ok; await res.text();
+          } else {
+            const res = await fetch(`${GHL_API_BASE}/companies/`, { method: 'POST', headers: ghlHeaders, body: JSON.stringify(coPayload) });
+            if (res.ok) { const cd = await res.json(); if (cd.company?.id) await supabase.from('companies').update({ ghl_company_id: cd.company.id }).eq('id', company.id); success = true; }
+            else { await res.text(); }
+          }
+        } else if (item.entity_type === 'task' && (item.action_type === 'create' || item.action_type === 'update')) {
+          const { data: task } = await supabase.from('tasks').select('*').eq('id', item.entity_id).single();
+          if (!task) { await supabase.from('sync_queue').delete().eq('id', item.id); continue; }
+          let ghlContactId = null;
+          if (task.contact_id) { const { data: c } = await supabase.from('contacts').select('ghl_contact_id').eq('id', task.contact_id).single(); ghlContactId = c?.ghl_contact_id; }
+          const tPayload: Record<string, any> = { title: task.title || 'Taak', body: task.description || '', locationId };
+          if (ghlContactId) tPayload.contactId = ghlContactId;
+          if (task.ghl_task_id) {
+            const res = await fetch(`${GHL_API_BASE}/tasks/${task.ghl_task_id}`, { method: 'PUT', headers: ghlHeaders, body: JSON.stringify(tPayload) });
+            success = res.ok; await res.text();
+          } else {
+            const res = await fetch(`${GHL_API_BASE}/tasks/`, { method: 'POST', headers: ghlHeaders, body: JSON.stringify(tPayload) });
+            if (res.ok) { const td = await res.json(); if (td.task?.id) await supabase.from('tasks').update({ ghl_task_id: td.task.id }).eq('id', task.id); success = true; }
+            else { await res.text(); }
+          }
+        } else if (item.entity_type === 'inquiry' && item.action_type === 'delete') {
+          const ghlOppId = (item.payload as any)?.ghl_opportunity_id;
+          if (ghlOppId) { const res = await fetch(`${GHL_API_BASE}/opportunities/${ghlOppId}`, { method: 'DELETE', headers: ghlHeaders }); success = res.ok || res.status === 404; await res.text(); }
+          else { success = true; }
+        } else if (item.entity_type === 'task' && item.action_type === 'delete') {
+          const ghlTaskId = (item.payload as any)?.ghl_task_id;
+          if (ghlTaskId) { const res = await fetch(`${GHL_API_BASE}/tasks/${ghlTaskId}`, { method: 'DELETE', headers: ghlHeaders }); success = res.ok || res.status === 404; await res.text(); }
+          else { success = true; }
+        } else if (item.entity_type === 'company' && item.action_type === 'delete') {
+          const ghlCompanyId = (item.payload as any)?.ghl_company_id;
+          if (ghlCompanyId) { const res = await fetch(`${GHL_API_BASE}/companies/${ghlCompanyId}`, { method: 'DELETE', headers: ghlHeaders }); success = res.ok || res.status === 404; await res.text(); }
+          else { success = true; }
+        } else {
+          console.log(`[Queue] Unknown type ${item.entity_type}/${item.action_type}, marking failed`);
+        }
+
+        if (success) {
+          await supabase.from('sync_queue').update({ status: 'completed', completed_at: new Date().toISOString() }).eq('id', item.id);
+          succeeded++;
+          console.log(`[Queue] ✓ ${item.entity_type}/${item.action_type} for ${item.entity_id}`);
+        } else {
+          const nr = (item.retry_count || 0) + 1;
+          await supabase.from('sync_queue').update({ status: nr >= (item.max_retries || 5) ? 'failed' : 'pending', last_error: 'Sync failed', retry_count: nr }).eq('id', item.id);
+          failed++;
+        }
+      } catch (err: any) {
+        const nr = (item.retry_count || 0) + 1;
+        await supabase.from('sync_queue').update({ status: nr >= (item.max_retries || 5) ? 'failed' : 'pending', last_error: err?.message || 'Unknown error', retry_count: nr }).eq('id', item.id);
+        failed++;
+      }
+      await delay(1000);
+    }
+    console.log(`[Queue] Done: ${succeeded} succeeded, ${failed} failed`);
+  } catch (e) { console.error('Queue processing error:', e); }
 }
