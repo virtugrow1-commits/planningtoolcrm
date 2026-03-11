@@ -1361,7 +1361,7 @@ Deno.serve(async (req) => {
 
       const calEventHeaders = { ...ghlHeaders, 'Version': '2021-04-15' };
 
-      // Appointments payload
+      // Appointments payload - ignoreFreeSlotValidation bypasses service calendar slot checks
       const eventPayload: Record<string, any> = {
         calendarId: roomSetting.ghl_calendar_id,
         locationId: GHL_LOCATION_ID,
@@ -1372,34 +1372,51 @@ Deno.serve(async (req) => {
         appointmentStatus: booking.status === 'confirmed' ? 'confirmed' : 'new',
         ignoreDateRange: true,
         ignoreValidation: true,
+        ignoreFreeSlotValidation: true,
+        selectedTimezone: 'Europe/Amsterdam',
       };
       if (booking.notes) eventPayload.notes = booking.notes;
 
       console.log(`[Push Booking] Calendar: ${roomSetting.ghl_calendar_id}, Contact: ${ghlContactId}, Room: ${booking.room_name}, Payload: ${JSON.stringify(eventPayload)}`);
 
-      // Helper: fallback to block-slots when appointments endpoint fails
-      const createViaBlockSlots = async (): Promise<string | null> => {
-        console.log(`[Push Booking] Falling back to block-slots for room: ${booking.room_name}, calendar: ${roomSetting.ghl_calendar_id}`);
-        const blockPayload: Record<string, any> = {
+      // Helper: fallback to generic /calendars/events endpoint (works for service calendars)
+      const createViaCalendarEvents = async (): Promise<string | null> => {
+        console.log(`[Push Booking] Falling back to /calendars/events for room: ${booking.room_name}, calendar: ${roomSetting.ghl_calendar_id}`);
+        const evtPayload: Record<string, any> = {
           calendarId: roomSetting.ghl_calendar_id,
           locationId: GHL_LOCATION_ID,
+          contactId: ghlContactId,
           title: booking.title || 'Reservering',
           startTime: startISOwTZ,
           endTime: endISOwTZ,
+          appointmentStatus: booking.status === 'confirmed' ? 'confirmed' : 'new',
+          selectedTimezone: 'Europe/Amsterdam',
         };
-        const blockRes = await ghlFetch(`${GHL_API_BASE}/calendars/events/block-slots`, {
-          method: 'POST', headers: calEventHeaders, body: JSON.stringify(blockPayload),
+        if (booking.notes) evtPayload.notes = booking.notes;
+        // Try v2 calendar events endpoint
+        const evtRes = await ghlFetch(`${GHL_API_BASE}/calendars/events`, {
+          method: 'POST', headers: { ...ghlHeaders, 'Version': '2021-07-28' }, body: JSON.stringify(evtPayload),
         });
+        if (evtRes.ok) {
+          const evtData = await evtRes.json();
+          const evtId = evtData.id || evtData.event?.id;
+          console.log(`[Push Booking] Created via /calendars/events: ${evtId}, room: ${booking.room_name}`);
+          return evtId || null;
+        }
+        const evtErr = await evtRes.text();
+        console.error(`[Push Booking] /calendars/events also failed: [${evtRes.status}] ${evtErr}`);
+        // Last resort: try block-slots
+        const blockPayload = { calendarId: roomSetting.ghl_calendar_id, locationId: GHL_LOCATION_ID, title: booking.title || 'Reservering', startTime: startISOwTZ, endTime: endISOwTZ };
+        const blockRes = await ghlFetch(`${GHL_API_BASE}/calendars/events/block-slots`, { method: 'POST', headers: calEventHeaders, body: JSON.stringify(blockPayload) });
         if (blockRes.ok) {
           const blockData = await blockRes.json();
           const blockId = blockData.id || blockData.event?.id;
-          console.log(`[Push Booking] Created via block-slots: ${blockId}, room: ${booking.room_name}, calendar: ${roomSetting.ghl_calendar_id}`);
+          console.log(`[Push Booking] Created via block-slots: ${blockId}, room: ${booking.room_name}`);
           return blockId || null;
-        } else {
-          const blockErr = await blockRes.text();
-          console.error(`[Push Booking] Block-slots also failed: [${blockRes.status}] ${blockErr}`);
-          return null;
         }
+        const blockErr = await blockRes.text();
+        console.error(`[Push Booking] Block-slots also failed: [${blockRes.status}] ${blockErr}`);
+        return null;
       };
 
       // Helper: delete an existing GHL appointment (for room changes)
