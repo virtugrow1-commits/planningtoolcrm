@@ -294,16 +294,22 @@ async function syncCalendar(supabase: any, ghlHeaders: any, locationId: string, 
       }
     }
 
-    // Push local bookings
-    const defaultCalendarId = calendars[0]?.id;
+    // Push local bookings (with rate limiting to avoid 429)
+    const activeCalendarIds = new Set(calendars.filter((c: any) => c.isActive !== false).map((c: any) => c.id));
+    const defaultCalendarId = calendars.find((c: any) => c.isActive !== false)?.id;
     const { data: localBookings } = await supabase.from('bookings').select('*, contacts!bookings_contact_id_fkey(ghl_contact_id)').not('id', 'is', null).is('ghl_event_id', null);
     for (const booking of localBookings || []) {
       const ghlContactId = (booking as any).contacts?.ghl_contact_id || null;
       if (!ghlContactId) continue;
       const targetCalendarId = roomToCalId[booking.room_name] || defaultCalendarId;
       if (!targetCalendarId) continue;
+      // Skip inactive calendars
+      if (!activeCalendarIds.has(targetCalendarId)) {
+        console.log(`Skipping booking ${booking.id}: calendar ${targetCalendarId} is inactive`);
+        continue;
+      }
       try {
-        // Dynamic timezone offset for Europe/Amsterdam
+        await delay(1500); // Rate limit: 1.5s between pushes
         const probeDate = new Date(`${booking.date}T12:00:00Z`);
         const amStr = probeDate.toLocaleString('en-US', { timeZone: 'Europe/Amsterdam', hour12: false });
         const amDate = new Date(amStr);
@@ -336,25 +342,7 @@ async function syncCalendar(supabase: any, ghlHeaders: any, locationId: string, 
         } else {
           const errText = await res.text();
           console.error(`Push booking ${booking.id} failed: ${errText}`);
-          // Try /calendars/events fallback for service calendars
-          const evtPayload = { ...appointmentPayload };
-          delete evtPayload.ignoreDateRange;
-          delete evtPayload.ignoreValidation;
-          delete evtPayload.ignoreFreeSlotValidation;
-          const evtRes = await fetch(`${GHL_API_BASE}/calendars/events`, {
-            method: 'POST',
-            headers: { ...ghlHeaders, 'Version': '2021-07-28' },
-            body: JSON.stringify(evtPayload),
-          });
-          if (evtRes.ok) {
-            const evtData = await evtRes.json();
-            const evtId = evtData.id || evtData.event?.id;
-            if (evtId) await supabase.from('bookings').update({ ghl_event_id: evtId }).eq('id', booking.id);
-            results.bookings_pushed++;
-          } else {
-            const evtErr = await evtRes.text();
-            console.error(`Push booking ${booking.id} /calendars/events also failed: ${evtErr}`);
-          }
+          // Don't retry with /calendars/events - that endpoint doesn't exist (404)
         }
       } catch (e) { console.error('Push booking error:', booking.id, e); }
     }
