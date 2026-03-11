@@ -372,6 +372,7 @@ export default function CalendarPage() {
         onSubmit={handleNewReservation}
         contacts={contacts}
         contactsLoading={contactsLoading}
+        companies={companies}
         conflictAlert={reservationConflict}
         getRoomDisplayName={getDisplayName}
         initialStartHour={reservationInitial.hour}

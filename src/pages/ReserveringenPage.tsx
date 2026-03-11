@@ -492,6 +492,7 @@ export default function ReserveringenPage() {
         onOpenChange={setNewReservationOpen}
         contacts={contactOptions}
         contactsLoading={contactsLoading}
+        companies={companies}
         conflictAlert={null}
         getRoomDisplayName={getDisplayName}
         onSubmit={async (form) => {
