@@ -1361,7 +1361,7 @@ Deno.serve(async (req) => {
 
       const calEventHeaders = { ...ghlHeaders, 'Version': '2021-04-15' };
 
-      // Appointments payload
+      // Appointments payload - ignoreFreeSlotValidation bypasses service calendar slot checks
       const eventPayload: Record<string, any> = {
         calendarId: roomSetting.ghl_calendar_id,
         locationId: GHL_LOCATION_ID,
@@ -1372,34 +1372,51 @@ Deno.serve(async (req) => {
         appointmentStatus: booking.status === 'confirmed' ? 'confirmed' : 'new',
         ignoreDateRange: true,
         ignoreValidation: true,
+        ignoreFreeSlotValidation: true,
+        selectedTimezone: 'Europe/Amsterdam',
       };
       if (booking.notes) eventPayload.notes = booking.notes;
 
       console.log(`[Push Booking] Calendar: ${roomSetting.ghl_calendar_id}, Contact: ${ghlContactId}, Room: ${booking.room_name}, Payload: ${JSON.stringify(eventPayload)}`);
 
-      // Helper: fallback to block-slots when appointments endpoint fails
-      const createViaBlockSlots = async (): Promise<string | null> => {
-        console.log(`[Push Booking] Falling back to block-slots for room: ${booking.room_name}, calendar: ${roomSetting.ghl_calendar_id}`);
-        const blockPayload: Record<string, any> = {
+      // Helper: fallback to generic /calendars/events endpoint (works for service calendars)
+      const createViaCalendarEvents = async (): Promise<string | null> => {
+        console.log(`[Push Booking] Falling back to /calendars/events for room: ${booking.room_name}, calendar: ${roomSetting.ghl_calendar_id}`);
+        const evtPayload: Record<string, any> = {
           calendarId: roomSetting.ghl_calendar_id,
           locationId: GHL_LOCATION_ID,
+          contactId: ghlContactId,
           title: booking.title || 'Reservering',
           startTime: startISOwTZ,
           endTime: endISOwTZ,
+          appointmentStatus: booking.status === 'confirmed' ? 'confirmed' : 'new',
+          selectedTimezone: 'Europe/Amsterdam',
         };
-        const blockRes = await ghlFetch(`${GHL_API_BASE}/calendars/events/block-slots`, {
-          method: 'POST', headers: calEventHeaders, body: JSON.stringify(blockPayload),
+        if (booking.notes) evtPayload.notes = booking.notes;
+        // Try v2 calendar events endpoint
+        const evtRes = await ghlFetch(`${GHL_API_BASE}/calendars/events`, {
+          method: 'POST', headers: { ...ghlHeaders, 'Version': '2021-07-28' }, body: JSON.stringify(evtPayload),
         });
+        if (evtRes.ok) {
+          const evtData = await evtRes.json();
+          const evtId = evtData.id || evtData.event?.id;
+          console.log(`[Push Booking] Created via /calendars/events: ${evtId}, room: ${booking.room_name}`);
+          return evtId || null;
+        }
+        const evtErr = await evtRes.text();
+        console.error(`[Push Booking] /calendars/events also failed: [${evtRes.status}] ${evtErr}`);
+        // Last resort: try block-slots
+        const blockPayload = { calendarId: roomSetting.ghl_calendar_id, locationId: GHL_LOCATION_ID, title: booking.title || 'Reservering', startTime: startISOwTZ, endTime: endISOwTZ };
+        const blockRes = await ghlFetch(`${GHL_API_BASE}/calendars/events/block-slots`, { method: 'POST', headers: calEventHeaders, body: JSON.stringify(blockPayload) });
         if (blockRes.ok) {
           const blockData = await blockRes.json();
           const blockId = blockData.id || blockData.event?.id;
-          console.log(`[Push Booking] Created via block-slots: ${blockId}, room: ${booking.room_name}, calendar: ${roomSetting.ghl_calendar_id}`);
+          console.log(`[Push Booking] Created via block-slots: ${blockId}, room: ${booking.room_name}`);
           return blockId || null;
-        } else {
-          const blockErr = await blockRes.text();
-          console.error(`[Push Booking] Block-slots also failed: [${blockRes.status}] ${blockErr}`);
-          return null;
         }
+        const blockErr = await blockRes.text();
+        console.error(`[Push Booking] Block-slots also failed: [${blockRes.status}] ${blockErr}`);
+        return null;
       };
 
       // Helper: delete an existing GHL appointment (for room changes)
@@ -1425,7 +1442,7 @@ Deno.serve(async (req) => {
         }
       };
 
-      // Helper: create appointment with block-slots fallback, returns new event ID or null
+      // Helper: create appointment with /calendars/events fallback, returns new event ID or null
       const createNewAppointment = async (): Promise<string | null> => {
         const res = await ghlFetch(`${GHL_API_BASE}/calendars/events/appointments`, {
           method: 'POST', headers: calEventHeaders, body: JSON.stringify(eventPayload),
@@ -1437,8 +1454,8 @@ Deno.serve(async (req) => {
           return newId || null;
         }
         const errText = await res.text();
-        console.warn(`[Push Booking] Appointment create failed: [${res.status}] ${errText}, trying block-slots for room: ${booking.room_name}`);
-        return await createViaBlockSlots();
+        console.warn(`[Push Booking] Appointment create failed: [${res.status}] ${errText}, trying /calendars/events for room: ${booking.room_name}`);
+        return await createViaCalendarEvents();
       };
 
       let syncSuccess = false;
@@ -1616,6 +1633,8 @@ Deno.serve(async (req) => {
           appointmentStatus: booking.status === 'confirmed' ? 'confirmed' : 'new',
           ignoreDateRange: true,
           ignoreValidation: true,
+          ignoreFreeSlotValidation: true,
+          selectedTimezone: 'Europe/Amsterdam',
         };
         if (booking.notes) ghlPayload.notes = booking.notes;
 
@@ -1795,7 +1814,7 @@ Deno.serve(async (req) => {
         try {
           let replayPayload = payload;
 
-          // For bookings, re-fetch current data (payload may be stale after updates)
+          // Re-fetch current data for replay (payload may be stale)
           if (item.entity_type === 'booking' && (item.action_type === 'create' || item.action_type === 'update')) {
             const { data: currentBooking } = await supabase.from('bookings').select('*').eq('id', item.entity_id).single();
             if (!currentBooking) {
@@ -1804,13 +1823,45 @@ Deno.serve(async (req) => {
               continue;
             }
             replayPayload = { action: 'push-booking', booking: currentBooking };
-          } else if (item.entity_type === 'contact' && item.action_type === 'create') {
+          } else if (item.entity_type === 'booking' && item.action_type === 'delete') {
+            // Use original payload for delete (needs ghl_event_id)
+            replayPayload = payload?.action ? payload : { action: 'delete-booking', ghl_event_id: payload?.ghl_event_id || payload?.booking?.ghl_event_id };
+          } else if (item.entity_type === 'contact' && (item.action_type === 'create' || item.action_type === 'update')) {
             const { data: currentContact } = await supabase.from('contacts').select('*').eq('id', item.entity_id).single();
             if (!currentContact) {
               await supabase.from('sync_queue').delete().eq('id', item.id);
               continue;
             }
             replayPayload = { action: 'push-contact', contact: currentContact };
+          } else if (item.entity_type === 'contact' && item.action_type === 'delete') {
+            replayPayload = payload?.action ? payload : { action: 'delete-contact', ghl_contact_id: payload?.ghl_contact_id };
+          } else if (item.entity_type === 'company' && (item.action_type === 'create' || item.action_type === 'update')) {
+            const { data: currentCompany } = await supabase.from('companies').select('*').eq('id', item.entity_id).single();
+            if (!currentCompany) {
+              await supabase.from('sync_queue').delete().eq('id', item.id);
+              continue;
+            }
+            replayPayload = { action: 'push-company', company: currentCompany };
+          } else if (item.entity_type === 'company' && item.action_type === 'delete') {
+            replayPayload = payload?.action ? payload : { action: 'delete-company', ghl_company_id: payload?.ghl_company_id };
+          } else if (item.entity_type === 'task' && (item.action_type === 'create' || item.action_type === 'update')) {
+            const { data: currentTask } = await supabase.from('tasks').select('*').eq('id', item.entity_id).single();
+            if (!currentTask) {
+              await supabase.from('sync_queue').delete().eq('id', item.id);
+              continue;
+            }
+            replayPayload = { action: 'push-task', task: currentTask };
+          } else if (item.entity_type === 'task' && item.action_type === 'delete') {
+            replayPayload = payload?.action ? payload : { action: 'delete-task', ghl_task_id: payload?.ghl_task_id };
+          } else if (item.entity_type === 'inquiry' && (item.action_type === 'create' || item.action_type === 'update')) {
+            const { data: currentInquiry } = await supabase.from('inquiries').select('*').eq('id', item.entity_id).single();
+            if (!currentInquiry) {
+              await supabase.from('sync_queue').delete().eq('id', item.id);
+              continue;
+            }
+            replayPayload = { action: 'push-inquiry', inquiry_id: currentInquiry.id, contact_name: currentInquiry.contact_name, event_type: currentInquiry.event_type, budget: currentInquiry.budget, status: currentInquiry.status, message: currentInquiry.message };
+          } else if (item.entity_type === 'inquiry' && item.action_type === 'delete') {
+            replayPayload = payload?.action ? payload : { action: 'delete-inquiry', ghl_opportunity_id: payload?.ghl_opportunity_id };
           }
 
           const result = await ghlFetch(selfUrl, {
