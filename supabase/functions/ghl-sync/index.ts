@@ -1762,6 +1762,101 @@ Deno.serve(async (req) => {
       }
     }
 
+    // =================== process-sync-queue ===================
+    if (action === 'process-sync-queue') {
+      console.log(`[Process Queue] Processing pending sync queue items`);
+      
+      const { data: pendingItems } = await supabase
+        .from('sync_queue')
+        .select('*')
+        .in('status', ['pending', 'retrying'])
+        .order('created_at', { ascending: true })
+        .limit(10);
+
+      if (!pendingItems || pendingItems.length === 0) {
+        return new Response(JSON.stringify({ success: true, processed: 0, message: 'No pending items' }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      let processed = 0, succeeded = 0, failed = 0;
+      const selfUrl = `${SUPABASE_URL}/functions/v1/ghl-sync`;
+
+      for (const item of pendingItems) {
+        processed++;
+        const payload = item.payload as Record<string, any>;
+
+        await supabase.from('sync_queue').update({
+          status: 'retrying',
+          retry_count: (item.retry_count || 0) + 1,
+          last_attempt_at: new Date().toISOString(),
+        }).eq('id', item.id);
+
+        try {
+          let replayPayload = payload;
+
+          // For bookings, re-fetch current data (payload may be stale after updates)
+          if (item.entity_type === 'booking' && (item.action_type === 'create' || item.action_type === 'update')) {
+            const { data: currentBooking } = await supabase.from('bookings').select('*').eq('id', item.entity_id).single();
+            if (!currentBooking) {
+              await supabase.from('sync_queue').delete().eq('id', item.id);
+              console.log(`[Process Queue] Booking ${item.entity_id} deleted, removed from queue`);
+              continue;
+            }
+            replayPayload = { action: 'push-booking', booking: currentBooking };
+          } else if (item.entity_type === 'contact' && item.action_type === 'create') {
+            const { data: currentContact } = await supabase.from('contacts').select('*').eq('id', item.entity_id).single();
+            if (!currentContact) {
+              await supabase.from('sync_queue').delete().eq('id', item.id);
+              continue;
+            }
+            replayPayload = { action: 'push-contact', contact: currentContact };
+          }
+
+          const result = await ghlFetch(selfUrl, {
+            method: 'POST',
+            headers: { 'Authorization': authHeader, 'Content-Type': 'application/json' },
+            body: JSON.stringify(replayPayload),
+          });
+
+          if (result.ok) {
+            await supabase.from('sync_queue').update({
+              status: 'completed', completed_at: new Date().toISOString(),
+            }).eq('id', item.id);
+            succeeded++;
+            console.log(`[Process Queue] ✓ ${item.entity_type}/${item.action_type} for ${item.entity_id}`);
+          } else {
+            const errText = await result.text();
+            const newRetry = (item.retry_count || 0) + 1;
+            await supabase.from('sync_queue').update({
+              status: newRetry >= (item.max_retries || 5) ? 'failed' : 'pending',
+              last_error: errText.substring(0, 500),
+              last_attempt_at: new Date().toISOString(),
+              retry_count: newRetry,
+            }).eq('id', item.id);
+            failed++;
+            console.log(`[Process Queue] ✗ ${item.entity_type}/${item.action_type}: ${errText.substring(0, 200)}`);
+          }
+        } catch (err: any) {
+          const newRetry = (item.retry_count || 0) + 1;
+          await supabase.from('sync_queue').update({
+            status: newRetry >= (item.max_retries || 5) ? 'failed' : 'pending',
+            last_error: err?.message || 'Unknown error',
+            last_attempt_at: new Date().toISOString(),
+            retry_count: newRetry,
+          }).eq('id', item.id);
+          failed++;
+        }
+
+        await delay(1000);
+      }
+
+      console.log(`[Process Queue] Done: ${processed} processed, ${succeeded} ok, ${failed} failed`);
+      return new Response(JSON.stringify({ success: true, processed, succeeded, failed }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
     return new Response(JSON.stringify({ error: `Unknown action: ${action}` }), {
       status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
