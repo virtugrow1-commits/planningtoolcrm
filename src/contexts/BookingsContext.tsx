@@ -246,7 +246,7 @@ export function BookingsProvider({ children }: { children: ReactNode }) {
     for (const b of newBookings) {
       const startMin = b.startHour * 60 + (b.startMinute ?? 0);
       const endMin = b.endHour * 60 + (b.endMinute ?? 0);
-      const serverConflicts = await serverConflictCheck(b.date, b.roomName, startMin, endMin);
+      const serverConflicts = await serverConflictCheck(b.date, b.roomName, startMin, endMin, undefined, b.status);
       if (serverConflicts.length > 0) {
         const conflictRooms = [...new Set(serverConflicts.map(c => c.roomName))].join(', ');
         toast({ title: 'Dubbele boeking niet toegestaan', description: `Conflict met ${conflictRooms} op ${b.date}.`, variant: 'destructive' });
