@@ -18,7 +18,7 @@ interface BookingsContextType {
   updateBooking: (booking: Booking) => Promise<{ success: boolean; conflicts?: Booking[] }>;
   deleteBooking: (id: string) => Promise<void>;
   refetch: () => Promise<void>;
-  checkConflicts: (date: string, room: RoomName, startMin: number, endMin: number, excludeId?: string) => Booking[];
+  checkConflicts: (date: string, room: RoomName, startMin: number, endMin: number, excludeId?: string, newStatus?: string) => Booking[];
 }
 
 const BookingsContext = createContext<BookingsContextType | null>(null);
@@ -90,20 +90,25 @@ export function BookingsProvider({ children }: { children: ReactNode }) {
   }, [user, fetchBookings]);
 
   // Check conflicts including combined room rules
-  const checkConflicts = useCallback((date: string, room: RoomName, startMin: number, endMin: number, excludeId?: string): Booking[] => {
+  // Options may overlap with other options; confirmed bookings block everything
+  const checkConflicts = useCallback((date: string, room: RoomName, startMin: number, endMin: number, excludeId?: string, newStatus?: string): Booking[] => {
     const roomsToCheck = getConflictRooms(room);
-    return bookings.filter((b) =>
-      b.date === date &&
-      roomsToCheck.includes(b.roomName) &&
-      b.id !== excludeId &&
-      startMin < b.endHour * 60 + (b.endMinute || 0) &&
-      endMin > b.startHour * 60 + (b.startMinute || 0)
-    );
+    return bookings.filter((b) => {
+      if (b.id === excludeId) return false;
+      if (b.date !== date) return false;
+      if (!roomsToCheck.includes(b.roomName)) return false;
+      const bStart = b.startHour * 60 + (b.startMinute || 0);
+      const bEnd = b.endHour * 60 + (b.endMinute || 0);
+      if (startMin >= bEnd || endMin <= bStart) return false;
+      // Both are options → no conflict
+      if (newStatus === 'option' && b.status === 'option') return false;
+      return true;
+    });
   }, [bookings, getConflictRooms]);
 
   // Server-side conflict check including combined room rules
   const serverConflictCheck = useCallback(async (
-    date: string, roomName: string, startMin: number, endMin: number, excludeId?: string
+    date: string, roomName: string, startMin: number, endMin: number, excludeId?: string, newStatus?: string
   ): Promise<Booking[]> => {
     const roomsToCheck = getConflictRooms(roomName);
     const { data: dbConflicts } = await supabase
@@ -115,7 +120,10 @@ export function BookingsProvider({ children }: { children: ReactNode }) {
       if (excludeId && b.id === excludeId) return false;
       const bStart = b.start_hour * 60 + (b.start_minute ?? 0);
       const bEnd = b.end_hour * 60 + (b.end_minute ?? 0);
-      return startMin < bEnd && endMin > bStart;
+      if (startMin >= bEnd || endMin <= bStart) return false;
+      // Both are options → no conflict
+      if (newStatus === 'option' && b.status === 'option') return false;
+      return true;
     }).map((sc: any) => ({
       id: sc.id,
       roomName: sc.room_name as RoomName,
@@ -173,7 +181,7 @@ export function BookingsProvider({ children }: { children: ReactNode }) {
     const endMin = booking.endHour * 60 + (booking.endMinute ?? 0);
 
     // Local conflict check (includes combined room logic)
-    const localConflicts = checkConflicts(booking.date, booking.roomName, startMin, endMin);
+    const localConflicts = checkConflicts(booking.date, booking.roomName, startMin, endMin, undefined, booking.status);
     if (localConflicts.length > 0) {
       const conflictRooms = [...new Set(localConflicts.map(c => c.roomName))].join(', ');
       toast({ title: 'Dubbele boeking niet toegestaan', description: `Conflict met: ${conflictRooms}`, variant: 'destructive' });
@@ -182,7 +190,7 @@ export function BookingsProvider({ children }: { children: ReactNode }) {
     }
 
     // Server-side conflict check (includes combined room logic)
-    const serverConflicts = await serverConflictCheck(booking.date, booking.roomName, startMin, endMin);
+    const serverConflicts = await serverConflictCheck(booking.date, booking.roomName, startMin, endMin, undefined, booking.status);
     if (serverConflicts.length > 0) {
       const conflictRooms = [...new Set(serverConflicts.map(c => c.roomName))].join(', ');
       toast({ title: 'Dubbele boeking niet toegestaan', description: `Server conflict met: ${conflictRooms}`, variant: 'destructive' });
@@ -238,7 +246,7 @@ export function BookingsProvider({ children }: { children: ReactNode }) {
     for (const b of newBookings) {
       const startMin = b.startHour * 60 + (b.startMinute ?? 0);
       const endMin = b.endHour * 60 + (b.endMinute ?? 0);
-      const serverConflicts = await serverConflictCheck(b.date, b.roomName, startMin, endMin);
+      const serverConflicts = await serverConflictCheck(b.date, b.roomName, startMin, endMin, undefined, b.status);
       if (serverConflicts.length > 0) {
         const conflictRooms = [...new Set(serverConflicts.map(c => c.roomName))].join(', ');
         toast({ title: 'Dubbele boeking niet toegestaan', description: `Conflict met ${conflictRooms} op ${b.date}.`, variant: 'destructive' });
@@ -293,7 +301,7 @@ export function BookingsProvider({ children }: { children: ReactNode }) {
     const endMin = updated.endHour * 60 + (updated.endMinute ?? 0);
 
     // Server-side conflict check with combined room logic
-    const serverConflicts = await serverConflictCheck(updated.date, updated.roomName, startMin, endMin, updated.id);
+    const serverConflicts = await serverConflictCheck(updated.date, updated.roomName, startMin, endMin, updated.id, updated.status);
     if (serverConflicts.length > 0) {
       const conflictRooms = [...new Set(serverConflicts.map(c => c.roomName))].join(', ');
       toast({ title: 'Dubbele boeking niet toegestaan', description: `Conflict met: ${conflictRooms}`, variant: 'destructive' });
