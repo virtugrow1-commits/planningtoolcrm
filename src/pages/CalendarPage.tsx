@@ -18,6 +18,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { useRoomSettings } from '@/hooks/useRoomSettings';
 import { useContactsContext } from '@/contexts/ContactsContext';
+import { useCompaniesContext } from '@/contexts/CompaniesContext';
 
 type CalendarViewMode = 'day' | 'week' | 'month';
 
