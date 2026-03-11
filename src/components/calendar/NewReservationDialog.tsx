@@ -6,9 +6,15 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
-import { AlertTriangle, X } from 'lucide-react';
+import { AlertTriangle, X, Plus, Building2, User } from 'lucide-react';
 import CrmCombobox, { ComboboxOption } from '@/components/CrmCombobox';
 import { ContactOption } from '@/hooks/useContacts';
+import { Company } from '@/contexts/CompaniesContext';
+import { useAuth } from '@/contexts/AuthContext';
+import { useToast } from '@/hooks/use-toast';
+import { supabase } from '@/integrations/supabase/client';
+import { pushToGHL } from '@/lib/ghlSync';
+import { capitalizeWords } from '@/lib/utils';
 
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
@@ -19,6 +25,7 @@ import { nl } from 'date-fns/locale';
 export interface NewReservationForm {
   contactId: string;
   contactName: string;
+  companyId?: string;
   room: RoomName;
   date: string;
   startHour: number;
@@ -39,6 +46,7 @@ export interface ReservationPrefill {
   title?: string;
   contactName?: string;
   contactId?: string;
+  companyId?: string;
   date?: string;
   roomName?: string;
   guestCount?: number;
@@ -52,6 +60,7 @@ interface NewReservationDialogProps {
   onSubmit: (form: NewReservationForm) => void;
   contacts: ContactOption[];
   contactsLoading: boolean;
+  companies?: Company[];
   conflictAlert: string | null;
   getRoomDisplayName: (room: string) => string;
   initialStartHour?: number;
@@ -72,14 +81,22 @@ const ROOM_SETUPS = [
   'Anders',
 ];
 
+interface NewCompanyForm { name: string; email: string; phone: string; address: string; }
+interface NewContactForm { firstName: string; lastName: string; email: string; phone: string; }
+const emptyCompanyForm: NewCompanyForm = { name: '', email: '', phone: '', address: '' };
+const emptyContactForm: NewContactForm = { firstName: '', lastName: '', email: '', phone: '' };
+
 export default function NewReservationDialog({
-  open, onOpenChange, onSubmit, contacts, contactsLoading, conflictAlert, getRoomDisplayName,
+  open, onOpenChange, onSubmit, contacts, contactsLoading, companies = [], conflictAlert, getRoomDisplayName,
   initialStartHour, initialRoom, initialDate, prefill
 }: NewReservationDialogProps) {
+  const { user } = useAuth();
+  const { toast } = useToast();
   const today = (() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; })();
   const [form, setForm] = useState<NewReservationForm>({
     contactId: '',
     contactName: '',
+    companyId: '',
     room: initialRoom || ROOMS[0],
     date: initialDate || today,
     startHour: initialStartHour ?? 9,
@@ -95,9 +112,15 @@ export default function NewReservationDialog({
     roomSetup: '',
     notes: '',
   });
-  
 
-  // Reset form when dialog opens (only triggered by `open` changing to true)
+  // Inline creation state
+  const [creatingCompany, setCreatingCompany] = useState(false);
+  const [companyForm, setCompanyForm] = useState<NewCompanyForm>(emptyCompanyForm);
+  const [creatingContact, setCreatingContact] = useState(false);
+  const [contactForm, setContactForm] = useState<NewContactForm>(emptyContactForm);
+  const [saving, setSaving] = useState(false);
+
+  // Reset form when dialog opens
   const [lastOpen, setLastOpen] = useState(false);
   useEffect(() => {
     if (open && !lastOpen) {
@@ -120,6 +143,7 @@ export default function NewReservationDialog({
       setForm({
         contactId: prefill?.contactId || '',
         contactName: prefill?.contactName || '',
+        companyId: prefill?.companyId || '',
         room: prefillRoom || initialRoom || ROOMS[0],
         date: prefill?.date || initialDate || today,
         startHour: sH,
@@ -135,7 +159,10 @@ export default function NewReservationDialog({
         roomSetup: '',
         notes: '',
       });
-      
+      setCreatingCompany(false);
+      setCompanyForm(emptyCompanyForm);
+      setCreatingContact(false);
+      setContactForm(emptyContactForm);
     }
     setLastOpen(open);
   }, [open]);
@@ -150,24 +177,138 @@ export default function NewReservationDialog({
     [contacts]
   );
 
+  const companyOptions = useMemo<ComboboxOption[]>(() =>
+    companies.map(co => ({
+      id: co.id,
+      label: co.name,
+      secondary: co.city || co.email || undefined,
+      searchText: `${co.name} ${co.city || ''} ${co.kvk || ''} ${co.email || ''}`,
+    })),
+    [companies]
+  );
+
   const selectedContact = contacts.find((c) => c.id === form.contactId);
 
   const handleSelectContact = (id: string, opt?: ComboboxOption) => {
-    setForm({
-      ...form,
-      contactId: id,
-      contactName: opt?.label || '',
-    });
+    const contact = contacts.find(c => c.id === id);
+    const updates: any = { ...form, contactId: id, contactName: opt?.label || '' };
+    // Auto-suggest company if contact has one
+    if (contact?.company && !form.companyId && !creatingCompany) {
+      const matchedCompany = companies.find(co => co.name.toLowerCase() === (contact.company || '').toLowerCase());
+      if (matchedCompany) updates.companyId = matchedCompany.id;
+    }
+    setForm(updates);
   };
 
-  const handleSubmit = () => {
-    onSubmit(form);
+  const handleSubmit = async () => {
+    if (!user) return;
+
+    const hasContact = form.contactId || (creatingContact && contactForm.firstName && contactForm.lastName);
+    if (!hasContact || !form.room || !form.date || !form.title) {
+      toast({ title: 'Vul minimaal klant, titel, ruimte en datum in', variant: 'destructive' });
+      return;
+    }
+
+    setSaving(true);
+    try {
+      let companyId = form.companyId;
+      let contactId = form.contactId;
+      let contactName = form.contactName;
+
+      // 1. Create new company if needed
+      if (creatingCompany && companyForm.name) {
+        const { data: existingCo } = await supabase
+          .from('companies')
+          .select('id, name')
+          .ilike('name', companyForm.name.trim())
+          .limit(1)
+          .maybeSingle();
+
+        if (existingCo) {
+          toast({ title: `Bedrijf "${existingCo.name}" bestaat al`, description: 'Het bestaande bedrijf wordt gebruikt.' });
+          companyId = existingCo.id;
+        } else {
+          const { data: newCo, error: coErr } = await (supabase as any).from('companies').insert({
+            user_id: user.id,
+            name: capitalizeWords(companyForm.name.trim()),
+            email: companyForm.email || null,
+            phone: companyForm.phone || null,
+            address: companyForm.address || null,
+          }).select().single();
+
+          if (coErr) {
+            toast({ title: 'Fout bij aanmaken bedrijf', description: coErr.message, variant: 'destructive' });
+            setSaving(false);
+            return;
+          }
+          companyId = newCo.id;
+          pushToGHL('push-company', { company: newCo }, { entityType: 'company', entityId: newCo.id, actionType: 'create' });
+          toast({ title: `Bedrijf "${newCo.name}" aangemaakt` });
+        }
+      }
+
+      // 2. Create new contact if needed
+      if (creatingContact && contactForm.firstName && contactForm.lastName) {
+        let existingContact = null;
+        if (contactForm.email) {
+          const { data } = await supabase
+            .from('contacts')
+            .select('id, first_name, last_name')
+            .ilike('email', contactForm.email.trim())
+            .limit(1)
+            .maybeSingle();
+          existingContact = data;
+        }
+        if (!existingContact) {
+          const { data } = await supabase
+            .from('contacts')
+            .select('id, first_name, last_name')
+            .ilike('first_name', capitalizeWords(contactForm.firstName.trim()))
+            .ilike('last_name', capitalizeWords(contactForm.lastName.trim()))
+            .limit(1)
+            .maybeSingle();
+          existingContact = data;
+        }
+
+        if (existingContact) {
+          toast({ title: `Contact "${existingContact.first_name} ${existingContact.last_name}" bestaat al`, description: 'Het bestaande contact wordt gebruikt.' });
+          contactId = existingContact.id;
+          contactName = `${existingContact.first_name} ${existingContact.last_name}`;
+        } else {
+          const { data: newContact, error: cErr } = await supabase.from('contacts').insert({
+            user_id: user.id,
+            first_name: capitalizeWords(contactForm.firstName.trim()),
+            last_name: capitalizeWords(contactForm.lastName.trim()),
+            email: contactForm.email || null,
+            phone: contactForm.phone || null,
+            company_id: companyId || null,
+            status: 'lead',
+          } as any).select().single();
+
+          if (cErr) {
+            toast({ title: 'Fout bij aanmaken contact', description: cErr.message, variant: 'destructive' });
+            setSaving(false);
+            return;
+          }
+          contactId = newContact.id;
+          contactName = `${newContact.first_name} ${newContact.last_name}`;
+          pushToGHL('push-contact', { contact: newContact }, { entityType: 'contact', entityId: newContact.id, actionType: 'create' });
+          toast({ title: `Contact "${contactName}" aangemaakt` });
+        }
+      }
+
+      onSubmit({ ...form, contactId: contactId || '', contactName, companyId: companyId || undefined });
+    } catch (err: any) {
+      toast({ title: 'Fout', description: err?.message || 'Onbekende fout', variant: 'destructive' });
+    } finally {
+      setSaving(false);
+    }
   };
 
   const formatTimeValue = (h: number, m: number) =>
     `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
 
-  const isValid = form.contactId && form.room && form.date && form.title;
+  const isValid = (form.contactId || (creatingContact && contactForm.firstName && contactForm.lastName)) && form.room && form.date && form.title;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -183,29 +324,162 @@ export default function NewReservationDialog({
         )}
 
         <div className="grid gap-4 py-2">
-          {/* Contact selection */}
+          {/* Company selection */}
           <div className="grid gap-1.5">
-            <Label>Klant *</Label>
-            {selectedContact ? (
-              <div className="flex items-center justify-between rounded-lg border bg-muted/30 p-3">
-                <div>
-                  <p className="text-sm font-medium">{[selectedContact.firstName, selectedContact.lastName].filter(n => n && n !== '—').join(' ')}</p>
-                  {selectedContact.email && <p className="text-xs text-muted-foreground">{selectedContact.email}</p>}
-                  {selectedContact.company && <p className="text-xs text-muted-foreground">{selectedContact.company}</p>}
-                </div>
-                <Button variant="ghost" size="sm" onClick={() => setForm({ ...form, contactId: '', contactName: '' })}>
-                  Wijzigen
-                </Button>
+            <Label className="flex items-center gap-1.5">
+              <Building2 size={13} className="text-muted-foreground" /> Bedrijf
+            </Label>
+            {!creatingCompany ? (
+              <div className="space-y-1.5">
+                <CrmCombobox
+                  options={companyOptions}
+                  value={form.companyId || ''}
+                  onSelect={(id) => setForm({ ...form, companyId: id })}
+                  placeholder="Selecteer bedrijf..."
+                  searchPlaceholder="Zoek bedrijf..."
+                  popoverWidth="w-[380px]"
+                  allowClear
+                  clearLabel="— Geen bedrijf —"
+                />
+                <button
+                  type="button"
+                  onClick={() => { setCreatingCompany(true); setForm({ ...form, companyId: '' }); }}
+                  className="flex items-center gap-1.5 text-xs text-primary hover:text-primary/80 transition-colors font-medium"
+                >
+                  <Plus size={12} /> Nieuw bedrijf toevoegen
+                </button>
               </div>
             ) : (
-              <CrmCombobox
-                options={contactOptions}
-                value={form.contactId}
-                onSelect={handleSelectContact}
-                placeholder="Selecteer klant..."
-                searchPlaceholder="Zoek contact..."
-                popoverWidth="w-[340px]"
-              />
+              <div className="rounded-lg border border-primary/20 bg-primary/5 p-3 space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-semibold text-primary flex items-center gap-1">
+                    <Building2 size={12} /> Nieuw bedrijf
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => { setCreatingCompany(false); setCompanyForm(emptyCompanyForm); }}
+                    className="text-xs text-muted-foreground hover:text-foreground"
+                  >
+                    Annuleren
+                  </button>
+                </div>
+                <div className="grid gap-2">
+                  <Input
+                    placeholder="Bedrijfsnaam *"
+                    value={companyForm.name}
+                    onChange={(e) => setCompanyForm({ ...companyForm, name: e.target.value })}
+                    className="text-sm h-8"
+                  />
+                  <div className="grid grid-cols-2 gap-2">
+                    <Input
+                      placeholder="E-mail"
+                      type="email"
+                      value={companyForm.email}
+                      onChange={(e) => setCompanyForm({ ...companyForm, email: e.target.value })}
+                      className="text-sm h-8"
+                    />
+                    <Input
+                      placeholder="Telefoon"
+                      value={companyForm.phone}
+                      onChange={(e) => setCompanyForm({ ...companyForm, phone: e.target.value })}
+                      className="text-sm h-8"
+                    />
+                  </div>
+                  <Input
+                    placeholder="Adres (optioneel)"
+                    value={companyForm.address}
+                    onChange={(e) => setCompanyForm({ ...companyForm, address: e.target.value })}
+                    className="text-sm h-8"
+                  />
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Contact selection */}
+          <div className="grid gap-1.5">
+            <Label className="flex items-center gap-1.5">
+              <User size={13} className="text-muted-foreground" /> Klant *
+            </Label>
+            {!creatingContact ? (
+              <div className="space-y-1.5">
+                {selectedContact ? (
+                  <div className="flex items-center justify-between rounded-lg border bg-muted/30 p-3">
+                    <div>
+                      <p className="text-sm font-medium">{[selectedContact.firstName, selectedContact.lastName].filter(n => n && n !== '—').join(' ')}</p>
+                      {selectedContact.email && <p className="text-xs text-muted-foreground">{selectedContact.email}</p>}
+                      {selectedContact.company && <p className="text-xs text-muted-foreground">{selectedContact.company}</p>}
+                    </div>
+                    <Button variant="ghost" size="sm" onClick={() => setForm({ ...form, contactId: '', contactName: '' })}>
+                      Wijzigen
+                    </Button>
+                  </div>
+                ) : (
+                  <CrmCombobox
+                    options={contactOptions}
+                    value={form.contactId}
+                    onSelect={handleSelectContact}
+                    placeholder="Selecteer klant..."
+                    searchPlaceholder="Zoek contact..."
+                    popoverWidth="w-[340px]"
+                  />
+                )}
+                {!selectedContact && (
+                  <button
+                    type="button"
+                    onClick={() => { setCreatingContact(true); setForm({ ...form, contactId: '', contactName: '' }); }}
+                    className="flex items-center gap-1.5 text-xs text-primary hover:text-primary/80 transition-colors font-medium"
+                  >
+                    <Plus size={12} /> Nieuwe contactpersoon toevoegen
+                  </button>
+                )}
+              </div>
+            ) : (
+              <div className="rounded-lg border border-primary/20 bg-primary/5 p-3 space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-semibold text-primary flex items-center gap-1">
+                    <User size={12} /> Nieuwe contactpersoon
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => { setCreatingContact(false); setContactForm(emptyContactForm); }}
+                    className="text-xs text-muted-foreground hover:text-foreground"
+                  >
+                    Annuleren
+                  </button>
+                </div>
+                <div className="grid gap-2">
+                  <div className="grid grid-cols-2 gap-2">
+                    <Input
+                      placeholder="Voornaam *"
+                      value={contactForm.firstName}
+                      onChange={(e) => setContactForm({ ...contactForm, firstName: e.target.value })}
+                      className="text-sm h-8"
+                    />
+                    <Input
+                      placeholder="Achternaam *"
+                      value={contactForm.lastName}
+                      onChange={(e) => setContactForm({ ...contactForm, lastName: e.target.value })}
+                      className="text-sm h-8"
+                    />
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <Input
+                      placeholder="E-mail"
+                      type="email"
+                      value={contactForm.email}
+                      onChange={(e) => setContactForm({ ...contactForm, email: e.target.value })}
+                      className="text-sm h-8"
+                    />
+                    <Input
+                      placeholder="Telefoon"
+                      value={contactForm.phone}
+                      onChange={(e) => setContactForm({ ...contactForm, phone: e.target.value })}
+                      className="text-sm h-8"
+                    />
+                  </div>
+                </div>
+              </div>
             )}
           </div>
 
@@ -234,7 +508,7 @@ export default function NewReservationDialog({
             <Input type="date" value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} />
           </div>
 
-          {/* Times - manual input */}
+          {/* Times */}
           <div className="grid grid-cols-2 gap-3">
             <div className="grid gap-1.5">
               <Label>Van</Label>
@@ -391,7 +665,9 @@ export default function NewReservationDialog({
 
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>Annuleren</Button>
-          <Button onClick={handleSubmit} disabled={!isValid}>Toevoegen</Button>
+          <Button onClick={handleSubmit} disabled={!isValid || saving}>
+            {saving ? 'Bezig...' : 'Toevoegen'}
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
