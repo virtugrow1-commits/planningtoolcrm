@@ -1335,6 +1335,7 @@ async function syncConversations(supabase: any, ghlHeaders: any, locationId: str
         console.error(`Messages sync error for ${conv.id}:`, msgErr);
       }
     }
+  } catch (e) { console.error('Conversation sync error:', e); }
 }
 
 // === PROCESS SYNC QUEUE ===
