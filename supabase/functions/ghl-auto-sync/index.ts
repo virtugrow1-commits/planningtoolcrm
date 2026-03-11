@@ -308,16 +308,51 @@ async function syncCalendar(supabase: any, ghlHeaders: any, locationId: string, 
         const tz = `${offsetH >= 0 ? '+' : '-'}${String(Math.abs(offsetH)).padStart(2, '0')}:00`;
         const startTime = `${booking.date}T${String(booking.start_hour).padStart(2, '0')}:${String(booking.start_minute || 0).padStart(2, '0')}:00${tz}`;
         const endTime = `${booking.date}T${String(booking.end_hour).padStart(2, '0')}:${String(booking.end_minute || 0).padStart(2, '0')}:00${tz}`;
+        const appointmentPayload: Record<string, any> = {
+          calendarId: targetCalendarId,
+          locationId,
+          contactId: ghlContactId,
+          title: booking.title || 'CRM Boeking',
+          startTime,
+          endTime,
+          appointmentStatus: booking.status === 'confirmed' ? 'confirmed' : 'new',
+          ignoreDateRange: true,
+          ignoreValidation: true,
+          ignoreFreeSlotValidation: true,
+          selectedTimezone: 'Europe/Amsterdam',
+        };
         const res = await fetch(`${GHL_API_BASE}/calendars/events/appointments`, {
           method: 'POST', headers: ghlHeaders,
-          body: JSON.stringify({ calendarId: targetCalendarId, locationId, contactId: ghlContactId, title: booking.title || 'CRM Boeking', startTime, endTime, appointmentStatus: booking.status === 'confirmed' ? 'confirmed' : 'new' }),
+          body: JSON.stringify(appointmentPayload),
         });
         if (res.ok) {
           const created = await res.json();
           const ghlId = created.id || created.event?.id;
           if (ghlId) await supabase.from('bookings').update({ ghl_event_id: ghlId }).eq('id', booking.id);
           results.bookings_pushed++;
-        } else { console.error(`Push booking ${booking.id} failed: ${await res.text()}`); }
+        } else {
+          const errText = await res.text();
+          console.error(`Push booking ${booking.id} failed: ${errText}`);
+          // Try /calendars/events fallback for service calendars
+          const evtPayload = { ...appointmentPayload };
+          delete evtPayload.ignoreDateRange;
+          delete evtPayload.ignoreValidation;
+          delete evtPayload.ignoreFreeSlotValidation;
+          const evtRes = await fetch(`${GHL_API_BASE}/calendars/events`, {
+            method: 'POST',
+            headers: { ...ghlHeaders, 'Version': '2021-07-28' },
+            body: JSON.stringify(evtPayload),
+          });
+          if (evtRes.ok) {
+            const evtData = await evtRes.json();
+            const evtId = evtData.id || evtData.event?.id;
+            if (evtId) await supabase.from('bookings').update({ ghl_event_id: evtId }).eq('id', booking.id);
+            results.bookings_pushed++;
+          } else {
+            const evtErr = await evtRes.text();
+            console.error(`Push booking ${booking.id} /calendars/events also failed: ${evtErr}`);
+          }
+        }
       } catch (e) { console.error('Push booking error:', booking.id, e); }
     }
   } catch (e) { console.error('Calendar sync error:', e); }
