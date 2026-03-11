@@ -108,7 +108,7 @@ export function BookingsProvider({ children }: { children: ReactNode }) {
 
   // Server-side conflict check including combined room rules
   const serverConflictCheck = useCallback(async (
-    date: string, roomName: string, startMin: number, endMin: number, excludeId?: string
+    date: string, roomName: string, startMin: number, endMin: number, excludeId?: string, newStatus?: string
   ): Promise<Booking[]> => {
     const roomsToCheck = getConflictRooms(roomName);
     const { data: dbConflicts } = await supabase
@@ -120,7 +120,10 @@ export function BookingsProvider({ children }: { children: ReactNode }) {
       if (excludeId && b.id === excludeId) return false;
       const bStart = b.start_hour * 60 + (b.start_minute ?? 0);
       const bEnd = b.end_hour * 60 + (b.end_minute ?? 0);
-      return startMin < bEnd && endMin > bStart;
+      if (startMin >= bEnd || endMin <= bStart) return false;
+      // Both are options → no conflict
+      if (newStatus === 'option' && b.status === 'option') return false;
+      return true;
     }).map((sc: any) => ({
       id: sc.id,
       roomName: sc.room_name as RoomName,
