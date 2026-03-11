@@ -299,46 +299,57 @@ export default function DayGridView({
                 })}
 
                 {/* Bookings */}
-                {roomBookings.map((b) => {
-                  const top = timeToY(b.startHour, b.startMinute || 0);
-                  const bottom = timeToY(b.endHour, b.endMinute || 0);
-                  const height = Math.max(bottom - top, QUARTER_HEIGHT);
-                  const isDragged = dragging?.bookingId === b.id;
+                {(() => {
+                  const colMap = computeColumns(roomBookings);
+                  return roomBookings.map((b) => {
+                    const top = timeToY(b.startHour, b.startMinute || 0);
+                    const bottom = timeToY(b.endHour, b.endMinute || 0);
+                    const height = Math.max(bottom - top, QUARTER_HEIGHT);
+                    const isDragged = dragging?.bookingId === b.id;
+                    const layout = colMap.get(b.id) || { col: 0, totalCols: 1 };
+                    const widthPct = 100 / layout.totalCols;
+                    const leftPct = layout.col * widthPct;
 
-                  return (
-                    <div
-                      key={b.id}
-                      className={cn(
-                        'absolute left-0.5 right-0.5 rounded-md px-1.5 py-0.5 cursor-grab active:cursor-grabbing transition-opacity overflow-hidden z-10 shadow-sm',
-                        b.status === 'confirmed'
-                          ? 'bg-success/30 border-l-[3px] border-success text-foreground'
-                          : 'bg-warning/30 border-l-[3px] border-warning text-foreground',
-                        isDragged && 'opacity-25'
-                      )}
-                      style={{ top, height }}
-                      onMouseDown={(e) => handleMouseDown(e, b)}
-                      onClick={(e) => {
-                        if (!dragging && !justDragged.current) {
-                          e.stopPropagation();
-                          onBookingClick(b);
-                        }
-                      }}
-                    >
-                      <div className="flex items-start gap-1 h-full">
-                        <GripVertical size={10} className="mt-0.5 shrink-0 opacity-40" />
-                        <div className="min-w-0 flex-1 overflow-hidden">
-                          <div className="text-[10px] font-semibold leading-tight truncate">{b.title}</div>
-                          {height >= 24 && <div className="text-[8px] opacity-70 truncate">{b.contactName}</div>}
-                          {height >= 32 && (
-                            <div className="text-[8px] opacity-60">
-                              {formatTime(b.startHour, b.startMinute || 0)}–{formatTime(b.endHour, b.endMinute || 0)}
-                            </div>
-                          )}
+                    return (
+                      <div
+                        key={b.id}
+                        className={cn(
+                          'absolute rounded-md px-1.5 py-0.5 cursor-grab active:cursor-grabbing transition-opacity overflow-hidden z-10 shadow-sm',
+                          b.status === 'confirmed'
+                            ? 'bg-success/30 border-l-[3px] border-success text-foreground'
+                            : 'bg-warning/30 border-l-[3px] border-warning text-foreground',
+                          isDragged && 'opacity-25'
+                        )}
+                        style={{
+                          top,
+                          height,
+                          left: layout.totalCols > 1 ? `calc(${leftPct}% + 2px)` : '2px',
+                          width: layout.totalCols > 1 ? `calc(${widthPct}% - 4px)` : 'calc(100% - 4px)',
+                        }}
+                        onMouseDown={(e) => handleMouseDown(e, b)}
+                        onClick={(e) => {
+                          if (!dragging && !justDragged.current) {
+                            e.stopPropagation();
+                            onBookingClick(b);
+                          }
+                        }}
+                      >
+                        <div className="flex items-start gap-1 h-full">
+                          <GripVertical size={10} className="mt-0.5 shrink-0 opacity-40" />
+                          <div className="min-w-0 flex-1 overflow-hidden">
+                            <div className="text-[10px] font-semibold leading-tight truncate">{b.title}</div>
+                            {height >= 24 && <div className="text-[8px] opacity-70 truncate">{b.contactName}</div>}
+                            {height >= 32 && (
+                              <div className="text-[8px] opacity-60">
+                                {formatTime(b.startHour, b.startMinute || 0)}–{formatTime(b.endHour, b.endMinute || 0)}
+                              </div>
+                            )}
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  );
-                })}
+                    );
+                  });
+                })()}
 
                 {/* Ghost preview while dragging */}
                 {dragging && ghostPos && ghostPos.room === room && draggedBooking && (
