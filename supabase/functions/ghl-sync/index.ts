@@ -1633,6 +1633,8 @@ Deno.serve(async (req) => {
           appointmentStatus: booking.status === 'confirmed' ? 'confirmed' : 'new',
           ignoreDateRange: true,
           ignoreValidation: true,
+          ignoreFreeSlotValidation: true,
+          selectedTimezone: 'Europe/Amsterdam',
         };
         if (booking.notes) ghlPayload.notes = booking.notes;
 
