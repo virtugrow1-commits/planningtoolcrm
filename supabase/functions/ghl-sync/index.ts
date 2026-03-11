@@ -1814,7 +1814,7 @@ Deno.serve(async (req) => {
         try {
           let replayPayload = payload;
 
-          // For bookings, re-fetch current data (payload may be stale after updates)
+          // Re-fetch current data for replay (payload may be stale)
           if (item.entity_type === 'booking' && (item.action_type === 'create' || item.action_type === 'update')) {
             const { data: currentBooking } = await supabase.from('bookings').select('*').eq('id', item.entity_id).single();
             if (!currentBooking) {
@@ -1823,13 +1823,45 @@ Deno.serve(async (req) => {
               continue;
             }
             replayPayload = { action: 'push-booking', booking: currentBooking };
-          } else if (item.entity_type === 'contact' && item.action_type === 'create') {
+          } else if (item.entity_type === 'booking' && item.action_type === 'delete') {
+            // Use original payload for delete (needs ghl_event_id)
+            replayPayload = payload?.action ? payload : { action: 'delete-booking', ghl_event_id: payload?.ghl_event_id || payload?.booking?.ghl_event_id };
+          } else if (item.entity_type === 'contact' && (item.action_type === 'create' || item.action_type === 'update')) {
             const { data: currentContact } = await supabase.from('contacts').select('*').eq('id', item.entity_id).single();
             if (!currentContact) {
               await supabase.from('sync_queue').delete().eq('id', item.id);
               continue;
             }
             replayPayload = { action: 'push-contact', contact: currentContact };
+          } else if (item.entity_type === 'contact' && item.action_type === 'delete') {
+            replayPayload = payload?.action ? payload : { action: 'delete-contact', ghl_contact_id: payload?.ghl_contact_id };
+          } else if (item.entity_type === 'company' && (item.action_type === 'create' || item.action_type === 'update')) {
+            const { data: currentCompany } = await supabase.from('companies').select('*').eq('id', item.entity_id).single();
+            if (!currentCompany) {
+              await supabase.from('sync_queue').delete().eq('id', item.id);
+              continue;
+            }
+            replayPayload = { action: 'push-company', company: currentCompany };
+          } else if (item.entity_type === 'company' && item.action_type === 'delete') {
+            replayPayload = payload?.action ? payload : { action: 'delete-company', ghl_company_id: payload?.ghl_company_id };
+          } else if (item.entity_type === 'task' && (item.action_type === 'create' || item.action_type === 'update')) {
+            const { data: currentTask } = await supabase.from('tasks').select('*').eq('id', item.entity_id).single();
+            if (!currentTask) {
+              await supabase.from('sync_queue').delete().eq('id', item.id);
+              continue;
+            }
+            replayPayload = { action: 'push-task', task: currentTask };
+          } else if (item.entity_type === 'task' && item.action_type === 'delete') {
+            replayPayload = payload?.action ? payload : { action: 'delete-task', ghl_task_id: payload?.ghl_task_id };
+          } else if (item.entity_type === 'inquiry' && (item.action_type === 'create' || item.action_type === 'update')) {
+            const { data: currentInquiry } = await supabase.from('inquiries').select('*').eq('id', item.entity_id).single();
+            if (!currentInquiry) {
+              await supabase.from('sync_queue').delete().eq('id', item.id);
+              continue;
+            }
+            replayPayload = { action: 'push-inquiry', inquiry_id: currentInquiry.id, contact_name: currentInquiry.contact_name, event_type: currentInquiry.event_type, budget: currentInquiry.budget, status: currentInquiry.status, message: currentInquiry.message };
+          } else if (item.entity_type === 'inquiry' && item.action_type === 'delete') {
+            replayPayload = payload?.action ? payload : { action: 'delete-inquiry', ghl_opportunity_id: payload?.ghl_opportunity_id };
           }
 
           const result = await ghlFetch(selfUrl, {
