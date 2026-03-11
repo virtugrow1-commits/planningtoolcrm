@@ -90,15 +90,20 @@ export function BookingsProvider({ children }: { children: ReactNode }) {
   }, [user, fetchBookings]);
 
   // Check conflicts including combined room rules
-  const checkConflicts = useCallback((date: string, room: RoomName, startMin: number, endMin: number, excludeId?: string): Booking[] => {
+  // Options may overlap with other options; confirmed bookings block everything
+  const checkConflicts = useCallback((date: string, room: RoomName, startMin: number, endMin: number, excludeId?: string, newStatus?: string): Booking[] => {
     const roomsToCheck = getConflictRooms(room);
-    return bookings.filter((b) =>
-      b.date === date &&
-      roomsToCheck.includes(b.roomName) &&
-      b.id !== excludeId &&
-      startMin < b.endHour * 60 + (b.endMinute || 0) &&
-      endMin > b.startHour * 60 + (b.startMinute || 0)
-    );
+    return bookings.filter((b) => {
+      if (b.id === excludeId) return false;
+      if (b.date !== date) return false;
+      if (!roomsToCheck.includes(b.roomName)) return false;
+      const bStart = b.startHour * 60 + (b.startMinute || 0);
+      const bEnd = b.endHour * 60 + (b.endMinute || 0);
+      if (startMin >= bEnd || endMin <= bStart) return false;
+      // Both are options → no conflict
+      if (newStatus === 'option' && b.status === 'option') return false;
+      return true;
+    });
   }, [bookings, getConflictRooms]);
 
   // Server-side conflict check including combined room rules
