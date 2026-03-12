@@ -231,14 +231,17 @@ Deno.serve(async (req) => {
 
       let pushed = 0;
       for (const contact of localContacts || []) {
-        const ghlPayload: Record<string, any> = {
+        const basePayload: Record<string, any> = {
           firstName: contact.first_name || 'Onbekend',
           lastName: contact.last_name || '',
-          locationId: GHL_LOCATION_ID,
         };
-        if (contact.email) ghlPayload.email = contact.email;
-        if (contact.phone) ghlPayload.phone = contact.phone;
-        if (contact.company) ghlPayload.companyName = contact.company;
+        if (contact.email) basePayload.email = contact.email;
+        if (contact.phone) basePayload.phone = contact.phone;
+        if (contact.company) basePayload.companyName = contact.company;
+
+        // GHL contact update endpoint rejects locationId; create endpoint requires it
+        const createPayload: Record<string, any> = { ...basePayload, locationId: GHL_LOCATION_ID };
+        const updatePayload: Record<string, any> = { ...basePayload };
 
         try {
           if (contact.ghl_contact_id) {
@@ -246,7 +249,7 @@ Deno.serve(async (req) => {
             const res = await ghlFetch(`${GHL_API_BASE}/contacts/${contact.ghl_contact_id}`, {
               method: 'PUT',
               headers: ghlHeaders,
-              body: JSON.stringify(ghlPayload),
+              body: JSON.stringify(updatePayload),
             });
             if (!res.ok) {
               const errText = await res.text();
@@ -259,7 +262,7 @@ Deno.serve(async (req) => {
             const res = await ghlFetch(`${GHL_API_BASE}/contacts/`, {
               method: 'POST',
               headers: ghlHeaders,
-              body: JSON.stringify(ghlPayload),
+              body: JSON.stringify(createPayload),
             });
             if (res.ok) {
               const created = await res.json();
