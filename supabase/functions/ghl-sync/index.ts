@@ -783,9 +783,16 @@ Deno.serve(async (req) => {
           await logSyncOperation(supabase, authUser.id, 'delete-contact', 'contact', { ghlContactId: ghl_contact_id });
         } else {
           const errText = await res.text();
-          console.error(`Failed to delete GHL contact: [${res.status}] ${errText}`);
-          await logSyncOperation(supabase, authUser.id, 'delete-contact', 'contact', { error: errText, ghlContactId: ghl_contact_id }, 'error');
-          return new Response(JSON.stringify({ error: errText }), { status: res.status, headers: corsHeaders });
+          // Treat "Contact not found" as success — already deleted
+          const isNotFound = res.status === 400 && errText.includes('Contact not found');
+          if (isNotFound) {
+            console.log(`[Delete Contact] GHL contact already gone: ${ghl_contact_id}`);
+            await logSyncOperation(supabase, authUser.id, 'delete-contact', 'contact', { ghlContactId: ghl_contact_id, note: 'already_deleted' });
+          } else {
+            console.error(`Failed to delete GHL contact: [${res.status}] ${errText}`);
+            await logSyncOperation(supabase, authUser.id, 'delete-contact', 'contact', { error: errText, ghlContactId: ghl_contact_id }, 'error');
+            return new Response(JSON.stringify({ error: errText }), { status: res.status, headers: corsHeaders });
+          }
         }
 
         return new Response(JSON.stringify({ success: true }), { headers: corsHeaders });
