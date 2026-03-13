@@ -779,7 +779,8 @@ Deno.serve(async (req) => {
       console.log(`[Delete Contact] Deleting GHL contact: ${ghl_contact_id}`);
 
       try {
-        const res = await ghlFetch(`${GHL_API_BASE}/contacts/${ghl_contact_id}`, {
+        // Single attempt — no retries for deletes to avoid rate-limit storms during bulk operations
+        const res = await fetch(`${GHL_API_BASE}/contacts/${ghl_contact_id}`, {
           method: 'DELETE',
           headers: ghlHeaders,
         });
@@ -823,7 +824,7 @@ Deno.serve(async (req) => {
       console.log(`[Delete Company] Deleting GHL company: ${ghl_company_id}`);
 
       try {
-        const res = await ghlFetch(`${GHL_API_BASE}/companies/${ghl_company_id}`, {
+        const res = await fetch(`${GHL_API_BASE}/companies/${ghl_company_id}`, {
           method: 'DELETE',
           headers: ghlHeaders,
         });
@@ -833,10 +834,19 @@ Deno.serve(async (req) => {
           await logSyncOperation(supabase, authUser.id, 'delete-company', 'company', { ghlCompanyId: ghl_company_id });
         } else {
           const errText = await res.text();
-          console.error(`Failed to delete GHL company: [${res.status}] ${errText}`);
-          await logSyncOperation(supabase, authUser.id, 'delete-company', 'company', { error: errText, ghlCompanyId: ghl_company_id }, 'error');
-          return new Response(JSON.stringify({ error: errText }), { status: res.status, headers: corsHeaders });
-        }
+          const isNotFound = res.status === 400 && errText.includes('not found');
+          if (isNotFound) {
+            console.log(`[Delete Company] GHL company already gone: ${ghl_company_id}`);
+            await logSyncOperation(supabase, authUser.id, 'delete-company', 'company', { ghlCompanyId: ghl_company_id, note: 'already_deleted' });
+          } else if (res.status === 429) {
+            console.warn(`[Delete Company] Rate limited for GHL company: ${ghl_company_id}, will be retried via sync queue`);
+            await logSyncOperation(supabase, authUser.id, 'delete-company', 'company', { ghlCompanyId: ghl_company_id, note: 'rate_limited_queued' }, 'error');
+            return new Response(JSON.stringify({ success: true, queued: true }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+          } else {
+            console.error(`Failed to delete GHL company: [${res.status}] ${errText}`);
+            await logSyncOperation(supabase, authUser.id, 'delete-company', 'company', { error: errText, ghlCompanyId: ghl_company_id }, 'error');
+            return new Response(JSON.stringify({ error: errText }), { status: res.status, headers: corsHeaders });
+          }
 
         return new Response(JSON.stringify({ success: true }), { headers: corsHeaders });
       } catch (err) {
@@ -855,7 +865,7 @@ Deno.serve(async (req) => {
       console.log(`[Delete Task] Deleting GHL task: ${ghl_task_id}`);
 
       try {
-        const res = await ghlFetch(`${GHL_API_BASE}/tasks/${ghl_task_id}`, {
+        const res = await fetch(`${GHL_API_BASE}/tasks/${ghl_task_id}`, {
           method: 'DELETE',
           headers: ghlHeaders,
         });

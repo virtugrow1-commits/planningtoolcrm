@@ -104,10 +104,10 @@ export default function CrmPage() {
     const ids = [...selected];
     setSelected(new Set());
     toast({ title: `${count} contact(en) worden verwijderd...` });
-    // Stagger deletes to avoid GHL rate limits (200ms between each)
+    // Stagger deletes to avoid GHL rate limits (500ms between each)
     for (const id of ids) {
       deleteContact(id);
-      await new Promise(r => setTimeout(r, 200));
+      await new Promise(r => setTimeout(r, 500));
     }
     toast({ title: `${count} contact(en) verwijderd` });
   };
