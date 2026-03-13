@@ -824,7 +824,7 @@ Deno.serve(async (req) => {
       console.log(`[Delete Company] Deleting GHL company: ${ghl_company_id}`);
 
       try {
-        const res = await ghlFetch(`${GHL_API_BASE}/companies/${ghl_company_id}`, {
+        const res = await fetch(`${GHL_API_BASE}/companies/${ghl_company_id}`, {
           method: 'DELETE',
           headers: ghlHeaders,
         });
