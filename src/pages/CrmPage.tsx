@@ -103,9 +103,13 @@ export default function CrmPage() {
     const count = selected.size;
     const ids = [...selected];
     setSelected(new Set());
+    toast({ title: `${count} contact(en) worden verwijderd...` });
+    // Stagger deletes to avoid GHL rate limits (200ms between each)
+    for (const id of ids) {
+      deleteContact(id);
+      await new Promise(r => setTimeout(r, 200));
+    }
     toast({ title: `${count} contact(en) verwijderd` });
-    // Fire all deletes in parallel for speed
-    await Promise.all(ids.map(id => deleteContact(id)));
   };
 
   const handleBulkEditConfirm = async () => {
