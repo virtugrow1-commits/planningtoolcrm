@@ -847,6 +847,7 @@ Deno.serve(async (req) => {
             await logSyncOperation(supabase, authUser.id, 'delete-company', 'company', { error: errText, ghlCompanyId: ghl_company_id }, 'error');
             return new Response(JSON.stringify({ error: errText }), { status: res.status, headers: corsHeaders });
           }
+        }
 
         return new Response(JSON.stringify({ success: true }), { headers: corsHeaders });
       } catch (err) {
