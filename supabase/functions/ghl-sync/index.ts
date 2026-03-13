@@ -779,7 +779,8 @@ Deno.serve(async (req) => {
       console.log(`[Delete Contact] Deleting GHL contact: ${ghl_contact_id}`);
 
       try {
-        const res = await ghlFetch(`${GHL_API_BASE}/contacts/${ghl_contact_id}`, {
+        // Single attempt — no retries for deletes to avoid rate-limit storms during bulk operations
+        const res = await fetch(`${GHL_API_BASE}/contacts/${ghl_contact_id}`, {
           method: 'DELETE',
           headers: ghlHeaders,
         });
