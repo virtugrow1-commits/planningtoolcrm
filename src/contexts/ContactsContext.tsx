@@ -157,18 +157,28 @@ export function ContactsProvider({ children }: { children: ReactNode }) {
   }, [toast]);
 
   const deleteContact = useCallback(async (id: string) => {
+    // Optimistic: remove from UI instantly
+    setContacts(prev => prev.filter(c => c.id !== id));
+
+    // Get GHL id before deleting from DB
     const { data: existing } = await supabase.from('contacts').select('ghl_contact_id').eq('id', id).single();
-    // GHL first: delete from GHL before local DB
-    if (existing?.ghl_contact_id) {
-      await pushToGHL('delete-contact', { ghl_contact_id: existing.ghl_contact_id }, {
-        entityType: 'contact', entityId: id, actionType: 'delete',
-      });
-    }
+
+    // Delete from local DB immediately (don't wait for GHL)
     const { error } = await supabase.from('contacts').delete().eq('id', id);
     if (error) {
       toast({ title: 'Fout bij verwijderen contact', description: error.message, variant: 'destructive' });
+      // Rollback: re-fetch on error
+      fetchContacts();
+      return;
     }
-  }, [toast]);
+
+    // Push GHL delete in background (don't block UI)
+    if (existing?.ghl_contact_id) {
+      pushToGHL('delete-contact', { ghl_contact_id: existing.ghl_contact_id }, {
+        entityType: 'contact', entityId: id, actionType: 'delete',
+      }).catch(() => {}); // errors are queued automatically by pushToGHL
+    }
+  }, [toast, fetchContacts]);
 
   return (
     <ContactsContext.Provider value={{ contacts, loading, addContact, updateContact, deleteContact, refetch: fetchContacts }}>

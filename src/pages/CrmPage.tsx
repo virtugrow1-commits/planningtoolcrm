@@ -101,9 +101,11 @@ export default function CrmPage() {
 
   const handleBulkDelete = async () => {
     const count = selected.size;
-    for (const id of selected) await deleteContact(id);
+    const ids = [...selected];
     setSelected(new Set());
     toast({ title: `${count} contact(en) verwijderd` });
+    // Fire all deletes in parallel for speed
+    await Promise.all(ids.map(id => deleteContact(id)));
   };
 
   const handleBulkEditConfirm = async () => {
