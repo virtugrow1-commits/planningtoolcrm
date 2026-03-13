@@ -834,10 +834,19 @@ Deno.serve(async (req) => {
           await logSyncOperation(supabase, authUser.id, 'delete-company', 'company', { ghlCompanyId: ghl_company_id });
         } else {
           const errText = await res.text();
-          console.error(`Failed to delete GHL company: [${res.status}] ${errText}`);
-          await logSyncOperation(supabase, authUser.id, 'delete-company', 'company', { error: errText, ghlCompanyId: ghl_company_id }, 'error');
-          return new Response(JSON.stringify({ error: errText }), { status: res.status, headers: corsHeaders });
-        }
+          const isNotFound = res.status === 400 && errText.includes('not found');
+          if (isNotFound) {
+            console.log(`[Delete Company] GHL company already gone: ${ghl_company_id}`);
+            await logSyncOperation(supabase, authUser.id, 'delete-company', 'company', { ghlCompanyId: ghl_company_id, note: 'already_deleted' });
+          } else if (res.status === 429) {
+            console.warn(`[Delete Company] Rate limited for GHL company: ${ghl_company_id}, will be retried via sync queue`);
+            await logSyncOperation(supabase, authUser.id, 'delete-company', 'company', { ghlCompanyId: ghl_company_id, note: 'rate_limited_queued' }, 'error');
+            return new Response(JSON.stringify({ success: true, queued: true }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+          } else {
+            console.error(`Failed to delete GHL company: [${res.status}] ${errText}`);
+            await logSyncOperation(supabase, authUser.id, 'delete-company', 'company', { error: errText, ghlCompanyId: ghl_company_id }, 'error');
+            return new Response(JSON.stringify({ error: errText }), { status: res.status, headers: corsHeaders });
+          }
 
         return new Response(JSON.stringify({ success: true }), { headers: corsHeaders });
       } catch (err) {
