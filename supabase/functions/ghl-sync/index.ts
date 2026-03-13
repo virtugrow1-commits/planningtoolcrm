@@ -794,6 +794,11 @@ Deno.serve(async (req) => {
           if (isNotFound) {
             console.log(`[Delete Contact] GHL contact already gone: ${ghl_contact_id}`);
             await logSyncOperation(supabase, authUser.id, 'delete-contact', 'contact', { ghlContactId: ghl_contact_id, note: 'already_deleted' });
+          } else if (res.status === 429) {
+            // Rate limited — return success to client, sync_queue will retry via background job
+            console.warn(`[Delete Contact] Rate limited for GHL contact: ${ghl_contact_id}, will be retried via sync queue`);
+            await logSyncOperation(supabase, authUser.id, 'delete-contact', 'contact', { ghlContactId: ghl_contact_id, note: 'rate_limited_queued' }, 'error');
+            return new Response(JSON.stringify({ success: true, queued: true }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
           } else {
             console.error(`Failed to delete GHL contact: [${res.status}] ${errText}`);
             await logSyncOperation(supabase, authUser.id, 'delete-contact', 'contact', { error: errText, ghlContactId: ghl_contact_id }, 'error');
