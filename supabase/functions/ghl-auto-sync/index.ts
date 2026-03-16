@@ -709,7 +709,7 @@ async function syncContacts(supabase: any, ghlHeaders: any, locationId: string, 
         phone: contact.phone || undefined,
         companyName: contact.company || undefined,
       };
-      await delay(300);
+      await delay(150);
       const pushRes = await fetch(`${GHL_API_BASE}/contacts/${contact.ghl_contact_id}`, {
         method: 'PUT', headers: ghlHeaders, body: JSON.stringify(pushPayload),
       });
