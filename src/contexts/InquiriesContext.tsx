@@ -113,7 +113,8 @@ export function InquiriesProvider({ children }: { children: ReactNode }) {
       return;
     }
     if (inserted?.id) {
-      await pushToGHL('push-inquiry', {
+      // Fire-and-forget: don't block UI waiting for GHL sync
+      pushToGHL('push-inquiry', {
         inquiry_id: inserted.id,
         contact_name: inquiry.contactName,
         event_type: inquiry.eventType,
