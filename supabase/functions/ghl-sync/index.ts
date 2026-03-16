@@ -1928,7 +1928,7 @@ Deno.serve(async (req) => {
           failed++;
         }
 
-        await delay(1000);
+        await delay(300); // Reduced delay between queue items
       }
 
       console.log(`[Process Queue] Done: ${processed} processed, ${succeeded} ok, ${failed} failed`);
