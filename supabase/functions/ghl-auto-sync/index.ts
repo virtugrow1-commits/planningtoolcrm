@@ -757,7 +757,7 @@ async function syncContacts(supabase: any, ghlHeaders: any, locationId: string, 
     );
 
     let contactsDeleted = 0;
-    const MAX_CONTACT_ORPHAN_CHECKS = 10;
+    const MAX_CONTACT_ORPHAN_CHECKS = 50;
     console.log(`Contact orphan candidates: ${linkedNotSeen.length} (seen: ${seenGhlContactIds.size}, total linked: ${lookups.existingContacts.filter((c: any) => c.ghl_contact_id).length})`);
 
     for (const contact of linkedNotSeen.slice(0, MAX_CONTACT_ORPHAN_CHECKS)) {
