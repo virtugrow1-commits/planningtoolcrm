@@ -166,9 +166,9 @@ export function InquiriesProvider({ children }: { children: ReactNode }) {
   const deleteInquiry = useCallback(async (id: string) => {
     // Fetch GHL ID from DB to avoid stale closure
     const { data: existing } = await supabase.from('inquiries').select('ghl_opportunity_id').eq('id', id).single();
-    // GHL first: delete from GHL before local DB
+    // Fire-and-forget: push delete to GHL without blocking
     if (existing?.ghl_opportunity_id) {
-      await pushToGHL('delete-inquiry', { ghl_opportunity_id: existing.ghl_opportunity_id }, {
+      pushToGHL('delete-inquiry', { ghl_opportunity_id: existing.ghl_opportunity_id }, {
         entityType: 'inquiry', entityId: id, actionType: 'delete',
       });
     }
