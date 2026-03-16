@@ -762,40 +762,91 @@ async function syncContacts(supabase: any, ghlHeaders: any, locationId: string, 
     }
 
     // 5. Orphan cleanup — remove CRM contacts whose ghl_contact_id no longer exists in GHL
-    const linkedNotSeen = lookups.existingContacts.filter((c: any) =>
-      c.ghl_contact_id && !seenGhlContactIds.has(c.ghl_contact_id)
-    );
+    // ONLY run if we successfully fetched at least 1 page of contacts from GHL
+    if (seenGhlContactIds.size === 0) {
+      console.log('Skipping orphan cleanup: no contacts fetched from GHL (likely rate limited)');
+    } else {
+      const linkedNotSeen = lookups.existingContacts.filter((c: any) =>
+        c.ghl_contact_id && !seenGhlContactIds.has(c.ghl_contact_id)
+      );
 
-    let contactsDeleted = 0;
-    const MAX_CONTACT_ORPHAN_CHECKS = 50;
-    console.log(`Contact orphan candidates: ${linkedNotSeen.length} (seen: ${seenGhlContactIds.size}, total linked: ${lookups.existingContacts.filter((c: any) => c.ghl_contact_id).length})`);
+      let contactsDeleted = 0;
+      console.log(`Contact orphan candidates: ${linkedNotSeen.length} (seen: ${seenGhlContactIds.size}, total linked: ${lookups.existingContacts.filter((c: any) => c.ghl_contact_id).length})`);
 
-    for (const contact of linkedNotSeen.slice(0, MAX_CONTACT_ORPHAN_CHECKS)) {
-      await delay(200);
-      const verifyRes = await fetch(`${GHL_API_BASE}/contacts/${contact.ghl_contact_id}`, { headers: ghlHeaders });
-      if (verifyRes.status === 404 || verifyRes.status === 422 || verifyRes.status === 400) {
-        // Contact no longer exists in GHL → log and delete from CRM
-        await supabase.from('sync_log').insert({
-          user_id: userId,
-          action: 'delete_contact',
-          entity_type: 'contact',
-          entity_id: contact.id,
-          details: { ghl_contact_id: contact.ghl_contact_id, name: `${contact.first_name} ${contact.last_name}`, source: 'orphan_cleanup' },
-          status: 'success',
-        });
-        const { error: delErr } = await supabase.from('contacts').delete().eq('id', contact.id);
-        if (!delErr) {
-          console.log(`Deleted orphaned contact ${contact.id} (${contact.first_name} ${contact.last_name}, GHL ${contact.ghl_contact_id})`);
-          contactsDeleted++;
+      // If we fetched ALL pages successfully (contactHasMore was false), we can trust the set
+      // and delete without individual verification — much faster for bulk cleanup
+      const allPagesFetched = !contactHasMore;
+      
+      if (allPagesFetched && linkedNotSeen.length > 0) {
+        console.log(`All GHL pages fetched — bulk deleting ${linkedNotSeen.length} orphaned contacts without individual verification`);
+        
+        // Process in batches of 100
+        const BATCH = 100;
+        for (let i = 0; i < linkedNotSeen.length; i += BATCH) {
+          const batch = linkedNotSeen.slice(i, i + BATCH);
+          const ids = batch.map((c: any) => c.id);
+          
+          // Log deletions
+          const logRows = batch.map((c: any) => ({
+            user_id: userId,
+            action: 'delete_contact',
+            entity_type: 'contact',
+            entity_id: c.id,
+            details: { ghl_contact_id: c.ghl_contact_id, name: `${c.first_name} ${c.last_name}`, source: 'bulk_orphan_cleanup' },
+            status: 'success',
+          }));
+          await supabase.from('sync_log').insert(logRows);
+          
+          // Also clean up related records first
+          await supabase.from('contact_activities').delete().in('contact_id', ids);
+          await supabase.from('contact_companies').delete().in('contact_id', ids);
+          
+          const { error: delErr, count } = await supabase.from('contacts').delete().in('id', ids);
+          if (!delErr) {
+            contactsDeleted += batch.length;
+            console.log(`Bulk deleted batch ${Math.floor(i/BATCH)+1}: ${batch.length} contacts`);
+          } else {
+            console.error(`Bulk delete error:`, delErr.message);
+          }
         }
-      } else {
-        await verifyRes.text(); // consume body
+      } else if (linkedNotSeen.length > 0) {
+        // Partial fetch — verify individually (slower, limited)
+        const MAX_CONTACT_ORPHAN_CHECKS = 100;
+        for (const contact of linkedNotSeen.slice(0, MAX_CONTACT_ORPHAN_CHECKS)) {
+          await delay(300);
+          const verifyRes = await fetch(`${GHL_API_BASE}/contacts/${contact.ghl_contact_id}`, { headers: ghlHeaders });
+          if (verifyRes.status === 404 || verifyRes.status === 422 || verifyRes.status === 400) {
+            await supabase.from('sync_log').insert({
+              user_id: userId,
+              action: 'delete_contact',
+              entity_type: 'contact',
+              entity_id: contact.id,
+              details: { ghl_contact_id: contact.ghl_contact_id, name: `${contact.first_name} ${contact.last_name}`, source: 'orphan_cleanup' },
+              status: 'success',
+            });
+            // Clean up related records
+            await supabase.from('contact_activities').delete().eq('contact_id', contact.id);
+            await supabase.from('contact_companies').delete().eq('contact_id', contact.id);
+            
+            const { error: delErr } = await supabase.from('contacts').delete().eq('id', contact.id);
+            if (!delErr) {
+              console.log(`Deleted orphaned contact ${contact.id} (${contact.first_name} ${contact.last_name})`);
+              contactsDeleted++;
+            }
+          } else {
+            await verifyRes.text();
+          }
+          if (verifyRes.status === 429) {
+            console.log('Rate limited during orphan check, stopping');
+            break;
+          }
+        }
       }
-      if (verifyRes.status === 429) await delay(2000);
-    }
-    if (contactsDeleted > 0) {
-      results.contacts_deleted = contactsDeleted;
-      console.log(`Cleaned up ${contactsDeleted} orphaned contacts`);
+
+      if (contactsDeleted > 0) {
+        results.contacts_deleted = contactsDeleted;
+        console.log(`Cleaned up ${contactsDeleted} orphaned contacts`);
+      }
     }
   } catch (e) { console.error('Contact sync error:', e); }
 }
