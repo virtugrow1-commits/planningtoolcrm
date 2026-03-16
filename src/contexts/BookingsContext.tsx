@@ -304,18 +304,21 @@ export function BookingsProvider({ children }: { children: ReactNode }) {
       toast({ title: 'Fout bij aanmaken boekingen', description: error.message, variant: 'destructive' });
       return { success: false };
     }
+    // GHL push in background (fire-and-forget)
     for (const booking of data || []) {
-      try {
-        const { error: syncErr } = await supabase.functions.invoke('ghl-sync', {
-          body: { action: 'push-booking', booking },
-        });
-        if (syncErr) throw syncErr;
-        await logSync('push_booking', booking.id, { ghl_status: 'success' }, 'success');
-      } catch (err: any) {
-        console.warn('[VGW Sync] push-booking failed, queuing:', err);
-        await queueFailedSync(booking.id, 'create', booking, err?.message || 'Unknown error');
-        await logSync('push_booking', booking.id, { error: err?.message }, 'error');
-      }
+      (async () => {
+        try {
+          const { error: syncErr } = await supabase.functions.invoke('ghl-sync', {
+            body: { action: 'push-booking', booking },
+          });
+          if (syncErr) throw syncErr;
+          await logSync('push_booking', booking.id, { ghl_status: 'success' }, 'success');
+        } catch (err: any) {
+          console.warn('[VGW Sync] push-booking failed, queuing:', err);
+          await queueFailedSync(booking.id, 'create', booking, err?.message || 'Unknown error');
+          await logSync('push_booking', booking.id, { error: err?.message }, 'error');
+        }
+      })();
     }
     await fetchBookings();
     return { success: true };
