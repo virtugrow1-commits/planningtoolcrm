@@ -906,12 +906,35 @@ Deno.serve(async (req) => {
 
         if (pipelinesRes.ok) {
           const pipelinesData = await pipelinesRes.json();
-          // Use first pipeline, find stage matching status
           const pipeline = pipelinesData.pipelines?.[0];
           if (pipeline) {
             pipelineId = pipeline.id;
-            // Default to first stage
-            stageId = pipeline.stages?.[0]?.id || null;
+            // Map status to correct pipeline stage (same mapping as push-inquiry-status)
+            const statusToStageKeywords: Record<string, string[]> = {
+              'new': ['nieuwe aanvraag', 'new'],
+              'contacted': ['lopend contact'],
+              'option': ['optie'],
+              'quote_revised': ['aangepaste offerte'],
+              'quoted': ['offerte verzonden', 'offerte'],
+              'confirmed': ['definitieve reservering', 'definitief'],
+              'reserved': ['reservering'],
+              'script': ['draaiboek'],
+              'invoiced': ['facturatie', 'invoice'],
+              'lost': ['vervallen', 'verloren', 'lost'],
+              'after_sales': ['after sales', 'aftersales'],
+              'converted': ['evenement'],
+            };
+            const keywords = statusToStageKeywords[status] || [];
+            for (const stage of pipeline.stages || []) {
+              const stageLower = stage.name.toLowerCase();
+              if (keywords.some((kw: string) => stageLower.includes(kw))) {
+                stageId = stage.id;
+                break;
+              }
+            }
+            // Fallback to first stage if no match found
+            if (!stageId) stageId = pipeline.stages?.[0]?.id || null;
+            console.log(`[Push Inquiry] Mapped status "${status}" to stage: ${stageId}`);
           }
         } else {
           await pipelinesRes.text();
