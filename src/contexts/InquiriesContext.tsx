@@ -128,19 +128,6 @@ export function InquiriesProvider({ children }: { children: ReactNode }) {
   }, [user, toast]);
 
   const updateInquiry = useCallback(async (inquiry: Inquiry) => {
-    // Fire-and-forget: push to GHL without blocking the UI
-    if (inquiry.ghlOpportunityId) {
-      pushToGHL('push-inquiry-status', {
-        ghl_opportunity_id: inquiry.ghlOpportunityId,
-        status: inquiry.status,
-        name: inquiry.eventType,
-        monetary_value: inquiry.budget,
-        contact_name: inquiry.contactName,
-        guest_count: inquiry.guestCount,
-      }, {
-        entityType: 'inquiry', entityId: inquiry.id, actionType: 'update',
-      });
-    }
     // Update local DB immediately (don't wait for GHL)
     const { error } = await supabase.from('inquiries').update({
       contact_id: inquiry.contactId || null,
@@ -160,6 +147,34 @@ export function InquiriesProvider({ children }: { children: ReactNode }) {
     } as any).eq('id', inquiry.id);
     if (error) {
       toast({ title: 'Fout bij bijwerken aanvraag', description: error.message, variant: 'destructive' });
+      return;
+    }
+
+    // Fire-and-forget: push to GHL without blocking the UI
+    if (inquiry.ghlOpportunityId) {
+      // Update existing GHL opportunity with correct stage
+      pushToGHL('push-inquiry-status', {
+        ghl_opportunity_id: inquiry.ghlOpportunityId,
+        status: inquiry.status,
+        name: inquiry.eventType,
+        monetary_value: inquiry.budget,
+        contact_name: inquiry.contactName,
+        guest_count: inquiry.guestCount,
+      }, {
+        entityType: 'inquiry', entityId: inquiry.id, actionType: 'update',
+      });
+    } else {
+      // No GHL opportunity yet — create one with the correct stage
+      pushToGHL('push-inquiry', {
+        inquiry_id: inquiry.id,
+        contact_name: inquiry.contactName,
+        event_type: inquiry.eventType,
+        budget: inquiry.budget,
+        status: inquiry.status,
+        message: inquiry.message,
+      }, {
+        entityType: 'inquiry', entityId: inquiry.id, actionType: 'create',
+      });
     }
   }, [toast]);
 
