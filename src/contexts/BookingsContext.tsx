@@ -223,19 +223,44 @@ export function BookingsProvider({ children }: { children: ReactNode }) {
       return { success: false };
     }
     if (data) {
-      // GHL push with sync queue fallback
-      try {
-        const { error: syncErr } = await supabase.functions.invoke('ghl-sync', {
-          body: { action: 'push-booking', booking: data },
-        });
-        if (syncErr) throw syncErr;
-        await logSync('push_booking', data.id, { room: booking.roomName, ghl_status: 'success' }, 'success');
-      } catch (err: any) {
-        console.warn('[VGW Sync] push-booking failed, queuing:', err);
-        await queueFailedSync(data.id, 'create', data, err?.message || 'Unknown error');
-        await logSync('push_booking', data.id, { room: booking.roomName, error: err?.message }, 'error');
-      }
-      await fetchBookings();
+      // Optimistic: add to local state immediately
+      const newBooking: Booking = {
+        id: data.id,
+        reservationNumber: (data as any).reservation_number ? (data as any).reservation_number.replace(/^RES-/, '#') : undefined,
+        roomName: data.room_name as RoomName,
+        date: data.date,
+        startHour: data.start_hour,
+        startMinute: data.start_minute ?? 0,
+        endHour: data.end_hour,
+        endMinute: data.end_minute ?? 0,
+        title: data.title,
+        contactName: data.contact_name,
+        contactId: data.contact_id || undefined,
+        companyId: (data as any).company_id || undefined,
+        status: data.status as 'confirmed' | 'option',
+        notes: data.notes || undefined,
+        guestCount: (data as any).guest_count ?? 0,
+        roomSetup: (data as any).room_setup || undefined,
+        requirements: (data as any).requirements || undefined,
+        preparationStatus: (data as any).preparation_status || 'pending',
+        assignedTo: (data as any).assigned_to || undefined,
+      };
+      setBookings(prev => [...prev, newBooking]);
+
+      // GHL push in background (fire-and-forget)
+      (async () => {
+        try {
+          const { error: syncErr } = await supabase.functions.invoke('ghl-sync', {
+            body: { action: 'push-booking', booking: data },
+          });
+          if (syncErr) throw syncErr;
+          await logSync('push_booking', data.id, { room: booking.roomName, ghl_status: 'success' }, 'success');
+        } catch (err: any) {
+          console.warn('[VGW Sync] push-booking failed, queuing:', err);
+          await queueFailedSync(data.id, 'create', data, err?.message || 'Unknown error');
+          await logSync('push_booking', data.id, { room: booking.roomName, error: err?.message }, 'error');
+        }
+      })();
     }
     return { success: true };
   }, [user, fetchBookings, toast, checkConflicts, serverConflictCheck, queueFailedSync, logSync]);
@@ -279,18 +304,21 @@ export function BookingsProvider({ children }: { children: ReactNode }) {
       toast({ title: 'Fout bij aanmaken boekingen', description: error.message, variant: 'destructive' });
       return { success: false };
     }
+    // GHL push in background (fire-and-forget)
     for (const booking of data || []) {
-      try {
-        const { error: syncErr } = await supabase.functions.invoke('ghl-sync', {
-          body: { action: 'push-booking', booking },
-        });
-        if (syncErr) throw syncErr;
-        await logSync('push_booking', booking.id, { ghl_status: 'success' }, 'success');
-      } catch (err: any) {
-        console.warn('[VGW Sync] push-booking failed, queuing:', err);
-        await queueFailedSync(booking.id, 'create', booking, err?.message || 'Unknown error');
-        await logSync('push_booking', booking.id, { error: err?.message }, 'error');
-      }
+      (async () => {
+        try {
+          const { error: syncErr } = await supabase.functions.invoke('ghl-sync', {
+            body: { action: 'push-booking', booking },
+          });
+          if (syncErr) throw syncErr;
+          await logSync('push_booking', booking.id, { ghl_status: 'success' }, 'success');
+        } catch (err: any) {
+          console.warn('[VGW Sync] push-booking failed, queuing:', err);
+          await queueFailedSync(booking.id, 'create', booking, err?.message || 'Unknown error');
+          await logSync('push_booking', booking.id, { error: err?.message }, 'error');
+        }
+      })();
     }
     await fetchBookings();
     return { success: true };
@@ -333,17 +361,20 @@ export function BookingsProvider({ children }: { children: ReactNode }) {
       return { success: false };
     }
     if (data) {
-      try {
-        const { error: syncErr } = await supabase.functions.invoke('ghl-sync', {
-          body: { action: 'push-booking', booking: data },
-        });
-        if (syncErr) throw syncErr;
-        await logSync('update_booking', data.id, { ghl_status: 'success' }, 'success');
-      } catch (err: any) {
-        console.warn('[VGW Sync] push-booking failed, queuing:', err);
-        await queueFailedSync(data.id, 'update', data, err?.message || 'Unknown error');
-        await logSync('update_booking', data.id, { error: err?.message }, 'error');
-      }
+      // GHL push in background (fire-and-forget)
+      (async () => {
+        try {
+          const { error: syncErr } = await supabase.functions.invoke('ghl-sync', {
+            body: { action: 'push-booking', booking: data },
+          });
+          if (syncErr) throw syncErr;
+          await logSync('update_booking', data.id, { ghl_status: 'success' }, 'success');
+        } catch (err: any) {
+          console.warn('[VGW Sync] push-booking failed, queuing:', err);
+          await queueFailedSync(data.id, 'update', data, err?.message || 'Unknown error');
+          await logSync('update_booking', data.id, { error: err?.message }, 'error');
+        }
+      })();
       await fetchBookings();
     }
     return { success: true };
