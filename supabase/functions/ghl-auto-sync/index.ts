@@ -142,23 +142,23 @@ Deno.serve(async (req) => {
       const lookups = { contactByGhlId, contactByNameEmail, companyByGhlId, companyByName, inquiryByGhlId, taskByGhlId, taskByTitle, existingContacts, existingCompanies, existingInquiries };
 
       // Run syncs SEQUENTIALLY to avoid GHL 429 rate limits
-      // Contacts first (most important for this sync)
+      // Minimal delays — sequential execution already prevents concurrent rate limiting
       await syncContacts(supabase, ghlHeaders, GHL_LOCATION_ID, userId, results, lookups);
-      await delay(1000);
+      await delay(200);
       await syncCompanies(supabase, ghlHeaders, GHL_LOCATION_ID, userId, results, lookups);
-      await delay(1000);
+      await delay(200);
       await syncOpportunities(supabase, ghlHeaders, GHL_LOCATION_ID, userId, results, lookups);
-      await delay(1000);
+      await delay(200);
       await syncCalendar(supabase, ghlHeaders, GHL_LOCATION_ID, userId, results);
-      await delay(1000);
+      await delay(200);
       await syncTasks(supabase, ghlHeaders, GHL_LOCATION_ID, userId, results, lookups);
-      await delay(500);
+      await delay(200);
       await syncConversations(supabase, ghlHeaders, GHL_LOCATION_ID, userId, results, lookups);
 
       // Push local inquiries without GHL opportunity ID
       await pushLocalInquiries(supabase, ghlHeaders, GHL_LOCATION_ID, userId, results);
 
-      // Process sync queue (retry failed items)
+      // Process sync queue (retry failed items — skip permanently failed)
       await processSyncQueue(supabase, ghlHeaders, GHL_LOCATION_ID, userId, results);
 
       console.log('Auto-sync completed:', JSON.stringify(results));
@@ -313,7 +313,7 @@ async function syncCalendar(supabase: any, ghlHeaders: any, locationId: string, 
         continue;
       }
       try {
-        await delay(1500); // Rate limit: 1.5s between pushes
+        await delay(500); // Rate limit between pushes
         const probeDate = new Date(`${booking.date}T12:00:00Z`);
         const amStr = probeDate.toLocaleString('en-US', { timeZone: 'Europe/Amsterdam', hour12: false });
         const amDate = new Date(amStr);
@@ -593,7 +593,7 @@ async function syncContacts(supabase: any, ghlHeaders: any, locationId: string, 
     let contactPage = 1;
     let contactHasMore = true;
     while (contactHasMore && contactPage <= 40) {
-      await delay(500); // Rate limit between pages
+      await delay(200); // Rate limit between pages
       const res = await fetch(`${GHL_API_BASE}/contacts/?locationId=${locationId}&limit=100&page=${contactPage}`, { headers: ghlHeaders });
       if (res.status === 429) {
         console.log(`Contacts page ${contactPage}: rate limited, waiting 5s...`);
@@ -709,7 +709,7 @@ async function syncContacts(supabase: any, ghlHeaders: any, locationId: string, 
         phone: contact.phone || undefined,
         companyName: contact.company || undefined,
       };
-      await delay(300);
+      await delay(150);
       const pushRes = await fetch(`${GHL_API_BASE}/contacts/${contact.ghl_contact_id}`, {
         method: 'PUT', headers: ghlHeaders, body: JSON.stringify(pushPayload),
       });
@@ -729,7 +729,7 @@ async function syncContacts(supabase: any, ghlHeaders: any, locationId: string, 
         companyName = companyRow?.name || null;
       }
 
-      await delay(300);
+      await delay(150);
       const pushRes = await fetch(`${GHL_API_BASE}/contacts/`, {
         method: 'POST', headers: ghlHeaders,
         body: JSON.stringify({
@@ -1390,6 +1390,7 @@ async function syncConversations(supabase: any, ghlHeaders: any, locationId: str
 // === PROCESS SYNC QUEUE ===
 async function processSyncQueue(supabase: any, ghlHeaders: any, locationId: string, userId: string, results: any) {
   try {
+    // Only process items that haven't permanently failed
     const { data: pendingItems } = await supabase
       .from('sync_queue')
       .select('*')
@@ -1401,6 +1402,7 @@ async function processSyncQueue(supabase: any, ghlHeaders: any, locationId: stri
 
     console.log(`[Queue] Processing ${pendingItems.length} pending items`);
 
+    // Pre-fetch calendar active status to avoid repeated API calls
     const { data: roomSettings } = await supabase
       .from('room_settings')
       .select('room_name, ghl_calendar_id')
@@ -1410,9 +1412,32 @@ async function processSyncQueue(supabase: any, ghlHeaders: any, locationId: stri
       if (rs.ghl_calendar_id) roomToCalId[rs.room_name] = rs.ghl_calendar_id;
     }
 
+    // Check calendar active status once (cache)
+    const calendarActiveCache = new Map<string, boolean>();
+    const checkCalendarActive = async (calId: string): Promise<boolean> => {
+      if (calendarActiveCache.has(calId)) return calendarActiveCache.get(calId)!;
+      try {
+        const res = await fetch(`${GHL_API_BASE}/calendars/${calId}`, { headers: ghlHeaders });
+        const isActive = res.ok ? (await res.json())?.calendar?.isActive !== false : false;
+        calendarActiveCache.set(calId, isActive);
+        return isActive;
+      } catch { calendarActiveCache.set(calId, false); return false; }
+    };
+
     let succeeded = 0, failed = 0;
 
     for (const item of pendingItems) {
+      // Quick check: skip booking items for inactive calendars immediately
+      if (item.entity_type === 'booking' && (item.action_type === 'create' || item.action_type === 'update')) {
+        const { data: booking } = await supabase.from('bookings').select('room_name').eq('id', item.entity_id).maybeSingle();
+        if (!booking) { await supabase.from('sync_queue').delete().eq('id', item.id); continue; }
+        const calId = roomToCalId[booking.room_name];
+        if (!calId || !(await checkCalendarActive(calId))) {
+          await supabase.from('sync_queue').update({ status: 'failed', last_error: 'GHL kalender is inactief' }).eq('id', item.id);
+          failed++; continue;
+        }
+      }
+
       await supabase.from('sync_queue').update({
         status: 'retrying',
         retry_count: (item.retry_count || 0) + 1,
@@ -1446,13 +1471,6 @@ async function processSyncQueue(supabase: any, ghlHeaders: any, locationId: stri
             ignoreDateRange: true, ignoreValidation: true, ignoreFreeSlotValidation: true,
             selectedTimezone: 'Europe/Amsterdam',
           };
-          // Skip inactive calendars
-          const calCheck = await fetch(`${GHL_API_BASE}/calendars/${calendarId}`, { headers: ghlHeaders });
-          const calInfo = calCheck.ok ? await calCheck.json() : null;
-          if (calInfo?.calendar?.isActive === false) {
-            await supabase.from('sync_queue').update({ status: 'failed', last_error: 'GHL kalender is inactief' }).eq('id', item.id);
-            failed++; continue;
-          }
           if (booking.ghl_event_id) {
             const res = await fetch(`${GHL_API_BASE}/calendars/events/appointments/${booking.ghl_event_id}`, { method: 'PUT', headers: ghlHeaders, body: JSON.stringify(payload) });
             success = res.ok;
@@ -1522,7 +1540,6 @@ async function processSyncQueue(supabase: any, ghlHeaders: any, locationId: stri
         } else if (item.entity_type === 'inquiry' && (item.action_type === 'create' || item.action_type === 'update')) {
           const { data: inquiry } = await supabase.from('inquiries').select('*').eq('id', item.entity_id).single();
           if (!inquiry) { await supabase.from('sync_queue').delete().eq('id', item.id); continue; }
-          // Find pipeline and stage
           const pipelinesRes = await fetch(`${GHL_API_BASE}/opportunities/pipelines?locationId=${locationId}`, { headers: ghlHeaders });
           if (pipelinesRes.ok) {
             const pData = await pipelinesRes.json();
@@ -1538,7 +1555,6 @@ async function processSyncQueue(supabase: any, ghlHeaders: any, locationId: stri
                 contactId: null,
               };
               if (inquiry.budget) oppPayload.monetaryValue = inquiry.budget;
-              // Try to find GHL contact
               if (inquiry.contact_id) {
                 const { data: c } = await supabase.from('contacts').select('ghl_contact_id').eq('id', inquiry.contact_id).single();
                 if (c?.ghl_contact_id) oppPayload.contactId = c.ghl_contact_id;
@@ -1551,7 +1567,6 @@ async function processSyncQueue(supabase: any, ghlHeaders: any, locationId: stri
                 if (res.ok) { const od = await res.json(); if (od.opportunity?.id) await supabase.from('inquiries').update({ ghl_opportunity_id: od.opportunity.id }).eq('id', inquiry.id); success = true; }
                 else { await res.text(); }
               } else {
-                // No GHL contact to link opportunity to - mark as failed with clear message
                 await supabase.from('sync_queue').update({ status: 'failed', last_error: 'Geen gekoppeld GHL-contact voor opportunity' }).eq('id', item.id);
                 failed++; continue;
               }
@@ -1587,7 +1602,7 @@ async function processSyncQueue(supabase: any, ghlHeaders: any, locationId: stri
         await supabase.from('sync_queue').update({ status: nr >= (item.max_retries || 5) ? 'failed' : 'pending', last_error: err?.message || 'Unknown error', retry_count: nr }).eq('id', item.id);
         failed++;
       }
-      await delay(1000);
+      await delay(200); // Minimal delay between queue items
     }
     console.log(`[Queue] Done: ${succeeded} succeeded, ${failed} failed`);
   } catch (e) { console.error('Queue processing error:', e); }

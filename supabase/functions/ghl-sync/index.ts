@@ -1406,8 +1406,19 @@ Deno.serve(async (req) => {
       };
       if (booking.notes) eventPayload.notes = booking.notes;
 
-      console.log(`[Push Booking] Calendar: ${roomSetting.ghl_calendar_id}, Contact: ${ghlContactId}, Room: ${booking.room_name}, Payload: ${JSON.stringify(eventPayload)}`);
+      console.log(`[Push Booking] Calendar: ${roomSetting.ghl_calendar_id}, Contact: ${ghlContactId}, Room: ${booking.room_name}`);
 
+      // Check if calendar is active before attempting push
+      const calCheckRes = await fetch(`${GHL_API_BASE}/calendars/${roomSetting.ghl_calendar_id}`, { headers: ghlHeaders });
+      if (calCheckRes.ok) {
+        const calInfo = await calCheckRes.json();
+        if (calInfo?.calendar?.isActive === false) {
+          console.warn(`[Push Booking] Calendar ${roomSetting.ghl_calendar_id} is inactive, skipping`);
+          return new Response(JSON.stringify({ success: false, error: 'Calendar is inactive' }), {
+            status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
+        }
+      }
       // Helper: fallback to generic /calendars/events endpoint (works for service calendars)
       const createViaCalendarEvents = async (): Promise<string | null> => {
         console.log(`[Push Booking] Falling back to /calendars/events for room: ${booking.room_name}, calendar: ${roomSetting.ghl_calendar_id}`);
@@ -1928,7 +1939,7 @@ Deno.serve(async (req) => {
           failed++;
         }
 
-        await delay(1000);
+        await delay(300); // Reduced delay between queue items
       }
 
       console.log(`[Process Queue] Done: ${processed} processed, ${succeeded} ok, ${failed} failed`);
