@@ -128,9 +128,9 @@ export function InquiriesProvider({ children }: { children: ReactNode }) {
   }, [user, toast]);
 
   const updateInquiry = useCallback(async (inquiry: Inquiry) => {
-    // GHL first: push status + fields to GHL before updating local DB
+    // Fire-and-forget: push to GHL without blocking the UI
     if (inquiry.ghlOpportunityId) {
-      await pushToGHL('push-inquiry-status', {
+      pushToGHL('push-inquiry-status', {
         ghl_opportunity_id: inquiry.ghlOpportunityId,
         status: inquiry.status,
         name: inquiry.eventType,
