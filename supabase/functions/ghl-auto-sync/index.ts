@@ -142,23 +142,23 @@ Deno.serve(async (req) => {
       const lookups = { contactByGhlId, contactByNameEmail, companyByGhlId, companyByName, inquiryByGhlId, taskByGhlId, taskByTitle, existingContacts, existingCompanies, existingInquiries };
 
       // Run syncs SEQUENTIALLY to avoid GHL 429 rate limits
-      // Contacts first (most important for this sync)
+      // Minimal delays — sequential execution already prevents concurrent rate limiting
       await syncContacts(supabase, ghlHeaders, GHL_LOCATION_ID, userId, results, lookups);
-      await delay(1000);
+      await delay(200);
       await syncCompanies(supabase, ghlHeaders, GHL_LOCATION_ID, userId, results, lookups);
-      await delay(1000);
+      await delay(200);
       await syncOpportunities(supabase, ghlHeaders, GHL_LOCATION_ID, userId, results, lookups);
-      await delay(1000);
+      await delay(200);
       await syncCalendar(supabase, ghlHeaders, GHL_LOCATION_ID, userId, results);
-      await delay(1000);
+      await delay(200);
       await syncTasks(supabase, ghlHeaders, GHL_LOCATION_ID, userId, results, lookups);
-      await delay(500);
+      await delay(200);
       await syncConversations(supabase, ghlHeaders, GHL_LOCATION_ID, userId, results, lookups);
 
       // Push local inquiries without GHL opportunity ID
       await pushLocalInquiries(supabase, ghlHeaders, GHL_LOCATION_ID, userId, results);
 
-      // Process sync queue (retry failed items)
+      // Process sync queue (retry failed items — skip permanently failed)
       await processSyncQueue(supabase, ghlHeaders, GHL_LOCATION_ID, userId, results);
 
       console.log('Auto-sync completed:', JSON.stringify(results));
