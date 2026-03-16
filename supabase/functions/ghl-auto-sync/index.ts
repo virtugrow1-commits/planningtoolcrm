@@ -593,7 +593,7 @@ async function syncContacts(supabase: any, ghlHeaders: any, locationId: string, 
     let contactPage = 1;
     let contactHasMore = true;
     while (contactHasMore && contactPage <= 40) {
-      await delay(500); // Rate limit between pages
+      await delay(200); // Rate limit between pages
       const res = await fetch(`${GHL_API_BASE}/contacts/?locationId=${locationId}&limit=100&page=${contactPage}`, { headers: ghlHeaders });
       if (res.status === 429) {
         console.log(`Contacts page ${contactPage}: rate limited, waiting 5s...`);
