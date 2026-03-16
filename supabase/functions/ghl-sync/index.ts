@@ -971,7 +971,7 @@ Deno.serve(async (req) => {
           pipelineId,
           locationId: GHL_LOCATION_ID,
           name: event_type || contact_name || 'Aanvraag',
-          status: 'open',
+          status: status === 'lost' ? 'lost' : status === 'converted' ? 'won' : 'open',
           contactId: ghlContactId || undefined,
         };
         if (stageId) oppPayload.pipelineStageId = stageId;
