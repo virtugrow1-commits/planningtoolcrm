@@ -113,7 +113,8 @@ export function InquiriesProvider({ children }: { children: ReactNode }) {
       return;
     }
     if (inserted?.id) {
-      await pushToGHL('push-inquiry', {
+      // Fire-and-forget: don't block UI waiting for GHL sync
+      pushToGHL('push-inquiry', {
         inquiry_id: inserted.id,
         contact_name: inquiry.contactName,
         event_type: inquiry.eventType,
@@ -127,9 +128,9 @@ export function InquiriesProvider({ children }: { children: ReactNode }) {
   }, [user, toast]);
 
   const updateInquiry = useCallback(async (inquiry: Inquiry) => {
-    // GHL first: push status + fields to GHL before updating local DB
+    // Fire-and-forget: push to GHL without blocking the UI
     if (inquiry.ghlOpportunityId) {
-      await pushToGHL('push-inquiry-status', {
+      pushToGHL('push-inquiry-status', {
         ghl_opportunity_id: inquiry.ghlOpportunityId,
         status: inquiry.status,
         name: inquiry.eventType,
@@ -140,7 +141,7 @@ export function InquiriesProvider({ children }: { children: ReactNode }) {
         entityType: 'inquiry', entityId: inquiry.id, actionType: 'update',
       });
     }
-    // Then update local DB
+    // Update local DB immediately (don't wait for GHL)
     const { error } = await supabase.from('inquiries').update({
       contact_id: inquiry.contactId || null,
       contact_name: inquiry.contactName,
@@ -165,9 +166,9 @@ export function InquiriesProvider({ children }: { children: ReactNode }) {
   const deleteInquiry = useCallback(async (id: string) => {
     // Fetch GHL ID from DB to avoid stale closure
     const { data: existing } = await supabase.from('inquiries').select('ghl_opportunity_id').eq('id', id).single();
-    // GHL first: delete from GHL before local DB
+    // Fire-and-forget: push delete to GHL without blocking
     if (existing?.ghl_opportunity_id) {
-      await pushToGHL('delete-inquiry', { ghl_opportunity_id: existing.ghl_opportunity_id }, {
+      pushToGHL('delete-inquiry', { ghl_opportunity_id: existing.ghl_opportunity_id }, {
         entityType: 'inquiry', entityId: id, actionType: 'delete',
       });
     }
