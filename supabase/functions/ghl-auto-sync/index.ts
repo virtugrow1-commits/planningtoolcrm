@@ -729,7 +729,7 @@ async function syncContacts(supabase: any, ghlHeaders: any, locationId: string, 
         companyName = companyRow?.name || null;
       }
 
-      await delay(300);
+      await delay(150);
       const pushRes = await fetch(`${GHL_API_BASE}/contacts/`, {
         method: 'POST', headers: ghlHeaders,
         body: JSON.stringify({
