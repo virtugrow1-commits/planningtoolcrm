@@ -313,7 +313,7 @@ async function syncCalendar(supabase: any, ghlHeaders: any, locationId: string, 
         continue;
       }
       try {
-        await delay(1500); // Rate limit: 1.5s between pushes
+        await delay(500); // Rate limit between pushes
         const probeDate = new Date(`${booking.date}T12:00:00Z`);
         const amStr = probeDate.toLocaleString('en-US', { timeZone: 'Europe/Amsterdam', hour12: false });
         const amDate = new Date(amStr);
