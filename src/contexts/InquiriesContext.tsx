@@ -141,7 +141,7 @@ export function InquiriesProvider({ children }: { children: ReactNode }) {
         entityType: 'inquiry', entityId: inquiry.id, actionType: 'update',
       });
     }
-    // Then update local DB
+    // Update local DB immediately (don't wait for GHL)
     const { error } = await supabase.from('inquiries').update({
       contact_id: inquiry.contactId || null,
       contact_name: inquiry.contactName,
