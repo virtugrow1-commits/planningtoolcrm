@@ -360,9 +360,39 @@ export default function InquiriesPage() {
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-foreground">Aanvragen Pipeline</h1>
-          <p className="text-sm text-muted-foreground">{inquiries.length} aanvragen · Sleep kaarten om de status te wijzigen</p>
+          <p className="text-sm text-muted-foreground">{filteredInquiries.length} van {inquiries.length} aanvragen · Sleep kaarten om de status te wijzigen</p>
         </div>
         <div className="flex items-center gap-2">
+          <div className="relative">
+            <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              placeholder="Zoeken..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-8 h-8 w-[200px] text-xs"
+            />
+            {searchQuery && (
+              <button onClick={() => setSearchQuery('')} className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
+                <X size={12} />
+              </button>
+            )}
+          </div>
+          {viewMode === 'cards' && (
+            <Select value={kanbanSort} onValueChange={(v: any) => setKanbanSort(v)}>
+              <SelectTrigger className="h-8 w-[160px] text-xs">
+                <ArrowUpDown size={12} className="mr-1" />
+                <SelectValue placeholder="Sorteren" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="created-desc" className="text-xs">Nieuwste eerst</SelectItem>
+                <SelectItem value="created-asc" className="text-xs">Oudste eerst</SelectItem>
+                <SelectItem value="date-asc" className="text-xs">Datum ↑</SelectItem>
+                <SelectItem value="date-desc" className="text-xs">Datum ↓</SelectItem>
+                <SelectItem value="alpha-asc" className="text-xs">A → Z</SelectItem>
+                <SelectItem value="alpha-desc" className="text-xs">Z → A</SelectItem>
+              </SelectContent>
+            </Select>
+          )}
           <div className="flex rounded-lg border border-border overflow-hidden">
             <button
               onClick={() => setViewMode('cards')}
