@@ -455,7 +455,7 @@ export default function InquiriesPage() {
       {viewMode === 'cards' ? (
       <div className="flex gap-4 overflow-x-auto pb-4">
         {PIPELINE_COLUMNS.map((col) => {
-          const items = inquiries.filter((inq) => inq.status === col.key);
+          const items = sortKanbanItems(filteredInquiries.filter((inq) => inq.status === col.key));
           return (
             <div
               key={col.key}
