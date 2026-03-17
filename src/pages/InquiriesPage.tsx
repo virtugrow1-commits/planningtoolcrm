@@ -111,11 +111,35 @@ export default function InquiriesPage() {
   const todayStr = useMemo(() => new Date().toISOString().split('T')[0], []);
   const [searchParams, setSearchParams] = useSearchParams();
 
-  // Filtered inquiries based on search
+  // Determine which inquiries have only past bookings (all bookings before today)
+  const pastOnlyInquiryIds = useMemo(() => {
+    const ids = new Set<string>();
+    for (const inq of inquiries) {
+      const related = bookings.filter(b =>
+        (inq.contactId && b.contactId === inq.contactId && b.title === inq.eventType) ||
+        (b.contactName === inq.contactName && b.title === inq.eventType)
+      );
+      // Has bookings and ALL are in the past
+      if (related.length > 0 && related.every(b => b.date < todayStr)) {
+        ids.add(inq.id);
+      }
+      // Also check preferredDate if no bookings
+      if (related.length === 0 && inq.preferredDate && inq.preferredDate < todayStr) {
+        ids.add(inq.id);
+      }
+    }
+    return ids;
+  }, [inquiries, bookings, todayStr]);
+
+  // Filtered inquiries based on search + hidePast
   const filteredInquiries = useMemo(() => {
-    if (!searchQuery.trim()) return inquiries;
+    let result = inquiries;
+    if (hidePast) {
+      result = result.filter(inq => !pastOnlyInquiryIds.has(inq.id));
+    }
+    if (!searchQuery.trim()) return result;
     const q = searchQuery.toLowerCase();
-    return inquiries.filter(inq => {
+    return result.filter(inq => {
       const contact = inq.contactId ? contacts.find(c => c.id === inq.contactId) : null;
       const company = contact?.companyId ? companies.find(co => co.id === contact.companyId) : null;
       return (
@@ -130,7 +154,7 @@ export default function InquiriesPage() {
         (PIPELINE_COLUMNS.find(c => c.key === inq.status)?.label || '').toLowerCase().includes(q)
       );
     });
-  }, [inquiries, searchQuery, contacts, companies]);
+  }, [inquiries, searchQuery, contacts, companies, hidePast, pastOnlyInquiryIds]);
 
   // Map inquiry -> nearest upcoming booking date
   const nearestBookingByInquiry = useMemo(() => {
