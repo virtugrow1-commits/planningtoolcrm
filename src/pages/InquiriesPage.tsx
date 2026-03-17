@@ -416,6 +416,17 @@ export default function InquiriesPage() {
           <p className="text-sm text-muted-foreground">{filteredInquiries.length} van {inquiries.length} aanvragen · Sleep kaarten om de status te wijzigen</p>
         </div>
         <div className="flex items-center gap-2">
+          <button
+            onClick={() => setHidePast(!hidePast)}
+            className={cn(
+              'flex items-center gap-1.5 h-8 px-3 rounded-md border text-xs font-medium transition-colors',
+              hidePast ? 'bg-primary text-primary-foreground border-primary' : 'bg-background text-muted-foreground border-border hover:text-foreground'
+            )}
+            title={hidePast ? 'Verlopen aanvragen zijn verborgen' : 'Verlopen aanvragen verbergen'}
+          >
+            <EyeOff size={12} />
+            Verberg verlopen
+          </button>
           <div className="relative">
             <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
             <Input
