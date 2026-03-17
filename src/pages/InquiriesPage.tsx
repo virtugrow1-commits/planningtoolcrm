@@ -161,10 +161,10 @@ export default function InquiriesPage() {
   };
 
   const toggleSelectAll = () => {
-    if (selected.size === inquiries.length) {
+    if (selected.size === filteredInquiries.length) {
       setSelected(new Set());
     } else {
-      setSelected(new Set(inquiries.map((i) => i.id)));
+      setSelected(new Set(filteredInquiries.map((i) => i.id)));
     }
   };
 
