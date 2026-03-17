@@ -622,7 +622,7 @@ export default function InquiriesPage() {
             </tr>
           </thead>
           <tbody>
-            {inquirySort.sortItems(inquiries, (inq, key) => {
+            {inquirySort.sortItems(filteredInquiries, (inq, key) => {
               switch (key) {
                 case 'id': return inq.displayNumber || '';
                 case 'type': return inq.eventType;
