@@ -131,10 +131,38 @@ export default function InquiriesPage() {
     });
   }, [inquiries, searchQuery, contacts, companies]);
 
+  // Map inquiry -> nearest upcoming booking date
+  const nearestBookingByInquiry = useMemo(() => {
+    const map: Record<string, string> = {};
+    for (const inq of inquiries) {
+      const related = bookings.filter(b =>
+        (inq.contactId && b.contactId === inq.contactId && b.title === inq.eventType) ||
+        (b.contactName === inq.contactName && b.title === inq.eventType)
+      );
+      // Find nearest upcoming, or fallback to nearest past
+      const upcoming = related.filter(b => b.date >= todayStr).sort((a, b) => a.date.localeCompare(b.date));
+      const past = related.filter(b => b.date < todayStr).sort((a, b) => b.date.localeCompare(a.date));
+      if (upcoming.length > 0) map[inq.id] = upcoming[0].date;
+      else if (past.length > 0) map[inq.id] = past[0].date;
+    }
+    return map;
+  }, [inquiries, bookings, todayStr]);
+
   // Sort function for kanban columns
   const sortKanbanItems = useCallback((items: Inquiry[]) => {
     return [...items].sort((a, b) => {
       switch (kanbanSort) {
+        case 'booking-nearest': {
+          const aDate = nearestBookingByInquiry[a.id] || '';
+          const bDate = nearestBookingByInquiry[b.id] || '';
+          // Items with bookings first, sorted by proximity to today
+          if (!aDate && !bDate) return 0;
+          if (!aDate) return 1;
+          if (!bDate) return -1;
+          const aDiff = Math.abs(new Date(aDate).getTime() - new Date(todayStr).getTime());
+          const bDiff = Math.abs(new Date(bDate).getTime() - new Date(todayStr).getTime());
+          return aDiff - bDiff;
+        }
         case 'date-asc': return (a.preferredDate || '').localeCompare(b.preferredDate || '');
         case 'date-desc': return (b.preferredDate || '').localeCompare(a.preferredDate || '');
         case 'alpha-asc': return a.eventType.localeCompare(b.eventType);
@@ -144,7 +172,7 @@ export default function InquiriesPage() {
         default: return 0;
       }
     });
-  }, [kanbanSort]);
+  }, [kanbanSort, nearestBookingByInquiry, todayStr]);
   // Count tasks per inquiry
   const taskCountByInquiry = useMemo(() => {
     const map: Record<string, number> = {};
