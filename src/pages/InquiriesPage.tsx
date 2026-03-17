@@ -103,11 +103,48 @@ export default function InquiriesPage() {
   const { getDisplayName } = useRoomSettings();
   const [conflictPopup, setConflictPopup] = useState<{ conflicts: Booking[] } | null>(null);
   const inquirySort = useSortState<Inquiry>();
+  const [searchQuery, setSearchQuery] = useState('');
+  const [kanbanSort, setKanbanSort] = useState<'date-asc' | 'date-desc' | 'alpha-asc' | 'alpha-desc' | 'created-desc' | 'created-asc'>('created-desc');
   
   const navigate = useNavigate();
   const todayStr = useMemo(() => new Date().toISOString().split('T')[0], []);
   const [searchParams, setSearchParams] = useSearchParams();
 
+  // Filtered inquiries based on search
+  const filteredInquiries = useMemo(() => {
+    if (!searchQuery.trim()) return inquiries;
+    const q = searchQuery.toLowerCase();
+    return inquiries.filter(inq => {
+      const contact = inq.contactId ? contacts.find(c => c.id === inq.contactId) : null;
+      const company = contact?.companyId ? companies.find(co => co.id === contact.companyId) : null;
+      return (
+        inq.eventType.toLowerCase().includes(q) ||
+        inq.contactName.toLowerCase().includes(q) ||
+        (inq.displayNumber || '').toLowerCase().includes(q) ||
+        (inq.roomPreference || '').toLowerCase().includes(q) ||
+        (inq.source || '').toLowerCase().includes(q) ||
+        (company?.name || '').toLowerCase().includes(q) ||
+        (contact?.company || '').toLowerCase().includes(q) ||
+        (inq.preferredDate || '').includes(q) ||
+        (PIPELINE_COLUMNS.find(c => c.key === inq.status)?.label || '').toLowerCase().includes(q)
+      );
+    });
+  }, [inquiries, searchQuery, contacts, companies]);
+
+  // Sort function for kanban columns
+  const sortKanbanItems = useCallback((items: Inquiry[]) => {
+    return [...items].sort((a, b) => {
+      switch (kanbanSort) {
+        case 'date-asc': return (a.preferredDate || '').localeCompare(b.preferredDate || '');
+        case 'date-desc': return (b.preferredDate || '').localeCompare(a.preferredDate || '');
+        case 'alpha-asc': return a.eventType.localeCompare(b.eventType);
+        case 'alpha-desc': return b.eventType.localeCompare(a.eventType);
+        case 'created-asc': return a.createdAt.localeCompare(b.createdAt);
+        case 'created-desc': return b.createdAt.localeCompare(a.createdAt);
+        default: return 0;
+      }
+    });
+  }, [kanbanSort]);
   // Count tasks per inquiry
   const taskCountByInquiry = useMemo(() => {
     const map: Record<string, number> = {};
