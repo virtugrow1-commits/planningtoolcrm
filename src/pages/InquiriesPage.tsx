@@ -104,7 +104,8 @@ export default function InquiriesPage() {
   const [conflictPopup, setConflictPopup] = useState<{ conflicts: Booking[] } | null>(null);
   const inquirySort = useSortState<Inquiry>();
   const [searchQuery, setSearchQuery] = useState('');
-  const [kanbanSort, setKanbanSort] = useState<'booking-nearest' | 'date-asc' | 'date-desc' | 'alpha-asc' | 'alpha-desc' | 'created-desc' | 'created-asc'>('created-desc');
+  const [kanbanSort, setKanbanSort] = useState<'booking-nearest' | 'date-asc' | 'date-desc' | 'alpha-asc' | 'alpha-desc' | 'created-desc' | 'created-asc'>('booking-nearest');
+  const [hidePast, setHidePast] = useState(false);
   
   const navigate = useNavigate();
   const todayStr = useMemo(() => new Date().toISOString().split('T')[0], []);
