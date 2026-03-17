@@ -605,7 +605,7 @@ export default function InquiriesPage() {
              <tr className="border-b border-border bg-muted/30">
               <th className="px-4 py-2.5 w-10">
                 <Checkbox
-                  checked={inquiries.length > 0 && selected.size === inquiries.length}
+                  checked={filteredInquiries.length > 0 && selected.size === filteredInquiries.length}
                   onCheckedChange={toggleSelectAll}
                 />
               </th>
