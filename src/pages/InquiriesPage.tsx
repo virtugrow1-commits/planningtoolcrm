@@ -3,7 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { format } from 'date-fns';
 import { nl } from 'date-fns/locale';
 import { Inquiry, Booking, ROOMS, RoomName } from '@/types/crm';
-import { Calendar as CalendarIcon, Users, Euro, GripVertical, Repeat, Plus, X, Check, LayoutGrid, List, Trash2, ArrowRight, AlertTriangle, Download, MapPin, MessageSquare, StickyNote, CheckSquare, Clock, Building2, FileText, Pencil, Eye } from 'lucide-react';
+import { Calendar as CalendarIcon, Users, Euro, GripVertical, Repeat, Plus, X, Check, LayoutGrid, List, Trash2, ArrowRight, AlertTriangle, Download, MapPin, MessageSquare, StickyNote, CheckSquare, Clock, Building2, FileText, Pencil, Eye, Search, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useRoomSettings } from '@/hooks/useRoomSettings';
 import { useBookings } from '@/contexts/BookingsContext';
@@ -103,11 +103,48 @@ export default function InquiriesPage() {
   const { getDisplayName } = useRoomSettings();
   const [conflictPopup, setConflictPopup] = useState<{ conflicts: Booking[] } | null>(null);
   const inquirySort = useSortState<Inquiry>();
+  const [searchQuery, setSearchQuery] = useState('');
+  const [kanbanSort, setKanbanSort] = useState<'date-asc' | 'date-desc' | 'alpha-asc' | 'alpha-desc' | 'created-desc' | 'created-asc'>('created-desc');
   
   const navigate = useNavigate();
   const todayStr = useMemo(() => new Date().toISOString().split('T')[0], []);
   const [searchParams, setSearchParams] = useSearchParams();
 
+  // Filtered inquiries based on search
+  const filteredInquiries = useMemo(() => {
+    if (!searchQuery.trim()) return inquiries;
+    const q = searchQuery.toLowerCase();
+    return inquiries.filter(inq => {
+      const contact = inq.contactId ? contacts.find(c => c.id === inq.contactId) : null;
+      const company = contact?.companyId ? companies.find(co => co.id === contact.companyId) : null;
+      return (
+        inq.eventType.toLowerCase().includes(q) ||
+        inq.contactName.toLowerCase().includes(q) ||
+        (inq.displayNumber || '').toLowerCase().includes(q) ||
+        (inq.roomPreference || '').toLowerCase().includes(q) ||
+        (inq.source || '').toLowerCase().includes(q) ||
+        (company?.name || '').toLowerCase().includes(q) ||
+        (contact?.company || '').toLowerCase().includes(q) ||
+        (inq.preferredDate || '').includes(q) ||
+        (PIPELINE_COLUMNS.find(c => c.key === inq.status)?.label || '').toLowerCase().includes(q)
+      );
+    });
+  }, [inquiries, searchQuery, contacts, companies]);
+
+  // Sort function for kanban columns
+  const sortKanbanItems = useCallback((items: Inquiry[]) => {
+    return [...items].sort((a, b) => {
+      switch (kanbanSort) {
+        case 'date-asc': return (a.preferredDate || '').localeCompare(b.preferredDate || '');
+        case 'date-desc': return (b.preferredDate || '').localeCompare(a.preferredDate || '');
+        case 'alpha-asc': return a.eventType.localeCompare(b.eventType);
+        case 'alpha-desc': return b.eventType.localeCompare(a.eventType);
+        case 'created-asc': return a.createdAt.localeCompare(b.createdAt);
+        case 'created-desc': return b.createdAt.localeCompare(a.createdAt);
+        default: return 0;
+      }
+    });
+  }, [kanbanSort]);
   // Count tasks per inquiry
   const taskCountByInquiry = useMemo(() => {
     const map: Record<string, number> = {};
@@ -124,10 +161,10 @@ export default function InquiriesPage() {
   };
 
   const toggleSelectAll = () => {
-    if (selected.size === inquiries.length) {
+    if (selected.size === filteredInquiries.length) {
       setSelected(new Set());
     } else {
-      setSelected(new Set(inquiries.map((i) => i.id)));
+      setSelected(new Set(filteredInquiries.map((i) => i.id)));
     }
   };
 
@@ -323,9 +360,39 @@ export default function InquiriesPage() {
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-foreground">Aanvragen Pipeline</h1>
-          <p className="text-sm text-muted-foreground">{inquiries.length} aanvragen · Sleep kaarten om de status te wijzigen</p>
+          <p className="text-sm text-muted-foreground">{filteredInquiries.length} van {inquiries.length} aanvragen · Sleep kaarten om de status te wijzigen</p>
         </div>
         <div className="flex items-center gap-2">
+          <div className="relative">
+            <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              placeholder="Zoeken..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-8 h-8 w-[200px] text-xs"
+            />
+            {searchQuery && (
+              <button onClick={() => setSearchQuery('')} className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
+                <X size={12} />
+              </button>
+            )}
+          </div>
+          {viewMode === 'cards' && (
+            <Select value={kanbanSort} onValueChange={(v: any) => setKanbanSort(v)}>
+              <SelectTrigger className="h-8 w-[160px] text-xs">
+                <ArrowUpDown size={12} className="mr-1" />
+                <SelectValue placeholder="Sorteren" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="created-desc" className="text-xs">Nieuwste eerst</SelectItem>
+                <SelectItem value="created-asc" className="text-xs">Oudste eerst</SelectItem>
+                <SelectItem value="date-asc" className="text-xs">Datum ↑</SelectItem>
+                <SelectItem value="date-desc" className="text-xs">Datum ↓</SelectItem>
+                <SelectItem value="alpha-asc" className="text-xs">A → Z</SelectItem>
+                <SelectItem value="alpha-desc" className="text-xs">Z → A</SelectItem>
+              </SelectContent>
+            </Select>
+          )}
           <div className="flex rounded-lg border border-border overflow-hidden">
             <button
               onClick={() => setViewMode('cards')}
@@ -388,7 +455,7 @@ export default function InquiriesPage() {
       {viewMode === 'cards' ? (
       <div className="flex gap-4 overflow-x-auto pb-4">
         {PIPELINE_COLUMNS.map((col) => {
-          const items = inquiries.filter((inq) => inq.status === col.key);
+          const items = sortKanbanItems(filteredInquiries.filter((inq) => inq.status === col.key));
           return (
             <div
               key={col.key}
@@ -538,7 +605,7 @@ export default function InquiriesPage() {
              <tr className="border-b border-border bg-muted/30">
               <th className="px-4 py-2.5 w-10">
                 <Checkbox
-                  checked={inquiries.length > 0 && selected.size === inquiries.length}
+                  checked={filteredInquiries.length > 0 && selected.size === filteredInquiries.length}
                   onCheckedChange={toggleSelectAll}
                 />
               </th>
@@ -555,7 +622,7 @@ export default function InquiriesPage() {
             </tr>
           </thead>
           <tbody>
-            {inquirySort.sortItems(inquiries, (inq, key) => {
+            {inquirySort.sortItems(filteredInquiries, (inq, key) => {
               switch (key) {
                 case 'id': return inq.displayNumber || '';
                 case 'type': return inq.eventType;
