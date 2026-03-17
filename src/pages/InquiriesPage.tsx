@@ -105,6 +105,7 @@ export default function InquiriesPage() {
   const inquirySort = useSortState<Inquiry>();
   
   const navigate = useNavigate();
+  const todayStr = useMemo(() => new Date().toISOString().split('T')[0], []);
   const [searchParams, setSearchParams] = useSearchParams();
 
   // Count tasks per inquiry
@@ -469,8 +470,8 @@ export default function InquiriesPage() {
                                 <span className="text-card-foreground font-medium">
                                   {format(new Date(rb.date), 'd MMM yyyy', { locale: nl })}
                                 </span>
-                                <span className={cn('text-[9px] font-semibold px-1.5 py-0.5 rounded-full', rb.status === 'confirmed' ? 'bg-success/15 text-success' : 'bg-warning/15 text-warning')}>
-                                  {rb.status === 'confirmed' ? 'Bevestigd' : 'Optie'}
+                                <span className={cn('text-[9px] font-semibold px-1.5 py-0.5 rounded-full', rb.date < todayStr ? 'bg-destructive/15 text-destructive' : rb.status === 'confirmed' ? 'bg-success/15 text-success' : 'bg-warning/15 text-warning')}>
+                                  {rb.date < todayStr ? 'Afgelopen' : rb.status === 'confirmed' ? 'Reservering' : 'Optie'}
                                 </span>
                               </div>
                               <span className="text-muted-foreground">
@@ -882,8 +883,8 @@ export default function InquiriesPage() {
                           </div>
                           <div className="flex items-center gap-2">
                             <span className="text-xs text-muted-foreground">{b.roomName}</span>
-                            <span className={cn('rounded-full px-2 py-0.5 text-[10px] font-semibold', b.status === 'option' ? 'bg-warning/15 text-warning' : 'bg-success/15 text-success')}>
-                              {b.status === 'option' ? 'Optie' : 'Bevestigd'}
+                            <span className={cn('rounded-full px-2 py-0.5 text-[10px] font-semibold', b.date < todayStr ? 'bg-destructive/15 text-destructive' : b.status === 'option' ? 'bg-warning/15 text-warning' : 'bg-success/15 text-success')}>
+                              {b.date < todayStr ? 'Afgelopen' : b.status === 'option' ? 'Optie' : 'Reservering'}
                             </span>
                           </div>
                         </div>
