@@ -469,8 +469,8 @@ export default function InquiriesPage() {
                                 <span className="text-card-foreground font-medium">
                                   {format(new Date(rb.date), 'd MMM yyyy', { locale: nl })}
                                 </span>
-                                <span className={cn('text-[9px] font-semibold px-1.5 py-0.5 rounded-full', rb.status === 'confirmed' ? 'bg-success/15 text-success' : 'bg-warning/15 text-warning')}>
-                                  {rb.status === 'confirmed' ? 'Bevestigd' : 'Optie'}
+                                <span className={cn('text-[9px] font-semibold px-1.5 py-0.5 rounded-full', rb.date < todayStr ? 'bg-destructive/15 text-destructive' : rb.status === 'confirmed' ? 'bg-success/15 text-success' : 'bg-warning/15 text-warning')}>
+                                  {rb.date < todayStr ? 'Afgelopen' : rb.status === 'confirmed' ? 'Reservering' : 'Optie'}
                                 </span>
                               </div>
                               <span className="text-muted-foreground">
