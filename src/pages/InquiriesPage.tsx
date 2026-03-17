@@ -3,7 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { format } from 'date-fns';
 import { nl } from 'date-fns/locale';
 import { Inquiry, Booking, ROOMS, RoomName } from '@/types/crm';
-import { Calendar as CalendarIcon, Users, Euro, GripVertical, Repeat, Plus, X, Check, LayoutGrid, List, Trash2, ArrowRight, AlertTriangle, Download, MapPin, MessageSquare, StickyNote, CheckSquare, Clock, Building2, FileText, Pencil, Eye, Search, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
+import { Calendar as CalendarIcon, Users, Euro, GripVertical, Repeat, Plus, X, Check, LayoutGrid, List, Trash2, ArrowRight, AlertTriangle, Download, MapPin, MessageSquare, StickyNote, CheckSquare, Clock, Building2, FileText, Pencil, Eye, Search, ArrowUpDown, ArrowUp, ArrowDown, EyeOff } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useRoomSettings } from '@/hooks/useRoomSettings';
 import { useBookings } from '@/contexts/BookingsContext';
@@ -104,17 +104,42 @@ export default function InquiriesPage() {
   const [conflictPopup, setConflictPopup] = useState<{ conflicts: Booking[] } | null>(null);
   const inquirySort = useSortState<Inquiry>();
   const [searchQuery, setSearchQuery] = useState('');
-  const [kanbanSort, setKanbanSort] = useState<'booking-nearest' | 'date-asc' | 'date-desc' | 'alpha-asc' | 'alpha-desc' | 'created-desc' | 'created-asc'>('created-desc');
+  const [kanbanSort, setKanbanSort] = useState<'booking-nearest' | 'date-asc' | 'date-desc' | 'alpha-asc' | 'alpha-desc' | 'created-desc' | 'created-asc'>('booking-nearest');
+  const [hidePast, setHidePast] = useState(false);
   
   const navigate = useNavigate();
   const todayStr = useMemo(() => new Date().toISOString().split('T')[0], []);
   const [searchParams, setSearchParams] = useSearchParams();
 
-  // Filtered inquiries based on search
+  // Determine which inquiries have only past bookings (all bookings before today)
+  const pastOnlyInquiryIds = useMemo(() => {
+    const ids = new Set<string>();
+    for (const inq of inquiries) {
+      const related = bookings.filter(b =>
+        (inq.contactId && b.contactId === inq.contactId && b.title === inq.eventType) ||
+        (b.contactName === inq.contactName && b.title === inq.eventType)
+      );
+      // Has bookings and ALL are in the past
+      if (related.length > 0 && related.every(b => b.date < todayStr)) {
+        ids.add(inq.id);
+      }
+      // Also check preferredDate if no bookings
+      if (related.length === 0 && inq.preferredDate && inq.preferredDate < todayStr) {
+        ids.add(inq.id);
+      }
+    }
+    return ids;
+  }, [inquiries, bookings, todayStr]);
+
+  // Filtered inquiries based on search + hidePast
   const filteredInquiries = useMemo(() => {
-    if (!searchQuery.trim()) return inquiries;
+    let result = inquiries;
+    if (hidePast) {
+      result = result.filter(inq => !pastOnlyInquiryIds.has(inq.id));
+    }
+    if (!searchQuery.trim()) return result;
     const q = searchQuery.toLowerCase();
-    return inquiries.filter(inq => {
+    return result.filter(inq => {
       const contact = inq.contactId ? contacts.find(c => c.id === inq.contactId) : null;
       const company = contact?.companyId ? companies.find(co => co.id === contact.companyId) : null;
       return (
@@ -129,7 +154,7 @@ export default function InquiriesPage() {
         (PIPELINE_COLUMNS.find(c => c.key === inq.status)?.label || '').toLowerCase().includes(q)
       );
     });
-  }, [inquiries, searchQuery, contacts, companies]);
+  }, [inquiries, searchQuery, contacts, companies, hidePast, pastOnlyInquiryIds]);
 
   // Map inquiry -> nearest upcoming booking date
   const nearestBookingByInquiry = useMemo(() => {
@@ -391,6 +416,17 @@ export default function InquiriesPage() {
           <p className="text-sm text-muted-foreground">{filteredInquiries.length} van {inquiries.length} aanvragen · Sleep kaarten om de status te wijzigen</p>
         </div>
         <div className="flex items-center gap-2">
+          <button
+            onClick={() => setHidePast(!hidePast)}
+            className={cn(
+              'flex items-center gap-1.5 h-8 px-3 rounded-md border text-xs font-medium transition-colors',
+              hidePast ? 'bg-primary text-primary-foreground border-primary' : 'bg-background text-muted-foreground border-border hover:text-foreground'
+            )}
+            title={hidePast ? 'Verlopen aanvragen zijn verborgen' : 'Verlopen aanvragen verbergen'}
+          >
+            <EyeOff size={12} />
+            Verberg verlopen
+          </button>
           <div className="relative">
             <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
             <Input
