@@ -412,6 +412,7 @@ export default function InquiriesPage() {
                 <SelectValue placeholder="Sorteren" />
               </SelectTrigger>
               <SelectContent>
+                <SelectItem value="booking-nearest" className="text-xs">Reservering dichtbij</SelectItem>
                 <SelectItem value="created-desc" className="text-xs">Nieuwste eerst</SelectItem>
                 <SelectItem value="created-asc" className="text-xs">Oudste eerst</SelectItem>
                 <SelectItem value="date-asc" className="text-xs">Datum ↑</SelectItem>
