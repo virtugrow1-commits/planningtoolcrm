@@ -105,6 +105,7 @@ export default function InquiriesPage() {
   const inquirySort = useSortState<Inquiry>();
   
   const navigate = useNavigate();
+  const todayStr = useMemo(() => new Date().toISOString().split('T')[0], []);
   const [searchParams, setSearchParams] = useSearchParams();
 
   // Count tasks per inquiry
