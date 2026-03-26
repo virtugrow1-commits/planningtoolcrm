@@ -131,9 +131,9 @@ export default function HistorySection({
         <span className="text-muted-foreground hidden sm:block">{b.roomName}</span>
         <Badge
           variant="secondary"
-          className={cn('text-[10px]', b.status === 'confirmed' ? 'bg-success/10 text-success' : 'bg-warning/10 text-warning')}
+          className={cn('text-[10px]', b.date < todayStr ? 'bg-muted text-muted-foreground' : b.status === 'confirmed' ? 'bg-success/10 text-success' : 'bg-warning/10 text-warning')}
         >
-          {b.status === 'confirmed' ? 'Bevestigd' : 'Optie'}
+          {b.date < todayStr ? 'Afgelopen' : b.status === 'confirmed' ? 'Bevestigd' : 'Optie'}
         </Badge>
       </div>
     </button>
