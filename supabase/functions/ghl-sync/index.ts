@@ -68,7 +68,7 @@ async function getOrganizationUserIds(supabase: any, authUserId: string): Promis
       return [authUserId];
     }
 
-    const userIds = orgUsers.map(u => u.id);
+    const userIds = orgUsers.map((u: { id: string }) => u.id);
     console.log(`[Org Scope] Found ${userIds.length} users in organization ${userProfile.organization_id}`);
     return userIds;
   } catch (err) {
