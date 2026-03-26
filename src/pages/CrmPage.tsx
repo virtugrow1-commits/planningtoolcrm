@@ -5,6 +5,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
@@ -34,11 +35,13 @@ const PAGE_SIZES = [20, 50, 100] as const;
 
 export default function CrmPage() {
   const { contacts, loading, addContact, deleteContact, updateContact } = useContactsContext();
-  const { companies, loading: companiesLoading, deleteCompany, updateCompany } = useCompaniesContext();
+  const { companies, loading: companiesLoading, addCompany, deleteCompany, updateCompany } = useCompaniesContext();
   const [activeTab, setActiveTab] = useState<CrmTab>('contacts');
   const [search, setSearch] = useState('');
   const [newOpen, setNewOpen] = useState(false);
   const [newContact, setNewContact] = useState<Omit<Contact, 'id' | 'createdAt'>>({ firstName: '', lastName: '', email: '', phone: '', status: 'lead' });
+  const [newCompanyOpen, setNewCompanyOpen] = useState(false);
+  const [newCompany, setNewCompany] = useState({ name: '', email: '', phone: '', website: '', address: '', city: '', postcode: '', kvk: '', notes: '' });
   const [filters, setFilters] = useState<Record<FilterKey, string>>({ status: '', company: '' });
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState<number>(20);
@@ -140,6 +143,17 @@ export default function CrmPage() {
     setNewOpen(false);
     setNewContact({ firstName: '', lastName: '', email: '', phone: '', status: 'lead' });
     toast({ title: 'Contact aangemaakt' });
+  };
+
+  const handleAddCompany = async () => {
+    if (!newCompany.name.trim()) {
+      toast({ title: 'Vul een bedrijfsnaam in', variant: 'destructive' });
+      return;
+    }
+    await addCompany(newCompany);
+    setNewCompanyOpen(false);
+    setNewCompany({ name: '', email: '', phone: '', website: '', address: '', city: '', postcode: '', kvk: '', notes: '' });
+    toast({ title: 'Bedrijf aangemaakt' });
   };
 
   // Companies tab filtering
@@ -254,7 +268,7 @@ export default function CrmPage() {
             </PopoverContent>
           </Popover>
           
-          <Button size="sm" onClick={() => setNewOpen(true)}><Plus size={14} className="mr-1" /> {activeTab === 'contacts' ? 'Nieuw Contact' : 'Nieuw Bedrijf'}</Button>
+          <Button size="sm" onClick={() => activeTab === 'contacts' ? setNewOpen(true) : setNewCompanyOpen(true)}><Plus size={14} className="mr-1" /> {activeTab === 'contacts' ? 'Nieuw Contact' : 'Nieuw Bedrijf'}</Button>
         </div>
       </div>
 
@@ -415,6 +429,32 @@ export default function CrmPage() {
           <DialogFooter>
             <Button variant="outline" onClick={() => setNewOpen(false)}>Annuleren</Button>
             <Button onClick={handleAddContact}>Aanmaken</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* New Company Dialog */}
+      <Dialog open={newCompanyOpen} onOpenChange={setNewCompanyOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader><DialogTitle>Nieuw Bedrijf</DialogTitle><DialogDescription>Voeg een nieuw bedrijf toe aan het CRM.</DialogDescription></DialogHeader>
+          <div className="grid gap-4 py-2">
+            <div className="grid gap-1.5"><Label>Bedrijfsnaam *</Label><Input value={newCompany.name} onChange={(e) => setNewCompany({ ...newCompany, name: e.target.value })} autoFocus /></div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="grid gap-1.5"><Label>Email</Label><Input type="email" value={newCompany.email} onChange={(e) => setNewCompany({ ...newCompany, email: e.target.value })} /></div>
+              <div className="grid gap-1.5"><Label>Telefoon</Label><Input value={newCompany.phone} onChange={(e) => setNewCompany({ ...newCompany, phone: e.target.value })} /></div>
+            </div>
+            <div className="grid gap-1.5"><Label>Website</Label><Input value={newCompany.website} onChange={(e) => setNewCompany({ ...newCompany, website: e.target.value })} /></div>
+            <div className="grid gap-1.5"><Label>KVK</Label><Input value={newCompany.kvk} onChange={(e) => setNewCompany({ ...newCompany, kvk: e.target.value })} /></div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="grid gap-1.5"><Label>Adres</Label><Input value={newCompany.address} onChange={(e) => setNewCompany({ ...newCompany, address: e.target.value })} /></div>
+              <div className="grid gap-1.5"><Label>Postcode</Label><Input value={newCompany.postcode} onChange={(e) => setNewCompany({ ...newCompany, postcode: e.target.value })} /></div>
+            </div>
+            <div className="grid gap-1.5"><Label>Plaats</Label><Input value={newCompany.city} onChange={(e) => setNewCompany({ ...newCompany, city: e.target.value })} /></div>
+            <div className="grid gap-1.5"><Label>Notities</Label><Textarea value={newCompany.notes} onChange={(e) => setNewCompany({ ...newCompany, notes: e.target.value })} rows={2} /></div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setNewCompanyOpen(false)}>Annuleren</Button>
+            <Button onClick={handleAddCompany}>Aanmaken</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
