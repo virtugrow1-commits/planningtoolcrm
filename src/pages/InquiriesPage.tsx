@@ -115,6 +115,12 @@ export default function InquiriesPage() {
   const [hidePast, setHidePast] = useState(false);
   const [showArchived, setShowArchived] = useState(false);
   const [archivedSection, setArchivedSection] = useState<'verloren' | 'afgerond' | null>(null);
+  const [expandedBookings, setExpandedBookings] = useState<Set<string>>(new Set());
+  const toggleBookings = (key: string) => setExpandedBookings(prev => {
+    const next = new Set(prev);
+    if (next.has(key)) next.delete(key); else next.add(key);
+    return next;
+  });
   
   const navigate = useNavigate();
   const todayStr = useMemo(() => new Date().toISOString().split('T')[0], []);
@@ -659,29 +665,46 @@ export default function InquiriesPage() {
                       {inq.preferredDate && <div className="flex gap-2"><span className="text-muted-foreground w-[100px] shrink-0">Datum:</span><span className="text-card-foreground">{inq.preferredDate}</span></div>}
                       {(inq.budget ?? 0) > 0 && <div className="flex gap-2"><span className="text-muted-foreground w-[100px] shrink-0">Waarde:</span><span className="text-card-foreground font-medium">€{inq.budget!.toLocaleString('nl-NL', { minimumFractionDigits: 2 })}</span></div>}
                       
-                      {relatedBookings.length > 0 && (
-                        <div className="mt-1.5 pt-1.5 border-t border-border/50 space-y-1">
-                          <span className="text-muted-foreground text-[10px] uppercase tracking-wide font-semibold">Reserveringen ({relatedBookings.length})</span>
-                          {relatedBookings.map((rb) => (
-                            <div key={rb.id} className="flex flex-col gap-0.5 py-1 px-2 rounded-md bg-muted/30">
-                              <div className="flex items-center justify-between gap-1">
-                                <span className="text-card-foreground font-medium">
-                                  {format(new Date(rb.date), 'd MMM yyyy', { locale: nl })}
+                      {relatedBookings.length > 0 && (() => {
+                        const shown = relatedBookings.slice(0, 2);
+                        const rest = relatedBookings.length - 2;
+                        return (
+                          <div className="mt-1.5 pt-1.5 border-t border-border/50 space-y-1">
+                            <button
+                              onClick={(e) => { e.stopPropagation(); toggleBookings(inq.id); }}
+                              className="flex items-center justify-between w-full text-muted-foreground text-[10px] uppercase tracking-wide font-semibold hover:text-foreground transition-colors"
+                            >
+                              <span>Reserveringen ({relatedBookings.length})</span>
+                              <ChevronDown size={12} className={cn('transition-transform', expandedBookings.has(inq.id) ? 'rotate-180' : '')} />
+                            </button>
+                            {(expandedBookings.has(inq.id) ? relatedBookings : shown).map((rb) => (
+                              <div key={rb.id} className="flex flex-col gap-0.5 py-1 px-2 rounded-md bg-muted/30">
+                                <div className="flex items-center justify-between gap-1">
+                                  <span className="text-card-foreground font-medium">
+                                    {format(new Date(rb.date), 'd MMM yyyy', { locale: nl })}
+                                  </span>
+                                  <span className={cn('text-[9px] font-semibold px-1.5 py-0.5 rounded-full', rb.date < todayStr ? 'bg-destructive/15 text-destructive' : rb.status === 'confirmed' ? 'bg-success/15 text-success' : 'bg-warning/15 text-warning')}>
+                                    {rb.date < todayStr ? 'Afgelopen' : rb.status === 'confirmed' ? 'Reservering' : 'Optie'}
+                                  </span>
+                                </div>
+                                <span className="text-muted-foreground">
+                                  {String(rb.startHour).padStart(2, '0')}:{String(rb.startMinute).padStart(2, '0')}–{String(rb.endHour).padStart(2, '0')}:{String(rb.endMinute).padStart(2, '0')} · {rb.roomName}
                                 </span>
-                                <span className={cn('text-[9px] font-semibold px-1.5 py-0.5 rounded-full', rb.date < todayStr ? 'bg-destructive/15 text-destructive' : rb.status === 'confirmed' ? 'bg-success/15 text-success' : 'bg-warning/15 text-warning')}>
-                                  {rb.date < todayStr ? 'Afgelopen' : rb.status === 'confirmed' ? 'Reservering' : 'Optie'}
-                                </span>
+                                {rb.reservationNumber && <span className="text-muted-foreground font-mono text-[10px]">{rb.reservationNumber}</span>}
+                                {(rb.guestCount ?? 0) > 0 && <span className="text-muted-foreground">{rb.guestCount} gasten</span>}
                               </div>
-                              <span className="text-muted-foreground">
-                                {String(rb.startHour).padStart(2, '0')}:{String(rb.startMinute).padStart(2, '0')}–{String(rb.endHour).padStart(2, '0')}:{String(rb.endMinute).padStart(2, '0')} · {rb.roomName}
-                              </span>
-                              {rb.reservationNumber && <span className="text-muted-foreground font-mono text-[10px]">{rb.reservationNumber}</span>}
-                              {rb.roomSetup && <span className="text-muted-foreground">Opstelling: {rb.roomSetup}</span>}
-                              {(rb.guestCount ?? 0) > 0 && <span className="text-muted-foreground">{rb.guestCount} gasten</span>}
-                            </div>
-                          ))}
-                        </div>
-                      )}
+                            ))}
+                            {!expandedBookings.has(inq.id) && rest > 0 && (
+                              <button
+                                onClick={(e) => { e.stopPropagation(); toggleBookings(inq.id); }}
+                                className="w-full text-center text-[10px] text-primary hover:text-primary/80 font-medium py-0.5 transition-colors"
+                              >
+                                + {rest} meer tonen
+                              </button>
+                            )}
+                          </div>
+                        );
+                      })()}
                     </div>
 
                     {/* Icon row + Inplannen */}
@@ -1189,28 +1212,48 @@ export default function InquiriesPage() {
                 )}
 
                 {/* Ingeplande reserveringen */}
-                {relatedBookings.length > 0 && (
-                  <div className="rounded-lg border bg-muted/20 p-4">
-                    <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Ingeplande Reserveringen ({relatedBookings.length})</h4>
-                    <div className="space-y-1.5">
-                      {relatedBookings.slice(0, 5).map(b => (
-                        <div key={b.id} className="flex items-center justify-between text-sm">
-                          <div className="flex items-center gap-2">
-                            <CalendarIcon size={13} className="text-muted-foreground" />
-                            <span className="text-foreground">{format(new Date(b.date), 'd MMM yyyy', { locale: nl })}</span>
-                            <span className="text-muted-foreground">{String(b.startHour).padStart(2, '0')}:{String(b.startMinute).padStart(2, '0')} - {String(b.endHour).padStart(2, '0')}:{String(b.endMinute).padStart(2, '0')}</span>
+                {relatedBookings.length > 0 && (() => {
+                  const isOpen = expandedBookings.has(editInquiry!.id + '-detail');
+                  const shown = isOpen ? relatedBookings : relatedBookings.slice(0, 3);
+                  return (
+                    <div className="rounded-lg border bg-muted/20 overflow-hidden">
+                      <button
+                        onClick={() => toggleBookings(editInquiry!.id + '-detail')}
+                        className="w-full flex items-center justify-between px-4 py-3 hover:bg-muted/30 transition-colors"
+                      >
+                        <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                          Reserveringen ({relatedBookings.length})
+                        </span>
+                        <ChevronDown size={14} className={cn('text-muted-foreground transition-transform', isOpen ? 'rotate-180' : '')} />
+                      </button>
+                      <div className="divide-y divide-border/50">
+                        {shown.map(b => (
+                          <div key={b.id} className="flex items-center justify-between text-sm px-4 py-2.5">
+                            <div className="flex items-center gap-2">
+                              <CalendarIcon size={13} className="text-muted-foreground" />
+                              <span className="text-foreground">{format(new Date(b.date), 'd MMM yyyy', { locale: nl })}</span>
+                              <span className="text-muted-foreground text-xs">{String(b.startHour).padStart(2, '0')}:{String(b.startMinute).padStart(2, '0')} – {String(b.endHour).padStart(2, '0')}:{String(b.endMinute).padStart(2, '0')}</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs text-muted-foreground">{b.roomName}</span>
+                              <span className={cn('rounded-full px-2 py-0.5 text-[10px] font-semibold', b.date < todayStr ? 'bg-destructive/15 text-destructive' : b.status === 'option' ? 'bg-warning/15 text-warning' : 'bg-success/15 text-success')}>
+                                {b.date < todayStr ? 'Afgelopen' : b.status === 'option' ? 'Optie' : 'Reservering'}
+                              </span>
+                            </div>
                           </div>
-                          <div className="flex items-center gap-2">
-                            <span className="text-xs text-muted-foreground">{b.roomName}</span>
-                            <span className={cn('rounded-full px-2 py-0.5 text-[10px] font-semibold', b.date < todayStr ? 'bg-destructive/15 text-destructive' : b.status === 'option' ? 'bg-warning/15 text-warning' : 'bg-success/15 text-success')}>
-                              {b.date < todayStr ? 'Afgelopen' : b.status === 'option' ? 'Optie' : 'Reservering'}
-                            </span>
-                          </div>
-                        </div>
-                      ))}
+                        ))}
+                        {!isOpen && relatedBookings.length > 3 && (
+                          <button
+                            onClick={() => toggleBookings(editInquiry!.id + '-detail')}
+                            className="w-full text-center text-xs text-primary hover:text-primary/80 font-medium py-2 transition-colors"
+                          >
+                            + {relatedBookings.length - 3} meer tonen
+                          </button>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                )}
+                  );
+                })()}
 
                 {/* Taken */}
                 {inquiryTasks.length > 0 && (
