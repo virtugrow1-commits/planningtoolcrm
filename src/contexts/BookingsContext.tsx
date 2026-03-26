@@ -173,7 +173,7 @@ export function BookingsProvider({ children }: { children: ReactNode }) {
         details,
         status,
       } as any);
-    } catch (_) {}
+    } catch (_) { /* intentional */ }
   }, [user]);
 
   const addBooking = useCallback(async (booking: Omit<Booking, 'id'>): Promise<{ success: boolean; conflicts?: Booking[] }> => {

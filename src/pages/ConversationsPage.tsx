@@ -253,7 +253,7 @@ export default function ConversationsPage() {
           await supabase.functions.invoke('ghl-sync', { body: { action: 'delete-conversation', conversationId: conv.ghlConversationId } });
         }
         await supabase.from('conversations').delete().eq('id', id);
-      } catch {}
+      } catch { /* intentional */ }
     }
     setConversations((prev) => prev.filter((c) => !ids.includes(c.id)));
     if (selectedConv && ids.includes(selectedConv.id)) {

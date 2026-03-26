@@ -70,7 +70,7 @@ export function useSyncQueue() {
       await supabase.functions.invoke('ghl-sync', {
         body: { action: 'process-sync-queue' },
       });
-    } catch (_) {}
+    } catch (_) { /* intentional */ }
     await fetchQueue();
   }, [fetchQueue]);
 
@@ -88,7 +88,7 @@ export function useSyncQueue() {
       await supabase.functions.invoke('ghl-sync', {
         body: { action: 'process-sync-queue' },
       });
-    } catch (_) {}
+    } catch (_) { /* intentional */ }
     await fetchQueue();
   }, [fetchQueue]);
 

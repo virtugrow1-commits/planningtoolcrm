@@ -90,5 +90,5 @@ async function logSyncResult(
       details,
       status,
     } as any);
-  } catch (_) {}
+  } catch (_) { /* intentional */ }
 }

@@ -452,7 +452,7 @@ export default function MasterImport() {
       try {
         const { data } = await supabase.functions.invoke('ghl-sync', { body: { action: 'sync-companies' } });
         results.push(`${data?.synced || 0} bedrijven`);
-      } catch {}
+      } catch { /* intentional */ }
 
       toast({ title: '✅ GHL Sync voltooid', description: `Gematcht: ${results.join(', ')}` });
     } catch (err: any) {

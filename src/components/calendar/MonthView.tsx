@@ -25,13 +25,13 @@ export default function MonthView({ currentDate, bookings, onDayClick, onBooking
     const lastDay = new Date(year, month + 1, 0);
 
     // Find Monday before or on first day
-    let start = new Date(firstDay);
+    const start = new Date(firstDay);
     const dow = start.getDay();
     const diff = dow === 0 ? -6 : 1 - dow;
     start.setDate(start.getDate() + diff);
 
     const result: Date[][] = [];
-    let current = new Date(start);
+    const current = new Date(start);
     while (current <= lastDay || result.length < 5) {
       const week: Date[] = [];
       for (let i = 0; i < 7; i++) {
