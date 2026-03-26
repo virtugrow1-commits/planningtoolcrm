@@ -319,8 +319,8 @@ export default function CompanyDetailPage() {
                       </div>
                       <div className="flex items-center gap-2 shrink-0">
                         <span className="text-muted-foreground">{b.date} · {String(b.startHour).padStart(2, '0')}:{String(b.startMinute).padStart(2, '0')}–{String(b.endHour).padStart(2, '0')}:{String(b.endMinute).padStart(2, '0')}</span>
-                        <Badge variant={b.status === 'confirmed' ? 'default' : 'outline'} className="text-[10px]">
-                          {BOOKING_STATUS[b.status] || b.status}
+                        <Badge variant={b.date < new Date().toISOString().split('T')[0] ? 'secondary' : b.status === 'confirmed' ? 'default' : 'outline'} className="text-[10px]">
+                          {b.date < new Date().toISOString().split('T')[0] ? 'Afgelopen' : BOOKING_STATUS[b.status] || b.status}
                         </Badge>
                       </div>
                     </button>

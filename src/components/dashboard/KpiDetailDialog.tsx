@@ -143,8 +143,8 @@ export default function KpiDetailDialog({
                       <span>{booking.roomName}</span>
                     </div>
                   </div>
-                  <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium ${booking.status === 'confirmed' ? 'bg-success/15 text-success' : 'bg-warning/15 text-warning'}`}>
-                    {booking.status === 'confirmed' ? 'Bevestigd' : 'In optie'}
+                  <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium ${booking.date < new Date().toISOString().split('T')[0] ? 'bg-muted text-muted-foreground' : booking.status === 'confirmed' ? 'bg-success/15 text-success' : 'bg-warning/15 text-warning'}`}>
+                    {booking.date < new Date().toISOString().split('T')[0] ? 'Afgelopen' : booking.status === 'confirmed' ? 'Bevestigd' : 'In optie'}
                   </span>
                 </div>
               ))}

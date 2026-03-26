@@ -214,8 +214,8 @@ export default function ReserveringenPage() {
       return <Badge variant="secondary" className="text-[11px] font-medium bg-muted text-muted-foreground">Afgelopen</Badge>;
     }
     return (
-      <Badge variant="secondary" className={cn('text-[11px] font-medium', b.status === 'confirmed' ? 'bg-success/10 text-success border-success/20' : 'bg-warning/10 text-warning border-warning/20')}>
-        {b.status === 'confirmed' ? 'Reservering' : 'Optie'}
+      <Badge variant="secondary" className={cn('text-[11px] font-medium', b.isPast ? 'bg-muted text-muted-foreground' : b.status === 'confirmed' ? 'bg-success/10 text-success border-success/20' : 'bg-warning/10 text-warning border-warning/20')}>
+        {b.isPast ? 'Afgelopen' : b.status === 'confirmed' ? 'Reservering' : 'Optie'}
       </Badge>
     );
   };
@@ -350,7 +350,7 @@ export default function ReserveringenPage() {
             const allItems = [...upcoming, ...past];
             exportToCSV(allItems.map(b => ({
               nummer: b.reservationNumber || '',
-              status: b.status === 'confirmed' ? 'Reservering' : 'Optie',
+              status: b.isPast ? 'Afgelopen' : b.status === 'confirmed' ? 'Reservering' : 'Optie',
               voorbereiding: prepStatusLabel(b.preparationStatus),
               contact: b.contactName,
               bedrijf: b.company,
