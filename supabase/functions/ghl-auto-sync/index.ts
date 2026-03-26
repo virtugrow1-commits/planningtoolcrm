@@ -407,7 +407,9 @@ async function syncOpportunities(supabase: any, ghlHeaders: any, locationId: str
       return null;
     };
 
-    const recentThreshold = new Date(Date.now() - 2 * 60 * 1000).toISOString();
+    // CRM is the source of truth for status.
+    // GHL may only overwrite CRM status if GHL's own dateUpdated is NEWER than CRM's updated_at.
+    // This prevents auto-sync from reverting manual status changes made in the CRM.
     const seenGhlOppIds = new Set<string>();
 
     // 1. Pull GHL opportunities
@@ -432,42 +434,50 @@ async function syncOpportunities(supabase: any, ghlHeaders: any, locationId: str
         const existing = lookups.inquiryByGhlId.get(opp.id);
 
         if (existing) {
-          const crmRecentlyUpdated = existing.updated_at > recentThreshold;
-          const crmDiffers = existing.status !== ghlStatus || 
+          const crmDiffers = existing.status !== ghlStatus ||
                              existing.event_type !== (opp.name || 'Onbekend') ||
                              (existing.budget ? Number(existing.budget) : null) !== monetaryValue;
 
-          if (crmRecentlyUpdated && crmDiffers) {
-            // CRM wins → push to GHL
-            const targetStageId = findStageId(existing.status);
-            const updatePayload: any = {
-              name: existing.event_type,
-              monetaryValue: existing.budget || 0,
-              status: existing.status === 'lost' ? 'lost' : (existing.status === 'confirmed' || existing.status === 'converted') ? 'won' : 'open',
-            };
-            if (targetStageId) {
-              updatePayload.pipelineStageId = targetStageId;
-              if (pipeline) updatePayload.pipelineId = pipeline.id;
-            }
-            const pushRes = await fetch(`${GHL_API_BASE}/opportunities/${opp.id}`, {
-              method: 'PUT', headers: ghlHeaders, body: JSON.stringify(updatePayload),
-            });
-            if (pushRes.ok) {
-              console.log(`Pushed CRM -> GHL opp ${opp.id}: ${existing.status}`);
-              results.opportunities_pushed = (results.opportunities_pushed || 0) + 1;
+          if (crmDiffers) {
+            // Determine who changed last using GHL's own dateUpdated timestamp.
+            // If CRM updated_at is newer than GHL's dateUpdated → CRM wins (user made a manual change).
+            // If GHL dateUpdated is newer → GHL wins (change originated in GHL).
+            const ghlUpdatedAt = opp.dateUpdated || opp.dateAdded || null;
+            const crmIsNewer = !ghlUpdatedAt || existing.updated_at >= ghlUpdatedAt;
+
+            if (crmIsNewer) {
+              // CRM wins → push CRM status to GHL so they stay in sync
+              const targetStageId = findStageId(existing.status);
+              const updatePayload: any = {
+                name: existing.event_type,
+                monetaryValue: existing.budget || 0,
+                status: existing.status === 'lost' ? 'lost' : (existing.status === 'confirmed' || existing.status === 'converted') ? 'won' : 'open',
+              };
+              if (targetStageId) {
+                updatePayload.pipelineStageId = targetStageId;
+                if (pipeline) updatePayload.pipelineId = pipeline.id;
+              }
+              const pushRes = await fetch(`${GHL_API_BASE}/opportunities/${opp.id}`, {
+                method: 'PUT', headers: ghlHeaders, body: JSON.stringify(updatePayload),
+              });
+              if (pushRes.ok) {
+                console.log(`CRM -> GHL opp ${opp.id}: ${existing.status} (CRM updated_at: ${existing.updated_at}, GHL dateUpdated: ${ghlUpdatedAt})`);
+                results.opportunities_pushed = (results.opportunities_pushed || 0) + 1;
+              } else {
+                console.error(`Push to GHL failed for ${opp.id}: ${await pushRes.text()}`);
+              }
             } else {
-              console.error(`Push to GHL failed for ${opp.id}: ${await pushRes.text()}`);
-            }
-          } else if (crmDiffers) {
-            // GHL wins → update CRM
-            const { error: updateErr } = await supabase.from('inquiries').update({
-              contact_name: contactName,
-              status: ghlStatus,
-              budget: monetaryValue,
-              event_type: opp.name || 'Onbekend',
-            }).eq('id', existing.id);
-            if (!updateErr) {
-              console.log(`GHL -> CRM opp ${opp.id} -> ${ghlStatus} (stage: ${stageName})`);
+              // GHL wins → GHL has a more recent change, update CRM
+              // NOTE: only overwrite status if GHL explicitly changed it (not a CRM-to-GHL echo)
+              const { error: updateErr } = await supabase.from('inquiries').update({
+                contact_name: contactName,
+                status: ghlStatus,
+                budget: monetaryValue,
+                event_type: opp.name || 'Onbekend',
+              }).eq('id', existing.id);
+              if (!updateErr) {
+                console.log(`GHL -> CRM opp ${opp.id}: ${ghlStatus} (GHL dateUpdated: ${ghlUpdatedAt}, CRM updated_at: ${existing.updated_at})`);
+              }
             }
           }
         } else {
@@ -533,7 +543,7 @@ async function syncOpportunities(supabase: any, ghlHeaders: any, locationId: str
       .select('id, ghl_opportunity_id, status, event_type, budget, contact_name')
       .not('id', 'is', null)
       .not('ghl_opportunity_id', 'is', null)
-      .gt('updated_at', recentThreshold);
+      .gt('updated_at', new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString());
 
     for (const inq of recentlyChanged || []) {
       if (seenGhlOppIds.has(inq.ghl_opportunity_id)) continue;

@@ -476,19 +476,23 @@ async function handleOpportunityFromWebhookPayload(supabase: any, ghlHeaders: an
 
   if (!ghlOppId) { console.log('No GHL opportunity ID resolved'); return; }
 
-  const { data: existing } = await supabase.from('inquiries').select('id, updated_at').not('id', 'is', null).eq('ghl_opportunity_id', ghlOppId).maybeSingle();
+  const { data: existing } = await supabase.from('inquiries').select('id, updated_at, status').not('id', 'is', null).eq('ghl_opportunity_id', ghlOppId).maybeSingle();
 
   if (existing) {
-    // Skip update if CRM was recently changed (prevents echo: CRM→GHL→webhook→CRM)
-    const recentThreshold = new Date(Date.now() - 5 * 60 * 1000).toISOString();
-    if (existing.updated_at < recentThreshold) {
-      // CRM not recently touched → GHL is the source of truth, apply update
+    // CRM wins if its updated_at is newer than GHL's dateUpdated.
+    // This prevents webhooks (triggered by our own CRM→GHL push) from reverting CRM changes.
+    const ghlUpdatedAt = payload.dateUpdated || payload.date_updated || null;
+    const crmIsNewer = !ghlUpdatedAt || existing.updated_at >= ghlUpdatedAt;
+
+    if (crmIsNewer) {
+      // CRM was changed more recently than GHL → ignore this webhook (echo prevention)
+      console.log(`Webhook: Skipped opp ${ghlOppId} — CRM is newer (CRM: ${existing.updated_at}, GHL: ${ghlUpdatedAt})`);
+    } else {
+      // GHL change is genuinely newer → update CRM
       await supabase.from('inquiries').update({
         contact_name: contactName, status, budget: monetaryValue, event_type: eventType,
       }).eq('id', existing.id);
-      console.log(`Webhook: GHL -> CRM opp ${ghlOppId} -> ${status}`);
-    } else {
-      console.log(`Webhook: Skipped opp ${ghlOppId}, CRM recently updated (within 5min)`);
+      console.log(`Webhook: GHL -> CRM opp ${ghlOppId} -> ${status} (GHL: ${ghlUpdatedAt})`);
     }
   } else {
     // Try to link to existing contact
