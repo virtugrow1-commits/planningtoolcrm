@@ -584,8 +584,10 @@ async function syncOpportunities(supabase: any, ghlHeaders: any, locationId: str
               event_type: opp.name || 'Onbekend',
             }).eq('id', mergedExisting.id);
             console.log(`Auto-sync: Merged form inquiry ${mergedExisting.id} with GHL opp ${opp.id}`);
+            // Auto-enrich merged inquiry
+            await autoEnrichInquiry(supabase, ghlHeaders, locationId, opp.id, mergedExisting.id);
           } else {
-            const { error: insertErr } = await supabase.from('inquiries').upsert({
+            const { data: inserted, error: insertErr } = await supabase.from('inquiries').upsert({
               user_id: userId,
               ghl_opportunity_id: opp.id,
               contact_name: contactName,
@@ -598,9 +600,12 @@ async function syncOpportunities(supabase: any, ghlHeaders: any, locationId: str
               message: opp.notes || null,
               preferred_date: opp.date || null,
               room_preference: null,
-            }, { onConflict: 'ghl_opportunity_id', ignoreDuplicates: true });
+            }, { onConflict: 'ghl_opportunity_id', ignoreDuplicates: true }).select('id').maybeSingle();
             if (insertErr) {
               results.errors.push(`insert:${opp.id}:${insertErr.message}`);
+            } else if (inserted?.id) {
+              // Auto-enrich newly created inquiry with custom fields
+              await autoEnrichInquiry(supabase, ghlHeaders, locationId, opp.id, inserted.id);
             }
           }
         }
