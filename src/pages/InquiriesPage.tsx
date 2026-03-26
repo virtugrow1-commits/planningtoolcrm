@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useMemo, DragEvent } from 'react';
+import { useState, useCallback, useEffect, useMemo, useRef, DragEvent } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { format } from 'date-fns';
 import { nl } from 'date-fns/locale';
@@ -116,6 +116,7 @@ export default function InquiriesPage() {
   const [showArchived, setShowArchived] = useState(false);
   const [archivedSection, setArchivedSection] = useState<'verloren' | 'afgerond' | null>(null);
   const [expandedBookings, setExpandedBookings] = useState<Set<string>>(new Set());
+  const archiveRef = useRef<HTMLDivElement>(null);
   const toggleBookings = (key: string) => setExpandedBookings(prev => {
     const next = new Set(prev);
     if (next.has(key)) next.delete(key); else next.add(key);
@@ -453,7 +454,11 @@ export default function InquiriesPage() {
               Verlopen
             </button>
             <button
-              onClick={() => setArchivedSection(archivedSection === 'verloren' ? null : 'verloren')}
+              onClick={() => {
+                const next = archivedSection === 'verloren' ? null : 'verloren';
+                setArchivedSection(next);
+                if (next) setTimeout(() => archiveRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50);
+              }}
               className={cn(
                 'flex items-center gap-1.5 h-8 px-3 rounded-md border text-xs font-medium transition-colors',
                 archivedSection === 'verloren' ? 'bg-destructive/10 text-destructive border-destructive/30' : 'bg-background text-muted-foreground border-border hover:text-foreground'
@@ -463,7 +468,11 @@ export default function InquiriesPage() {
               Verloren ({lostInquiries.length})
             </button>
             <button
-              onClick={() => setArchivedSection(archivedSection === 'afgerond' ? null : 'afgerond')}
+              onClick={() => {
+                const next = archivedSection === 'afgerond' ? null : 'afgerond';
+                setArchivedSection(next);
+                if (next) setTimeout(() => archiveRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50);
+              }}
               className={cn(
                 'flex items-center gap-1.5 h-8 px-3 rounded-md border text-xs font-medium transition-colors',
                 archivedSection === 'afgerond' ? 'bg-success/10 text-success border-success/30' : 'bg-background text-muted-foreground border-border hover:text-foreground'
@@ -852,6 +861,128 @@ export default function InquiriesPage() {
       </div>
       )}
 
+      {/* ─── ARCHIEF MAPPEN ─── */}
+      <div ref={archiveRef} className="scroll-mt-4">
+      {([
+        { key: 'verloren' as const, label: 'Verloren aanvragen', items: lostInquiries, icon: 'lost', colorHeader: 'bg-destructive/5 hover:bg-destructive/10', colorBorder: 'border-destructive/20', exportName: 'verloren-aanvragen' },
+        { key: 'afgerond' as const, label: 'Afgeronde aanvragen', items: completedInquiries, icon: 'done', colorHeader: 'bg-success/5 hover:bg-success/10', colorBorder: 'border-success/20', exportName: 'afgeronde-aanvragen' },
+      ]).map(({ key, label, items, icon, colorHeader, colorBorder, exportName }) => (
+        <div key={key} className={cn("mt-2 rounded-xl border overflow-hidden bg-card card-shadow", colorBorder)}>
+          {/* Folder header — always visible, click to expand */}
+          <button
+            className={cn("w-full flex items-center justify-between px-5 py-3 border-b transition-colors text-left", colorHeader)}
+            onClick={() => setArchivedSection(archivedSection === key ? null : key)}
+          >
+            <div className="flex items-center gap-2">
+              {icon === 'lost'
+                ? <FolderX size={16} className="text-destructive" />
+                : <FolderCheck size={16} className="text-success" />}
+              <span className="text-sm font-semibold text-foreground">{label}</span>
+              <span className="text-xs text-muted-foreground ml-1">({items.length})</span>
+            </div>
+            <div className="flex items-center gap-2">
+              {items.length > 0 && (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    exportToCSV(
+                      items.map(inq => ({
+                        nummer: inq.displayNumber || '',
+                        contact: inq.contactName,
+                        type_evenement: inq.eventType,
+                        datum: inq.preferredDate || '',
+                        status: PIPELINE_COLUMNS.find(c => c.key === inq.status)?.label || inq.status,
+                        gasten: inq.guestCount,
+                        budget: inq.budget ? `€${inq.budget}` : '',
+                        bron: inq.source || '',
+                        aangemaakt: inq.createdAt,
+                        bericht: inq.message || '',
+                      })),
+                      [
+                        { key: 'nummer', label: 'Nummer' },
+                        { key: 'contact', label: 'Contact' },
+                        { key: 'type_evenement', label: 'Type evenement' },
+                        { key: 'datum', label: 'Gewenste datum' },
+                        { key: 'status', label: 'Status' },
+                        { key: 'gasten', label: 'Gasten' },
+                        { key: 'budget', label: 'Budget' },
+                        { key: 'bron', label: 'Bron' },
+                        { key: 'aangemaakt', label: 'Aangemaakt op' },
+                        { key: 'bericht', label: 'Bericht' },
+                      ],
+                      exportName
+                    );
+                  }}
+                  className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground px-2 py-1 rounded border border-border/50 hover:border-border transition-colors bg-background/80"
+                  title="Exporteer naar CSV"
+                >
+                  <Download size={12} /> Exporteer
+                </button>
+              )}
+              {archivedSection === key
+                ? <ChevronDown size={16} className="text-muted-foreground" />
+                : <ChevronRightIcon size={16} className="text-muted-foreground" />}
+            </div>
+          </button>
+
+          {/* Folder contents — only shown when open */}
+          {archivedSection === key && (
+            <div className="divide-y divide-border/40">
+              {items.length === 0 ? (
+                <p className="px-5 py-8 text-sm text-muted-foreground text-center">Geen aanvragen in deze map</p>
+              ) : (
+                items
+                  .slice()
+                  .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+                  .map((inq) => {
+                    const col = PIPELINE_COLUMNS.find(c => c.key === inq.status);
+                    return (
+                      <div
+                        key={inq.id}
+                        className="flex items-center justify-between px-5 py-3 hover:bg-muted/30 transition-colors gap-4 group"
+                      >
+                        <button
+                          onClick={() => navigate(`/inquiries/${inq.id}`)}
+                          className="flex items-center gap-3 min-w-0 flex-1 text-left"
+                        >
+                          <div className="min-w-0">
+                            <p className="text-sm font-medium text-foreground truncate">{inq.eventType}</p>
+                            <p className="text-xs text-muted-foreground">
+                              {inq.contactName}
+                              {inq.preferredDate && <span> · {inq.preferredDate}</span>}
+                              {inq.guestCount > 0 && <span> · {inq.guestCount} gasten</span>}
+                            </p>
+                          </div>
+                        </button>
+                        <div className="flex items-center gap-2 shrink-0">
+                          {inq.budget && (
+                            <span className="text-xs text-muted-foreground">€{inq.budget.toLocaleString('nl-NL')}</span>
+                          )}
+                          <span className={cn("inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold", col?.badgeClass)}>
+                            {col?.label || inq.status}
+                          </span>
+                          <span className="text-xs text-muted-foreground hidden sm:block">{inq.createdAt}</span>
+                          <button
+                            onClick={() => {
+                              updateInquiry({ ...inq, status: 'new' });
+                              toast({ title: 'Aanvraag teruggezet naar pipeline', description: inq.eventType });
+                            }}
+                            className="opacity-0 group-hover:opacity-100 text-xs text-primary hover:text-primary/80 font-medium px-2 py-1 rounded border border-border hover:border-primary/50 transition-all"
+                            title="Terug naar pipeline"
+                          >
+                            ↩ Herstel
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })
+              )}
+            </div>
+          )}
+        </div>
+      ))}
+      </div>
+
       {/* Schedule Dialog */}
       <Dialog open={scheduleOpen} onOpenChange={setScheduleOpen}>
         <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
@@ -1008,126 +1139,6 @@ export default function InquiriesPage() {
         </DialogContent>
       </Dialog>
 
-
-      {/* ─── ARCHIEF MAPPEN ─── */}
-      {([
-        { key: 'verloren' as const, label: 'Verloren aanvragen', items: lostInquiries, icon: 'lost', colorHeader: 'bg-destructive/5 hover:bg-destructive/10', colorBorder: 'border-destructive/20', exportName: 'verloren-aanvragen' },
-        { key: 'afgerond' as const, label: 'Afgeronde aanvragen', items: completedInquiries, icon: 'done', colorHeader: 'bg-success/5 hover:bg-success/10', colorBorder: 'border-success/20', exportName: 'afgeronde-aanvragen' },
-      ]).map(({ key, label, items, icon, colorHeader, colorBorder, exportName }) => (
-        <div key={key} className={cn("mt-2 rounded-xl border overflow-hidden bg-card card-shadow", colorBorder)}>
-          {/* Folder header — always visible, click to expand */}
-          <button
-            className={cn("w-full flex items-center justify-between px-5 py-3 border-b transition-colors text-left", colorHeader)}
-            onClick={() => setArchivedSection(archivedSection === key ? null : key)}
-          >
-            <div className="flex items-center gap-2">
-              {icon === 'lost'
-                ? <FolderX size={16} className="text-destructive" />
-                : <FolderCheck size={16} className="text-success" />}
-              <span className="text-sm font-semibold text-foreground">{label}</span>
-              <span className="text-xs text-muted-foreground ml-1">({items.length})</span>
-            </div>
-            <div className="flex items-center gap-2">
-              {items.length > 0 && (
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    exportToCSV(
-                      items.map(inq => ({
-                        nummer: inq.displayNumber || '',
-                        contact: inq.contactName,
-                        type_evenement: inq.eventType,
-                        datum: inq.preferredDate || '',
-                        status: PIPELINE_COLUMNS.find(c => c.key === inq.status)?.label || inq.status,
-                        gasten: inq.guestCount,
-                        budget: inq.budget ? `€${inq.budget}` : '',
-                        bron: inq.source || '',
-                        aangemaakt: inq.createdAt,
-                        bericht: inq.message || '',
-                      })),
-                      [
-                        { key: 'nummer', label: 'Nummer' },
-                        { key: 'contact', label: 'Contact' },
-                        { key: 'type_evenement', label: 'Type evenement' },
-                        { key: 'datum', label: 'Gewenste datum' },
-                        { key: 'status', label: 'Status' },
-                        { key: 'gasten', label: 'Gasten' },
-                        { key: 'budget', label: 'Budget' },
-                        { key: 'bron', label: 'Bron' },
-                        { key: 'aangemaakt', label: 'Aangemaakt op' },
-                        { key: 'bericht', label: 'Bericht' },
-                      ],
-                      exportName
-                    );
-                  }}
-                  className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground px-2 py-1 rounded border border-border/50 hover:border-border transition-colors bg-background/80"
-                  title="Exporteer naar CSV"
-                >
-                  <Download size={12} /> Exporteer
-                </button>
-              )}
-              {archivedSection === key
-                ? <ChevronDown size={16} className="text-muted-foreground" />
-                : <ChevronRightIcon size={16} className="text-muted-foreground" />}
-            </div>
-          </button>
-
-          {/* Folder contents — only shown when open */}
-          {archivedSection === key && (
-            <div className="divide-y divide-border/40">
-              {items.length === 0 ? (
-                <p className="px-5 py-8 text-sm text-muted-foreground text-center">Geen aanvragen in deze map</p>
-              ) : (
-                items
-                  .slice()
-                  .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
-                  .map((inq) => {
-                    const col = PIPELINE_COLUMNS.find(c => c.key === inq.status);
-                    return (
-                      <div
-                        key={inq.id}
-                        className="flex items-center justify-between px-5 py-3 hover:bg-muted/30 transition-colors gap-4 group"
-                      >
-                        <button
-                          onClick={() => navigate(`/inquiries/${inq.id}`)}
-                          className="flex items-center gap-3 min-w-0 flex-1 text-left"
-                        >
-                          <div className="min-w-0">
-                            <p className="text-sm font-medium text-foreground truncate">{inq.eventType}</p>
-                            <p className="text-xs text-muted-foreground">
-                              {inq.contactName}
-                              {inq.preferredDate && <span> · {inq.preferredDate}</span>}
-                              {inq.guestCount > 0 && <span> · {inq.guestCount} gasten</span>}
-                            </p>
-                          </div>
-                        </button>
-                        <div className="flex items-center gap-2 shrink-0">
-                          {inq.budget && (
-                            <span className="text-xs text-muted-foreground">€{inq.budget.toLocaleString('nl-NL')}</span>
-                          )}
-                          <span className={cn("inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold", col?.badgeClass)}>
-                            {col?.label || inq.status}
-                          </span>
-                          <span className="text-xs text-muted-foreground hidden sm:block">{inq.createdAt}</span>
-                          <button
-                            onClick={() => {
-                              updateInquiry({ ...inq, status: 'new' });
-                              toast({ title: 'Aanvraag teruggezet naar pipeline', description: inq.eventType });
-                            }}
-                            className="opacity-0 group-hover:opacity-100 text-xs text-primary hover:text-primary/80 font-medium px-2 py-1 rounded border border-border hover:border-primary/50 transition-all"
-                            title="Terug naar pipeline"
-                          >
-                            ↩ Herstel
-                          </button>
-                        </div>
-                      </div>
-                    );
-                  })
-              )}
-            </div>
-          )}
-        </div>
-      ))}
 
       {/* New Inquiry Dialog */}
       <NewInquiryDialog
