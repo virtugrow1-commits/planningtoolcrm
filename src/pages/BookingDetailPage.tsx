@@ -22,6 +22,7 @@ import { cn } from '@/lib/utils';
 import { InfoRow } from '@/components/detail/DetailPageComponents';
 import TasksSection from '@/components/detail/TasksSection';
 import TeamMemberSelect from '@/components/TeamMemberSelect';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 
 export default function BookingDetailPage() {
   const { id } = useParams<{ id: string }>();

@@ -17,7 +17,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import ActivityTimeline from '@/components/contact/ActivityTimeline';
 import TasksSection from '@/components/detail/TasksSection';
 import HistorySection from '@/components/detail/HistorySection';
-import { Contact } from '@/types/crm';
+import { Contact, ROOMS } from '@/types/crm';
 import { InfoField, SectionCard } from '@/components/detail/DetailPageComponents';
 
 import { useDocuments } from '@/hooks/useDocuments';
