@@ -398,7 +398,7 @@ export default function BookingDetailPage() {
           defaults={{ bookingId: booking.id, contactId: contact?.id, companyId: company?.id }}
         />
       </div>
-    </div>
+
       <AlertDialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -415,5 +415,6 @@ export default function BookingDetailPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+    </div>
   );
 }

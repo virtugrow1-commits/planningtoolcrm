@@ -451,7 +451,7 @@ export default function ContactDetailPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
+
       <AlertDialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -468,6 +468,7 @@ export default function ContactDetailPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+    </div>
   );
 }
 
