@@ -573,28 +573,26 @@ async function handleOpportunityFromWebhookPayload(supabase: any, ghlHeaders: an
           for (const cf of customFields) {
             const name = (cf.name || cf.fieldName || cf.key || '').toLowerCase();
             const value = cf.value || cf.fieldValue || '';
-            if (value) fieldMap[name] = String(value);
+            if (value) fieldMap[name || cf.id || ''] = String(value);
           }
 
-          const guestCount = parseInt(fieldMap['aantal gasten'] || fieldMap['guest_count'] || '0', 10) || 0;
-          const preferredDate = fieldMap['selecteer de gewenste datum'] || fieldMap['preferred_date'] || fieldMap['datum'] || null;
-          const roomPreference = fieldMap['gewenste zaalopstelling'] || fieldMap['room_preference'] || null;
-          const enrichedBudget = fieldMap['budget'] ? Number(fieldMap['budget']) : (opp.monetaryValue ? Number(opp.monetaryValue) : monetaryValue);
-          const enrichedEventType = fieldMap['type evenement'] || fieldMap['soort evenement'] || eventType;
+          // Fuzzy field lookup
+          const fuzzyFind = (...terms: string[]): string => {
+            for (const term of terms) { if (fieldMap[term]) return fieldMap[term]; }
+            for (const term of terms) { for (const [key, value] of Object.entries(fieldMap)) { if (key.includes(term) && value) return value; } }
+            return '';
+          };
 
-          const messageParts = [
-            fieldMap['kies je dagdeel'] ? `Dagdeel: ${fieldMap['kies je dagdeel']}` : '',
-            fieldMap['gewenste catering'] ? `Catering: ${fieldMap['gewenste catering']}` : '',
-            fieldMap['speciale benodigdheden'] ? `Speciale benodigdheden: ${fieldMap['speciale benodigdheden']}` : '',
-            fieldMap['na-zit gewenst?'] ? `Na-zit: ${fieldMap['na-zit gewenst?']}` : '',
-            fieldMap['extra informatie'] ? `Extra: ${fieldMap['extra informatie']}` : '',
-            fieldMap['opmerkingen'] ? `Opmerkingen: ${fieldMap['opmerkingen']}` : '',
-          ].filter(Boolean);
+          const guestCount = parseInt(fuzzyFind('aantal gasten', 'guest_count', 'guests', 'gasten') || '0', 10) || 0;
+          const preferredDate = fuzzyFind('gewenste datum', 'selecteer de gewenste datum', 'preferred_date', 'datum') || null;
+          const roomPreference = fuzzyFind('gewenste zaalopstelling', 'zaalopstelling', 'room_preference', 'zaal') || null;
+          const enrichedBudget = fuzzyFind('budget') ? Number(fuzzyFind('budget')) : (opp.monetaryValue ? Number(opp.monetaryValue) : monetaryValue);
+          const enrichedEventType = fuzzyFind('type evenement', 'type gelegenheid', 'soort evenement') || eventType;
 
-          // Add any extra custom fields
-          const knownKeys = new Set(['aantal gasten', 'guest_count', 'selecteer de gewenste datum', 'preferred_date', 'datum', 'gewenste zaalopstelling', 'room_preference', 'budget', 'kies je dagdeel', 'gewenste catering', 'speciale benodigdheden', 'na-zit gewenst?', 'extra informatie', 'opmerkingen', 'type evenement', 'soort evenement', 'service type']);
+          const messageParts: string[] = [];
+          const capitalize = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
           for (const [key, value] of Object.entries(fieldMap)) {
-            if (!knownKeys.has(key) && value) messageParts.push(`${key}: ${value}`);
+            if (value) messageParts.push(`${capitalize(key)}: ${value}`);
           }
 
           if (guestCount || preferredDate || roomPreference || messageParts.length > 0) {

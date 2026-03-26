@@ -154,14 +154,29 @@ Deno.serve(async (req) => {
 
     const contact = opp.contact || {};
 
-    // Map known fields
+    // Fuzzy field lookup: find a value by checking if any fieldMap key contains one of the search terms
+    const fuzzyFind = (...terms: string[]): string => {
+      for (const term of terms) {
+        // Exact match first
+        if (fieldMap[term]) return fieldMap[term];
+      }
+      // Partial match: check if any key contains one of the terms
+      for (const term of terms) {
+        for (const [key, value] of Object.entries(fieldMap)) {
+          if (key.includes(term) && value) return value;
+        }
+      }
+      return '';
+    };
+
+    // Map known fields using fuzzy matching
     const guestCount = parseInt(
-      fieldMap['aantal gasten'] || fieldMap['guest_count'] || fieldMap['guests'] || '0', 10
+      fuzzyFind('aantal gasten', 'guest_count', 'guests', 'gasten') || '0', 10
     ) || inquiry.guest_count || 0;
 
-    const preferredDate = fieldMap['selecteer de gewenste datum'] || fieldMap['preferred_date'] || fieldMap['datum'] || inquiry.preferred_date;
-    const roomPreference = fieldMap['gewenste zaalopstelling'] || fieldMap['room_preference'] || fieldMap['zaal'] || inquiry.room_preference;
-    const budget = fieldMap['budget'] ? Number(fieldMap['budget']) : (opp.monetaryValue ? Number(opp.monetaryValue) : inquiry.budget);
+    const preferredDate = fuzzyFind('gewenste datum', 'selecteer de gewenste datum', 'preferred_date', 'datum') || inquiry.preferred_date;
+    const roomPreference = fuzzyFind('gewenste zaalopstelling', 'zaalopstelling', 'room_preference', 'zaal') || inquiry.room_preference;
+    const budget = fuzzyFind('budget') ? Number(fuzzyFind('budget')) : (opp.monetaryValue ? Number(opp.monetaryValue) : inquiry.budget);
 
     // Build message from ALL custom fields so everything is visible in Klantinvoer
     const messageParts: string[] = [];
@@ -178,7 +193,7 @@ Deno.serve(async (req) => {
     const fullMessage = messageParts.join('\n').trim() || null;
 
     // Also get event type from custom fields if available
-    const eventType = fieldMap['type evenement'] || fieldMap['event_type'] || fieldMap['soort evenement'] || opp.name || inquiry.event_type;
+    const eventType = fuzzyFind('type evenement', 'type gelegenheid', 'event_type', 'soort evenement') || opp.name || inquiry.event_type;
 
     // Use opportunity source (e.g. "Snel een offerte (Klaar)") as inquiry source if available
     const enrichedSource = opp.source && opp.source !== 'GHL' ? opp.source : inquiry.source;
