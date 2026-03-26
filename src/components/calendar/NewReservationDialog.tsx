@@ -16,12 +16,6 @@ import { supabase } from '@/integrations/supabase/client';
 import { pushToGHL } from '@/lib/ghlSync';
 import { capitalizeWords } from '@/lib/utils';
 
-import { Calendar } from '@/components/ui/calendar';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { cn } from '@/lib/utils';
-import { format } from 'date-fns';
-import { nl } from 'date-fns/locale';
-
 export interface NewReservationForm {
   contactId: string;
   contactName: string;
@@ -119,6 +113,14 @@ export default function NewReservationDialog({
   const [creatingContact, setCreatingContact] = useState(false);
   const [contactForm, setContactForm] = useState<NewContactForm>(emptyContactForm);
   const [saving, setSaving] = useState(false);
+  const [adRandomDate, setAdRandomDate] = useState('');
+
+  const addAdRandomDate = () => {
+    if (adRandomDate && !form.specificDates.includes(adRandomDate)) {
+      setForm((prev) => ({ ...prev, specificDates: [...prev.specificDates, adRandomDate].sort() }));
+      setAdRandomDate('');
+    }
+  };
 
   // Reset form when dialog opens
   const [lastOpen, setLastOpen] = useState(false);
@@ -582,7 +584,7 @@ export default function NewReservationDialog({
               <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="eenmalig">Eenmalig</SelectItem>
-                <SelectItem value="specifiek">Specifieke datum</SelectItem>
+                <SelectItem value="specifiek">Ad random (vrije datums)</SelectItem>
                 <SelectItem value="week">Elke week</SelectItem>
                 <SelectItem value="2weken">Om de 2 weken</SelectItem>
                 <SelectItem value="maand">Elke maand</SelectItem>
@@ -592,48 +594,39 @@ export default function NewReservationDialog({
           </div>
           {form.repeatType === 'specifiek' && (
             <div className="grid gap-1.5">
-              <Label>Selecteer datums</Label>
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button variant="outline" className="justify-start text-left font-normal">
-                    {form.specificDates.length > 0
-                      ? `${form.specificDates.length} datum(s) geselecteerd`
-                      : 'Kies datums...'}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0" align="start">
-                  <Calendar
-                    mode="multiple"
-                    selected={form.specificDates.map((d) => {
-                      const [y, m, day] = d.split('-').map(Number);
-                      return new Date(y, m - 1, day);
-                    })}
-                    onSelect={(dates) => {
-                      const formatted = (dates || []).map((d) =>
-                        `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
-                      ).sort();
-                      setForm({ ...form, specificDates: formatted });
-                    }}
-                    locale={nl}
-                    className={cn("p-3 pointer-events-auto")}
-                  />
-                </PopoverContent>
-              </Popover>
+              <Label>Datums toevoegen</Label>
+              <div className="flex gap-2">
+                <Input
+                  type="date"
+                  value={adRandomDate}
+                  onChange={(e) => setAdRandomDate(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') { e.preventDefault(); addAdRandomDate(); }
+                  }}
+                  className="flex-1"
+                />
+                <Button variant="outline" size="icon" type="button" onClick={addAdRandomDate} disabled={!adRandomDate}>
+                  <Plus size={16} />
+                </Button>
+              </div>
               {form.specificDates.length > 0 && (
                 <div className="flex flex-wrap gap-1.5 mt-1">
                   {form.specificDates.map((d) => (
-                    <span key={d} className="inline-flex items-center gap-1 rounded-md bg-muted px-2 py-0.5 text-xs">
-                      {format(new Date(d + 'T12:00:00'), 'd MMM yyyy', { locale: nl })}
+                    <span key={d} className="inline-flex items-center gap-1 rounded-md bg-muted px-2 py-0.5 text-xs font-medium">
+                      {new Date(d + 'T12:00:00').toLocaleDateString('nl-NL', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })}
                       <button
                         type="button"
                         onClick={() => setForm({ ...form, specificDates: form.specificDates.filter((x) => x !== d) })}
-                        className="hover:text-destructive"
+                        className="ml-1 hover:text-destructive transition-colors"
                       >
                         <X size={12} />
                       </button>
                     </span>
                   ))}
                 </div>
+              )}
+              {form.specificDates.length === 0 && (
+                <p className="text-xs text-muted-foreground">Voeg één of meerdere losse datums toe.</p>
               )}
             </div>
           )}
