@@ -14,7 +14,6 @@ async function ghlFetch(url: string, opts: RequestInit = {}): Promise<Response> 
   const MAX_RETRIES = 7;
   for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
     if (attempt > 0) {
-      const retryAfterHeader = null; // will be set below after response
       const baseBackoff = Math.min(3000 * Math.pow(2, attempt - 1), 30000);
       const jitter = Math.floor(Math.random() * 2000);
       const backoff = baseBackoff + jitter;
@@ -779,8 +778,7 @@ Deno.serve(async (req) => {
       console.log(`[Delete Contact] Deleting GHL contact: ${ghl_contact_id}`);
 
       try {
-        // Single attempt — no retries for deletes to avoid rate-limit storms during bulk operations
-        const res = await fetch(`${GHL_API_BASE}/contacts/${ghl_contact_id}`, {
+        const res = await ghlFetch(`${GHL_API_BASE}/contacts/${ghl_contact_id}`, {
           method: 'DELETE',
           headers: ghlHeaders,
         });
@@ -824,7 +822,7 @@ Deno.serve(async (req) => {
       console.log(`[Delete Company] Deleting GHL company: ${ghl_company_id}`);
 
       try {
-        const res = await fetch(`${GHL_API_BASE}/companies/${ghl_company_id}`, {
+        const res = await ghlFetch(`${GHL_API_BASE}/companies/${ghl_company_id}`, {
           method: 'DELETE',
           headers: ghlHeaders,
         });
@@ -866,7 +864,7 @@ Deno.serve(async (req) => {
       console.log(`[Delete Task] Deleting GHL task: ${ghl_task_id}`);
 
       try {
-        const res = await fetch(`${GHL_API_BASE}/tasks/${ghl_task_id}`, {
+        const res = await ghlFetch(`${GHL_API_BASE}/tasks/${ghl_task_id}`, {
           method: 'DELETE',
           headers: ghlHeaders,
         });

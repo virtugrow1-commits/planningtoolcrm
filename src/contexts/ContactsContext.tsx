@@ -98,7 +98,8 @@ export function ContactsProvider({ children }: { children: ReactNode }) {
       .maybeSingle();
 
     if (existing) {
-      // Contact already exists, skip creation
+      // Contact already exists — inform user instead of silently ignoring
+      toast({ title: 'Contact bestaat al', description: `${capitalizeWords(contact.firstName)} ${capitalizeWords(contact.lastName)} staat al in het systeem.`, variant: 'destructive' });
       return;
     }
 

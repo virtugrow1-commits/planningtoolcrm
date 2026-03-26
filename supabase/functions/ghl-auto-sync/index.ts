@@ -202,25 +202,26 @@ async function syncCalendar(supabase: any, ghlHeaders: any, locationId: string, 
     const startDate = new Date(now); startDate.setDate(startDate.getDate() - 365);
     const endDate = new Date(now); endDate.setDate(endDate.getDate() + 365);
 
-    // Fetch all calendars in parallel
-    const eventPromises = calendars.map(async (cal: any) => {
+    // Fetch calendars sequentially to respect GHL rate limits
+    const allEvents: any[] = [];
+    for (const cal of calendars) {
       try {
+        await delay(300);
         const eventsUrl = `${GHL_API_BASE}/calendars/events?locationId=${locationId}&calendarId=${cal.id}&startTime=${startDate.getTime()}&endTime=${endDate.getTime()}`;
         const eventsRes = await fetch(eventsUrl, { headers: ghlHeaders });
         if (eventsRes.ok) {
           const eventsData = await eventsRes.json();
           const events = eventsData.events || [];
           console.log(`Calendar "${cal.name}": ${events.length} events`);
-          return events.map((e: any) => ({ ...e, calendarName: cal.name, calendarId: cal.id }));
+          allEvents.push(...events.map((e: any) => ({ ...e, calendarName: cal.name, calendarId: cal.id })));
+        } else if (eventsRes.status === 429) {
+          console.warn(`Calendar "${cal.name}" rate limited, waiting 5s...`);
+          await delay(5000);
         } else {
           console.error(`Calendar "${cal.name}" error: ${eventsRes.status}`);
-          return [];
         }
-      } catch (e) { console.error(`Calendar "${cal.name}" fetch error:`, e); return []; }
-    });
-
-    const eventArrays = await Promise.all(eventPromises);
-    const allEvents = eventArrays.flat();
+      } catch (e) { console.error(`Calendar "${cal.name}" fetch error:`, e); }
+    }
     console.log(`Total events from GHL: ${allEvents.length}`);
 
     // Load recently deleted GHL event IDs from sync_log to prevent re-import
@@ -412,7 +413,7 @@ async function syncOpportunities(supabase: any, ghlHeaders: any, locationId: str
     // 1. Pull GHL opportunities
     let page = 1;
     let hasMore = true;
-    while (hasMore && page <= 5) {
+    while (hasMore && page <= 20) {
       const oppRes = await fetch(`${GHL_API_BASE}/opportunities/search?location_id=${locationId}&limit=100&page=${page}`, { headers: ghlHeaders });
       if (!oppRes.ok) { console.error('Opp search error:', oppRes.status, await oppRes.text()); break; }
 

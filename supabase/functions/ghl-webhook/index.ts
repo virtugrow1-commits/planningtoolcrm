@@ -456,7 +456,8 @@ async function handleOpportunityFromWebhookPayload(supabase: any, ghlHeaders: an
     // Fallback: fetch from GHL API
     const res = await fetch(`${GHL_API_BASE}/opportunities/${oppId}`, { headers: ghlHeaders });
     if (!res.ok) { console.error('Fetch opp failed:', res.status); return; }
-    const opp = (await res.json()).opportunity || await res.json();
+    const rawJson = await res.json();
+    const opp = rawJson.opportunity || rawJson;
 
     const pipelinesRes = await fetch(`${GHL_API_BASE}/opportunities/pipelines?locationId=${locationId}`, { headers: ghlHeaders });
     const stageMap: Record<string, string> = {};
@@ -478,9 +479,10 @@ async function handleOpportunityFromWebhookPayload(supabase: any, ghlHeaders: an
   const { data: existing } = await supabase.from('inquiries').select('id, updated_at').not('id', 'is', null).eq('ghl_opportunity_id', ghlOppId).maybeSingle();
 
   if (existing) {
-    // Skip if CRM was updated in the last 5 minutes (prevents echo from CRM->GHL->webhook)
+    // Skip update if CRM was recently changed (prevents echo: CRM→GHL→webhook→CRM)
     const recentThreshold = new Date(Date.now() - 5 * 60 * 1000).toISOString();
-    if (existing.updated_at <= recentThreshold) {
+    if (existing.updated_at < recentThreshold) {
+      // CRM not recently touched → GHL is the source of truth, apply update
       await supabase.from('inquiries').update({
         contact_name: contactName, status, budget: monetaryValue, event_type: eventType,
       }).eq('id', existing.id);
@@ -753,7 +755,7 @@ async function handleInboundMessage(supabase: any, ghlHeaders: any, userId: stri
       direction,
       message_type: messageType,
       status: 'delivered',
-      date_added: new Date().toISOString(),
+      date_added: payload.dateAdded || payload.date_added || payload.createdAt || payload.created_at || new Date().toISOString(),
     }, { onConflict: 'ghl_message_id' });
   }
 

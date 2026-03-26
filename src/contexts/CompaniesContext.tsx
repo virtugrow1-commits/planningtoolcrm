@@ -136,24 +136,15 @@ export function CompaniesProvider({ children }: { children: ReactNode }) {
   }, [user, toast]);
 
   const updateCompany = useCallback(async (company: Company) => {
-    // GHL first: push to GHL before updating local DB
-    await pushToGHL('push-company', { company: {
-      id: company.id,
-      name: capitalizeWords(company.name),
-      email: company.email || null,
-      phone: company.phone || null,
-      website: company.website || null,
-      address: company.address || null,
-      city: company.city || null,
-      postcode: company.postcode || null,
-      country: company.country || null,
-      ghl_company_id: company.ghlCompanyId || null,
-    }}, {
-      entityType: 'company', entityId: company.id, actionType: 'update',
-    });
-    // Then update local DB
+    const normalizedName = capitalizeWords(company.name);
+    const updatedCompany = { ...company, name: normalizedName };
+
+    // Optimistic update: instantly reflect changes in UI
+    setCompanies((prev) => prev.map((c) => c.id === company.id ? updatedCompany : c));
+
+    // Update local DB
     const { error } = await (supabase as any).from('companies').update({
-      name: capitalizeWords(company.name),
+      name: normalizedName,
       email: company.email || null,
       phone: company.phone || null,
       website: company.website || null,
@@ -168,9 +159,29 @@ export function CompaniesProvider({ children }: { children: ReactNode }) {
       crm_group: company.crmGroup || null,
       btw_number: company.btwNumber || null,
     }).eq('id', company.id);
+
     if (error) {
+      // Rollback optimistic update on failure
+      setCompanies((prev) => prev.map((c) => c.id === company.id ? company : c));
       toast({ title: 'Fout bij bijwerken bedrijf', description: error.message, variant: 'destructive' });
+      return;
     }
+
+    // GHL push fire-and-forget (do not block the UI)
+    pushToGHL('push-company', { company: {
+      id: company.id,
+      name: normalizedName,
+      email: company.email || null,
+      phone: company.phone || null,
+      website: company.website || null,
+      address: company.address || null,
+      city: company.city || null,
+      postcode: company.postcode || null,
+      country: company.country || null,
+      ghl_company_id: company.ghlCompanyId || null,
+    }}, {
+      entityType: 'company', entityId: company.id, actionType: 'update',
+    }).catch(() => {});
   }, [toast]);
 
   const deleteCompany = useCallback(async (id: string) => {

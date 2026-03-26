@@ -71,6 +71,7 @@ export interface Booking {
   requirements?: string;
   preparationStatus?: 'pending' | 'info_waiting' | 'in_progress' | 'ready';
   assignedTo?: string;
+  ghlEventId?: string;
 }
 
 export interface DaySchedule {

@@ -70,6 +70,7 @@ export function BookingsProvider({ children }: { children: ReactNode }) {
       requirements: (b as any).requirements || undefined,
       preparationStatus: (b as any).preparation_status || 'pending',
       assignedTo: (b as any).assigned_to || undefined,
+      ghlEventId: (b as any).ghl_event_id || undefined,
     })));
     setLoading(false);
   }, [user, toast]);
@@ -244,6 +245,7 @@ export function BookingsProvider({ children }: { children: ReactNode }) {
         requirements: (data as any).requirements || undefined,
         preparationStatus: (data as any).preparation_status || 'pending',
         assignedTo: (data as any).assigned_to || undefined,
+        ghlEventId: (data as any).ghl_event_id || undefined,
       };
       setBookings(prev => [...prev, newBooking]);
 
@@ -355,6 +357,7 @@ export function BookingsProvider({ children }: { children: ReactNode }) {
       requirements: updated.requirements || null,
       preparation_status: updated.preparationStatus || 'pending',
       assigned_to: updated.assignedTo || null,
+      // Preserve ghl_event_id — never overwrite it during an update
     } as any).eq('id', updated.id).select().single();
     if (error) {
       toast({ title: 'Fout bij bijwerken boeking', description: error.message, variant: 'destructive' });
