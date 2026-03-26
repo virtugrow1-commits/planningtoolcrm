@@ -107,6 +107,7 @@ export function InquiriesProvider({ children }: { children: ReactNode }) {
       status: inquiry.status,
       source: inquiry.source,
       assigned_to: inquiry.assignedTo || null,
+      is_read: false,
     } as any).select('id').single();
     if (error) {
       toast({ title: 'Fout bij aanmaken aanvraag', description: error.message, variant: 'destructive' });

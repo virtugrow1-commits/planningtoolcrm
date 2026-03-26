@@ -292,6 +292,7 @@ export default function InquiryDetailPage() {
             title: resForm.title,
             contactName: resForm.contactName,
             contactId: resForm.contactId || undefined,
+            companyId: resForm.companyId || inquiry.companyId || undefined,
             status: resForm.status,
             notes: resForm.notes || undefined,
             guestCount: resForm.guestCount,

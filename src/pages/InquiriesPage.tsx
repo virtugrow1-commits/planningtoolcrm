@@ -3,7 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { format } from 'date-fns';
 import { nl } from 'date-fns/locale';
 import { Inquiry, Booking, ROOMS, RoomName } from '@/types/crm';
-import { Calendar as CalendarIcon, Users, Euro, GripVertical, Repeat, Plus, X, Check, LayoutGrid, List, Trash2, ArrowRight, AlertTriangle, Download, MapPin, MessageSquare, StickyNote, CheckSquare, Clock, Building2, FileText, Pencil, Eye, Search, ArrowUpDown, ArrowUp, ArrowDown, EyeOff } from 'lucide-react';
+import { Calendar as CalendarIcon, Users, Euro, GripVertical, Repeat, Plus, X, Check, LayoutGrid, List, Trash2, ArrowRight, AlertTriangle, Download, MapPin, MessageSquare, StickyNote, CheckSquare, Clock, Building2, FileText, Pencil, Eye, Search, ArrowUpDown, ArrowUp, ArrowDown, EyeOff, Archive, ChevronDown, ChevronRight as ChevronRightIcon, FolderX, FolderCheck } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useRoomSettings } from '@/hooks/useRoomSettings';
 import { useBookings } from '@/contexts/BookingsContext';
@@ -44,6 +44,10 @@ const PIPELINE_COLUMNS: { key: Inquiry['status']; label: string; colorClass: str
   { key: 'after_sales', label: 'After Sales', colorClass: 'border-t-success bg-success/5', badgeClass: 'status-converted' },
 ];
 
+// Statuses that live in the archive (out of main pipeline)
+const ARCHIVE_STATUSES = ['lost', 'converted', 'after_sales'] as const;
+const PIPELINE_ACTIVE_COLUMNS = PIPELINE_COLUMNS.filter(c => !ARCHIVE_STATUSES.includes(c.key as any));
+
 const HOURS = [...Array.from({ length: 17 }, (_, i) => i + 7), 0, 1];
 
 const RECURRENCE_OPTIONS = [
@@ -52,6 +56,7 @@ const RECURRENCE_OPTIONS = [
   { value: 'biweekly', label: 'Om de 2 weken' },
   { value: 'monthly', label: 'Elke maand' },
   { value: 'quarterly', label: 'Elk kwartaal' },
+  { value: 'adrandom', label: 'Ad random (vrije datums)' },
 ];
 
 const hourLabel = (h: number) => `${String(h).padStart(2, '0')}:00`;
@@ -106,6 +111,8 @@ export default function InquiriesPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [kanbanSort, setKanbanSort] = useState<'booking-nearest' | 'date-asc' | 'date-desc' | 'alpha-asc' | 'alpha-desc' | 'created-desc' | 'created-asc'>('booking-nearest');
   const [hidePast, setHidePast] = useState(false);
+  const [showArchived, setShowArchived] = useState(false);
+  const [archivedSection, setArchivedSection] = useState<'verloren' | 'afgerond' | null>(null);
   
   const navigate = useNavigate();
   const todayStr = useMemo(() => new Date().toISOString().split('T')[0], []);
@@ -131,9 +138,15 @@ export default function InquiriesPage() {
     return ids;
   }, [inquiries, bookings, todayStr]);
 
-  // Filtered inquiries based on search + hidePast
+  // Active inquiries (excluding archive statuses) 
+  const activeInquiries = useMemo(() => inquiries.filter(i => !ARCHIVE_STATUSES.includes(i.status as any)), [inquiries]);
+  // Archived inquiries split by type
+  const lostInquiries = useMemo(() => inquiries.filter(i => i.status === 'lost'), [inquiries]);
+  const completedInquiries = useMemo(() => inquiries.filter(i => i.status === 'converted' || i.status === 'after_sales'), [inquiries]);
+
+  // Filtered inquiries based on search + hidePast (only from active)
   const filteredInquiries = useMemo(() => {
-    let result = inquiries;
+    let result = activeInquiries;
     if (hidePast) {
       result = result.filter(inq => !pastOnlyInquiryIds.has(inq.id));
     }
@@ -154,7 +167,7 @@ export default function InquiriesPage() {
         (PIPELINE_COLUMNS.find(c => c.key === inq.status)?.label || '').toLowerCase().includes(q)
       );
     });
-  }, [inquiries, searchQuery, contacts, companies, hidePast, pastOnlyInquiryIds]);
+  }, [activeInquiries, searchQuery, contacts, companies, hidePast, pastOnlyInquiryIds]);
 
   // Map inquiry -> nearest upcoming booking date
   const nearestBookingByInquiry = useMemo(() => {
@@ -349,7 +362,8 @@ export default function InquiriesPage() {
 
     // Create actual bookings from date options
     const newBookings: Omit<Booking, 'id'>[] = [];
-    const recCount = recurrence !== 'none' ? Number(repeatCount) || 1 : 1;
+    // adrandom: each date option is already a distinct manual choice — no multiplication
+    const recCount = (recurrence !== 'none' && recurrence !== 'adrandom') ? Number(repeatCount) || 1 : 1;
 
     for (const opt of validOptions) {
       if (!opt.date || !opt.room) continue;
@@ -373,6 +387,8 @@ export default function InquiriesPage() {
           endMinute: 0,
           title: selectedInquiry.eventType,
           contactName: selectedInquiry.contactName,
+          contactId: selectedInquiry.contactId || undefined,
+          companyId: selectedInquiry.companyId || undefined,
           status: opt.status,
         });
       }
@@ -413,20 +429,42 @@ export default function InquiriesPage() {
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-foreground">Aanvragen Pipeline</h1>
-          <p className="text-sm text-muted-foreground">{filteredInquiries.length} van {inquiries.length} aanvragen · Sleep kaarten om de status te wijzigen</p>
+          <p className="text-sm text-muted-foreground">{filteredInquiries.length} van {activeInquiries.length} actief · {lostInquiries.length} verloren · {completedInquiries.length} afgerond · Sleep om status te wijzigen</p>
         </div>
         <div className="flex items-center gap-2">
-          <button
-            onClick={() => setHidePast(!hidePast)}
-            className={cn(
-              'flex items-center gap-1.5 h-8 px-3 rounded-md border text-xs font-medium transition-colors',
-              hidePast ? 'bg-primary text-primary-foreground border-primary' : 'bg-background text-muted-foreground border-border hover:text-foreground'
-            )}
-            title={hidePast ? 'Verlopen aanvragen zijn verborgen' : 'Verlopen aanvragen verbergen'}
-          >
-            <EyeOff size={12} />
-            Verberg verlopen
-          </button>
+          <div className="flex items-center gap-1.5">
+            <button
+              onClick={() => setHidePast(!hidePast)}
+              className={cn(
+                'flex items-center gap-1.5 h-8 px-3 rounded-md border text-xs font-medium transition-colors',
+                hidePast ? 'bg-primary text-primary-foreground border-primary' : 'bg-background text-muted-foreground border-border hover:text-foreground'
+              )}
+              title={hidePast ? 'Verlopen aanvragen zijn verborgen' : 'Verlopen aanvragen verbergen'}
+            >
+              <EyeOff size={12} />
+              Verlopen
+            </button>
+            <button
+              onClick={() => setArchivedSection(archivedSection === 'verloren' ? null : 'verloren')}
+              className={cn(
+                'flex items-center gap-1.5 h-8 px-3 rounded-md border text-xs font-medium transition-colors',
+                archivedSection === 'verloren' ? 'bg-destructive/10 text-destructive border-destructive/30' : 'bg-background text-muted-foreground border-border hover:text-foreground'
+              )}
+            >
+              <FolderX size={12} />
+              Verloren ({lostInquiries.length})
+            </button>
+            <button
+              onClick={() => setArchivedSection(archivedSection === 'afgerond' ? null : 'afgerond')}
+              className={cn(
+                'flex items-center gap-1.5 h-8 px-3 rounded-md border text-xs font-medium transition-colors',
+                archivedSection === 'afgerond' ? 'bg-success/10 text-success border-success/30' : 'bg-background text-muted-foreground border-border hover:text-foreground'
+              )}
+            >
+              <FolderCheck size={12} />
+              Afgerond ({completedInquiries.length})
+            </button>
+          </div>
           <div className="relative">
             <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
             <Input
@@ -519,7 +557,7 @@ export default function InquiriesPage() {
 
       {viewMode === 'cards' ? (
       <div className="flex gap-4 overflow-x-auto pb-4">
-        {PIPELINE_COLUMNS.map((col) => {
+        {PIPELINE_ACTIVE_COLUMNS.map((col) => {
           const items = sortKanbanItems(filteredInquiries.filter((inq) => inq.status === col.key));
           return (
             <div
@@ -901,7 +939,7 @@ export default function InquiriesPage() {
                   </SelectContent>
                 </Select>
               </div>
-              {recurrence !== 'none' && (
+              {recurrence !== 'none' && recurrence !== 'adrandom' && (
                 <div className="grid gap-1.5">
                   <Label className="text-xs">Aantal herhalingen</Label>
                   <Input type="number" min="1" max="52" value={repeatCount} onChange={(e) => setRepeatCount(e.target.value)} className="text-sm" />
@@ -918,6 +956,82 @@ export default function InquiriesPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+
+      {/* ─── ARCHIEF SECTIE ─── */}
+      {archivedSection && (
+        <div className="mt-2 rounded-xl border bg-card card-shadow overflow-hidden">
+          <div className={cn(
+            "flex items-center justify-between px-5 py-3 border-b",
+            archivedSection === 'verloren' ? "bg-destructive/5" : "bg-success/5"
+          )}>
+            <div className="flex items-center gap-2">
+              {archivedSection === 'verloren'
+                ? <FolderX size={16} className="text-destructive" />
+                : <FolderCheck size={16} className="text-success" />}
+              <h2 className="text-sm font-semibold text-foreground">
+                {archivedSection === 'verloren' ? 'Verloren aanvragen' : 'Afgeronde aanvragen'}
+              </h2>
+              <span className="text-xs text-muted-foreground ml-1">
+                ({archivedSection === 'verloren' ? lostInquiries.length : completedInquiries.length})
+              </span>
+            </div>
+            <button
+              onClick={() => setArchivedSection(null)}
+              className="text-muted-foreground hover:text-foreground transition-colors"
+            >
+              <X size={16} />
+            </button>
+          </div>
+          <div className="divide-y divide-border/50">
+            {(archivedSection === 'verloren' ? lostInquiries : completedInquiries).length === 0 ? (
+              <p className="px-5 py-8 text-sm text-muted-foreground text-center">
+                {archivedSection === 'verloren' ? 'Geen verloren aanvragen' : 'Geen afgeronde aanvragen'}
+              </p>
+            ) : (
+              (archivedSection === 'verloren' ? lostInquiries : completedInquiries)
+                .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+                .map((inq) => {
+                  const col = PIPELINE_COLUMNS.find(c => c.key === inq.status);
+                  return (
+                    <div
+                      key={inq.id}
+                      onClick={() => navigate(`/inquiries/${inq.id}`)}
+                      className="flex items-center justify-between px-5 py-3 hover:bg-muted/30 transition-colors cursor-pointer gap-4"
+                    >
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div className="min-w-0">
+                          <p className="text-sm font-medium text-foreground truncate">{inq.eventType}</p>
+                          <p className="text-xs text-muted-foreground">{inq.contactName}{inq.preferredDate ? ` · ${inq.preferredDate}` : ''}</p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-3 shrink-0">
+                        {inq.budget && (
+                          <span className="text-xs text-muted-foreground">€{inq.budget.toLocaleString('nl-NL')}</span>
+                        )}
+                        <span className={cn("inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold", col?.badgeClass)}>
+                          {col?.label || inq.status}
+                        </span>
+                        <span className="text-xs text-muted-foreground">{inq.createdAt}</span>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            updateInquiry({ ...inq, status: 'new' });
+                            toast({ title: 'Aanvraag teruggezet naar pipeline' });
+                          }}
+                          className="text-xs text-primary hover:text-primary/80 font-medium px-2 py-1 rounded border border-border hover:border-primary/50 transition-colors"
+                          title="Terug naar pipeline"
+                        >
+                          ↩ Herstel
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })
+            )}
+          </div>
+        </div>
+      )}
 
       {/* New Inquiry Dialog */}
       <NewInquiryDialog
