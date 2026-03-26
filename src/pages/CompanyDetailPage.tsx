@@ -75,8 +75,9 @@ export default function CompanyDetailPage() {
 
   const contactIds = useMemo(() => new Set(companyContacts.map((c) => c.id)), [companyContacts]);
 
-  const confirmedBookings = useMemo(() => bookings.filter((b) => (b.companyId === company?.id || (b.contactId && contactIds.has(b.contactId))) && b.status !== 'option'), [bookings, contactIds, company]);
-  const optionBookings = useMemo(() => bookings.filter((b) => (b.companyId === company?.id || (b.contactId && contactIds.has(b.contactId))) && b.status === 'option'), [bookings, contactIds, company]);
+  const todayStr = useMemo(() => new Date().toISOString().split('T')[0], []);
+  const confirmedBookings = useMemo(() => bookings.filter((b) => (b.companyId === company?.id || (b.contactId && contactIds.has(b.contactId))) && b.status !== 'option' && b.date >= todayStr).sort((a, b) => a.date.localeCompare(b.date)), [bookings, contactIds, company, todayStr]);
+  const optionBookings = useMemo(() => bookings.filter((b) => (b.companyId === company?.id || (b.contactId && contactIds.has(b.contactId))) && b.status === 'option' && b.date >= todayStr).sort((a, b) => a.date.localeCompare(b.date)), [bookings, contactIds, company, todayStr]);
   const companyInquiries = useMemo(() => inquiries.filter((i) => i.companyId === company?.id || (i.contactId && contactIds.has(i.contactId))), [inquiries, contactIds, company]);
   const companyTasks = useMemo(() => tasks.filter((t) => (t.contactId && contactIds.has(t.contactId)) || (t.companyId === company?.id)), [tasks, contactIds, company]);
 

@@ -6,6 +6,8 @@ import { useCompaniesContext } from '@/contexts/CompaniesContext';
 import { useTasksContext } from '@/contexts/TasksContext';
 import { useContactCompanies } from '@/hooks/useContactCompanies';
 import { useState, useMemo } from 'react';
+import { Skeleton } from '@/components/ui/skeleton';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
@@ -15,7 +17,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import ActivityTimeline from '@/components/contact/ActivityTimeline';
 import TasksSection from '@/components/detail/TasksSection';
 import HistorySection from '@/components/detail/HistorySection';
-import { Contact, ROOMS } from '@/types/crm';
+import { Contact } from '@/types/crm';
 import { InfoField, SectionCard } from '@/components/detail/DetailPageComponents';
 
 import { useDocuments } from '@/hooks/useDocuments';
@@ -40,6 +42,7 @@ export default function ContactDetailPage() {
   const contact = contacts.find((c) => c.id === id);
   const [editing, setEditing] = useState(false);
   const [form, setForm] = useState<Contact | null>(null);
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
 
   // Inquiry dialog
   const [inquiryOpen, setInquiryOpen] = useState(false);
@@ -47,11 +50,30 @@ export default function ContactDetailPage() {
 
   const contactInquiries = useMemo(() => contact ? inquiries.filter((i) => i.contactId === contact.id) : [], [inquiries, contact]);
   const contactBookings = useMemo(() => contact ? bookings.filter((b) => b.contactId === contact.id) : [], [bookings, contact]);
-  const confirmedBookings = useMemo(() => contactBookings.filter((b) => b.status !== 'option'), [contactBookings]);
-  const optionBookings = useMemo(() => contactBookings.filter((b) => b.status === 'option'), [contactBookings]);
+  const todayStr = useMemo(() => new Date().toISOString().split('T')[0], []);
+  const confirmedBookings = useMemo(() => contactBookings.filter((b) => b.status !== 'option' && b.date >= todayStr).sort((a, b) => a.date.localeCompare(b.date)), [contactBookings, todayStr]);
+  const optionBookings = useMemo(() => contactBookings.filter((b) => b.status === 'option' && b.date >= todayStr).sort((a, b) => a.date.localeCompare(b.date)), [contactBookings, todayStr]);
+  const pastBookings = useMemo(() => contactBookings.filter((b) => b.date < todayStr).sort((a, b) => b.date.localeCompare(a.date)), [contactBookings, todayStr]);
   
   const contactTasks = useMemo(() => contact ? tasks.filter((t) => t.contactId === contact.id) : [], [tasks, contact]);
   const contactDocuments = useMemo(() => contact ? documents.filter((d) => d.contactId === contact.id) : [], [documents, contact]);
+
+  const { loading } = useContactsContext();
+
+  if (loading) {
+    return (
+      <div className="p-6 lg:p-8 space-y-4">
+        <Skeleton className="h-4 w-32" />
+        <Skeleton className="h-10 w-64" />
+        <div className="flex flex-col lg:flex-row gap-6">
+          <Skeleton className="w-full lg:w-80 h-64 rounded-xl" />
+          <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-4">
+            {[...Array(4)].map((_, i) => <Skeleton key={i} className="h-32 rounded-xl" />)}
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   if (!contact) {
     return (
@@ -232,7 +254,7 @@ export default function ContactDetailPage() {
             <p className="text-xs text-muted-foreground pt-2">Aangemaakt: {current.createdAt}</p>
 
             {editing && (
-              <Button variant="destructive" size="sm" className="w-full mt-2" onClick={handleDelete}>
+              <Button variant="destructive" size="sm" className="w-full mt-2" onClick={() => setDeleteConfirmOpen(true)}>
                 Contact verwijderen
               </Button>
             )}
@@ -283,7 +305,7 @@ export default function ContactDetailPage() {
           </SectionCard>
 
           {/* Reserveringen */}
-          <SectionCard title="Reserveringen" linkLabel="Bekijk agenda" onLink={() => navigate('/calendar')}>
+          <SectionCard title="Reserveringen" count={confirmedBookings.length} linkLabel="Bekijk agenda" onLink={() => navigate('/calendar')}>
             {confirmedBookings.length === 0 ? (
               <p className="text-xs text-muted-foreground">Geen reserveringen</p>
             ) : (
@@ -430,6 +452,22 @@ export default function ContactDetailPage() {
         </DialogContent>
       </Dialog>
     </div>
+      <AlertDialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Contact verwijderen?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Weet je zeker dat je <strong>{contact.firstName} {contact.lastName}</strong> wilt verwijderen? Dit verwijdert ook alle gekoppelde data en kan niet ongedaan worden gemaakt.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annuleren</AlertDialogCancel>
+            <AlertDialogAction className="bg-destructive text-destructive-foreground hover:bg-destructive/90" onClick={handleDelete}>
+              Definitief verwijderen
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
   );
 }
 

@@ -310,7 +310,8 @@ export default function NewReservationDialog({
   const formatTimeValue = (h: number, m: number) =>
     `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
 
-  const isValid = (form.contactId || (creatingContact && contactForm.firstName && contactForm.lastName)) && form.room && form.date && form.title;
+  const endAfterStart = (form.endHour * 60 + form.endMinute) > (form.startHour * 60 + form.startMinute);
+  const isValid = (form.contactId || (creatingContact && contactForm.firstName && contactForm.lastName)) && form.room && form.date && form.title && endAfterStart;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -511,33 +512,40 @@ export default function NewReservationDialog({
           </div>
 
           {/* Times */}
-          <div className="grid grid-cols-2 gap-3">
-            <div className="grid gap-1.5">
-              <Label>Van</Label>
-              <Input
-                type="time"
-                value={formatTimeValue(form.startHour, form.startMinute)}
-                onChange={(e) => {
-                  const [h, m] = e.target.value.split(':').map(Number);
-                  if (!isNaN(h) && !isNaN(m)) {
-                    setForm({ ...form, startHour: h, startMinute: m });
-                  }
-                }}
-              />
+          <div className="grid gap-1.5">
+            <div className="grid grid-cols-2 gap-3">
+              <div className="grid gap-1.5">
+                <Label>Van</Label>
+                <Input
+                  type="time"
+                  value={formatTimeValue(form.startHour, form.startMinute)}
+                  onChange={(e) => {
+                    const [h, m] = e.target.value.split(':').map(Number);
+                    if (!isNaN(h) && !isNaN(m)) {
+                      setForm({ ...form, startHour: h, startMinute: m });
+                    }
+                  }}
+                />
+              </div>
+              <div className="grid gap-1.5">
+                <Label>Tot</Label>
+                <Input
+                  type="time"
+                  value={formatTimeValue(form.endHour, form.endMinute)}
+                  onChange={(e) => {
+                    const [h, m] = e.target.value.split(':').map(Number);
+                    if (!isNaN(h) && !isNaN(m)) {
+                      setForm({ ...form, endHour: h, endMinute: m });
+                    }
+                  }}
+                />
+              </div>
             </div>
-            <div className="grid gap-1.5">
-              <Label>Tot</Label>
-              <Input
-                type="time"
-                value={formatTimeValue(form.endHour, form.endMinute)}
-                onChange={(e) => {
-                  const [h, m] = e.target.value.split(':').map(Number);
-                  if (!isNaN(h) && !isNaN(m)) {
-                    setForm({ ...form, endHour: h, endMinute: m });
-                  }
-                }}
-              />
-            </div>
+            {!endAfterStart && form.endHour !== 0 && (
+              <p className="text-xs text-destructive flex items-center gap-1">
+                <AlertTriangle size={12} /> Eindtijd moet na begintijd liggen
+              </p>
+            )}
           </div>
 
           {/* Guest count & Room setup */}

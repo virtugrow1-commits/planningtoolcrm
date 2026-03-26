@@ -37,6 +37,7 @@ export default function BookingDetailPage() {
   const booking = bookings.find((b) => b.id === id);
   const [editing, setEditing] = useState(false);
   const [form, setForm] = useState<Booking | null>(null);
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
 
   const contact = useMemo(() => booking?.contactId ? contacts.find(c => c.id === booking.contactId) : null, [booking, contacts]);
   const company = useMemo(() => contact?.companyId ? companies.find(co => co.id === contact.companyId) : null, [contact, companies]);
@@ -217,7 +218,7 @@ export default function BookingDetailPage() {
                   <Button variant="outline" size="sm" className="flex-1" onClick={cancelEdit}>Annuleren</Button>
                   <Button size="sm" className="flex-1" onClick={saveEdit}>Opslaan</Button>
                 </div>
-                <Button variant="destructive" size="sm" className="w-full" onClick={handleDelete}><Trash2 size={14} className="mr-1" /> Reservering verwijderen</Button>
+                <Button variant="destructive" size="sm" className="w-full" onClick={() => setDeleteConfirmOpen(true)}><Trash2 size={14} className="mr-1" /> Reservering verwijderen</Button>
               </div>
             ) : (
               <div className="space-y-3 text-sm">
@@ -398,5 +399,21 @@ export default function BookingDetailPage() {
         />
       </div>
     </div>
+      <AlertDialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Reservering verwijderen?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Weet je zeker dat je <strong>{booking.title}</strong> ({booking.date}) wilt verwijderen? De reservering wordt ook verwijderd uit de externe planning.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annuleren</AlertDialogCancel>
+            <AlertDialogAction className="bg-destructive text-destructive-foreground hover:bg-destructive/90" onClick={handleDelete}>
+              Definitief verwijderen
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
   );
 }

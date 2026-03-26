@@ -23,6 +23,7 @@ import InquiryDetailsTab, { PIPELINE_COLUMNS } from '@/components/inquiry/Inquir
 import InquiryHistoryTab from '@/components/inquiry/InquiryHistoryTab';
 import TasksSection from '@/components/detail/TasksSection';
 import NewReservationDialog from '@/components/calendar/NewReservationDialog';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import ConflictAlertDialog from '@/components/calendar/ConflictAlertDialog';
 import { Booking } from '@/types/crm';
 
@@ -45,6 +46,7 @@ export default function InquiryDetailPage() {
   const [editing, setEditing] = useState(false);
   const [form, setForm] = useState<Inquiry | null>(null);
   const [showReservationDialog, setShowReservationDialog] = useState(false);
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [reportText, setReportText] = useState('');
   const [savingReport, setSavingReport] = useState(false);
   const [conflictPopup, setConflictPopup] = useState<{ conflicts: Booking[] } | null>(null);
@@ -169,7 +171,7 @@ export default function InquiryDetailPage() {
         company={company}
         onSave={saveEdit}
         onCancel={cancelEdit}
-        onDelete={handleDelete}
+        onDelete={() => setDeleteConfirmOpen(true)}
         onStartEdit={startEdit}
         onConvert={() => setShowReservationDialog(true)}
         refetch={refetch}
@@ -324,6 +326,23 @@ export default function InquiryDetailPage() {
           endTime: inquiry.preferredEndTime || undefined,
         }}
       />
+
+      <AlertDialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Aanvraag verwijderen?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Weet je zeker dat je <strong>{inquiry.eventType}</strong> van {inquiry.contactName} wilt verwijderen? De aanvraag wordt ook verwijderd uit VirtuGrow en kan niet worden teruggehaald.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annuleren</AlertDialogCancel>
+            <AlertDialogAction className="bg-destructive text-destructive-foreground hover:bg-destructive/90" onClick={handleDelete}>
+              Definitief verwijderen
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Conflict Alert Dialog */}
       <ConflictAlertDialog

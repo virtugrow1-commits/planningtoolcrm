@@ -15,6 +15,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { InfoRow, SectionCard } from '@/components/detail/DetailPageComponents';
 import TeamMemberSelect from '@/components/TeamMemberSelect';
 import { ArrowLeft, ChevronRight, Pencil, Check, X, CalendarIcon, User, Building2, FileText, Bookmark, CheckCircle2, Plus, Trash2 } from 'lucide-react';
@@ -40,6 +41,7 @@ export default function TaskDetailPage() {
 
   // Follow-up dialog
   const [showFollowUp, setShowFollowUp] = useState(false);
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [followTitle, setFollowTitle] = useState('');
   const [followPriority, setFollowPriority] = useState<Task['priority']>('normal');
   const [followDueDate, setFollowDueDate] = useState<Date | undefined>();
@@ -220,7 +222,7 @@ export default function TaskDetailPage() {
                   <p className="text-xs font-semibold text-muted-foreground mb-1">Verantwoordelijke</p>
                   <TeamMemberSelect value={form!.assignedTo} onValueChange={(v) => setForm({ ...form!, assignedTo: v })} />
                 </div>
-                <Button variant="destructive" size="sm" className="w-full mt-2" onClick={handleDelete}>
+                <Button variant="destructive" size="sm" className="w-full mt-2" onClick={() => setDeleteConfirmOpen(true)}>
                   <Trash2 size={14} className="mr-1" /> Taak verwijderen
                 </Button>
               </div>
@@ -369,5 +371,21 @@ export default function TaskDetailPage() {
         </DialogContent>
       </Dialog>
     </div>
+      <AlertDialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Taak verwijderen?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Weet je zeker dat je de taak <strong>{task.title}</strong> wilt verwijderen? Dit kan niet ongedaan worden gemaakt.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annuleren</AlertDialogCancel>
+            <AlertDialogAction className="bg-destructive text-destructive-foreground hover:bg-destructive/90" onClick={handleDelete}>
+              Definitief verwijderen
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
   );
 }

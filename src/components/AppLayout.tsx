@@ -31,6 +31,7 @@ import { Button } from '@/components/ui/button';
 const navItemDefs = [
   { to: '/', icon: LayoutDashboard, key: 'nav.dashboard' },
   { to: '/crm', icon: Users, key: 'nav.crm' },
+  { to: '/companies', icon: Building2, key: 'nav.companies' },
   { to: '/inquiries', icon: InboxIcon, key: 'nav.inquiries' },
   { to: '/reserveringen', icon: ClipboardList, key: 'nav.reserveringen' },
   { to: '/calendar', icon: CalendarDays, key: 'nav.calendar' },
