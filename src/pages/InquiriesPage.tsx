@@ -44,9 +44,11 @@ const PIPELINE_COLUMNS: { key: Inquiry['status']; label: string; colorClass: str
   { key: 'after_sales', label: 'After Sales', colorClass: 'border-t-success bg-success/5', badgeClass: 'status-converted' },
 ];
 
-// Statuses that live in the archive (out of main pipeline)
+// Statuses that are archived (shown as drop-zone columns only, no cards rendered inside)
 const ARCHIVE_STATUSES = ['lost', 'converted', 'after_sales'] as const;
-const PIPELINE_ACTIVE_COLUMNS = PIPELINE_COLUMNS.filter(c => !ARCHIVE_STATUSES.includes(c.key as any));
+// All columns shown in kanban — archive ones are drop-zones only
+const PIPELINE_ACTIVE_COLUMNS = PIPELINE_COLUMNS;
+const ARCHIVE_COLUMN_KEYS = ARCHIVE_STATUSES as readonly string[];
 
 const HOURS = [...Array.from({ length: 17 }, (_, i) => i + 7), 0, 1];
 
@@ -558,7 +560,11 @@ export default function InquiriesPage() {
       {viewMode === 'cards' ? (
       <div className="flex gap-4 overflow-x-auto pb-4">
         {PIPELINE_ACTIVE_COLUMNS.map((col) => {
-          const items = sortKanbanItems(filteredInquiries.filter((inq) => inq.status === col.key));
+          const isArchiveCol = ARCHIVE_COLUMN_KEYS.includes(col.key);
+          const items = isArchiveCol ? [] : sortKanbanItems(filteredInquiries.filter((inq) => inq.status === col.key));
+          const archiveCount = isArchiveCol
+            ? (col.key === 'lost' ? lostInquiries.length : completedInquiries.length)
+            : 0;
           return (
             <div
               key={col.key}
@@ -567,9 +573,31 @@ export default function InquiriesPage() {
               onDrop={(e) => handleDrop(e, col.key)}
             >
               <div className="mb-3 flex items-center justify-between">
-                <h3 className="text-sm font-semibold text-foreground">{col.label}</h3>
-                <span className="rounded-full bg-background px-2 py-0.5 text-xs font-medium text-muted-foreground">{items.length}</span>
+                <div className="flex items-center gap-1.5">
+                  {isArchiveCol && <Archive size={13} className="text-muted-foreground" />}
+                  <h3 className="text-sm font-semibold text-foreground">{col.label}</h3>
+                </div>
+                <span className="rounded-full bg-background px-2 py-0.5 text-xs font-medium text-muted-foreground">
+                  {isArchiveCol ? archiveCount : items.length}
+                </span>
               </div>
+              {isArchiveCol ? (
+                <div
+                  className="flex flex-col items-center justify-center min-h-[80px] rounded-lg border-2 border-dashed border-border/60 text-muted-foreground text-xs gap-1.5 cursor-default select-none"
+                  title="Sleep een aanvraag hiernaartoe om te archiveren"
+                >
+                  <Archive size={18} className="opacity-40" />
+                  <span className="opacity-60">Sleep hier om te archiveren</span>
+                  {archiveCount > 0 && (
+                    <button
+                      onClick={() => setArchivedSection(col.key === 'lost' ? 'verloren' : 'afgerond')}
+                      className="mt-1 text-primary hover:text-primary/80 font-medium underline underline-offset-2"
+                    >
+                      {archiveCount} bekijken →
+                    </button>
+                  )}
+                </div>
+              ) : null}
               <div className="space-y-2">
                 {items.map((inq) => {
                   const relatedBookings = bookings.filter(b =>
@@ -958,80 +986,125 @@ export default function InquiriesPage() {
       </Dialog>
 
 
-      {/* ─── ARCHIEF SECTIE ─── */}
-      {archivedSection && (
-        <div className="mt-2 rounded-xl border bg-card card-shadow overflow-hidden">
-          <div className={cn(
-            "flex items-center justify-between px-5 py-3 border-b",
-            archivedSection === 'verloren' ? "bg-destructive/5" : "bg-success/5"
-          )}>
+      {/* ─── ARCHIEF MAPPEN ─── */}
+      {([
+        { key: 'verloren' as const, label: 'Verloren aanvragen', items: lostInquiries, icon: 'lost', colorHeader: 'bg-destructive/5 hover:bg-destructive/10', colorBorder: 'border-destructive/20', exportName: 'verloren-aanvragen' },
+        { key: 'afgerond' as const, label: 'Afgeronde aanvragen', items: completedInquiries, icon: 'done', colorHeader: 'bg-success/5 hover:bg-success/10', colorBorder: 'border-success/20', exportName: 'afgeronde-aanvragen' },
+      ]).map(({ key, label, items, icon, colorHeader, colorBorder, exportName }) => (
+        <div key={key} className={cn("mt-2 rounded-xl border overflow-hidden bg-card card-shadow", colorBorder)}>
+          {/* Folder header — always visible, click to expand */}
+          <button
+            className={cn("w-full flex items-center justify-between px-5 py-3 border-b transition-colors text-left", colorHeader)}
+            onClick={() => setArchivedSection(archivedSection === key ? null : key)}
+          >
             <div className="flex items-center gap-2">
-              {archivedSection === 'verloren'
+              {icon === 'lost'
                 ? <FolderX size={16} className="text-destructive" />
                 : <FolderCheck size={16} className="text-success" />}
-              <h2 className="text-sm font-semibold text-foreground">
-                {archivedSection === 'verloren' ? 'Verloren aanvragen' : 'Afgeronde aanvragen'}
-              </h2>
-              <span className="text-xs text-muted-foreground ml-1">
-                ({archivedSection === 'verloren' ? lostInquiries.length : completedInquiries.length})
-              </span>
+              <span className="text-sm font-semibold text-foreground">{label}</span>
+              <span className="text-xs text-muted-foreground ml-1">({items.length})</span>
             </div>
-            <button
-              onClick={() => setArchivedSection(null)}
-              className="text-muted-foreground hover:text-foreground transition-colors"
-            >
-              <X size={16} />
-            </button>
-          </div>
-          <div className="divide-y divide-border/50">
-            {(archivedSection === 'verloren' ? lostInquiries : completedInquiries).length === 0 ? (
-              <p className="px-5 py-8 text-sm text-muted-foreground text-center">
-                {archivedSection === 'verloren' ? 'Geen verloren aanvragen' : 'Geen afgeronde aanvragen'}
-              </p>
-            ) : (
-              (archivedSection === 'verloren' ? lostInquiries : completedInquiries)
-                .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
-                .map((inq) => {
-                  const col = PIPELINE_COLUMNS.find(c => c.key === inq.status);
-                  return (
-                    <div
-                      key={inq.id}
-                      onClick={() => navigate(`/inquiries/${inq.id}`)}
-                      className="flex items-center justify-between px-5 py-3 hover:bg-muted/30 transition-colors cursor-pointer gap-4"
-                    >
-                      <div className="flex items-center gap-3 min-w-0">
-                        <div className="min-w-0">
-                          <p className="text-sm font-medium text-foreground truncate">{inq.eventType}</p>
-                          <p className="text-xs text-muted-foreground">{inq.contactName}{inq.preferredDate ? ` · ${inq.preferredDate}` : ''}</p>
+            <div className="flex items-center gap-2">
+              {items.length > 0 && (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    exportToCSV(
+                      items.map(inq => ({
+                        nummer: inq.displayNumber || '',
+                        contact: inq.contactName,
+                        type_evenement: inq.eventType,
+                        datum: inq.preferredDate || '',
+                        status: PIPELINE_COLUMNS.find(c => c.key === inq.status)?.label || inq.status,
+                        gasten: inq.guestCount,
+                        budget: inq.budget ? `€${inq.budget}` : '',
+                        bron: inq.source || '',
+                        aangemaakt: inq.createdAt,
+                        bericht: inq.message || '',
+                      })),
+                      [
+                        { key: 'nummer', label: 'Nummer' },
+                        { key: 'contact', label: 'Contact' },
+                        { key: 'type_evenement', label: 'Type evenement' },
+                        { key: 'datum', label: 'Gewenste datum' },
+                        { key: 'status', label: 'Status' },
+                        { key: 'gasten', label: 'Gasten' },
+                        { key: 'budget', label: 'Budget' },
+                        { key: 'bron', label: 'Bron' },
+                        { key: 'aangemaakt', label: 'Aangemaakt op' },
+                        { key: 'bericht', label: 'Bericht' },
+                      ],
+                      exportName
+                    );
+                  }}
+                  className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground px-2 py-1 rounded border border-border/50 hover:border-border transition-colors bg-background/80"
+                  title="Exporteer naar CSV"
+                >
+                  <Download size={12} /> Exporteer
+                </button>
+              )}
+              {archivedSection === key
+                ? <ChevronDown size={16} className="text-muted-foreground" />
+                : <ChevronRightIcon size={16} className="text-muted-foreground" />}
+            </div>
+          </button>
+
+          {/* Folder contents — only shown when open */}
+          {archivedSection === key && (
+            <div className="divide-y divide-border/40">
+              {items.length === 0 ? (
+                <p className="px-5 py-8 text-sm text-muted-foreground text-center">Geen aanvragen in deze map</p>
+              ) : (
+                items
+                  .slice()
+                  .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+                  .map((inq) => {
+                    const col = PIPELINE_COLUMNS.find(c => c.key === inq.status);
+                    return (
+                      <div
+                        key={inq.id}
+                        className="flex items-center justify-between px-5 py-3 hover:bg-muted/30 transition-colors gap-4 group"
+                      >
+                        <button
+                          onClick={() => navigate(`/inquiries/${inq.id}`)}
+                          className="flex items-center gap-3 min-w-0 flex-1 text-left"
+                        >
+                          <div className="min-w-0">
+                            <p className="text-sm font-medium text-foreground truncate">{inq.eventType}</p>
+                            <p className="text-xs text-muted-foreground">
+                              {inq.contactName}
+                              {inq.preferredDate && <span> · {inq.preferredDate}</span>}
+                              {inq.guestCount > 0 && <span> · {inq.guestCount} gasten</span>}
+                            </p>
+                          </div>
+                        </button>
+                        <div className="flex items-center gap-2 shrink-0">
+                          {inq.budget && (
+                            <span className="text-xs text-muted-foreground">€{inq.budget.toLocaleString('nl-NL')}</span>
+                          )}
+                          <span className={cn("inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold", col?.badgeClass)}>
+                            {col?.label || inq.status}
+                          </span>
+                          <span className="text-xs text-muted-foreground hidden sm:block">{inq.createdAt}</span>
+                          <button
+                            onClick={() => {
+                              updateInquiry({ ...inq, status: 'new' });
+                              toast({ title: 'Aanvraag teruggezet naar pipeline', description: inq.eventType });
+                            }}
+                            className="opacity-0 group-hover:opacity-100 text-xs text-primary hover:text-primary/80 font-medium px-2 py-1 rounded border border-border hover:border-primary/50 transition-all"
+                            title="Terug naar pipeline"
+                          >
+                            ↩ Herstel
+                          </button>
                         </div>
                       </div>
-                      <div className="flex items-center gap-3 shrink-0">
-                        {inq.budget && (
-                          <span className="text-xs text-muted-foreground">€{inq.budget.toLocaleString('nl-NL')}</span>
-                        )}
-                        <span className={cn("inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold", col?.badgeClass)}>
-                          {col?.label || inq.status}
-                        </span>
-                        <span className="text-xs text-muted-foreground">{inq.createdAt}</span>
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            updateInquiry({ ...inq, status: 'new' });
-                            toast({ title: 'Aanvraag teruggezet naar pipeline' });
-                          }}
-                          className="text-xs text-primary hover:text-primary/80 font-medium px-2 py-1 rounded border border-border hover:border-primary/50 transition-colors"
-                          title="Terug naar pipeline"
-                        >
-                          ↩ Herstel
-                        </button>
-                      </div>
-                    </div>
-                  );
-                })
-            )}
-          </div>
+                    );
+                  })
+              )}
+            </div>
+          )}
         </div>
-      )}
+      ))}
 
       {/* New Inquiry Dialog */}
       <NewInquiryDialog
