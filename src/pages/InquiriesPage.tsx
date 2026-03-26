@@ -45,7 +45,7 @@ const PIPELINE_COLUMNS: { key: Inquiry['status']; label: string; colorClass: str
 ];
 
 // Statuses that are archived (shown as drop-zone columns only, no cards rendered inside)
-const ARCHIVE_STATUSES = ['lost', 'converted', 'after_sales'] as const;
+const ARCHIVE_STATUSES = ['lost', 'converted'] as const;
 // All columns shown in kanban — archive ones are drop-zones only
 const PIPELINE_ACTIVE_COLUMNS = PIPELINE_COLUMNS;
 const ARCHIVE_COLUMN_KEYS = ARCHIVE_STATUSES as readonly string[];
@@ -151,7 +151,7 @@ export default function InquiriesPage() {
   const activeInquiries = useMemo(() => inquiries.filter(i => !ARCHIVE_STATUSES.includes(i.status as any)), [inquiries]);
   // Archived inquiries split by type
   const lostInquiries = useMemo(() => inquiries.filter(i => i.status === 'lost'), [inquiries]);
-  const completedInquiries = useMemo(() => inquiries.filter(i => i.status === 'converted' || i.status === 'after_sales'), [inquiries]);
+  const completedInquiries = useMemo(() => inquiries.filter(i => i.status === 'converted'), [inquiries]);
 
   // Filtered inquiries based on search + hidePast (only from active)
   const filteredInquiries = useMemo(() => {
