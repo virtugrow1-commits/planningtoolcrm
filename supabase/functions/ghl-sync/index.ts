@@ -646,7 +646,7 @@ Deno.serve(async (req) => {
       try {
         if (company.ghl_company_id) {
           // Update existing GHL company
-          const res = await ghlFetch(`${GHL_API_BASE}/companies/${company.ghl_company_id}`, {
+          const res = await ghlFetch(`${GHL_API_BASE}/businesses/${company.ghl_company_id}`, {
             method: 'PUT',
             headers: ghlHeaders,
             body: JSON.stringify(ghlPayload),
