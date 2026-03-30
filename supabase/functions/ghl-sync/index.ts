@@ -646,7 +646,7 @@ Deno.serve(async (req) => {
       try {
         if (company.ghl_company_id) {
           // Update existing GHL company
-          const res = await ghlFetch(`${GHL_API_BASE}/companies/${company.ghl_company_id}`, {
+          const res = await ghlFetch(`${GHL_API_BASE}/businesses/${company.ghl_company_id}`, {
             method: 'PUT',
             headers: ghlHeaders,
             body: JSON.stringify(ghlPayload),
@@ -661,14 +661,14 @@ Deno.serve(async (req) => {
           }
         } else {
           // Create new GHL company
-          const res = await ghlFetch(`${GHL_API_BASE}/companies/`, {
+          const res = await ghlFetch(`${GHL_API_BASE}/businesses/`, {
             method: 'POST',
             headers: ghlHeaders,
             body: JSON.stringify(ghlPayload),
           });
           if (res.ok) {
             const created = await res.json();
-            const newGhlId = created.company?.id;
+            const newGhlId = created.business?.id || created.company?.id;
             if (newGhlId) {
               await supabase.from('companies').update({
                 ghl_company_id: newGhlId,
@@ -822,7 +822,7 @@ Deno.serve(async (req) => {
       console.log(`[Delete Company] Deleting GHL company: ${ghl_company_id}`);
 
       try {
-        const res = await ghlFetch(`${GHL_API_BASE}/companies/${ghl_company_id}`, {
+        const res = await ghlFetch(`${GHL_API_BASE}/businesses/${ghl_company_id}`, {
           method: 'DELETE',
           headers: ghlHeaders,
         });
