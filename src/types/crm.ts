@@ -12,6 +12,10 @@ export interface Contact {
   notes?: string;
   ghlContactId?: string;
   departed?: boolean;
+  department?: string;
+  dmu?: string;
+  functionGroup?: string;
+  jobTitle?: string;
 }
 
 export interface Inquiry {

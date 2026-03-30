@@ -39,7 +39,7 @@ export default function CrmPage() {
   const [activeTab, setActiveTab] = useState<CrmTab>('contacts');
   const [search, setSearch] = useState('');
   const [newOpen, setNewOpen] = useState(false);
-  const [newContact, setNewContact] = useState<Omit<Contact, 'id' | 'createdAt'>>({ firstName: '', lastName: '', email: '', phone: '', status: 'lead' });
+  const [newContact, setNewContact] = useState<Omit<Contact, 'id' | 'createdAt'>>({ firstName: '', lastName: '', email: '', phone: '', status: 'lead', department: '', dmu: '', functionGroup: '', jobTitle: '' });
   const [newCompanyOpen, setNewCompanyOpen] = useState(false);
   const [newCompany, setNewCompany] = useState({ name: '', email: '', phone: '', website: '', address: '', city: '', postcode: '', kvk: '', notes: '' });
   const [filters, setFilters] = useState<Record<FilterKey, string>>({ status: '', company: '' });
@@ -141,7 +141,7 @@ export default function CrmPage() {
     }
     await addContact({ ...newContact, companyId });
     setNewOpen(false);
-    setNewContact({ firstName: '', lastName: '', email: '', phone: '', status: 'lead' });
+    setNewContact({ firstName: '', lastName: '', email: '', phone: '', status: 'lead', department: '', dmu: '', functionGroup: '', jobTitle: '' });
     toast({ title: 'Contact aangemaakt' });
   };
 
@@ -425,6 +425,14 @@ export default function CrmPage() {
             <div className="grid gap-1.5"><Label>Email</Label><Input type="email" value={newContact.email} onChange={(e) => setNewContact({ ...newContact, email: e.target.value })} /></div>
             <div className="grid gap-1.5"><Label>Telefoon</Label><Input value={newContact.phone} onChange={(e) => setNewContact({ ...newContact, phone: e.target.value })} /></div>
             <div className="grid gap-1.5"><Label>Bedrijf</Label><Input value={newContact.company || ''} onChange={(e) => setNewContact({ ...newContact, company: e.target.value || undefined })} /></div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="grid gap-1.5"><Label>Afdelingsnaam</Label><Input value={newContact.department || ''} onChange={(e) => setNewContact({ ...newContact, department: e.target.value || undefined })} /></div>
+              <div className="grid gap-1.5"><Label>DMU</Label><Input value={newContact.dmu || ''} onChange={(e) => setNewContact({ ...newContact, dmu: e.target.value || undefined })} /></div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="grid gap-1.5"><Label>Functiegroep</Label><Input value={newContact.functionGroup || ''} onChange={(e) => setNewContact({ ...newContact, functionGroup: e.target.value || undefined })} /></div>
+              <div className="grid gap-1.5"><Label>Functie</Label><Input value={newContact.jobTitle || ''} onChange={(e) => setNewContact({ ...newContact, jobTitle: e.target.value || undefined })} /></div>
+            </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setNewOpen(false)}>Annuleren</Button>
