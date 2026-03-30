@@ -668,7 +668,7 @@ Deno.serve(async (req) => {
           });
           if (res.ok) {
             const created = await res.json();
-            const newGhlId = created.company?.id;
+            const newGhlId = created.business?.id || created.company?.id;
             if (newGhlId) {
               await supabase.from('companies').update({
                 ghl_company_id: newGhlId,
