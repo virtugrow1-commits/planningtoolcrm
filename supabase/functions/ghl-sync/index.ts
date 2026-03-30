@@ -661,7 +661,7 @@ Deno.serve(async (req) => {
           }
         } else {
           // Create new GHL company
-          const res = await ghlFetch(`${GHL_API_BASE}/companies/`, {
+          const res = await ghlFetch(`${GHL_API_BASE}/businesses/`, {
             method: 'POST',
             headers: ghlHeaders,
             body: JSON.stringify(ghlPayload),
