@@ -66,6 +66,10 @@ export function ContactsProvider({ children }: { children: ReactNode }) {
       notes: c.notes || undefined,
       ghlContactId: c.ghl_contact_id || undefined,
       departed: (c as any).departed || false,
+      department: (c as any).department || undefined,
+      dmu: (c as any).dmu || undefined,
+      functionGroup: (c as any).function_group || undefined,
+      jobTitle: (c as any).job_title || undefined,
     })));
     setLoading(false);
   }, [user, toast]);
@@ -114,6 +118,10 @@ export function ContactsProvider({ children }: { children: ReactNode }) {
       status: contact.status,
       notes: contact.notes || null,
       ghl_contact_id: contact.ghlContactId || null,
+      department: contact.department || null,
+      dmu: contact.dmu || null,
+      function_group: contact.functionGroup || null,
+      job_title: contact.jobTitle || null,
     } as any).select().single();
     if (error) {
       toast({ title: 'Fout bij aanmaken contact', description: error.message, variant: 'destructive' });
@@ -151,6 +159,10 @@ export function ContactsProvider({ children }: { children: ReactNode }) {
       notes: contact.notes || null,
       ghl_contact_id: contact.ghlContactId || null,
       departed: contact.departed || false,
+      department: contact.department || null,
+      dmu: contact.dmu || null,
+      function_group: contact.functionGroup || null,
+      job_title: contact.jobTitle || null,
     } as any).eq('id', contact.id);
     if (error) {
       toast({ title: 'Fout bij bijwerken contact', description: error.message, variant: 'destructive' });

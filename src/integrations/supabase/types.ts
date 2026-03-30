@@ -262,11 +262,15 @@ export type Database = {
           company_id: string | null
           created_at: string
           departed: boolean
+          department: string | null
           display_number: string | null
+          dmu: string | null
           email: string | null
           first_name: string
+          function_group: string | null
           ghl_contact_id: string | null
           id: string
+          job_title: string | null
           last_name: string
           notes: string | null
           phone: string | null
@@ -279,11 +283,15 @@ export type Database = {
           company_id?: string | null
           created_at?: string
           departed?: boolean
+          department?: string | null
           display_number?: string | null
+          dmu?: string | null
           email?: string | null
           first_name: string
+          function_group?: string | null
           ghl_contact_id?: string | null
           id?: string
+          job_title?: string | null
           last_name: string
           notes?: string | null
           phone?: string | null
@@ -296,11 +304,15 @@ export type Database = {
           company_id?: string | null
           created_at?: string
           departed?: boolean
+          department?: string | null
           display_number?: string | null
+          dmu?: string | null
           email?: string | null
           first_name?: string
+          function_group?: string | null
           ghl_contact_id?: string | null
           id?: string
+          job_title?: string | null
           last_name?: string
           notes?: string | null
           phone?: string | null

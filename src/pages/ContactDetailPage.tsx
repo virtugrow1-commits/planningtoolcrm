@@ -197,6 +197,10 @@ export default function ContactDetailPage() {
             <InfoField icon={<User size={14} />} label="Achternaam" value={current.lastName} editing={editing} onChange={(v) => setForm({ ...form!, lastName: v })} />
             <InfoField icon={<Mail size={14} />} label="Email" value={current.email} editing={editing} type="email" onChange={(v) => setForm({ ...form!, email: v })} />
             <InfoField icon={<Phone size={14} />} label="Telefoon" value={current.phone} editing={editing} onChange={(v) => setForm({ ...form!, phone: v })} />
+            <InfoField icon={<User size={14} />} label="Afdelingsnaam" value={current.department || ''} editing={editing} onChange={(v) => setForm({ ...form!, department: v || undefined })} />
+            <InfoField icon={<User size={14} />} label="DMU" value={current.dmu || ''} editing={editing} onChange={(v) => setForm({ ...form!, dmu: v || undefined })} />
+            <InfoField icon={<User size={14} />} label="Functiegroep" value={current.functionGroup || ''} editing={editing} onChange={(v) => setForm({ ...form!, functionGroup: v || undefined })} />
+            <InfoField icon={<User size={14} />} label="Functie" value={current.jobTitle || ''} editing={editing} onChange={(v) => setForm({ ...form!, jobTitle: v || undefined })} />
             <CompanyField
               current={current}
               editing={editing}
