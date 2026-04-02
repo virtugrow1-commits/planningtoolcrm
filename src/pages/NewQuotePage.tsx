@@ -36,6 +36,8 @@ export default function NewQuotePage() {
   });
 
   const [lineItems, setLineItems] = useState<LineItem[]>([]);
+  const [pdfUrl, setPdfUrl] = useState<string | null>(null);
+  const [overlayFields, setOverlayFields] = useState<OverlayField[]>([]);
 
   const handleContactSelect = (
     contactId: string,
