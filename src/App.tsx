@@ -64,6 +64,9 @@ function ProtectedRoutes() {
                   <Route path="/inquiries" element={<InquiriesPage />} />
                   <Route path="/inquiries/:id" element={<InquiryDetailPage />} />
                   <Route path="/tasks/:id" element={<TaskDetailPage />} />
+                  <Route path="/quotes" element={<QuotesPage />} />
+                  <Route path="/quotes/new" element={<NewQuotePage />} />
+                  <Route path="/quotes/:id" element={<QuoteDetailPage />} />
                   <Route path="/reserveringen" element={<ReserveringenPage />} />
                   <Route path="/reserveringen/:id" element={<BookingDetailPage />} />
                   
