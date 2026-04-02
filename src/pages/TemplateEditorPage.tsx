@@ -39,6 +39,7 @@ export default function TemplateEditorPage() {
       const cb = tpl.contentBlocks as any;
       setBlocks(cb?.blocks || []);
       setPdfBackgroundUrl(cb?.pdfBackgroundUrl || null);
+      setCustomFonts(cb?.customFonts || []);
     }
   }, [id, templates, loading]);
 
