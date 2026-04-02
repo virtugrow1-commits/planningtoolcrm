@@ -24,6 +24,7 @@ export default function TemplateEditorPage() {
   const [termsAndConditions, setTermsAndConditions] = useState('');
   const [blocks, setBlocks] = useState<TemplateBlock[]>([]);
   const [pdfBackgroundUrl, setPdfBackgroundUrl] = useState<string | null>(null);
+  const [customFonts, setCustomFonts] = useState<CustomFont[]>([]);
 
   const isEdit = !!id;
 
