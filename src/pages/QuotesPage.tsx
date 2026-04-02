@@ -192,6 +192,52 @@ export default function QuotesPage() {
             </Table>
           </Card>
         </TabsContent>
+
+        <TabsContent value="templates" className="mt-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {tLoading ? (
+              <p className="text-muted-foreground col-span-full text-center py-8">Laden...</p>
+            ) : templates.length === 0 ? (
+              <Card className="col-span-full">
+                <CardContent className="py-12 text-center">
+                  <Layout size={32} className="mx-auto text-muted-foreground mb-3" />
+                  <p className="text-muted-foreground">Nog geen sjablonen aangemaakt.</p>
+                  <Button variant="outline" className="mt-4 gap-1.5" onClick={() => navigate('/templates/new')}>
+                    <Plus size={14} /> Eerste sjabloon maken
+                  </Button>
+                </CardContent>
+              </Card>
+            ) : (
+              templates.map((tpl) => (
+                <Card key={tpl.id} className="cursor-pointer hover:ring-1 hover:ring-primary/30 transition-all" onClick={() => navigate(`/templates/${tpl.id}`)}>
+                  <CardContent className="p-4">
+                    <div className="flex items-start justify-between">
+                      <div>
+                        <p className="font-medium text-foreground">{tpl.name}</p>
+                        {tpl.description && <p className="text-xs text-muted-foreground mt-0.5">{tpl.description}</p>}
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7 text-muted-foreground hover:text-destructive"
+                        onClick={async (e) => {
+                          e.stopPropagation();
+                          const ok = await deleteTemplate(tpl.id);
+                          if (ok) toast({ title: 'Sjabloon verwijderd' });
+                        }}
+                      >
+                        <Trash2 size={14} />
+                      </Button>
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-2">
+                      {format(new Date(tpl.createdAt), 'dd MMM yyyy', { locale: nl })}
+                    </p>
+                  </CardContent>
+                </Card>
+              ))
+            )}
+          </div>
+        </TabsContent>
       </Tabs>
     </div>
   );
