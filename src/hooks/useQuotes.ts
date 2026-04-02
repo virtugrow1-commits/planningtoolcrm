@@ -169,6 +169,7 @@ export function useQuotes() {
     }
     await fetchQuotes();
     return true;
+  }, [fetchQuotes]);
 
   const getQuoteWithItems = useCallback(async (id: string): Promise<Quote | null> => {
     const { data: q, error } = await supabase.from('quotes').select('*').eq('id', id).single();
