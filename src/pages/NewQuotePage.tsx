@@ -20,6 +20,7 @@ import { useToast } from '@/hooks/use-toast';
 export default function NewQuotePage() {
   const navigate = useNavigate();
   const { createQuote } = useQuotes();
+  const { templates } = useQuoteTemplates();
   const { toast } = useToast();
   const [saving, setSaving] = useState(false);
 
