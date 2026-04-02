@@ -59,6 +59,17 @@ export default function NewQuotePage() {
     }));
   };
 
+  const handleTemplateSelect = (templateId: string) => {
+    const tpl = templates.find(t => t.id === templateId);
+    if (!tpl) return;
+    const content = tpl.contentBlocks as any;
+    if (content?.pdfUrl) setPdfUrl(content.pdfUrl);
+    if (content?.overlayFields) setOverlayFields(content.overlayFields);
+    if (tpl.termsAndConditions) {
+      setForm(prev => ({ ...prev, termsAndConditions: tpl.termsAndConditions || '' }));
+    }
+  };
+
   const handleSave = async () => {
     if (!form.contactName) {
       toast({ title: 'Vul een contactpersoon in', variant: 'destructive' });
