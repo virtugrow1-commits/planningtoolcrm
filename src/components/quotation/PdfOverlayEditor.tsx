@@ -127,8 +127,8 @@ export default function PdfOverlayEditor({
       toast({ title: 'Alleen PDF-bestanden zijn toegestaan', variant: 'destructive' });
       return;
     }
-    if (file.size > 10 * 1024 * 1024) {
-      toast({ title: 'Bestand is te groot (max 10MB)', variant: 'destructive' });
+    if (file.size > 25 * 1024 * 1024) {
+      toast({ title: 'Bestand is te groot (max 25MB)', variant: 'destructive' });
       return;
     }
 
