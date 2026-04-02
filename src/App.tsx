@@ -22,6 +22,7 @@ import QuotesPage from "@/pages/QuotesPage";
 import NewQuotePage from "@/pages/NewQuotePage";
 import QuoteDetailPage from "@/pages/QuoteDetailPage";
 import AuthPage from "@/pages/AuthPage";
+import PublicQuotePage from "@/pages/PublicQuotePage";
 import NotFound from "./pages/NotFound";
 import { BookingsProvider } from "@/contexts/BookingsContext";
 import { ContactsProvider } from "@/contexts/ContactsContext";
