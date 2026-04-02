@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, FileText, Search, Filter } from 'lucide-react';
+import { Plus, FileText, Search, Layout, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
@@ -8,9 +8,11 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useQuotes } from '@/hooks/useQuotes';
 import { useInvoices } from '@/hooks/useInvoices';
+import { useQuoteTemplates } from '@/hooks/useQuoteTemplates';
 import QuoteStatusBadge from '@/components/quotation/QuoteStatusBadge';
 import { format } from 'date-fns';
 import { nl } from 'date-fns/locale';
+import { useToast } from '@/hooks/use-toast';
 
 export default function QuotesPage() {
   const navigate = useNavigate();
