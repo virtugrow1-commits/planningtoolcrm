@@ -1,12 +1,14 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Send, Copy, ExternalLink, FileText, Trash2 } from 'lucide-react';
+import { ArrowLeft, Send, Copy, ExternalLink, FileText, Trash2, Save } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useQuotes } from '@/hooks/useQuotes';
 import { useInvoices } from '@/hooks/useInvoices';
 import QuoteStatusBadge from '@/components/quotation/QuoteStatusBadge';
 import LineItemsEditor from '@/components/quotation/LineItemsEditor';
+import PdfOverlayEditor from '@/components/quotation/PdfOverlayEditor';
+import type { OverlayField } from '@/components/quotation/PdfOverlayEditor';
 import type { Quote } from '@/types/quotation';
 import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
@@ -15,9 +17,12 @@ import { nl } from 'date-fns/locale';
 export default function QuoteDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { getQuoteWithItems, updateQuoteStatus } = useQuotes();
+  const { getQuoteWithItems, updateQuoteStatus, updateQuote } = useQuotes();
   const { createInvoiceFromQuote } = useInvoices();
   const { toast } = useToast();
+  const [pdfUrl, setPdfUrl] = useState<string | null>(null);
+  const [overlayFields, setOverlayFields] = useState<OverlayField[]>([]);
+  const [pdfDirty, setPdfDirty] = useState(false);
   const [quote, setQuote] = useState<Quote | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -25,6 +30,8 @@ export default function QuoteDetailPage() {
     if (!id) return;
     getQuoteWithItems(id).then((q) => {
       setQuote(q);
+      setPdfUrl(q?.pdfUrl || null);
+      setOverlayFields((q?.overlayFields as OverlayField[]) || []);
       setLoading(false);
     });
   }, [id, getQuoteWithItems]);
@@ -87,6 +94,23 @@ export default function QuoteDetailPage() {
               <Copy size={14} /> Kopieer link
             </Button>
           )}
+          {pdfDirty && quote.status === 'draft' && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-1.5"
+              onClick={async () => {
+                if (!quote) return;
+                const ok = await updateQuote(quote.id, { pdfUrl, overlayFields });
+                if (ok) {
+                  setPdfDirty(false);
+                  toast({ title: 'PDF-velden opgeslagen' });
+                }
+              }}
+            >
+              <Save size={14} /> PDF opslaan
+            </Button>
+          )}
           {quote.status === 'draft' && (
             <Button size="sm" onClick={handleSendQuote} className="gap-1.5">
               <Send size={14} /> Verzenden
@@ -134,6 +158,17 @@ export default function QuoteDetailPage() {
             <p className="text-sm whitespace-pre-wrap">{quote.introduction}</p>
           </CardContent>
         </Card>
+      )}
+
+      {/* PDF Template */}
+      {(pdfUrl || quote.status === 'draft') && (
+        <PdfOverlayEditor
+          pdfUrl={pdfUrl}
+          overlayFields={overlayFields}
+          onPdfUpload={(url) => { setPdfUrl(url); setPdfDirty(true); }}
+          onFieldsChange={(fields) => { setOverlayFields(fields); setPdfDirty(true); }}
+          readOnly={quote.status !== 'draft'}
+        />
       )}
 
       {/* Line items */}

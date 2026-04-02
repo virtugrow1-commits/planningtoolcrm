@@ -8,6 +8,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import ContactSelector from '@/components/quotation/ContactSelector';
 import LineItemsEditor from '@/components/quotation/LineItemsEditor';
+import PdfOverlayEditor from '@/components/quotation/PdfOverlayEditor';
+import type { OverlayField } from '@/components/quotation/PdfOverlayEditor';
 import { useQuotes } from '@/hooks/useQuotes';
 import { calcFinancials } from '@/types/quotation';
 import type { LineItem } from '@/types/quotation';
@@ -34,6 +36,8 @@ export default function NewQuotePage() {
   });
 
   const [lineItems, setLineItems] = useState<LineItem[]>([]);
+  const [pdfUrl, setPdfUrl] = useState<string | null>(null);
+  const [overlayFields, setOverlayFields] = useState<OverlayField[]>([]);
 
   const handleContactSelect = (
     contactId: string,
@@ -57,8 +61,8 @@ export default function NewQuotePage() {
       toast({ title: 'Vul een contactpersoon in', variant: 'destructive' });
       return;
     }
-    if (lineItems.length === 0) {
-      toast({ title: 'Voeg minimaal één item toe', variant: 'destructive' });
+    if (lineItems.length === 0 && !pdfUrl) {
+      toast({ title: 'Voeg minimaal één item toe of upload een PDF', variant: 'destructive' });
       return;
     }
 
@@ -78,6 +82,8 @@ export default function NewQuotePage() {
         termsAndConditions: form.termsAndConditions || undefined,
         notes: form.notes || undefined,
         validUntil: form.validUntil || undefined,
+        pdfUrl: pdfUrl || undefined,
+        overlayFields: overlayFields.length > 0 ? overlayFields : undefined,
         subtotal: fin.subtotal,
         vatAmount: fin.vatAmount,
         discountAmount: fin.discountAmount,
@@ -177,6 +183,14 @@ export default function NewQuotePage() {
           </div>
         </CardContent>
       </Card>
+
+      {/* PDF Template Editor */}
+      <PdfOverlayEditor
+        pdfUrl={pdfUrl}
+        overlayFields={overlayFields}
+        onPdfUpload={setPdfUrl}
+        onFieldsChange={setOverlayFields}
+      />
 
       {/* Line items */}
       <Card>

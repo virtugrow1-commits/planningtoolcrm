@@ -41,6 +41,8 @@ export interface Quote {
   signedPdfUrl?: string;
   publicToken?: string;
   ghlOpportunityId?: string;
+  pdfUrl?: string;
+  overlayFields?: any[];
   createdAt: string;
   updatedAt: string;
   lineItems?: LineItem[];
