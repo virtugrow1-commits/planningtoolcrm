@@ -915,6 +915,8 @@ export type Database = {
           id: string
           introduction: string | null
           notes: string | null
+          overlay_fields: Json | null
+          pdf_url: string | null
           public_token: string | null
           sent_at: string | null
           signature_data: string | null
@@ -948,6 +950,8 @@ export type Database = {
           id?: string
           introduction?: string | null
           notes?: string | null
+          overlay_fields?: Json | null
+          pdf_url?: string | null
           public_token?: string | null
           sent_at?: string | null
           signature_data?: string | null
@@ -981,6 +985,8 @@ export type Database = {
           id?: string
           introduction?: string | null
           notes?: string | null
+          overlay_fields?: Json | null
+          pdf_url?: string | null
           public_token?: string | null
           sent_at?: string | null
           signature_data?: string | null
