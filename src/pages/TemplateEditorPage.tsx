@@ -123,6 +123,8 @@ export default function TemplateEditorPage() {
         onBlocksChange={setBlocks}
         pdfBackgroundUrl={pdfBackgroundUrl}
         onPdfBackgroundChange={setPdfBackgroundUrl}
+        customFonts={customFonts}
+        onCustomFontsChange={setCustomFonts}
       />
 
       {/* Default terms */}
