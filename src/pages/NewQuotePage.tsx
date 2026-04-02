@@ -82,6 +82,8 @@ export default function NewQuotePage() {
         termsAndConditions: form.termsAndConditions || undefined,
         notes: form.notes || undefined,
         validUntil: form.validUntil || undefined,
+        pdfUrl: pdfUrl || undefined,
+        overlayFields: overlayFields.length > 0 ? overlayFields : undefined,
         subtotal: fin.subtotal,
         vatAmount: fin.vatAmount,
         discountAmount: fin.discountAmount,
