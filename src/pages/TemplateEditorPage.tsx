@@ -22,6 +22,7 @@ export default function TemplateEditorPage() {
   const [description, setDescription] = useState('');
   const [termsAndConditions, setTermsAndConditions] = useState('');
   const [blocks, setBlocks] = useState<TemplateBlock[]>([]);
+  const [pdfBackgroundUrl, setPdfBackgroundUrl] = useState<string | null>(null);
 
   const isEdit = !!id;
 
@@ -33,7 +34,9 @@ export default function TemplateEditorPage() {
       setName(tpl.name);
       setDescription(tpl.description || '');
       setTermsAndConditions(tpl.termsAndConditions || '');
-      setBlocks((tpl.contentBlocks as any)?.blocks || []);
+      const cb = tpl.contentBlocks as any;
+      setBlocks(cb?.blocks || []);
+      setPdfBackgroundUrl(cb?.pdfBackgroundUrl || null);
     }
   }, [id, templates, loading]);
 
@@ -45,7 +48,7 @@ export default function TemplateEditorPage() {
 
     setSaving(true);
 
-    const contentBlocks = { blocks };
+    const contentBlocks = { blocks, pdfBackgroundUrl };
 
     if (isEdit) {
       const ok = await updateTemplate(id!, { name, description, termsAndConditions, contentBlocks });
@@ -115,6 +118,8 @@ export default function TemplateEditorPage() {
       <BlockEditor
         blocks={blocks}
         onBlocksChange={setBlocks}
+        pdfBackgroundUrl={pdfBackgroundUrl}
+        onPdfBackgroundChange={setPdfBackgroundUrl}
       />
 
       {/* Default terms */}
