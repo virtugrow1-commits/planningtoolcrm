@@ -179,7 +179,7 @@ export default function InvoiceDetailPage() {
             </Button>
           )}
           {(invoice.status === 'sent' || invoice.status === 'overdue') && (
-            <Button size="sm" onClick={handleMarkPaid} className="gap-1.5 bg-green-600 hover:bg-green-700">
+            <Button size="sm" variant="default" onClick={handleMarkPaid} className="gap-1.5">
               <CheckCircle size={14} /> Markeer als betaald
             </Button>
           )}
