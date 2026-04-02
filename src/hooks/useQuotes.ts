@@ -149,6 +149,27 @@ export function useQuotes() {
     await fetchQuotes();
   }, [fetchQuotes]);
 
+  const updateQuote = useCallback(async (id: string, updates: Partial<Quote>) => {
+    const dbUpdates: any = {};
+    if (updates.title !== undefined) dbUpdates.title = updates.title;
+    if (updates.pdfUrl !== undefined) dbUpdates.pdf_url = updates.pdfUrl;
+    if (updates.overlayFields !== undefined) dbUpdates.overlay_fields = updates.overlayFields;
+    if (updates.introduction !== undefined) dbUpdates.introduction = updates.introduction;
+    if (updates.termsAndConditions !== undefined) dbUpdates.terms_and_conditions = updates.termsAndConditions;
+    if (updates.notes !== undefined) dbUpdates.notes = updates.notes;
+    if (updates.subtotal !== undefined) dbUpdates.subtotal = updates.subtotal;
+    if (updates.vatAmount !== undefined) dbUpdates.vat_amount = updates.vatAmount;
+    if (updates.discountAmount !== undefined) dbUpdates.discount_amount = updates.discountAmount;
+    if (updates.total !== undefined) dbUpdates.total = updates.total;
+
+    const { error } = await supabase.from('quotes').update(dbUpdates).eq('id', id);
+    if (error) {
+      toast({ title: 'Fout bij updaten offerte', description: error.message, variant: 'destructive' });
+      return false;
+    }
+    await fetchQuotes();
+    return true;
+
   const getQuoteWithItems = useCallback(async (id: string): Promise<Quote | null> => {
     const { data: q, error } = await supabase.from('quotes').select('*').eq('id', id).single();
     if (error || !q) return null;
