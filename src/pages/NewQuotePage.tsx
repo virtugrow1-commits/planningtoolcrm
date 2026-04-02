@@ -128,6 +128,30 @@ export default function NewQuotePage() {
         </Button>
       </div>
 
+      {/* Template selector */}
+      {templates.length > 0 && (
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center gap-3">
+              <Layout size={16} className="text-muted-foreground" />
+              <div className="flex-1 space-y-1">
+                <Label className="text-sm">Sjabloon gebruiken</Label>
+                <Select onValueChange={handleTemplateSelect}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecteer een sjabloon (optioneel)" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {templates.map((tpl) => (
+                      <SelectItem key={tpl.id} value={tpl.id}>{tpl.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Client info */}
       <Card>
         <CardHeader>
