@@ -102,6 +102,8 @@ export function useQuotes() {
       total: quoteData.total || 0,
       status: 'draft',
       valid_until: quoteData.validUntil || null,
+      pdf_url: quoteData.pdfUrl || null,
+      overlay_fields: quoteData.overlayFields || [],
     }).select().single();
 
     if (error) {
