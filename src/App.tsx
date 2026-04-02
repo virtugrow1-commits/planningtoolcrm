@@ -103,6 +103,7 @@ const App = () => (
           <BrowserRouter>
             <Routes>
               <Route path="/login" element={<AuthRoute />} />
+              <Route path="/quote/view/:token" element={<PublicQuotePage />} />
               <Route path="/*" element={<ProtectedRoutes />} />
             </Routes>
           </BrowserRouter>
