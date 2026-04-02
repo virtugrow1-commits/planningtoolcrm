@@ -152,6 +152,11 @@ export function useQuotes() {
   const updateQuote = useCallback(async (id: string, updates: Partial<Quote>) => {
     const dbUpdates: any = {};
     if (updates.title !== undefined) dbUpdates.title = updates.title;
+    if (updates.contactName !== undefined) dbUpdates.contact_name = updates.contactName;
+    if (updates.companyName !== undefined) dbUpdates.company_name = updates.companyName;
+    if (updates.clientEmail !== undefined) dbUpdates.client_email = updates.clientEmail;
+    if (updates.clientAddress !== undefined) dbUpdates.client_address = updates.clientAddress;
+    if (updates.validUntil !== undefined) dbUpdates.valid_until = updates.validUntil;
     if (updates.pdfUrl !== undefined) dbUpdates.pdf_url = updates.pdfUrl;
     if (updates.overlayFields !== undefined) dbUpdates.overlay_fields = updates.overlayFields;
     if (updates.introduction !== undefined) dbUpdates.introduction = updates.introduction;
