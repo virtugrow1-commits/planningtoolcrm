@@ -6,10 +6,10 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
-import PdfOverlayEditor from '@/components/quotation/PdfOverlayEditor';
-import type { OverlayField } from '@/components/quotation/PdfOverlayEditor';
+import BlockEditor from '@/components/template-editor/BlockEditor';
 import { useQuoteTemplates } from '@/hooks/useQuoteTemplates';
 import { useToast } from '@/hooks/use-toast';
+import type { TemplateBlock } from '@/types/templateBlocks';
 
 export default function TemplateEditorPage() {
   const { id } = useParams<{ id: string }>();
@@ -21,8 +21,7 @@ export default function TemplateEditorPage() {
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [termsAndConditions, setTermsAndConditions] = useState('');
-  const [pdfUrl, setPdfUrl] = useState<string | null>(null);
-  const [overlayFields, setOverlayFields] = useState<OverlayField[]>([]);
+  const [blocks, setBlocks] = useState<TemplateBlock[]>([]);
 
   const isEdit = !!id;
 
@@ -34,8 +33,7 @@ export default function TemplateEditorPage() {
       setName(tpl.name);
       setDescription(tpl.description || '');
       setTermsAndConditions(tpl.termsAndConditions || '');
-      setPdfUrl(tpl.pdfUrl || null);
-      setOverlayFields((tpl.overlayFields as OverlayField[]) || []);
+      setBlocks((tpl.contentBlocks as any)?.blocks || []);
     }
   }, [id, templates, loading]);
 
@@ -44,21 +42,19 @@ export default function TemplateEditorPage() {
       toast({ title: 'Geef het sjabloon een naam', variant: 'destructive' });
       return;
     }
-    if (!pdfUrl) {
-      toast({ title: 'Upload eerst een PDF-template', variant: 'destructive' });
-      return;
-    }
 
     setSaving(true);
 
+    const contentBlocks = { blocks };
+
     if (isEdit) {
-      const ok = await updateTemplate(id!, { name, description, termsAndConditions, pdfUrl, overlayFields });
+      const ok = await updateTemplate(id!, { name, description, termsAndConditions, contentBlocks });
       if (ok) {
         toast({ title: 'Sjabloon bijgewerkt' });
         navigate('/quotes');
       }
     } else {
-      const result = await createTemplate(name, pdfUrl, overlayFields, termsAndConditions, description);
+      const result = await createTemplate(name, contentBlocks, termsAndConditions, description);
       if (result) {
         toast({ title: 'Sjabloon opgeslagen', description: `"${name}" is beschikbaar bij het aanmaken van offertes.` });
         navigate('/quotes');
@@ -69,7 +65,7 @@ export default function TemplateEditorPage() {
   };
 
   return (
-    <div className="p-4 md:p-6 max-w-5xl mx-auto space-y-6">
+    <div className="p-4 md:p-6 max-w-7xl mx-auto space-y-6">
       {/* Header */}
       <div className="flex items-center gap-3">
         <Button variant="ghost" size="icon" onClick={() => navigate('/quotes')}>
@@ -80,7 +76,7 @@ export default function TemplateEditorPage() {
             {isEdit ? 'Sjabloon bewerken' : 'Nieuw sjabloon'}
           </h1>
           <p className="text-sm text-muted-foreground">
-            Upload een PDF en plaats merge-velden die bij elke offerte automatisch worden ingevuld.
+            Bouw je document op met blokken en sla op als herbruikbaar sjabloon.
           </p>
         </div>
         <Button onClick={handleSave} disabled={saving} className="gap-1.5">
@@ -115,12 +111,10 @@ export default function TemplateEditorPage() {
         </CardContent>
       </Card>
 
-      {/* PDF Template Editor */}
-      <PdfOverlayEditor
-        pdfUrl={pdfUrl}
-        overlayFields={overlayFields}
-        onPdfUpload={setPdfUrl}
-        onFieldsChange={setOverlayFields}
+      {/* Block Editor */}
+      <BlockEditor
+        blocks={blocks}
+        onBlocksChange={setBlocks}
       />
 
       {/* Default terms */}

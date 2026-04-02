@@ -4,12 +4,12 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import type { QuoteTemplate } from '@/types/quotation';
 
-export interface TemplateWithPdf extends QuoteTemplate {
+export interface TemplateWithContent extends QuoteTemplate {
   pdfUrl?: string | null;
   overlayFields?: any[];
 }
 
-function mapRow(r: any): TemplateWithPdf {
+function mapRow(r: any): TemplateWithContent {
   const contentBlocks = r.content_blocks || {};
   return {
     id: r.id,
@@ -28,7 +28,7 @@ function mapRow(r: any): TemplateWithPdf {
 }
 
 export function useQuoteTemplates() {
-  const [templates, setTemplates] = useState<TemplateWithPdf[]>([]);
+  const [templates, setTemplates] = useState<TemplateWithContent[]>([]);
   const [loading, setLoading] = useState(true);
   const { user } = useAuth();
   const { toast } = useToast();
@@ -51,13 +51,11 @@ export function useQuoteTemplates() {
 
   const createTemplate = useCallback(async (
     name: string,
-    pdfUrl: string | null,
-    overlayFields: any[],
+    contentBlocks: any,
     termsAndConditions?: string,
     description?: string,
   ) => {
     if (!user) return null;
-    const contentBlocks = { pdfUrl, overlayFields };
 
     const { data, error } = await supabase.from('quote_templates').insert({
       user_id: user.id,
@@ -79,8 +77,7 @@ export function useQuoteTemplates() {
     id: string,
     updates: {
       name?: string;
-      pdfUrl?: string | null;
-      overlayFields?: any[];
+      contentBlocks?: any;
       termsAndConditions?: string;
       description?: string;
     }
@@ -89,16 +86,7 @@ export function useQuoteTemplates() {
     if (updates.name !== undefined) dbUpdates.name = updates.name;
     if (updates.termsAndConditions !== undefined) dbUpdates.terms_and_conditions = updates.termsAndConditions;
     if (updates.description !== undefined) dbUpdates.description = updates.description;
-
-    // If pdf or overlay changed, update content_blocks
-    if (updates.pdfUrl !== undefined || updates.overlayFields !== undefined) {
-      // Get current first
-      const current = templates.find(t => t.id === id);
-      dbUpdates.content_blocks = {
-        pdfUrl: updates.pdfUrl !== undefined ? updates.pdfUrl : current?.pdfUrl || null,
-        overlayFields: updates.overlayFields !== undefined ? updates.overlayFields : current?.overlayFields || [],
-      };
-    }
+    if (updates.contentBlocks !== undefined) dbUpdates.content_blocks = updates.contentBlocks;
 
     const { error } = await supabase.from('quote_templates').update(dbUpdates).eq('id', id);
     if (error) {
@@ -107,7 +95,7 @@ export function useQuoteTemplates() {
     }
     await fetchTemplates();
     return true;
-  }, [fetchTemplates, templates]);
+  }, [fetchTemplates]);
 
   const deleteTemplate = useCallback(async (id: string) => {
     const { error } = await supabase.from('quote_templates').delete().eq('id', id);
