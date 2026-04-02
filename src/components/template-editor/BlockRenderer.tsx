@@ -192,6 +192,7 @@ function TextBlockEditor({ block, selected, onUpdate, customFonts = [], onCustom
         className="outline-none min-h-[1.5em] whitespace-pre-wrap"
         style={{
           fontSize: block.fontSize,
+          fontFamily: block.fontFamily || 'Inter',
           fontWeight: block.fontWeight,
           fontStyle: block.fontStyle,
           textDecoration: block.textDecoration,
