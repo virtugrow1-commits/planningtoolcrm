@@ -1,5 +1,6 @@
 import { useState, useRef, useCallback } from 'react';
 import MergeTagPicker from './MergeTagPicker';
+import FontPicker, { type CustomFont } from './FontPicker';
 import { Trash2, GripVertical, ChevronUp, ChevronDown, Upload, Plus, X, PenTool } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -26,11 +27,13 @@ interface BlockRendererProps {
   onMoveDown: () => void;
   isFirst: boolean;
   isLast: boolean;
+  customFonts?: CustomFont[];
+  onCustomFontsChange?: (fonts: CustomFont[]) => void;
 }
 
 export default function BlockRenderer({
   block, selected, onSelect, onUpdate, onDelete,
-  onMoveUp, onMoveDown, isFirst, isLast
+  onMoveUp, onMoveDown, isFirst, isLast, customFonts = [], onCustomFontsChange
 }: BlockRendererProps) {
   return (
     <div
@@ -65,7 +68,7 @@ export default function BlockRenderer({
       </button>
 
       <div className="p-3">
-        {renderBlockContent(block, selected, onUpdate)}
+        {renderBlockContent(block, selected, onUpdate, customFonts, onCustomFontsChange)}
       </div>
     </div>
   );
@@ -74,10 +77,12 @@ export default function BlockRenderer({
 function renderBlockContent(
   block: TemplateBlock,
   selected: boolean,
-  onUpdate: (updates: Partial<TemplateBlock>) => void
+  onUpdate: (updates: Partial<TemplateBlock>) => void,
+  customFonts: CustomFont[],
+  onCustomFontsChange?: (fonts: CustomFont[]) => void,
 ) {
   switch (block.type) {
-    case 'text': return <TextBlockEditor block={block} selected={selected} onUpdate={onUpdate} />;
+    case 'text': return <TextBlockEditor block={block} selected={selected} onUpdate={onUpdate} customFonts={customFonts} onCustomFontsChange={onCustomFontsChange} />;
     case 'image': return <ImageBlockEditor block={block} onUpdate={onUpdate} />;
     case 'video': return <VideoBlockEditor block={block} onUpdate={onUpdate} />;
     case 'table': return <TableBlockEditor block={block} onUpdate={onUpdate} />;
@@ -94,7 +99,7 @@ function renderBlockContent(
 }
 
 // ─── Text Block ──────────────────────────────────────────────
-function TextBlockEditor({ block, selected, onUpdate }: { block: TextBlock; selected: boolean; onUpdate: (u: any) => void }) {
+function TextBlockEditor({ block, selected, onUpdate, customFonts = [], onCustomFontsChange }: { block: TextBlock; selected: boolean; onUpdate: (u: any) => void; customFonts?: CustomFont[]; onCustomFontsChange?: (fonts: CustomFont[]) => void }) {
   const ref = useRef<HTMLDivElement>(null);
 
   const insertMergeTag = useCallback((tag: string) => {
@@ -132,6 +137,12 @@ function TextBlockEditor({ block, selected, onUpdate }: { block: TextBlock; sele
     <div className="space-y-2">
       {selected && (
         <div className="flex items-center gap-1 flex-wrap pb-2 border-b">
+          <FontPicker
+            value={block.fontFamily || 'Inter'}
+            onChange={(fontFamily) => onUpdate({ fontFamily })}
+            customFonts={customFonts}
+            onCustomFontsChange={onCustomFontsChange || (() => {})}
+          />
           <select
             value={block.fontSize}
             onChange={(e) => onUpdate({ fontSize: Number(e.target.value) })}
@@ -181,6 +192,7 @@ function TextBlockEditor({ block, selected, onUpdate }: { block: TextBlock; sele
         className="outline-none min-h-[1.5em] whitespace-pre-wrap"
         style={{
           fontSize: block.fontSize,
+          fontFamily: block.fontFamily || 'Inter',
           fontWeight: block.fontWeight,
           fontStyle: block.fontStyle,
           textDecoration: block.textDecoration,

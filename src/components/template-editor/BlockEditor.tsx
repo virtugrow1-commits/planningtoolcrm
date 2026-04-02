@@ -7,15 +7,18 @@ import PdfBackgroundUpload from './PdfBackgroundUpload';
 import PdfPageRenderer, { usePdfPageCount } from './PdfPageRenderer';
 import type { TemplateBlock, BlockType } from '@/types/templateBlocks';
 import { createDefaultBlock } from '@/types/templateBlocks';
+import type { CustomFont } from './FontPicker';
 
 interface BlockEditorProps {
   blocks: TemplateBlock[];
   onBlocksChange: (blocks: TemplateBlock[]) => void;
   pdfBackgroundUrl?: string | null;
   onPdfBackgroundChange?: (url: string | null) => void;
+  customFonts?: CustomFont[];
+  onCustomFontsChange?: (fonts: CustomFont[]) => void;
 }
 
-export default function BlockEditor({ blocks, onBlocksChange, pdfBackgroundUrl, onPdfBackgroundChange }: BlockEditorProps) {
+export default function BlockEditor({ blocks, onBlocksChange, pdfBackgroundUrl, onPdfBackgroundChange, customFonts = [], onCustomFontsChange }: BlockEditorProps) {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [selectedBlockId, setSelectedBlockId] = useState<string | null>(null);
   const [activePage, setActivePage] = useState(0);
@@ -245,6 +248,8 @@ export default function BlockEditor({ blocks, onBlocksChange, pdfBackgroundUrl, 
                           onMoveDown={() => moveBlock(block.id, 'down')}
                           isFirst={idx === 0}
                           isLast={idx === pageBlocks.length - 1}
+                          customFonts={customFonts}
+                          onCustomFontsChange={onCustomFontsChange}
                         />
                       </div>
                     ))}

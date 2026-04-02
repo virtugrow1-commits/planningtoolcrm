@@ -10,6 +10,7 @@ import BlockEditor from '@/components/template-editor/BlockEditor';
 import { useQuoteTemplates } from '@/hooks/useQuoteTemplates';
 import { useToast } from '@/hooks/use-toast';
 import type { TemplateBlock } from '@/types/templateBlocks';
+import type { CustomFont } from '@/components/template-editor/FontPicker';
 
 export default function TemplateEditorPage() {
   const { id } = useParams<{ id: string }>();
@@ -23,6 +24,7 @@ export default function TemplateEditorPage() {
   const [termsAndConditions, setTermsAndConditions] = useState('');
   const [blocks, setBlocks] = useState<TemplateBlock[]>([]);
   const [pdfBackgroundUrl, setPdfBackgroundUrl] = useState<string | null>(null);
+  const [customFonts, setCustomFonts] = useState<CustomFont[]>([]);
 
   const isEdit = !!id;
 
@@ -37,6 +39,7 @@ export default function TemplateEditorPage() {
       const cb = tpl.contentBlocks as any;
       setBlocks(cb?.blocks || []);
       setPdfBackgroundUrl(cb?.pdfBackgroundUrl || null);
+      setCustomFonts(cb?.customFonts || []);
     }
   }, [id, templates, loading]);
 
@@ -48,7 +51,7 @@ export default function TemplateEditorPage() {
 
     setSaving(true);
 
-    const contentBlocks = { blocks, pdfBackgroundUrl };
+    const contentBlocks = { blocks, pdfBackgroundUrl, customFonts };
 
     if (isEdit) {
       const ok = await updateTemplate(id!, { name, description, termsAndConditions, contentBlocks });
@@ -120,6 +123,8 @@ export default function TemplateEditorPage() {
         onBlocksChange={setBlocks}
         pdfBackgroundUrl={pdfBackgroundUrl}
         onPdfBackgroundChange={setPdfBackgroundUrl}
+        customFonts={customFonts}
+        onCustomFontsChange={setCustomFonts}
       />
 
       {/* Default terms */}
