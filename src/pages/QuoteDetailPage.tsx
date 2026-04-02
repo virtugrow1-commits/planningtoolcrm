@@ -17,7 +17,7 @@ import { nl } from 'date-fns/locale';
 export default function QuoteDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { getQuoteWithItems, updateQuoteStatus } = useQuotes();
+  const { getQuoteWithItems, updateQuoteStatus, updateQuote } = useQuotes();
   const { createInvoiceFromQuote } = useInvoices();
   const { toast } = useToast();
   const [quote, setQuote] = useState<Quote | null>(null);
