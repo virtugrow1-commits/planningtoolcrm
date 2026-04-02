@@ -1,4 +1,5 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useCallback } from 'react';
+import MergeTagPicker from './MergeTagPicker';
 import { Trash2, GripVertical, ChevronUp, ChevronDown, Upload, Plus, X, PenTool } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -96,6 +97,37 @@ function renderBlockContent(
 function TextBlockEditor({ block, selected, onUpdate }: { block: TextBlock; selected: boolean; onUpdate: (u: any) => void }) {
   const ref = useRef<HTMLDivElement>(null);
 
+  const insertMergeTag = useCallback((tag: string) => {
+    if (!ref.current) return;
+    ref.current.focus();
+    
+    const sel = window.getSelection();
+    if (sel && sel.rangeCount > 0) {
+      const range = sel.getRangeAt(0);
+      // Check if selection is inside our editor
+      if (ref.current.contains(range.commonAncestorContainer)) {
+        range.deleteContents();
+        const tagSpan = document.createElement('span');
+        tagSpan.className = 'inline-block bg-primary/10 text-primary border border-primary/20 rounded px-1 text-xs font-mono';
+        tagSpan.contentEditable = 'false';
+        tagSpan.textContent = tag;
+        range.insertNode(tagSpan);
+        // Move cursor after the inserted span
+        range.setStartAfter(tagSpan);
+        range.collapse(true);
+        sel.removeAllRanges();
+        sel.addRange(range);
+      } else {
+        // Append at end
+        ref.current.innerHTML += `<span class="inline-block bg-primary/10 text-primary border border-primary/20 rounded px-1 text-xs font-mono" contenteditable="false">${tag}</span>`;
+      }
+    } else {
+      ref.current.innerHTML += `<span class="inline-block bg-primary/10 text-primary border border-primary/20 rounded px-1 text-xs font-mono" contenteditable="false">${tag}</span>`;
+    }
+    
+    onUpdate({ content: ref.current.innerHTML });
+  }, [onUpdate]);
+
   return (
     <div className="space-y-2">
       {selected && (
@@ -138,6 +170,8 @@ function TextBlockEditor({ block, selected, onUpdate }: { block: TextBlock; sele
             onChange={(e) => onUpdate({ color: e.target.value })}
             className="w-7 h-7 rounded border cursor-pointer"
           />
+          <div className="w-px h-5 bg-border mx-1" />
+          <MergeTagPicker onInsert={insertMergeTag} />
         </div>
       )}
       <div
