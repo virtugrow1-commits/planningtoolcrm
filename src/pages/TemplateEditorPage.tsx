@@ -10,6 +10,7 @@ import BlockEditor from '@/components/template-editor/BlockEditor';
 import { useQuoteTemplates } from '@/hooks/useQuoteTemplates';
 import { useToast } from '@/hooks/use-toast';
 import type { TemplateBlock } from '@/types/templateBlocks';
+import type { CustomFont } from '@/components/template-editor/FontPicker';
 
 export default function TemplateEditorPage() {
   const { id } = useParams<{ id: string }>();
