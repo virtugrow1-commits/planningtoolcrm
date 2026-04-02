@@ -248,6 +248,8 @@ export default function BlockEditor({ blocks, onBlocksChange, pdfBackgroundUrl, 
                           onMoveDown={() => moveBlock(block.id, 'down')}
                           isFirst={idx === 0}
                           isLast={idx === pageBlocks.length - 1}
+                          customFonts={customFonts}
+                          onCustomFontsChange={onCustomFontsChange}
                         />
                       </div>
                     ))}
