@@ -3,6 +3,7 @@ import {
   LayoutDashboard,
   Users,
   InboxIcon,
+  FileText,
   CalendarDays,
   ClipboardList,
   Settings,
