@@ -94,6 +94,23 @@ export default function QuoteDetailPage() {
               <Copy size={14} /> Kopieer link
             </Button>
           )}
+          {pdfDirty && quote.status === 'draft' && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-1.5"
+              onClick={async () => {
+                if (!quote) return;
+                const ok = await updateQuote(quote.id, { pdfUrl, overlayFields });
+                if (ok) {
+                  setPdfDirty(false);
+                  toast({ title: 'PDF-velden opgeslagen' });
+                }
+              }}
+            >
+              <Save size={14} /> PDF opslaan
+            </Button>
+          )}
           {quote.status === 'draft' && (
             <Button size="sm" onClick={handleSendQuote} className="gap-1.5">
               <Send size={14} /> Verzenden
