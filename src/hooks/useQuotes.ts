@@ -185,5 +185,5 @@ export function useQuotes() {
     return quote;
   }, []);
 
-  return { quotes, loading, createQuote, updateQuoteStatus, getQuoteWithItems, refetch: fetchQuotes };
+  return { quotes, loading, createQuote, updateQuote, updateQuoteStatus, getQuoteWithItems, refetch: fetchQuotes };
 }
