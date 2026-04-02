@@ -25,6 +25,7 @@ export interface TextBlock extends BaseBlock {
   type: 'text';
   content: string; // HTML content
   fontSize: number;
+  fontFamily: string;
   fontWeight: 'normal' | 'bold';
   fontStyle: 'normal' | 'italic';
   textDecoration: 'none' | 'underline';
