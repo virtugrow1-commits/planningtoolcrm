@@ -27,11 +27,13 @@ interface BlockRendererProps {
   onMoveDown: () => void;
   isFirst: boolean;
   isLast: boolean;
+  customFonts?: CustomFont[];
+  onCustomFontsChange?: (fonts: CustomFont[]) => void;
 }
 
 export default function BlockRenderer({
   block, selected, onSelect, onUpdate, onDelete,
-  onMoveUp, onMoveDown, isFirst, isLast
+  onMoveUp, onMoveDown, isFirst, isLast, customFonts = [], onCustomFontsChange
 }: BlockRendererProps) {
   return (
     <div
@@ -66,7 +68,7 @@ export default function BlockRenderer({
       </button>
 
       <div className="p-3">
-        {renderBlockContent(block, selected, onUpdate)}
+        {renderBlockContent(block, selected, onUpdate, customFonts, onCustomFontsChange)}
       </div>
     </div>
   );
