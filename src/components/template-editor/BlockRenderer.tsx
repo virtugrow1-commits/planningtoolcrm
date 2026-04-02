@@ -146,7 +146,7 @@ function TextBlockEditor({ block, selected, onUpdate, customFonts = [], onCustom
           <select
             value={block.fontSize}
             onChange={(e) => onUpdate({ fontSize: Number(e.target.value) })}
-            className="h-7 text-xs border rounded px-1 bg-background"
+            className="h-7 text-xs border border-border rounded px-1.5 bg-background text-foreground appearance-none cursor-pointer hover:bg-accent transition-colors focus:outline-none focus:ring-1 focus:ring-primary/30"
           >
             {[10, 12, 14, 16, 18, 20, 24, 28, 32, 36, 48].map(s => (
               <option key={s} value={s}>{s}px</option>
