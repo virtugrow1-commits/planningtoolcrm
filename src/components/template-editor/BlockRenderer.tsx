@@ -77,10 +77,12 @@ export default function BlockRenderer({
 function renderBlockContent(
   block: TemplateBlock,
   selected: boolean,
-  onUpdate: (updates: Partial<TemplateBlock>) => void
+  onUpdate: (updates: Partial<TemplateBlock>) => void,
+  customFonts: CustomFont[],
+  onCustomFontsChange?: (fonts: CustomFont[]) => void,
 ) {
   switch (block.type) {
-    case 'text': return <TextBlockEditor block={block} selected={selected} onUpdate={onUpdate} />;
+    case 'text': return <TextBlockEditor block={block} selected={selected} onUpdate={onUpdate} customFonts={customFonts} onCustomFontsChange={onCustomFontsChange} />;
     case 'image': return <ImageBlockEditor block={block} onUpdate={onUpdate} />;
     case 'video': return <VideoBlockEditor block={block} onUpdate={onUpdate} />;
     case 'table': return <TableBlockEditor block={block} onUpdate={onUpdate} />;
