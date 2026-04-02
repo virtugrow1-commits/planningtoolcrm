@@ -30,6 +30,8 @@ export default function QuoteDetailPage() {
     if (!id) return;
     getQuoteWithItems(id).then((q) => {
       setQuote(q);
+      setPdfUrl(q?.pdfUrl || null);
+      setOverlayFields((q?.overlayFields as OverlayField[]) || []);
       setLoading(false);
     });
   }, [id, getQuoteWithItems]);
