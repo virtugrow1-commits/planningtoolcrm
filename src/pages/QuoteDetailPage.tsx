@@ -20,6 +20,9 @@ export default function QuoteDetailPage() {
   const { getQuoteWithItems, updateQuoteStatus, updateQuote } = useQuotes();
   const { createInvoiceFromQuote } = useInvoices();
   const { toast } = useToast();
+  const [pdfUrl, setPdfUrl] = useState<string | null>(null);
+  const [overlayFields, setOverlayFields] = useState<OverlayField[]>([]);
+  const [pdfDirty, setPdfDirty] = useState(false);
   const [quote, setQuote] = useState<Quote | null>(null);
   const [loading, setLoading] = useState(true);
 
