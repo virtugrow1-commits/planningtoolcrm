@@ -160,6 +160,17 @@ export default function QuoteDetailPage() {
         </Card>
       )}
 
+      {/* PDF Template */}
+      {(pdfUrl || quote.status === 'draft') && (
+        <PdfOverlayEditor
+          pdfUrl={pdfUrl}
+          overlayFields={overlayFields}
+          onPdfUpload={(url) => { setPdfUrl(url); setPdfDirty(true); }}
+          onFieldsChange={(fields) => { setOverlayFields(fields); setPdfDirty(true); }}
+          readOnly={quote.status !== 'draft'}
+        />
+      )}
+
       {/* Line items */}
       <Card>
         <CardHeader>
