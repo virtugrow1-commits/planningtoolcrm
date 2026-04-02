@@ -61,8 +61,8 @@ export default function NewQuotePage() {
       toast({ title: 'Vul een contactpersoon in', variant: 'destructive' });
       return;
     }
-    if (lineItems.length === 0) {
-      toast({ title: 'Voeg minimaal één item toe', variant: 'destructive' });
+    if (lineItems.length === 0 && !pdfUrl) {
+      toast({ title: 'Voeg minimaal één item toe of upload een PDF', variant: 'destructive' });
       return;
     }
 
