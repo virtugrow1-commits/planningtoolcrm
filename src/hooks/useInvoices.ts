@@ -36,6 +36,20 @@ function mapRow(r: any): Invoice {
   };
 }
 
+function mapLineItem(r: any): LineItem {
+  return {
+    id: r.id,
+    sortOrder: r.sort_order,
+    itemName: r.item_name,
+    description: r.description,
+    quantity: Number(r.quantity),
+    unitPrice: Number(r.unit_price),
+    vatRate: Number(r.vat_rate),
+    discountPercent: Number(r.discount_percent),
+    lineTotal: Number(r.line_total),
+  };
+}
+
 export function useInvoices() {
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [loading, setLoading] = useState(true);
@@ -58,10 +72,24 @@ export function useInvoices() {
 
   useEffect(() => { fetchInvoices(); }, [fetchInvoices]);
 
+  const getInvoiceWithItems = useCallback(async (id: string): Promise<Invoice | null> => {
+    const { data: inv, error } = await supabase.from('invoices').select('*').eq('id', id).single();
+    if (error || !inv) return null;
+
+    const { data: items } = await supabase
+      .from('invoice_line_items')
+      .select('*')
+      .eq('invoice_id', id)
+      .order('sort_order');
+
+    const invoice = mapRow(inv);
+    invoice.lineItems = (items || []).map(mapLineItem);
+    return invoice;
+  }, []);
+
   const createInvoiceFromQuote = useCallback(async (quoteId: string) => {
     if (!user) return null;
 
-    // Fetch quote + items
     const { data: q } = await supabase.from('quotes').select('*').eq('id', quoteId).single();
     if (!q) return null;
 
@@ -71,7 +99,6 @@ export function useInvoices() {
       .eq('quote_id', quoteId)
       .order('sort_order');
 
-    // Create invoice
     const { data: inv, error } = await supabase.from('invoices').insert({
       user_id: user.id,
       quote_id: quoteId,
@@ -95,7 +122,6 @@ export function useInvoices() {
       return null;
     }
 
-    // Copy line items
     if (items && items.length > 0) {
       await supabase.from('invoice_line_items').insert(
         items.map((li: any) => ({
@@ -113,9 +139,95 @@ export function useInvoices() {
     }
 
     await fetchInvoices();
-    toast({ title: 'Factuur aangemaakt', description: `${inv.display_number || 'Factuur'} is aangemaakt.` });
+    toast({ title: 'Factuur aangemaakt', description: `${inv.display_number || 'Factuur'} is aangemaakt als concept.` });
     return mapRow(inv);
   }, [user, fetchInvoices]);
 
-  return { invoices, loading, createInvoiceFromQuote, refetch: fetchInvoices };
+  const updateInvoice = useCallback(async (id: string, updates: Partial<Invoice>) => {
+    const dbUpdates: any = {};
+    if (updates.title !== undefined) dbUpdates.title = updates.title;
+    if (updates.contactName !== undefined) dbUpdates.contact_name = updates.contactName;
+    if (updates.companyName !== undefined) dbUpdates.company_name = updates.companyName;
+    if (updates.clientEmail !== undefined) dbUpdates.client_email = updates.clientEmail;
+    if (updates.clientAddress !== undefined) dbUpdates.client_address = updates.clientAddress;
+    if (updates.notes !== undefined) dbUpdates.notes = updates.notes;
+    if (updates.subtotal !== undefined) dbUpdates.subtotal = updates.subtotal;
+    if (updates.vatAmount !== undefined) dbUpdates.vat_amount = updates.vatAmount;
+    if (updates.discountAmount !== undefined) dbUpdates.discount_amount = updates.discountAmount;
+    if (updates.total !== undefined) dbUpdates.total = updates.total;
+    if (updates.dueDate !== undefined) dbUpdates.due_date = updates.dueDate;
+    if (updates.status !== undefined) dbUpdates.status = updates.status;
+    if (updates.paymentMethod !== undefined) dbUpdates.payment_method = updates.paymentMethod;
+
+    const { error } = await supabase.from('invoices').update(dbUpdates).eq('id', id);
+    if (error) {
+      toast({ title: 'Fout bij updaten factuur', description: error.message, variant: 'destructive' });
+      return false;
+    }
+    await fetchInvoices();
+    return true;
+  }, [fetchInvoices]);
+
+  const updateInvoiceStatus = useCallback(async (id: string, status: string) => {
+    const updates: any = { status };
+    if (status === 'sent') updates.sent_at = new Date().toISOString();
+    if (status === 'paid') updates.paid_at = new Date().toISOString();
+
+    const { error } = await supabase.from('invoices').update(updates).eq('id', id);
+    if (error) {
+      toast({ title: 'Fout bij updaten status', description: error.message, variant: 'destructive' });
+      return false;
+    }
+    await fetchInvoices();
+    return true;
+  }, [fetchInvoices]);
+
+  const updateInvoiceLineItems = useCallback(async (invoiceId: string, items: LineItem[]) => {
+    // Delete existing
+    await supabase.from('invoice_line_items').delete().eq('invoice_id', invoiceId);
+
+    if (items.length > 0) {
+      const { error } = await supabase.from('invoice_line_items').insert(
+        items.map((li, i) => ({
+          invoice_id: invoiceId,
+          sort_order: i,
+          item_name: li.itemName,
+          description: li.description || null,
+          quantity: li.quantity,
+          unit_price: li.unitPrice,
+          vat_rate: li.vatRate,
+          discount_percent: li.discountPercent,
+          line_total: li.lineTotal,
+        }))
+      );
+      if (error) {
+        toast({ title: 'Fout bij opslaan regelitems', description: error.message, variant: 'destructive' });
+        return false;
+      }
+    }
+    return true;
+  }, []);
+
+  const deleteInvoice = useCallback(async (id: string) => {
+    await supabase.from('invoice_line_items').delete().eq('invoice_id', id);
+    const { error } = await supabase.from('invoices').delete().eq('id', id);
+    if (error) {
+      toast({ title: 'Fout bij verwijderen', description: error.message, variant: 'destructive' });
+      return false;
+    }
+    await fetchInvoices();
+    return true;
+  }, [fetchInvoices]);
+
+  return {
+    invoices,
+    loading,
+    createInvoiceFromQuote,
+    getInvoiceWithItems,
+    updateInvoice,
+    updateInvoiceStatus,
+    updateInvoiceLineItems,
+    deleteInvoice,
+    refetch: fetchInvoices,
+  };
 }
