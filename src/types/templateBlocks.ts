@@ -161,7 +161,7 @@ export function createDefaultBlock(type: BlockType, sortOrder: number): Template
 
   switch (type) {
     case 'text':
-      return { ...base, type: 'text', content: '<p>Typ hier uw tekst...</p>', fontSize: 16, fontWeight: 'normal', fontStyle: 'normal', textDecoration: 'none', textAlign: 'left', color: '#000000', lineHeight: 1.5 };
+      return { ...base, type: 'text', content: '<p>Typ hier uw tekst...</p>', fontSize: 16, fontFamily: 'Inter', fontWeight: 'normal', fontStyle: 'normal', textDecoration: 'none', textAlign: 'left', color: '#000000', lineHeight: 1.5 };
     case 'image':
       return { ...base, type: 'image', src: '', alt: '', width: 100, alignment: 'center' };
     case 'video':
