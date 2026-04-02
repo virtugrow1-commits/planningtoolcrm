@@ -16,6 +16,9 @@ export interface BaseBlock {
   id: string;
   type: BlockType;
   sortOrder: number;
+  pageIndex?: number; // which PDF page (0-based), undefined = page 0
+  x?: number; // percentage from left (0-100)
+  y?: number; // percentage from top (0-100)
 }
 
 export interface TextBlock extends BaseBlock {

@@ -1,18 +1,17 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import * as pdfjsLib from 'pdfjs-dist';
 
-// Set worker
 pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.mjs`;
 
 interface PdfPageRendererProps {
   pdfUrl: string;
   pageNumber: number;
   width: number;
+  onDimensionsReady?: (dims: { width: number; height: number }) => void;
 }
 
-export default function PdfPageRenderer({ pdfUrl, pageNumber, width }: PdfPageRendererProps) {
+export default function PdfPageRenderer({ pdfUrl, pageNumber, width, onDimensionsReady }: PdfPageRendererProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const [dimensions, setDimensions] = useState<{ width: number; height: number } | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -21,7 +20,7 @@ export default function PdfPageRenderer({ pdfUrl, pageNumber, width }: PdfPageRe
       try {
         const pdf = await pdfjsLib.getDocument(pdfUrl).promise;
         if (cancelled) return;
-        
+
         const page = await pdf.getPage(pageNumber);
         if (cancelled) return;
 
@@ -34,7 +33,8 @@ export default function PdfPageRenderer({ pdfUrl, pageNumber, width }: PdfPageRe
 
         canvas.width = scaledViewport.width;
         canvas.height = scaledViewport.height;
-        setDimensions({ width: scaledViewport.width, height: scaledViewport.height });
+
+        onDimensionsReady?.({ width: scaledViewport.width, height: scaledViewport.height });
 
         const ctx = canvas.getContext('2d');
         if (!ctx) return;
@@ -45,18 +45,14 @@ export default function PdfPageRenderer({ pdfUrl, pageNumber, width }: PdfPageRe
       }
     }
 
-    render();
+    if (width > 0) render();
     return () => { cancelled = true; };
   }, [pdfUrl, pageNumber, width]);
 
   return (
     <canvas
       ref={canvasRef}
-      className="absolute inset-0 w-full h-full pointer-events-none"
-      style={{
-        width: dimensions ? dimensions.width : '100%',
-        height: dimensions ? dimensions.height : 'auto',
-      }}
+      className="block w-full pointer-events-none"
     />
   );
 }
