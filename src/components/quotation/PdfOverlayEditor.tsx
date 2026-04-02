@@ -241,7 +241,7 @@ export default function PdfOverlayEditor({
               <p className="text-sm font-medium text-foreground">
                 {uploading ? 'Uploaden...' : 'Sleep een PDF hierheen of klik om te uploaden'}
               </p>
-              <p className="text-xs text-muted-foreground mt-1">Max 10MB · Alleen PDF</p>
+              <p className="text-xs text-muted-foreground mt-1">Max 25MB · Alleen PDF</p>
             </div>
             <input
               type="file"
