@@ -4,28 +4,27 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import type { QuoteTemplate } from '@/types/quotation';
 
-function mapRow(r: any): QuoteTemplate {
+export interface TemplateWithPdf extends QuoteTemplate {
+  pdfUrl?: string | null;
+  overlayFields?: any[];
+}
+
+function mapRow(r: any): TemplateWithPdf {
+  const contentBlocks = r.content_blocks || {};
   return {
     id: r.id,
     userId: r.user_id,
     name: r.name,
     description: r.description,
-    contentBlocks: r.content_blocks || [],
+    contentBlocks: contentBlocks,
     defaultLineItems: r.default_line_items || [],
     termsAndConditions: r.terms_and_conditions,
     isDefault: r.is_default,
     createdAt: r.created_at,
     updatedAt: r.updated_at,
-    // We store pdfUrl and overlayFields inside content_blocks for templates
-    pdfUrl: r.content_blocks?.pdfUrl || null,
-    overlayFields: r.content_blocks?.overlayFields || [],
+    pdfUrl: contentBlocks?.pdfUrl || null,
+    overlayFields: contentBlocks?.overlayFields || [],
   };
-}
-
-// Extend QuoteTemplate type locally
-export interface TemplateWithPdf extends QuoteTemplate {
-  pdfUrl?: string | null;
-  overlayFields?: any[];
 }
 
 export function useQuoteTemplates() {
