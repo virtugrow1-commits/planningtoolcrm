@@ -8,6 +8,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import ContactSelector from '@/components/quotation/ContactSelector';
 import LineItemsEditor from '@/components/quotation/LineItemsEditor';
+import PdfOverlayEditor from '@/components/quotation/PdfOverlayEditor';
+import type { OverlayField } from '@/components/quotation/PdfOverlayEditor';
 import { useQuotes } from '@/hooks/useQuotes';
 import { calcFinancials } from '@/types/quotation';
 import type { LineItem } from '@/types/quotation';
