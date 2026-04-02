@@ -35,6 +35,8 @@ function mapRow(r: any): Quote {
     signedPdfUrl: r.signed_pdf_url,
     publicToken: r.public_token,
     ghlOpportunityId: r.ghl_opportunity_id,
+    pdfUrl: r.pdf_url,
+    overlayFields: r.overlay_fields || [],
     createdAt: r.created_at,
     updatedAt: r.updated_at,
   };
