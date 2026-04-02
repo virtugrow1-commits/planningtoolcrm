@@ -466,7 +466,7 @@ function SignatureBlockEditor({ block, selected, onUpdate }: { block: SignatureB
   );
 }
 
-import { PenTool } from 'lucide-react';
+
 
 // ─── Text Field Block ──────────────────────────────────────────
 function TextFieldBlockEditor({ block, selected, onUpdate }: { block: TextFieldBlock; selected: boolean; onUpdate: (u: any) => void }) {
