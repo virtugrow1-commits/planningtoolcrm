@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, FileText, Search, Filter } from 'lucide-react';
+import { Plus, FileText, Search, Layout, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
@@ -8,14 +8,18 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useQuotes } from '@/hooks/useQuotes';
 import { useInvoices } from '@/hooks/useInvoices';
+import { useQuoteTemplates } from '@/hooks/useQuoteTemplates';
 import QuoteStatusBadge from '@/components/quotation/QuoteStatusBadge';
 import { format } from 'date-fns';
 import { nl } from 'date-fns/locale';
+import { useToast } from '@/hooks/use-toast';
 
 export default function QuotesPage() {
   const navigate = useNavigate();
   const { quotes, loading: qLoading } = useQuotes();
   const { invoices, loading: iLoading } = useInvoices();
+  const { templates, loading: tLoading, deleteTemplate } = useQuoteTemplates();
+  const { toast } = useToast();
   const [search, setSearch] = useState('');
   const [tab, setTab] = useState('quotes');
 
@@ -50,9 +54,14 @@ export default function QuotesPage() {
           <h1 className="text-2xl font-bold text-foreground">Offertes & Facturen</h1>
           <p className="text-sm text-muted-foreground">Beheer offertes, facturen en betalingen</p>
         </div>
-        <Button onClick={() => navigate('/quotes/new')} className="gap-1.5">
-          <Plus size={16} /> Nieuwe offerte
-        </Button>
+        <div className="flex gap-2">
+          <Button onClick={() => navigate('/quotes/new')} className="gap-1.5">
+            <Plus size={16} /> Nieuwe offerte
+          </Button>
+          <Button variant="outline" onClick={() => navigate('/templates/new')} className="gap-1.5">
+            <Layout size={16} /> Nieuw sjabloon
+          </Button>
+        </div>
       </div>
 
       {/* KPI cards */}
@@ -89,6 +98,7 @@ export default function QuotesPage() {
         <TabsList>
           <TabsTrigger value="quotes">Offertes ({quotes.length})</TabsTrigger>
           <TabsTrigger value="invoices">Facturen ({invoices.length})</TabsTrigger>
+          <TabsTrigger value="templates">Sjablonen ({templates.length})</TabsTrigger>
         </TabsList>
 
         <TabsContent value="quotes" className="mt-4">
@@ -181,6 +191,52 @@ export default function QuotesPage() {
               </TableBody>
             </Table>
           </Card>
+        </TabsContent>
+
+        <TabsContent value="templates" className="mt-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {tLoading ? (
+              <p className="text-muted-foreground col-span-full text-center py-8">Laden...</p>
+            ) : templates.length === 0 ? (
+              <Card className="col-span-full">
+                <CardContent className="py-12 text-center">
+                  <Layout size={32} className="mx-auto text-muted-foreground mb-3" />
+                  <p className="text-muted-foreground">Nog geen sjablonen aangemaakt.</p>
+                  <Button variant="outline" className="mt-4 gap-1.5" onClick={() => navigate('/templates/new')}>
+                    <Plus size={14} /> Eerste sjabloon maken
+                  </Button>
+                </CardContent>
+              </Card>
+            ) : (
+              templates.map((tpl) => (
+                <Card key={tpl.id} className="cursor-pointer hover:ring-1 hover:ring-primary/30 transition-all" onClick={() => navigate(`/templates/${tpl.id}`)}>
+                  <CardContent className="p-4">
+                    <div className="flex items-start justify-between">
+                      <div>
+                        <p className="font-medium text-foreground">{tpl.name}</p>
+                        {tpl.description && <p className="text-xs text-muted-foreground mt-0.5">{tpl.description}</p>}
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7 text-muted-foreground hover:text-destructive"
+                        onClick={async (e) => {
+                          e.stopPropagation();
+                          const ok = await deleteTemplate(tpl.id);
+                          if (ok) toast({ title: 'Sjabloon verwijderd' });
+                        }}
+                      >
+                        <Trash2 size={14} />
+                      </Button>
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-2">
+                      {format(new Date(tpl.createdAt), 'dd MMM yyyy', { locale: nl })}
+                    </p>
+                  </CardContent>
+                </Card>
+              ))
+            )}
+          </div>
         </TabsContent>
       </Tabs>
     </div>

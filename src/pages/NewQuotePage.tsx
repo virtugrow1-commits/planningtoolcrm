@@ -1,16 +1,18 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Save } from 'lucide-react';
+import { ArrowLeft, Save, Layout } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import ContactSelector from '@/components/quotation/ContactSelector';
 import LineItemsEditor from '@/components/quotation/LineItemsEditor';
 import PdfOverlayEditor from '@/components/quotation/PdfOverlayEditor';
 import type { OverlayField } from '@/components/quotation/PdfOverlayEditor';
 import { useQuotes } from '@/hooks/useQuotes';
+import { useQuoteTemplates } from '@/hooks/useQuoteTemplates';
 import { calcFinancials } from '@/types/quotation';
 import type { LineItem } from '@/types/quotation';
 import { useToast } from '@/hooks/use-toast';
@@ -18,6 +20,7 @@ import { useToast } from '@/hooks/use-toast';
 export default function NewQuotePage() {
   const navigate = useNavigate();
   const { createQuote } = useQuotes();
+  const { templates } = useQuoteTemplates();
   const { toast } = useToast();
   const [saving, setSaving] = useState(false);
 
@@ -54,6 +57,17 @@ export default function NewQuotePage() {
       companyName: companyName || '',
       clientEmail: email || prev.clientEmail,
     }));
+  };
+
+  const handleTemplateSelect = (templateId: string) => {
+    const tpl = templates.find(t => t.id === templateId);
+    if (!tpl) return;
+    const content = tpl.contentBlocks as any;
+    if (content?.pdfUrl) setPdfUrl(content.pdfUrl);
+    if (content?.overlayFields) setOverlayFields(content.overlayFields);
+    if (tpl.termsAndConditions) {
+      setForm(prev => ({ ...prev, termsAndConditions: tpl.termsAndConditions || '' }));
+    }
   };
 
   const handleSave = async () => {
@@ -113,6 +127,30 @@ export default function NewQuotePage() {
           <Save size={16} /> {saving ? 'Opslaan...' : 'Opslaan als concept'}
         </Button>
       </div>
+
+      {/* Template selector */}
+      {templates.length > 0 && (
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center gap-3">
+              <Layout size={16} className="text-muted-foreground" />
+              <div className="flex-1 space-y-1">
+                <Label className="text-sm">Sjabloon gebruiken</Label>
+                <Select onValueChange={handleTemplateSelect}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecteer een sjabloon (optioneel)" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {templates.map((tpl) => (
+                      <SelectItem key={tpl.id} value={tpl.id}>{tpl.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Client info */}
       <Card>

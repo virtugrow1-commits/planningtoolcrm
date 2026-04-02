@@ -21,6 +21,7 @@ import TaskDetailPage from "@/pages/TaskDetailPage";
 import QuotesPage from "@/pages/QuotesPage";
 import NewQuotePage from "@/pages/NewQuotePage";
 import QuoteDetailPage from "@/pages/QuoteDetailPage";
+import TemplateEditorPage from "@/pages/TemplateEditorPage";
 import AuthPage from "@/pages/AuthPage";
 import PublicQuotePage from "@/pages/PublicQuotePage";
 import NotFound from "./pages/NotFound";
@@ -68,6 +69,8 @@ function ProtectedRoutes() {
                   <Route path="/quotes" element={<QuotesPage />} />
                   <Route path="/quotes/new" element={<NewQuotePage />} />
                   <Route path="/quotes/:id" element={<QuoteDetailPage />} />
+                  <Route path="/templates/new" element={<TemplateEditorPage />} />
+                  <Route path="/templates/:id" element={<TemplateEditorPage />} />
                   <Route path="/reserveringen" element={<ReserveringenPage />} />
                   <Route path="/reserveringen/:id" element={<BookingDetailPage />} />
                   
