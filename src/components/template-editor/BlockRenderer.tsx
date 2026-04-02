@@ -99,7 +99,7 @@ function renderBlockContent(
 }
 
 // ─── Text Block ──────────────────────────────────────────────
-function TextBlockEditor({ block, selected, onUpdate }: { block: TextBlock; selected: boolean; onUpdate: (u: any) => void }) {
+function TextBlockEditor({ block, selected, onUpdate, customFonts = [], onCustomFontsChange }: { block: TextBlock; selected: boolean; onUpdate: (u: any) => void; customFonts?: CustomFont[]; onCustomFontsChange?: (fonts: CustomFont[]) => void }) {
   const ref = useRef<HTMLDivElement>(null);
 
   const insertMergeTag = useCallback((tag: string) => {
