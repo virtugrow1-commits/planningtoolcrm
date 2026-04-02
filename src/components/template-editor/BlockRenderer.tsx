@@ -1,4 +1,5 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useCallback } from 'react';
+import MergeTagPicker from './MergeTagPicker';
 import { Trash2, GripVertical, ChevronUp, ChevronDown, Upload, Plus, X, PenTool } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
