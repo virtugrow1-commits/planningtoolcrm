@@ -98,6 +98,7 @@ export default function QuotesPage() {
         <TabsList>
           <TabsTrigger value="quotes">Offertes ({quotes.length})</TabsTrigger>
           <TabsTrigger value="invoices">Facturen ({invoices.length})</TabsTrigger>
+          <TabsTrigger value="templates">Sjablonen ({templates.length})</TabsTrigger>
         </TabsList>
 
         <TabsContent value="quotes" className="mt-4">
