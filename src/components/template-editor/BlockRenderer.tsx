@@ -137,6 +137,12 @@ function TextBlockEditor({ block, selected, onUpdate, customFonts = [], onCustom
     <div className="space-y-2">
       {selected && (
         <div className="flex items-center gap-1 flex-wrap pb-2 border-b">
+          <FontPicker
+            value={block.fontFamily || 'Inter'}
+            onChange={(fontFamily) => onUpdate({ fontFamily })}
+            customFonts={customFonts}
+            onCustomFontsChange={onCustomFontsChange || (() => {})}
+          />
           <select
             value={block.fontSize}
             onChange={(e) => onUpdate({ fontSize: Number(e.target.value) })}
