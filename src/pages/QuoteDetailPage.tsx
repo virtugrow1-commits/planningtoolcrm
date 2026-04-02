@@ -1,12 +1,14 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Send, Copy, ExternalLink, FileText, Trash2 } from 'lucide-react';
+import { ArrowLeft, Send, Copy, ExternalLink, FileText, Trash2, Save } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useQuotes } from '@/hooks/useQuotes';
 import { useInvoices } from '@/hooks/useInvoices';
 import QuoteStatusBadge from '@/components/quotation/QuoteStatusBadge';
 import LineItemsEditor from '@/components/quotation/LineItemsEditor';
+import PdfOverlayEditor from '@/components/quotation/PdfOverlayEditor';
+import type { OverlayField } from '@/components/quotation/PdfOverlayEditor';
 import type { Quote } from '@/types/quotation';
 import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
