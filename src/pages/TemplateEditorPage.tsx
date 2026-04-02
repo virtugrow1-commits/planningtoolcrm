@@ -51,7 +51,7 @@ export default function TemplateEditorPage() {
 
     setSaving(true);
 
-    const contentBlocks = { blocks, pdfBackgroundUrl };
+    const contentBlocks = { blocks, pdfBackgroundUrl, customFonts };
 
     if (isEdit) {
       const ok = await updateTemplate(id!, { name, description, termsAndConditions, contentBlocks });
