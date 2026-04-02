@@ -550,6 +550,171 @@ export type Database = {
           },
         ]
       }
+      invoice_line_items: {
+        Row: {
+          created_at: string
+          description: string | null
+          discount_percent: number
+          id: string
+          invoice_id: string
+          item_name: string
+          ledger_account: string | null
+          line_total: number
+          quantity: number
+          sort_order: number
+          unit_price: number
+          vat_rate: number
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          discount_percent?: number
+          id?: string
+          invoice_id: string
+          item_name: string
+          ledger_account?: string | null
+          line_total?: number
+          quantity?: number
+          sort_order?: number
+          unit_price?: number
+          vat_rate?: number
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          discount_percent?: number
+          id?: string
+          invoice_id?: string
+          item_name?: string
+          ledger_account?: string | null
+          line_total?: number
+          quantity?: number
+          sort_order?: number
+          unit_price?: number
+          vat_rate?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "invoice_line_items_invoice_id_fkey"
+            columns: ["invoice_id"]
+            isOneToOne: false
+            referencedRelation: "invoices"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      invoices: {
+        Row: {
+          client_address: string | null
+          client_email: string | null
+          company_id: string | null
+          company_name: string | null
+          contact_id: string | null
+          contact_name: string
+          created_at: string
+          discount_amount: number
+          display_number: string | null
+          due_date: string | null
+          eboekhouden_mutation_id: string | null
+          ghl_invoice_id: string | null
+          id: string
+          notes: string | null
+          paid_at: string | null
+          payment_method: string | null
+          quote_id: string | null
+          sent_at: string | null
+          status: string
+          stripe_invoice_id: string | null
+          stripe_payment_link: string | null
+          subtotal: number
+          title: string
+          total: number
+          updated_at: string
+          user_id: string
+          vat_amount: number
+        }
+        Insert: {
+          client_address?: string | null
+          client_email?: string | null
+          company_id?: string | null
+          company_name?: string | null
+          contact_id?: string | null
+          contact_name?: string
+          created_at?: string
+          discount_amount?: number
+          display_number?: string | null
+          due_date?: string | null
+          eboekhouden_mutation_id?: string | null
+          ghl_invoice_id?: string | null
+          id?: string
+          notes?: string | null
+          paid_at?: string | null
+          payment_method?: string | null
+          quote_id?: string | null
+          sent_at?: string | null
+          status?: string
+          stripe_invoice_id?: string | null
+          stripe_payment_link?: string | null
+          subtotal?: number
+          title?: string
+          total?: number
+          updated_at?: string
+          user_id: string
+          vat_amount?: number
+        }
+        Update: {
+          client_address?: string | null
+          client_email?: string | null
+          company_id?: string | null
+          company_name?: string | null
+          contact_id?: string | null
+          contact_name?: string
+          created_at?: string
+          discount_amount?: number
+          display_number?: string | null
+          due_date?: string | null
+          eboekhouden_mutation_id?: string | null
+          ghl_invoice_id?: string | null
+          id?: string
+          notes?: string | null
+          paid_at?: string | null
+          payment_method?: string | null
+          quote_id?: string | null
+          sent_at?: string | null
+          status?: string
+          stripe_invoice_id?: string | null
+          stripe_payment_link?: string | null
+          subtotal?: number
+          title?: string
+          total?: number
+          updated_at?: string
+          user_id?: string
+          vat_amount?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "invoices_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "invoices_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "invoices_quote_id_fkey"
+            columns: ["quote_id"]
+            isOneToOne: false
+            referencedRelation: "quotes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       messages: {
         Row: {
           body: string
@@ -640,6 +805,219 @@ export type Database = {
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      quote_line_items: {
+        Row: {
+          created_at: string
+          description: string | null
+          discount_percent: number
+          id: string
+          item_name: string
+          line_total: number
+          quantity: number
+          quote_id: string
+          sort_order: number
+          unit_price: number
+          vat_rate: number
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          discount_percent?: number
+          id?: string
+          item_name: string
+          line_total?: number
+          quantity?: number
+          quote_id: string
+          sort_order?: number
+          unit_price?: number
+          vat_rate?: number
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          discount_percent?: number
+          id?: string
+          item_name?: string
+          line_total?: number
+          quantity?: number
+          quote_id?: string
+          sort_order?: number
+          unit_price?: number
+          vat_rate?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "quote_line_items_quote_id_fkey"
+            columns: ["quote_id"]
+            isOneToOne: false
+            referencedRelation: "quotes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      quote_templates: {
+        Row: {
+          content_blocks: Json
+          created_at: string
+          default_line_items: Json | null
+          description: string | null
+          id: string
+          is_default: boolean
+          name: string
+          terms_and_conditions: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          content_blocks?: Json
+          created_at?: string
+          default_line_items?: Json | null
+          description?: string | null
+          id?: string
+          is_default?: boolean
+          name: string
+          terms_and_conditions?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          content_blocks?: Json
+          created_at?: string
+          default_line_items?: Json | null
+          description?: string | null
+          id?: string
+          is_default?: boolean
+          name?: string
+          terms_and_conditions?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      quotes: {
+        Row: {
+          accepted_at: string | null
+          client_address: string | null
+          client_email: string | null
+          company_id: string | null
+          company_name: string | null
+          contact_id: string | null
+          contact_name: string
+          created_at: string
+          declined_at: string | null
+          discount_amount: number
+          display_number: string | null
+          ghl_opportunity_id: string | null
+          id: string
+          introduction: string | null
+          notes: string | null
+          public_token: string | null
+          sent_at: string | null
+          signature_data: string | null
+          signature_ip: string | null
+          signed_pdf_url: string | null
+          status: string
+          subtotal: number
+          template_id: string | null
+          terms_and_conditions: string | null
+          title: string
+          total: number
+          updated_at: string
+          user_id: string
+          valid_until: string | null
+          vat_amount: number
+          viewed_at: string | null
+        }
+        Insert: {
+          accepted_at?: string | null
+          client_address?: string | null
+          client_email?: string | null
+          company_id?: string | null
+          company_name?: string | null
+          contact_id?: string | null
+          contact_name?: string
+          created_at?: string
+          declined_at?: string | null
+          discount_amount?: number
+          display_number?: string | null
+          ghl_opportunity_id?: string | null
+          id?: string
+          introduction?: string | null
+          notes?: string | null
+          public_token?: string | null
+          sent_at?: string | null
+          signature_data?: string | null
+          signature_ip?: string | null
+          signed_pdf_url?: string | null
+          status?: string
+          subtotal?: number
+          template_id?: string | null
+          terms_and_conditions?: string | null
+          title?: string
+          total?: number
+          updated_at?: string
+          user_id: string
+          valid_until?: string | null
+          vat_amount?: number
+          viewed_at?: string | null
+        }
+        Update: {
+          accepted_at?: string | null
+          client_address?: string | null
+          client_email?: string | null
+          company_id?: string | null
+          company_name?: string | null
+          contact_id?: string | null
+          contact_name?: string
+          created_at?: string
+          declined_at?: string | null
+          discount_amount?: number
+          display_number?: string | null
+          ghl_opportunity_id?: string | null
+          id?: string
+          introduction?: string | null
+          notes?: string | null
+          public_token?: string | null
+          sent_at?: string | null
+          signature_data?: string | null
+          signature_ip?: string | null
+          signed_pdf_url?: string | null
+          status?: string
+          subtotal?: number
+          template_id?: string | null
+          terms_and_conditions?: string | null
+          title?: string
+          total?: number
+          updated_at?: string
+          user_id?: string
+          valid_until?: string | null
+          vat_amount?: number
+          viewed_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "quotes_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "quotes_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "quotes_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "quote_templates"
             referencedColumns: ["id"]
           },
         ]
