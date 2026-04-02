@@ -3,6 +3,7 @@ import {
   LayoutDashboard,
   Users,
   InboxIcon,
+  FileText,
   CalendarDays,
   ClipboardList,
   Settings,
@@ -34,6 +35,7 @@ const navItemDefs = [
   { to: '/crm', icon: Users, key: 'nav.crm' },
   
   { to: '/inquiries', icon: InboxIcon, key: 'nav.inquiries' },
+  { to: '/quotes', icon: FileText, key: 'nav.quotes' },
   { to: '/reserveringen', icon: ClipboardList, key: 'nav.reserveringen' },
   { to: '/calendar', icon: CalendarDays, key: 'nav.calendar' },
 ];

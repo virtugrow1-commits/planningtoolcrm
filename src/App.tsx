@@ -18,6 +18,9 @@ import SettingsPage from "@/pages/SettingsPage";
 import BookingDetailPage from "@/pages/BookingDetailPage";
 import InquiryDetailPage from "@/pages/InquiryDetailPage";
 import TaskDetailPage from "@/pages/TaskDetailPage";
+import QuotesPage from "@/pages/QuotesPage";
+import NewQuotePage from "@/pages/NewQuotePage";
+import QuoteDetailPage from "@/pages/QuoteDetailPage";
 import AuthPage from "@/pages/AuthPage";
 import NotFound from "./pages/NotFound";
 import { BookingsProvider } from "@/contexts/BookingsContext";
@@ -61,6 +64,9 @@ function ProtectedRoutes() {
                   <Route path="/inquiries" element={<InquiriesPage />} />
                   <Route path="/inquiries/:id" element={<InquiryDetailPage />} />
                   <Route path="/tasks/:id" element={<TaskDetailPage />} />
+                  <Route path="/quotes" element={<QuotesPage />} />
+                  <Route path="/quotes/new" element={<NewQuotePage />} />
+                  <Route path="/quotes/:id" element={<QuoteDetailPage />} />
                   <Route path="/reserveringen" element={<ReserveringenPage />} />
                   <Route path="/reserveringen/:id" element={<BookingDetailPage />} />
                   

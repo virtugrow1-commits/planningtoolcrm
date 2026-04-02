@@ -8,6 +8,7 @@ const translations: Record<string, Record<Language, string>> = {
   'nav.crm': { nl: 'CRM', en: 'CRM' },
   'nav.companies': { nl: 'Bedrijven', en: 'Companies' },
   'nav.inquiries': { nl: 'Aanvragen', en: 'Inquiries' },
+  'nav.quotes': { nl: 'Offertes', en: 'Quotes' },
   'nav.conversations': { nl: 'Gesprekken', en: 'Conversations' },
   'nav.reserveringen': { nl: 'Reserveringen', en: 'Reservations' },
   'nav.calendar': { nl: 'Kalender', en: 'Calendar' },
