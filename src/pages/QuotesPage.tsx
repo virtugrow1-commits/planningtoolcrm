@@ -18,6 +18,8 @@ export default function QuotesPage() {
   const navigate = useNavigate();
   const { quotes, loading: qLoading } = useQuotes();
   const { invoices, loading: iLoading } = useInvoices();
+  const { templates, loading: tLoading, deleteTemplate } = useQuoteTemplates();
+  const { toast } = useToast();
   const [search, setSearch] = useState('');
   const [tab, setTab] = useState('quotes');
 
