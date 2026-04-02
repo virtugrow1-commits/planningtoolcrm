@@ -184,6 +184,14 @@ export default function NewQuotePage() {
         </CardContent>
       </Card>
 
+      {/* PDF Template Editor */}
+      <PdfOverlayEditor
+        pdfUrl={pdfUrl}
+        overlayFields={overlayFields}
+        onPdfUpload={setPdfUrl}
+        onFieldsChange={setOverlayFields}
+      />
+
       {/* Line items */}
       <Card>
         <CardHeader>
