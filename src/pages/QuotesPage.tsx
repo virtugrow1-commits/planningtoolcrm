@@ -54,9 +54,14 @@ export default function QuotesPage() {
           <h1 className="text-2xl font-bold text-foreground">Offertes & Facturen</h1>
           <p className="text-sm text-muted-foreground">Beheer offertes, facturen en betalingen</p>
         </div>
-        <Button onClick={() => navigate('/quotes/new')} className="gap-1.5">
-          <Plus size={16} /> Nieuwe offerte
-        </Button>
+        <div className="flex gap-2">
+          <Button onClick={() => navigate('/quotes/new')} className="gap-1.5">
+            <Plus size={16} /> Nieuwe offerte
+          </Button>
+          <Button variant="outline" onClick={() => navigate('/templates/new')} className="gap-1.5">
+            <Layout size={16} /> Nieuw sjabloon
+          </Button>
+        </div>
       </div>
 
       {/* KPI cards */}
