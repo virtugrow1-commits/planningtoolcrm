@@ -1695,7 +1695,87 @@ async function processSyncQueue(supabase: any, ghlHeaders: any, locationId: stri
         failed++;
       }
       await delay(200); // Minimal delay between queue items
+}
+
+// === DOCUMENTS SYNC (GHL → CRM) ===
+async function syncDocuments(supabase: any, ghlHeaders: any, locationId: string, userId: string, results: any) {
+  try {
+    // GHL Documents/Proposals search endpoint
+    const searchUrl = `${GHL_API_BASE}/documents/search?locationId=${locationId}&limit=100`;
+    const res = await fetch(searchUrl, { headers: ghlHeaders });
+    
+    if (!res.ok) {
+      // Documents API may not be available on all GHL plans
+      if (res.status === 404 || res.status === 403) {
+        console.log('[Documents Sync] Documents API not available, skipping');
+        return;
+      }
+      console.error(`[Documents Sync] Fetch failed: ${res.status}`);
+      return;
     }
+
+    const data = await res.json();
+    const docs = data.documents || data.data || [];
+    console.log(`[Documents Sync] Found ${docs.length} documents from GHL`);
+
+    for (const doc of docs) {
+      const ghlDocId = doc.id || doc.documentId;
+      if (!ghlDocId) continue;
+
+      const title = doc.title || doc.name || 'Document';
+      const contactName = doc.contactName || doc.contact?.name || 'Onbekend';
+      const amount = doc.amount || doc.total || doc.monetaryValue ? Number(doc.amount || doc.total || doc.monetaryValue) : null;
+      const externalUrl = doc.url || doc.documentUrl || null;
+      
+      let docType = 'proposal';
+      const typeStr = (doc.type || doc.documentType || '').toLowerCase();
+      if (typeStr.includes('invoice')) docType = 'invoice';
+      else if (typeStr.includes('estimate')) docType = 'estimate';
+      else if (typeStr.includes('contract')) docType = 'contract';
+
+      let status = 'sent';
+      const statusStr = (doc.status || '').toLowerCase();
+      if (statusStr.includes('signed') || statusStr.includes('accepted') || statusStr.includes('completed')) status = 'signed';
+      else if (statusStr.includes('viewed') || statusStr.includes('opened')) status = 'viewed';
+      else if (statusStr.includes('declined') || statusStr.includes('rejected')) status = 'declined';
+      else if (statusStr.includes('paid')) status = 'paid';
+
+      // Link to local contact
+      let dbContactId: string | null = null;
+      const ghlContactId = doc.contactId || doc.contact?.id;
+      if (ghlContactId) {
+        const { data: contactMatch } = await supabase.from('contacts').select('id').eq('ghl_contact_id', ghlContactId).maybeSingle();
+        dbContactId = contactMatch?.id || null;
+      }
+
+      // Upsert into documents table
+      const { error } = await supabase.from('documents').upsert({
+        user_id: userId,
+        ghl_document_id: ghlDocId,
+        title,
+        document_type: docType,
+        status,
+        contact_name: contactName,
+        contact_id: dbContactId,
+        amount,
+        external_url: externalUrl,
+        sent_at: doc.sentAt || doc.createdAt || new Date().toISOString(),
+        viewed_at: doc.viewedAt || null,
+        signed_at: doc.signedAt || doc.completedAt || null,
+      }, { onConflict: 'ghl_document_id' });
+
+      if (error) {
+        console.error(`[Documents Sync] Upsert error for ${ghlDocId}:`, error.message);
+      } else {
+        results.documents_synced++;
+      }
+    }
+    console.log(`[Documents Sync] Synced ${results.documents_synced} documents`);
+  } catch (e) {
+    console.error('[Documents Sync] Error:', e);
+    results.errors.push(`documents: ${e}`);
+  }
+}
     console.log(`[Queue] Done: ${succeeded} succeeded, ${failed} failed`);
   } catch (e) { console.error('Queue processing error:', e); }
 }
