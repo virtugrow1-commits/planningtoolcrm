@@ -77,7 +77,7 @@ function ProtectedRoutes() {
                   <Route path="/reserveringen" element={<ReserveringenPage />} />
                   <Route path="/reserveringen/:id" element={<BookingDetailPage />} />
                   
-                  <Route path="/documents" element={<DocumentsPage />} />
+                  
                   
                   <Route path="/calendar" element={<CalendarPage />} />
                   <Route path="/settings" element={<SettingsPage />} />
