@@ -1,16 +1,16 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Search, Layout, Trash2, FileText, Receipt, LayoutTemplate, TrendingUp, Clock, CheckCircle2, Euro } from 'lucide-react';
+import { Plus, Search, FileText, Receipt, LayoutTemplate, TrendingUp, Clock, CheckCircle2, Euro, Trash2, Globe } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { useQuotes } from '@/hooks/useQuotes';
 import { useInvoices } from '@/hooks/useInvoices';
 import { useQuoteTemplates } from '@/hooks/useQuoteTemplates';
-import QuoteStatusBadge from '@/components/quotation/QuoteStatusBadge';
+import { useUnifiedDocuments } from '@/hooks/useUnifiedDocuments';
+import UnifiedDocumentTable from '@/components/documents/UnifiedDocumentTable';
 import { useToast } from '@/hooks/use-toast';
 import { formatDate } from '@/components/quotation/DocumentMetadata';
 
@@ -22,23 +22,38 @@ export default function QuotesPage() {
   const { quotes, loading: qLoading } = useQuotes();
   const { invoices, loading: iLoading } = useInvoices();
   const { templates, loading: tLoading, deleteTemplate } = useQuoteTemplates();
+  const { documents: allDocs, loading: allLoading } = useUnifiedDocuments();
   const { toast } = useToast();
 
   const [search, setSearch] = useState('');
-  const [tab, setTab] = useState('quotes');
+  const [tab, setTab] = useState('all');
   const [quoteFilter, setQuoteFilter] = useState<QuoteFilter>('all');
   const [invoiceFilter, setInvoiceFilter] = useState<InvoiceFilter>('all');
 
-  const searchFilter = (fields: (string | undefined)[]) =>
+  const searchFilter = (fields: (string | undefined | null)[]) =>
     fields.filter(Boolean).join(' ').toLowerCase().includes(search.toLowerCase());
 
-  const filteredQuotes = quotes
-    .filter((q) => quoteFilter === 'all' || q.status === quoteFilter)
-    .filter((q) => searchFilter([q.displayNumber, q.contactName, q.companyName, q.title]));
+  // Filter unified docs
+  const filteredAll = useMemo(() =>
+    allDocs.filter((d) => searchFilter([d.displayNumber, d.contactName, d.companyName, d.title])),
+    [allDocs, search]
+  );
 
-  const filteredInvoices = invoices
-    .filter((inv) => invoiceFilter === 'all' || inv.status === invoiceFilter)
-    .filter((inv) => searchFilter([inv.displayNumber, inv.contactName, inv.companyName, inv.title]));
+  const filteredQuotes = useMemo(() =>
+    allDocs
+      .filter((d) => d.source === 'quote')
+      .filter((d) => quoteFilter === 'all' || d.status === quoteFilter)
+      .filter((d) => searchFilter([d.displayNumber, d.contactName, d.companyName, d.title])),
+    [allDocs, quoteFilter, search]
+  );
+
+  const filteredInvoices = useMemo(() =>
+    allDocs
+      .filter((d) => d.source === 'invoice')
+      .filter((d) => invoiceFilter === 'all' || d.status === invoiceFilter)
+      .filter((d) => searchFilter([d.displayNumber, d.contactName, d.companyName, d.title])),
+    [allDocs, invoiceFilter, search]
+  );
 
   // KPIs
   const totalQuotesSent = quotes.filter((q) => q.status !== 'draft').length;
@@ -64,11 +79,13 @@ export default function QuotesPage() {
     paid: invoices.filter((i) => i.status === 'paid').length,
   };
 
+  const ghlCount = allDocs.filter((d) => d.source === 'ghl').length;
+
   const kpis = [
-    { label: 'Verzonden', value: totalQuotesSent, icon: FileText, color: 'text-blue-500' },
-    { label: 'Acceptatiegraad', value: `${acceptanceRate}%`, icon: TrendingUp, color: 'text-green-500' },
-    { label: 'Openstaand', value: pendingInvoices, icon: Clock, color: 'text-amber-500' },
-    { label: 'Omzet geïnd', value: `€${revenueCollected.toLocaleString('nl-NL', { minimumFractionDigits: 2 })}`, icon: Euro, color: 'text-emerald-500' },
+    { label: 'Verzonden', value: totalQuotesSent, icon: FileText, color: 'text-info' },
+    { label: 'Acceptatiegraad', value: `${acceptanceRate}%`, icon: TrendingUp, color: 'text-success' },
+    { label: 'Openstaand', value: pendingInvoices, icon: Clock, color: 'text-warning' },
+    { label: 'Omzet geïnd', value: `€${revenueCollected.toLocaleString('nl-NL', { minimumFractionDigits: 2 })}`, icon: Euro, color: 'text-success' },
   ];
 
   return (
@@ -76,8 +93,10 @@ export default function QuotesPage() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-foreground">Offertes & Facturen</h1>
-          <p className="text-sm text-muted-foreground">Beheer offertes, facturen en sjablonen</p>
+          <h1 className="text-2xl font-bold text-foreground">Documenten</h1>
+          <p className="text-sm text-muted-foreground">
+            Offertes, facturen en VirtuGrow documenten op één plek
+          </p>
         </div>
         <div className="flex gap-2">
           <Button onClick={() => navigate('/quotes/new')} className="gap-1.5">
@@ -115,6 +134,10 @@ export default function QuotesPage() {
       {/* Tabs */}
       <Tabs value={tab} onValueChange={setTab}>
         <TabsList>
+          <TabsTrigger value="all" className="gap-1.5">
+            <Globe size={14} /> Alle documenten
+            <Badge variant="secondary" className="ml-1 text-xs h-5 px-1.5">{allDocs.length}</Badge>
+          </TabsTrigger>
           <TabsTrigger value="quotes" className="gap-1.5">
             <FileText size={14} /> Offertes
             <Badge variant="secondary" className="ml-1 text-xs h-5 px-1.5">{quotes.length}</Badge>
@@ -129,9 +152,13 @@ export default function QuotesPage() {
           </TabsTrigger>
         </TabsList>
 
+        {/* All Documents tab */}
+        <TabsContent value="all" className="mt-4">
+          <UnifiedDocumentTable documents={filteredAll} loading={allLoading} />
+        </TabsContent>
+
         {/* Quotes tab */}
         <TabsContent value="quotes" className="mt-4 space-y-3">
-          {/* Status filter chips */}
           <div className="flex flex-wrap gap-2">
             {(['all', 'draft', 'sent', 'viewed', 'accepted', 'declined'] as QuoteFilter[]).map((f) => {
               const labels: Record<QuoteFilter, string> = { all: 'Alle', draft: 'Concept', sent: 'Verzonden', viewed: 'Bekeken', accepted: 'Geaccepteerd', declined: 'Afgewezen' };
@@ -150,41 +177,7 @@ export default function QuotesPage() {
               );
             })}
           </div>
-
-          <Card>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="w-28">Nummer</TableHead>
-                  <TableHead>Titel</TableHead>
-                  <TableHead>Klant</TableHead>
-                  <TableHead className="hidden md:table-cell">Bedrijf</TableHead>
-                  <TableHead className="text-right">Totaal</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead className="hidden md:table-cell">Datum</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {qLoading ? (
-                  <TableRow><TableCell colSpan={7} className="text-center py-8 text-muted-foreground">Laden...</TableCell></TableRow>
-                ) : filteredQuotes.length === 0 ? (
-                  <TableRow><TableCell colSpan={7} className="text-center py-8 text-muted-foreground">Geen offertes gevonden</TableCell></TableRow>
-                ) : (
-                  filteredQuotes.map((q) => (
-                    <TableRow key={q.id} className="cursor-pointer hover:bg-muted/50" onClick={() => navigate(`/quotes/${q.id}`)}>
-                      <TableCell className="font-mono text-xs text-muted-foreground">{q.displayNumber}</TableCell>
-                      <TableCell className="font-medium">{q.title}</TableCell>
-                      <TableCell>{q.contactName}</TableCell>
-                      <TableCell className="hidden md:table-cell text-muted-foreground">{q.companyName || '—'}</TableCell>
-                      <TableCell className="text-right font-medium tabular-nums">€{q.total.toFixed(2)}</TableCell>
-                      <TableCell><QuoteStatusBadge status={q.status} /></TableCell>
-                      <TableCell className="hidden md:table-cell text-muted-foreground text-xs">{formatDate(q.createdAt, false)}</TableCell>
-                    </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
-          </Card>
+          <UnifiedDocumentTable documents={filteredQuotes} loading={qLoading} emptyMessage="Geen offertes gevonden" />
         </TabsContent>
 
         {/* Invoices tab */}
@@ -207,41 +200,7 @@ export default function QuotesPage() {
               );
             })}
           </div>
-
-          <Card>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="w-28">Nummer</TableHead>
-                  <TableHead>Titel</TableHead>
-                  <TableHead>Klant</TableHead>
-                  <TableHead className="text-right">Totaal</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Vervaldatum</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {iLoading ? (
-                  <TableRow><TableCell colSpan={6} className="text-center py-8 text-muted-foreground">Laden...</TableCell></TableRow>
-                ) : filteredInvoices.length === 0 ? (
-                  <TableRow><TableCell colSpan={6} className="text-center py-8 text-muted-foreground">Geen facturen gevonden</TableCell></TableRow>
-                ) : (
-                  filteredInvoices.map((inv) => (
-                    <TableRow key={inv.id} className="cursor-pointer hover:bg-muted/50" onClick={() => navigate(`/invoices/${inv.id}`)}>
-                      <TableCell className="font-mono text-xs text-muted-foreground">{inv.displayNumber}</TableCell>
-                      <TableCell className="font-medium">{inv.title}</TableCell>
-                      <TableCell>{inv.contactName}</TableCell>
-                      <TableCell className="text-right font-medium tabular-nums">€{inv.total.toFixed(2)}</TableCell>
-                      <TableCell><QuoteStatusBadge status={inv.status} /></TableCell>
-                      <TableCell className="text-muted-foreground text-xs">
-                        {inv.dueDate ? formatDate(inv.dueDate, false) : '—'}
-                      </TableCell>
-                    </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
-          </Card>
+          <UnifiedDocumentTable documents={filteredInvoices} loading={iLoading} emptyMessage="Geen facturen gevonden" />
         </TabsContent>
 
         {/* Templates tab */}
