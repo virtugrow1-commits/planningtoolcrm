@@ -249,7 +249,7 @@ export default function BlockEditor({ blocks, onBlocksChange, pdfBackgroundUrl, 
                           bottom: { height: 6, bottom: -3, cursor: 'ns-resize' },
                         }}
                       >
-                        <div className="w-full h-full overflow-hidden">
+                        <div className="w-full h-full overflow-visible">
                           <BlockRenderer
                             block={block}
                             selected={selectedBlockId === block.id}
