@@ -197,5 +197,14 @@ export function useQuotes() {
     return quote;
   }, []);
 
-  return { quotes, loading, createQuote, updateQuote, updateQuoteStatus, getQuoteWithItems, refetch: fetchQuotes, fetchQuotes };
+  const deleteQuote = useCallback(async (id: string) => {
+    await supabase.from('quote_line_items').delete().eq('quote_id', id);
+    const { error } = await supabase.from('quotes').delete().eq('id', id);
+    if (!error) {
+      setQuotes((prev) => prev.filter((q) => q.id !== id));
+    }
+    return !error;
+  }, []);
+
+  return { quotes, loading, createQuote, updateQuote, updateQuoteStatus, deleteQuote, getQuoteWithItems, refetch: fetchQuotes, fetchQuotes };
 }

@@ -19,8 +19,8 @@ type InvoiceFilter = 'all' | 'draft' | 'sent' | 'overdue' | 'paid';
 
 export default function QuotesPage() {
   const navigate = useNavigate();
-  const { quotes, loading: qLoading } = useQuotes();
-  const { invoices, loading: iLoading } = useInvoices();
+  const { quotes, loading: qLoading, deleteQuote } = useQuotes();
+  const { invoices, loading: iLoading, deleteInvoice } = useInvoices();
   const { templates, loading: tLoading, deleteTemplate } = useQuoteTemplates();
   const { documents: allDocs, loading: allLoading } = useUnifiedDocuments();
   const { toast } = useToast();
@@ -154,7 +154,7 @@ export default function QuotesPage() {
 
         {/* All Documents tab */}
         <TabsContent value="all" className="mt-4">
-          <UnifiedDocumentTable documents={filteredAll} loading={allLoading} />
+          <UnifiedDocumentTable documents={filteredAll} loading={allLoading} onDeleteQuote={deleteQuote} onDeleteInvoice={deleteInvoice} />
         </TabsContent>
 
         {/* Quotes tab */}
@@ -177,7 +177,7 @@ export default function QuotesPage() {
               );
             })}
           </div>
-          <UnifiedDocumentTable documents={filteredQuotes} loading={qLoading} emptyMessage="Geen offertes gevonden" />
+          <UnifiedDocumentTable documents={filteredQuotes} loading={qLoading} emptyMessage="Geen offertes gevonden" onDeleteQuote={deleteQuote} />
         </TabsContent>
 
         {/* Invoices tab */}
@@ -200,7 +200,7 @@ export default function QuotesPage() {
               );
             })}
           </div>
-          <UnifiedDocumentTable documents={filteredInvoices} loading={iLoading} emptyMessage="Geen facturen gevonden" />
+          <UnifiedDocumentTable documents={filteredInvoices} loading={iLoading} emptyMessage="Geen facturen gevonden" onDeleteInvoice={deleteInvoice} />
         </TabsContent>
 
         {/* Templates tab */}
