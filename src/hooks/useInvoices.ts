@@ -77,7 +77,7 @@ export function useInvoices() {
       return inv;
     }));
     setLoading(false);
-  }, [user]);</anvoice_calls>
+  }, [user]);
 
   useEffect(() => { fetchInvoices(); }, [fetchInvoices]);
 
