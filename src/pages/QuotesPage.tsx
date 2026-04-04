@@ -154,7 +154,7 @@ export default function QuotesPage() {
 
         {/* All Documents tab */}
         <TabsContent value="all" className="mt-4">
-          <UnifiedDocumentTable documents={filteredAll} loading={allLoading} />
+          <UnifiedDocumentTable documents={filteredAll} loading={allLoading} onDeleteQuote={deleteQuote} onDeleteInvoice={deleteInvoice} />
         </TabsContent>
 
         {/* Quotes tab */}
