@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Send, Copy, FileText, Trash2, Save, Pencil } from 'lucide-react';
+import { ArrowLeft, Send, Copy, FileText, Save, Pencil } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -10,26 +10,15 @@ import { useQuotes } from '@/hooks/useQuotes';
 import { useInvoices } from '@/hooks/useInvoices';
 import QuoteStatusBadge from '@/components/quotation/QuoteStatusBadge';
 import LineItemsEditor from '@/components/quotation/LineItemsEditor';
-import ContactSelector from '@/components/quotation/ContactSelector';
+import ClientInfoCard from '@/components/quotation/ClientInfoCard';
 import PdfOverlayEditor from '@/components/quotation/PdfOverlayEditor';
 import type { OverlayField } from '@/components/quotation/PdfOverlayEditor';
+import DeleteConfirmDialog from '@/components/quotation/DeleteConfirmDialog';
+import DocumentMetadata, { formatDate } from '@/components/quotation/DocumentMetadata';
 import type { Quote, LineItem } from '@/types/quotation';
 import { calcFinancials } from '@/types/quotation';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
-import { format } from 'date-fns';
-import { nl } from 'date-fns/locale';
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from '@/components/ui/alert-dialog';
 
 export default function QuoteDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -110,7 +99,6 @@ export default function QuoteDetailPage() {
       total: fin.total,
     });
 
-    // Update line items: delete + re-insert
     if (ok) {
       await supabase.from('quote_line_items').delete().eq('quote_id', quote.id);
       if (lineItems.length > 0) {
@@ -170,21 +158,8 @@ export default function QuoteDetailPage() {
     toast({ title: 'Link gekopieerd' });
   };
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-[50vh]">
-        <p className="text-muted-foreground">Laden...</p>
-      </div>
-    );
-  }
-
-  if (!quote) {
-    return (
-      <div className="flex items-center justify-center min-h-[50vh]">
-        <p className="text-muted-foreground">Offerte niet gevonden</p>
-      </div>
-    );
-  }
+  if (loading) return <div className="flex items-center justify-center min-h-[50vh]"><p className="text-muted-foreground">Laden...</p></div>;
+  if (!quote) return <div className="flex items-center justify-center min-h-[50vh]"><p className="text-muted-foreground">Offerte niet gevonden</p></div>;
 
   return (
     <div className="p-4 md:p-6 max-w-5xl mx-auto space-y-6">
@@ -226,95 +201,34 @@ export default function QuoteDetailPage() {
               <FileText size={14} /> Maak factuur
             </Button>
           )}
-          {isDraft && (
-            <AlertDialog>
-              <AlertDialogTrigger asChild>
-                <Button variant="ghost" size="sm" className="gap-1.5 text-destructive hover:text-destructive">
-                  <Trash2 size={14} /> Verwijderen
-                </Button>
-              </AlertDialogTrigger>
-              <AlertDialogContent>
-                <AlertDialogHeader>
-                  <AlertDialogTitle>Offerte verwijderen?</AlertDialogTitle>
-                  <AlertDialogDescription>
-                    Dit kan niet ongedaan worden gemaakt.
-                  </AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                  <AlertDialogCancel>Annuleren</AlertDialogCancel>
-                  <AlertDialogAction onClick={handleDelete} className="bg-destructive text-destructive-foreground">
-                    Verwijderen
-                  </AlertDialogAction>
-                </AlertDialogFooter>
-              </AlertDialogContent>
-            </AlertDialog>
-          )}
+          {isDraft && <DeleteConfirmDialog title="Offerte verwijderen?" onConfirm={handleDelete} />}
         </div>
       </div>
 
       {/* Client info */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Klantgegevens</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {isEditable ? (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="space-y-1.5">
-                <Label>Contactpersoon</Label>
-                <ContactSelector
-                  value={contactId}
-                  onChange={(cId, cName, coId, coName, email) => {
-                    setContactId(cId);
-                    setContactName(cName);
-                    if (coId) setCompanyId(coId);
-                    if (coName) setCompanyName(coName);
-                    if (email) setClientEmail(email);
-                  }}
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label>E-mail</Label>
-                <Input value={clientEmail} onChange={(e) => setClientEmail(e.target.value)} />
-              </div>
-              <div className="space-y-1.5">
-                <Label>Bedrijf</Label>
-                <Input value={companyName} onChange={(e) => setCompanyName(e.target.value)} />
-              </div>
-              <div className="space-y-1.5">
-                <Label>Adres</Label>
-                <Input value={clientAddress} onChange={(e) => setClientAddress(e.target.value)} />
-              </div>
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
-              <div>
-                <p className="text-xs text-muted-foreground font-semibold mb-0.5">Contactpersoon</p>
-                <p>{quote.contactName}</p>
-              </div>
-              <div>
-                <p className="text-xs text-muted-foreground font-semibold mb-0.5">E-mail</p>
-                <p>{quote.clientEmail || '—'}</p>
-              </div>
-              <div>
-                <p className="text-xs text-muted-foreground font-semibold mb-0.5">Bedrijf</p>
-                <p>{quote.companyName || '—'}</p>
-              </div>
-              <div>
-                <p className="text-xs text-muted-foreground font-semibold mb-0.5">Adres</p>
-                <p>{quote.clientAddress || '—'}</p>
-              </div>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+      {isEditable ? (
+        <ClientInfoCard
+          data={{ contactId, contactName, companyId, companyName, clientEmail, clientAddress }}
+          onChange={(updates) => {
+            if (updates.contactId !== undefined) setContactId(updates.contactId);
+            if (updates.contactName !== undefined) setContactName(updates.contactName);
+            if (updates.companyId !== undefined) setCompanyId(updates.companyId);
+            if (updates.companyName !== undefined) setCompanyName(updates.companyName);
+            if (updates.clientEmail !== undefined) setClientEmail(updates.clientEmail);
+            if (updates.clientAddress !== undefined) setClientAddress(updates.clientAddress);
+          }}
+        />
+      ) : (
+        <ClientInfoCard
+          data={{ contactId, contactName, companyId, companyName, clientEmail: quote.clientEmail || '', clientAddress: quote.clientAddress || '' }}
+          readOnly
+        />
+      )}
 
-      {/* Quote details */}
+      {/* Quote details (edit mode) */}
       {isEditable && (
         <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Offerte details</CardTitle>
-          </CardHeader>
+          <CardHeader><CardTitle className="text-base">Offerte details</CardTitle></CardHeader>
           <CardContent className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-1.5">
@@ -328,11 +242,7 @@ export default function QuoteDetailPage() {
             </div>
             <div className="space-y-1.5">
               <Label>Introductietekst</Label>
-              <Textarea
-                value={introduction}
-                onChange={(e) => setIntroduction(e.target.value)}
-                className="min-h-[80px]"
-              />
+              <Textarea value={introduction} onChange={(e) => setIntroduction(e.target.value)} className="min-h-[80px]" />
             </div>
           </CardContent>
         </Card>
@@ -340,11 +250,7 @@ export default function QuoteDetailPage() {
 
       {/* Introduction (read-only) */}
       {!isEditable && quote.introduction && (
-        <Card>
-          <CardContent className="pt-6">
-            <p className="text-sm whitespace-pre-wrap">{quote.introduction}</p>
-          </CardContent>
-        </Card>
+        <Card><CardContent className="pt-6"><p className="text-sm whitespace-pre-wrap">{quote.introduction}</p></CardContent></Card>
       )}
 
       {/* PDF Template */}
@@ -352,48 +258,32 @@ export default function QuoteDetailPage() {
         <PdfOverlayEditor
           pdfUrl={pdfUrl}
           overlayFields={overlayFields}
-          onPdfUpload={(url) => setPdfUrl(url)}
-          onFieldsChange={(fields) => setOverlayFields(fields)}
+          onPdfUpload={setPdfUrl}
+          onFieldsChange={setOverlayFields}
           readOnly={!isEditable}
         />
       )}
 
       {/* Line items */}
       <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Producten & Diensten</CardTitle>
-        </CardHeader>
+        <CardHeader><CardTitle className="text-base">Producten & Diensten</CardTitle></CardHeader>
         <CardContent>
-          <LineItemsEditor
-            items={lineItems}
-            onChange={isEditable ? setLineItems : () => {}}
-            readOnly={!isEditable}
-          />
+          <LineItemsEditor items={lineItems} onChange={isEditable ? setLineItems : () => {}} readOnly={!isEditable} />
         </CardContent>
       </Card>
 
       {/* Terms & Notes */}
       {isEditable ? (
         <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Voorwaarden & Notities</CardTitle>
-          </CardHeader>
+          <CardHeader><CardTitle className="text-base">Voorwaarden & Notities</CardTitle></CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-1.5">
               <Label>Algemene voorwaarden</Label>
-              <Textarea
-                value={termsAndConditions}
-                onChange={(e) => setTermsAndConditions(e.target.value)}
-                className="min-h-[80px]"
-              />
+              <Textarea value={termsAndConditions} onChange={(e) => setTermsAndConditions(e.target.value)} className="min-h-[80px]" />
             </div>
             <div className="space-y-1.5">
               <Label>Interne notities</Label>
-              <Textarea
-                value={notes}
-                onChange={(e) => setNotes(e.target.value)}
-                className="min-h-[60px]"
-              />
+              <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} className="min-h-[60px]" />
             </div>
           </CardContent>
         </Card>
@@ -401,22 +291,14 @@ export default function QuoteDetailPage() {
         <>
           {quote.termsAndConditions && (
             <Card>
-              <CardHeader>
-                <CardTitle className="text-base">Voorwaarden</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-sm whitespace-pre-wrap text-muted-foreground">{quote.termsAndConditions}</p>
-              </CardContent>
+              <CardHeader><CardTitle className="text-base">Voorwaarden</CardTitle></CardHeader>
+              <CardContent><p className="text-sm whitespace-pre-wrap text-muted-foreground">{quote.termsAndConditions}</p></CardContent>
             </Card>
           )}
           {quote.notes && (
             <Card>
-              <CardHeader>
-                <CardTitle className="text-base">Notities</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-sm whitespace-pre-wrap text-muted-foreground">{quote.notes}</p>
-              </CardContent>
+              <CardHeader><CardTitle className="text-base">Notities</CardTitle></CardHeader>
+              <CardContent><p className="text-sm whitespace-pre-wrap text-muted-foreground">{quote.notes}</p></CardContent>
             </Card>
           )}
         </>
@@ -425,13 +307,11 @@ export default function QuoteDetailPage() {
       {/* Signature */}
       {quote.signatureData && (
         <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Handtekening</CardTitle>
-          </CardHeader>
+          <CardHeader><CardTitle className="text-base">Handtekening</CardTitle></CardHeader>
           <CardContent>
             <img src={quote.signatureData} alt="Handtekening" className="border rounded-lg max-w-xs" />
             <p className="text-xs text-muted-foreground mt-2">
-              Ondertekend op {quote.acceptedAt ? format(new Date(quote.acceptedAt), 'dd MMM yyyy HH:mm', { locale: nl }) : '—'}
+              Ondertekend op {quote.acceptedAt ? formatDate(quote.acceptedAt) : '—'}
               {quote.signatureIp && ` · IP: ${quote.signatureIp}`}
             </p>
           </CardContent>
@@ -439,34 +319,14 @@ export default function QuoteDetailPage() {
       )}
 
       {/* Metadata */}
-      <Card>
-        <CardContent className="pt-6">
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-xs text-muted-foreground">
-            <div>
-              <p className="font-semibold mb-0.5">Aangemaakt</p>
-              <p>{format(new Date(quote.createdAt), 'dd MMM yyyy HH:mm', { locale: nl })}</p>
-            </div>
-            {quote.sentAt && (
-              <div>
-                <p className="font-semibold mb-0.5">Verzonden</p>
-                <p>{format(new Date(quote.sentAt), 'dd MMM yyyy HH:mm', { locale: nl })}</p>
-              </div>
-            )}
-            {quote.validUntil && (
-              <div>
-                <p className="font-semibold mb-0.5">Geldig tot</p>
-                <p>{format(new Date(quote.validUntil), 'dd MMM yyyy', { locale: nl })}</p>
-              </div>
-            )}
-            {quote.viewedAt && (
-              <div>
-                <p className="font-semibold mb-0.5">Bekeken</p>
-                <p>{format(new Date(quote.viewedAt), 'dd MMM yyyy HH:mm', { locale: nl })}</p>
-              </div>
-            )}
-          </div>
-        </CardContent>
-      </Card>
+      <DocumentMetadata
+        items={[
+          { label: 'Aangemaakt', value: formatDate(quote.createdAt) },
+          { label: 'Verzonden', value: quote.sentAt ? formatDate(quote.sentAt) : undefined },
+          { label: 'Geldig tot', value: quote.validUntil ? formatDate(quote.validUntil, false) : undefined },
+          { label: 'Bekeken', value: quote.viewedAt ? formatDate(quote.viewedAt) : undefined },
+        ]}
+      />
     </div>
   );
 }
