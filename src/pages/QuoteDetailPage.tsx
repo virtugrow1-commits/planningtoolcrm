@@ -261,6 +261,10 @@ export default function QuoteDetailPage() {
             <Copy size={14} /> Dupliceer
           </Button>
 
+          <Button variant="outline" size="sm" onClick={() => navigate(`/quotes/${id}/edit-pdf`)} className="gap-1.5">
+            <FileEdit size={14} /> PDF Bewerken
+          </Button>
+
           {canEdit && !editing && (
             <Button variant="outline" size="sm" onClick={() => setEditing(true)} className="gap-1.5">
               <Pencil size={14} /> Bewerken
