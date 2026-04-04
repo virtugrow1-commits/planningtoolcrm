@@ -72,7 +72,6 @@ function ProtectedRoutes() {
                   <Route path="/quotes" element={<QuotesPage />} />
                   <Route path="/quotes/new" element={<NewQuotePage />} />
                   <Route path="/quotes/:id" element={<QuoteDetailPage />} />
-                  <Route path="/quotes/:id/edit-pdf" element={<PdfEditorPage />} />
                   <Route path="/invoices/:id" element={<InvoiceDetailPage />} />
                   <Route path="/templates/new" element={<TemplateEditorPage />} />
                   <Route path="/templates/:id" element={<TemplateEditorPage />} />
