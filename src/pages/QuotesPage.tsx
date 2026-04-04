@@ -19,8 +19,8 @@ type InvoiceFilter = 'all' | 'draft' | 'sent' | 'overdue' | 'paid';
 
 export default function QuotesPage() {
   const navigate = useNavigate();
-  const { quotes, loading: qLoading } = useQuotes();
-  const { invoices, loading: iLoading } = useInvoices();
+  const { quotes, loading: qLoading, deleteQuote } = useQuotes();
+  const { invoices, loading: iLoading, deleteInvoice } = useInvoices();
   const { templates, loading: tLoading, deleteTemplate } = useQuoteTemplates();
   const { documents: allDocs, loading: allLoading } = useUnifiedDocuments();
   const { toast } = useToast();
