@@ -137,10 +137,7 @@ export default function PublicQuotePage() {
       })
       .eq('id', quote.id);
 
-    // Auto-create invoice via RPC (security definer, no auth needed)
-    try {
-      await supabase.rpc('create_invoice_from_accepted_quote', { p_quote_id: quote.id });
-    } catch { /* invoice creation failure shouldn't block acceptance */ }
+    // Invoice creation happens manually by the team after acceptance
 
     setResponded('accepted');
     setSubmitting(false);
