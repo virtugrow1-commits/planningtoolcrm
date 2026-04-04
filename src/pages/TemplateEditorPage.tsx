@@ -6,7 +6,10 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import BlockEditor from '@/components/template-editor/BlockEditor';
+import { PdfEditor } from '@/components/pdf-editor';
+import type { PdfAnnotation } from '@/components/pdf-editor/types';
 import { useQuoteTemplates } from '@/hooks/useQuoteTemplates';
 import { useToast } from '@/hooks/use-toast';
 import type { TemplateBlock } from '@/types/templateBlocks';
@@ -25,6 +28,8 @@ export default function TemplateEditorPage() {
   const [blocks, setBlocks] = useState<TemplateBlock[]>([]);
   const [pdfBackgroundUrl, setPdfBackgroundUrl] = useState<string | null>(null);
   const [customFonts, setCustomFonts] = useState<CustomFont[]>([]);
+  const [pdfAnnotations, setPdfAnnotations] = useState<PdfAnnotation[]>([]);
+  const [editorPdfUrl, setEditorPdfUrl] = useState<string | null>(null);
 
   const isEdit = !!id;
 
@@ -40,6 +45,8 @@ export default function TemplateEditorPage() {
       setBlocks(cb?.blocks || []);
       setPdfBackgroundUrl(cb?.pdfBackgroundUrl || null);
       setCustomFonts(cb?.customFonts || []);
+      setPdfAnnotations(cb?.pdfAnnotations || []);
+      setEditorPdfUrl(cb?.editorPdfUrl || cb?.pdfBackgroundUrl || null);
     }
   }, [id, templates, loading]);
 
@@ -51,7 +58,7 @@ export default function TemplateEditorPage() {
 
     setSaving(true);
 
-    const contentBlocks = { blocks, pdfBackgroundUrl, customFonts };
+    const contentBlocks = { blocks, pdfBackgroundUrl, customFonts, pdfAnnotations, editorPdfUrl };
 
     if (isEdit) {
       const ok = await updateTemplate(id!, { name, description, termsAndConditions, contentBlocks });
@@ -82,7 +89,7 @@ export default function TemplateEditorPage() {
             {isEdit ? 'Sjabloon bewerken' : 'Nieuw sjabloon'}
           </h1>
           <p className="text-sm text-muted-foreground">
-            Bouw je document op met blokken en sla op als herbruikbaar sjabloon.
+            Bouw je document op met blokken of bewerk een PDF direct.
           </p>
         </div>
         <Button onClick={handleSave} disabled={saving} className="gap-1.5">
@@ -117,15 +124,33 @@ export default function TemplateEditorPage() {
         </CardContent>
       </Card>
 
-      {/* Block Editor */}
-      <BlockEditor
-        blocks={blocks}
-        onBlocksChange={setBlocks}
-        pdfBackgroundUrl={pdfBackgroundUrl}
-        onPdfBackgroundChange={setPdfBackgroundUrl}
-        customFonts={customFonts}
-        onCustomFontsChange={setCustomFonts}
-      />
+      {/* Tabs: Block Editor vs PDF Editor */}
+      <Tabs defaultValue="blocks" className="space-y-4">
+        <TabsList>
+          <TabsTrigger value="blocks">Blokken Editor</TabsTrigger>
+          <TabsTrigger value="pdf-editor">PDF Bewerken</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="blocks">
+          <BlockEditor
+            blocks={blocks}
+            onBlocksChange={setBlocks}
+            pdfBackgroundUrl={pdfBackgroundUrl}
+            onPdfBackgroundChange={setPdfBackgroundUrl}
+            customFonts={customFonts}
+            onCustomFontsChange={setCustomFonts}
+          />
+        </TabsContent>
+
+        <TabsContent value="pdf-editor">
+          <PdfEditor
+            pdfUrl={editorPdfUrl}
+            annotations={pdfAnnotations}
+            onAnnotationsChange={setPdfAnnotations}
+            onPdfUpload={setEditorPdfUrl}
+          />
+        </TabsContent>
+      </Tabs>
 
       {/* Default terms */}
       <Card>

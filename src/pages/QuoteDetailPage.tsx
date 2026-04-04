@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Send, Copy, FileText, Save, Pencil, Check, AlertTriangle, FileEdit } from 'lucide-react';
+import { ArrowLeft, Send, Copy, FileText, Save, Pencil, Check, AlertTriangle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -259,10 +259,6 @@ export default function QuoteDetailPage() {
 
           <Button variant="outline" size="sm" onClick={handleDuplicate} className="gap-1.5">
             <Copy size={14} /> Dupliceer
-          </Button>
-
-          <Button variant="outline" size="sm" onClick={() => navigate(`/quotes/${id}/edit-pdf`)} className="gap-1.5">
-            <FileEdit size={14} /> PDF Bewerken
           </Button>
 
           {canEdit && !editing && (
