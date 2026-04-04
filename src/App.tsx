@@ -21,6 +21,7 @@ import TaskDetailPage from "@/pages/TaskDetailPage";
 import QuotesPage from "@/pages/QuotesPage";
 import NewQuotePage from "@/pages/NewQuotePage";
 import QuoteDetailPage from "@/pages/QuoteDetailPage";
+import PdfEditorPage from "@/pages/PdfEditorPage";
 import InvoiceDetailPage from "@/pages/InvoiceDetailPage";
 import TemplateEditorPage from "@/pages/TemplateEditorPage";
 import AuthPage from "@/pages/AuthPage";
