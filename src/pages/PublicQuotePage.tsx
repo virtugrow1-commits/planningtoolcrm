@@ -1,29 +1,14 @@
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
-import { Check, X, FileText, Eye } from 'lucide-react';
+import { Check, X, FileText, AlertCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { Checkbox } from '@/components/ui/checkbox';
 import { supabase } from '@/integrations/supabase/client';
-import * as pdfjsLib from 'pdfjs-dist';
 import { format } from 'date-fns';
 import { nl } from 'date-fns/locale';
-
-pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.mjs`;
-
-interface OverlayField {
-  id: string;
-  label: string;
-  value: string;
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-  page: number;
-  fontSize: number;
-  fontWeight: 'normal' | 'bold';
-  color: string;
-}
+import DocumentViewer from '@/components/quotation/DocumentViewer';
+import { resolveBlocksMergeTags } from '@/lib/mergeTags';
+import type { MergeTagData } from '@/lib/mergeTags';
 
 interface PublicQuote {
   id: string;
@@ -31,6 +16,7 @@ interface PublicQuote {
   contact_name: string;
   company_name: string | null;
   client_email: string | null;
+  client_address: string | null;
   title: string;
   introduction: string | null;
   terms_and_conditions: string | null;
@@ -40,31 +26,12 @@ interface PublicQuote {
   total: number;
   status: string;
   valid_until: string | null;
+  content_blocks: any[] | null;
+  // Legacy overlay fields
   pdf_url: string | null;
-  overlay_fields: OverlayField[] | null;
+  overlay_fields: any[] | null;
   accepted_at: string | null;
   declined_at: string | null;
-  client_address: string | null;
-}
-
-/** Replace merge tags like {{client_name}} with actual quote values */
-function resolveMergeTag(value: string, quote: PublicQuote): string {
-  if (!value.startsWith('{{')) return value;
-  const map: Record<string, string> = {
-    '{{client_name}}': quote.contact_name || '',
-    '{{company_name}}': quote.company_name || '',
-    '{{client_email}}': quote.client_email || '',
-    '{{client_address}}': quote.client_address || '',
-    '{{quote_number}}': quote.display_number || '',
-    '{{date}}': new Date().toLocaleDateString('nl-NL'),
-    '{{valid_until}}': quote.valid_until
-      ? format(new Date(quote.valid_until), 'dd MMM yyyy', { locale: nl })
-      : '',
-    '{{subtotal}}': `€ ${Number(quote.subtotal).toFixed(2)}`,
-    '{{vat_amount}}': `€ ${Number(quote.vat_amount).toFixed(2)}`,
-    '{{total}}': `€ ${Number(quote.total).toFixed(2)}`,
-  };
-  return map[value] ?? value;
 }
 
 export default function PublicQuotePage() {
@@ -72,15 +39,13 @@ export default function PublicQuotePage() {
   const [quote, setQuote] = useState<PublicQuote | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [pages, setPages] = useState<string[]>([]);
-  const [pdfDimensions, setPdfDimensions] = useState({ width: 595, height: 842 });
   const [agreed, setAgreed] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [responded, setResponded] = useState<'accepted' | 'declined' | null>(null);
-  const containerRefs = useRef<(HTMLDivElement | null)[]>([]);
-  const [containerScale, setContainerScale] = useState(1);
+  const [signatureValues, setSignatureValues] = useState<Record<string, string>>({});
+  const [checkboxValues, setCheckboxValues] = useState<Record<string, boolean>>({});
+  const [resolvedBlocks, setResolvedBlocks] = useState<any[]>([]);
 
-  // Fetch quote by public token
   useEffect(() => {
     if (!token) return;
     (async () => {
@@ -97,7 +62,6 @@ export default function PublicQuotePage() {
       }
 
       const q = data as any as PublicQuote;
-      q.overlay_fields = (data.overlay_fields as any) || [];
       setQuote(q);
 
       if (q.status === 'accepted') setResponded('accepted');
@@ -111,54 +75,73 @@ export default function PublicQuotePage() {
           .eq('id', q.id);
       }
 
+      // Resolve blocks with quote data
+      const rawBlocks: any[] = q.content_blocks || [];
+      if (rawBlocks.length > 0) {
+        const mergeData: MergeTagData = {
+          contact: { name: q.contact_name, email: q.client_email || undefined },
+          company: { name: q.company_name || undefined },
+          quote: {
+            display_number: q.display_number,
+            title: q.title,
+            subtotal: q.subtotal,
+            vat_amount: q.vat_amount,
+            total: q.total,
+            valid_until: q.valid_until || undefined,
+          },
+        };
+        setResolvedBlocks(resolveBlocksMergeTags(rawBlocks, mergeData));
+      }
+
       setLoading(false);
     })();
   }, [token]);
 
-  // Render PDF
-  useEffect(() => {
-    if (!quote?.pdf_url) return;
-    (async () => {
-      try {
-        const pdf = await pdfjsLib.getDocument(quote.pdf_url!).promise;
-        const rendered: string[] = [];
-        for (let i = 1; i <= pdf.numPages; i++) {
-          const page = await pdf.getPage(i);
-          const viewport = page.getViewport({ scale: 2 });
-          const canvas = document.createElement('canvas');
-          canvas.width = viewport.width;
-          canvas.height = viewport.height;
-          const ctx = canvas.getContext('2d')!;
-          await page.render({ canvasContext: ctx, viewport }).promise;
-          rendered.push(canvas.toDataURL());
-          if (i === 1) setPdfDimensions({ width: viewport.width, height: viewport.height });
-        }
-        setPages(rendered);
-      } catch {
-        console.error('PDF load error');
-      }
-    })();
-  }, [quote?.pdf_url]);
+  const hasRequiredSignatures = () => {
+    if (!resolvedBlocks.length) return true;
+    const sigBlocks = resolvedBlocks.filter((b) => b.type === 'signature' && b.required);
+    return sigBlocks.every((b) => signatureValues[b.id]);
+  };
 
-  // Scale calculation
-  useEffect(() => {
-    if (pages.length === 0 || !containerRefs.current[0]) return;
-    const updateScale = () => {
-      const w = containerRefs.current[0]?.clientWidth || 600;
-      setContainerScale(w / pdfDimensions.width);
-    };
-    updateScale();
-    window.addEventListener('resize', updateScale);
-    return () => window.removeEventListener('resize', updateScale);
-  }, [pages, pdfDimensions.width]);
+  const hasRequiredCheckboxes = () => {
+    if (!resolvedBlocks.length) return true;
+    const cbBlocks = resolvedBlocks.filter((b) => b.type === 'checkbox' && b.required);
+    return cbBlocks.every((b) => checkboxValues[b.id]);
+  };
+
+  const canAccept = agreed && hasRequiredSignatures() && hasRequiredCheckboxes();
 
   const handleAccept = async () => {
-    if (!quote || !agreed) return;
+    if (!quote || !canAccept) return;
     setSubmitting(true);
+
+    // Get client IP (best effort)
+    let ip = '';
+    try {
+      const res = await fetch('https://api.ipify.org?format=json');
+      const json = await res.json();
+      ip = json.ip || '';
+    } catch { /* ignore */ }
+
+    // Save signature if any
+    const firstSig = Object.values(signatureValues).find(Boolean) || null;
+
+    // Update quote
     await supabase
       .from('quotes')
-      .update({ status: 'accepted', accepted_at: new Date().toISOString() })
+      .update({
+        status: 'accepted',
+        accepted_at: new Date().toISOString(),
+        signature_data: firstSig,
+        signature_ip: ip || null,
+      })
       .eq('id', quote.id);
+
+    // Auto-create invoice via RPC (security definer, no auth needed)
+    try {
+      await supabase.rpc('create_invoice_from_accepted_quote', { p_quote_id: quote.id });
+    } catch { /* invoice creation failure shouldn't block acceptance */ }
+
     setResponded('accepted');
     setSubmitting(false);
   };
@@ -195,7 +178,7 @@ export default function PublicQuotePage() {
     );
   }
 
-  const overlayFields = quote.overlay_fields || [];
+  const isExpired = quote.valid_until && new Date(quote.valid_until) < new Date();
 
   return (
     <div className="min-h-screen bg-muted/30">
@@ -217,15 +200,28 @@ export default function PublicQuotePage() {
                   : 'bg-red-100 text-red-800'
               }`}
             >
-              {responded === 'accepted' ? 'Akkoord' : 'Niet akkoord'}
+              {responded === 'accepted' ? 'Akkoord gegeven' : 'Niet akkoord'}
             </div>
           )}
         </div>
       </div>
 
       <div className="max-w-4xl mx-auto px-4 py-6 space-y-6">
-        {/* Introduction */}
-        {quote.introduction && (
+        {/* Expired warning */}
+        {isExpired && !responded && (
+          <Card className="border-amber-200 bg-amber-50">
+            <CardContent className="pt-4 flex items-center gap-3">
+              <AlertCircle size={18} className="text-amber-600 shrink-0" />
+              <p className="text-sm text-amber-800">
+                Dit document is verlopen op {format(new Date(quote.valid_until!), 'dd MMMM yyyy', { locale: nl })}.
+                Neem contact op voor een nieuwe versie.
+              </p>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Introduction (legacy) */}
+        {quote.introduction && !resolvedBlocks.length && (
           <Card>
             <CardContent className="pt-6">
               <p className="text-sm whitespace-pre-wrap text-foreground">{quote.introduction}</p>
@@ -233,52 +229,30 @@ export default function PublicQuotePage() {
           </Card>
         )}
 
-        {/* PDF pages with overlay fields */}
-        {pages.map((pageDataUrl, pageIndex) => {
-          const pageFields = overlayFields.filter((f) => f.page === pageIndex);
-          return (
-            <Card key={pageIndex} className="overflow-hidden">
-              <div
-                ref={(el) => { containerRefs.current[pageIndex] = el; }}
-                className="relative"
-                style={{ height: pdfDimensions.height * containerScale }}
-              >
-                <img
-                  src={pageDataUrl}
-                  alt={`Pagina ${pageIndex + 1}`}
-                  className="w-full h-auto pointer-events-none select-none"
-                  draggable={false}
-                />
-                {/* Overlay fields with resolved merge tags */}
-                {pageFields.map((field) => (
-                  <div
-                    key={field.id}
-                    className="absolute pointer-events-none"
-                    style={{
-                      left: field.x * containerScale,
-                      top: field.y * containerScale,
-                      width: field.width * containerScale,
-                      height: field.height * containerScale,
-                      fontSize: field.fontSize * containerScale,
-                      fontWeight: field.fontWeight,
-                      color: field.color,
-                    }}
-                  >
-                    <div className="w-full h-full flex items-center px-1 truncate">
-                      {resolveMergeTag(field.value || field.label, quote)}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </Card>
-          );
-        })}
+        {/* Block-based document */}
+        {resolvedBlocks.length > 0 ? (
+          <DocumentViewer
+            blocks={resolvedBlocks}
+            onSignatureCapture={
+              !responded
+                ? (id, data) => setSignatureValues((p) => ({ ...p, [id]: data }))
+                : undefined
+            }
+            onCheckboxChange={
+              !responded
+                ? (id, checked) => setCheckboxValues((p) => ({ ...p, [id]: checked }))
+                : undefined
+            }
+            signatureValues={signatureValues}
+            checkboxValues={checkboxValues}
+          />
+        ) : null}
 
-        {/* Terms */}
+        {/* Terms (legacy / template-level) */}
         {quote.terms_and_conditions && (
           <Card>
             <CardContent className="pt-6">
-              <h3 className="text-sm font-semibold text-foreground mb-2">Voorwaarden</h3>
+              <h3 className="text-sm font-semibold text-foreground mb-2">Algemene voorwaarden</h3>
               <p className="text-sm whitespace-pre-wrap text-muted-foreground">
                 {quote.terms_and_conditions}
               </p>
@@ -287,33 +261,40 @@ export default function PublicQuotePage() {
         )}
 
         {/* Accept / Decline section */}
-        {!responded && (
+        {!responded && !isExpired && (
           <Card>
             <CardContent className="pt-6 space-y-4">
-              <h3 className="text-base font-semibold text-foreground">Reserveringsovereenkomst</h3>
+              <h3 className="text-base font-semibold text-foreground">Uw akkoord</h3>
               <p className="text-sm text-muted-foreground">
                 Door akkoord te gaan bevestigt u de inhoud van dit document en gaat u akkoord met de bijbehorende voorwaarden.
               </p>
 
               <div className="flex items-start gap-3 p-4 rounded-lg border bg-muted/30">
-                <Checkbox
+                <input
+                  type="checkbox"
                   id="agree"
                   checked={agreed}
-                  onCheckedChange={(v) => setAgreed(v === true)}
-                  className="mt-0.5"
+                  onChange={(e) => setAgreed(e.target.checked)}
+                  className="mt-0.5 w-4 h-4 accent-primary"
                 />
                 <label htmlFor="agree" className="text-sm text-foreground cursor-pointer leading-relaxed">
-                  Ik heb het document gelezen en ga akkoord met de voorwaarden en afspraken zoals beschreven.
+                  Ik heb het document gelezen en ga akkoord met de inhoud en voorwaarden zoals beschreven.
                 </label>
               </div>
+
+              {!hasRequiredSignatures() && (
+                <p className="text-xs text-amber-600">
+                  Zet uw handtekening in het document hierboven om verder te gaan.
+                </p>
+              )}
 
               <div className="flex gap-3 pt-2">
                 <Button
                   onClick={handleAccept}
-                  disabled={!agreed || submitting}
+                  disabled={!canAccept || submitting}
                   className="gap-1.5 flex-1 sm:flex-none"
                 >
-                  <Check size={16} /> Akkoord
+                  <Check size={16} /> {submitting ? 'Verwerken...' : 'Akkoord'}
                 </Button>
                 <Button
                   variant="outline"
@@ -341,6 +322,7 @@ export default function PublicQuotePage() {
                   <p className="text-sm text-muted-foreground mt-1">
                     Uw bevestiging is ontvangen op{' '}
                     {format(new Date(), "dd MMMM yyyy 'om' HH:mm", { locale: nl })}.
+                    U ontvangt binnenkort een factuur.
                   </p>
                 </>
               ) : (

@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import LegacyImport from '@/components/LegacyImport';
 import MasterImport from '@/components/MasterImport';
 import OudCrmImport from '@/components/OudCrmImport';
@@ -7,10 +7,13 @@ import SyncQueuePanel from '@/components/SyncQueuePanel';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Card, CardContent } from '@/components/ui/card';
 import { Switch } from '@/components/ui/switch';
 import { useToast } from '@/hooks/use-toast';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Webhook, Key, ArrowRightLeft, CheckCircle2, AlertCircle, RefreshCw, Upload, Copy, Link2, Database } from 'lucide-react';
+import { Webhook, Key, ArrowRightLeft, CheckCircle2, AlertCircle, RefreshCw, Upload, Copy, Link2, Database, BookOpen } from 'lucide-react';
+import { useAuth } from '@/contexts/AuthContext';
+import { saveEboekhoudenCredentials, loadEboekhoudenCredentials } from '@/lib/eboekhouden';
 import { supabase } from '@/integrations/supabase/client';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { useContactsContext } from '@/contexts/ContactsContext';
@@ -67,10 +70,26 @@ function mapRow(row: Record<string, string>): Omit<Contact, 'id' | 'createdAt'> 
 }
 
 export default function SettingsPage() {
-  
+  const { user } = useAuth();
   const [apiKey, setApiKey] = useState('');
   const [locationId, setLocationId] = useState('');
   const [connected, setConnected] = useState(false);
+
+  // e-Boekhouden state
+  const [ebUsername, setEbUsername] = useState('');
+  const [ebCode1, setEbCode1] = useState('');
+  const [ebCode2, setEbCode2] = useState('');
+  const [ebSaving, setEbSaving] = useState(false);
+  const [ebSaved, setEbSaved] = useState(false);
+
+  useEffect(() => {
+    if (!user) return;
+    loadEboekhoudenCredentials(user.id).then((creds) => {
+      setEbUsername(creds.username);
+      setEbCode1(creds.securityCode1);
+      setEbCode2(creds.securityCode2);
+    });
+  }, [user]);
   const [webhooks, setWebhooks] = useState<Record<string, boolean>>({});
   const [syncing, setSyncing] = useState(false);
   const [csvPreview, setCsvPreview] = useState<Omit<Contact, 'id' | 'createdAt'>[]>([]);
@@ -280,6 +299,7 @@ export default function SettingsPage() {
           <TabsTrigger value="legacy" className="gap-2"><Database size={14} /> Legacy Import</TabsTrigger>
           <TabsTrigger value="master" className="gap-2"><Database size={14} /> Master Import</TabsTrigger>
           <TabsTrigger value="oud-crm" className="gap-2"><Database size={14} /> Oud CRM</TabsTrigger>
+          <TabsTrigger value="eboekhouden" className="gap-2"><BookOpen size={14} /> e-Boekhouden</TabsTrigger>
         </TabsList>
 
         <TabsContent value="sync-queue">
@@ -549,6 +569,88 @@ export default function SettingsPage() {
         <TabsContent value="oud-crm">
           <OudCrmImport />
         </TabsContent>
+
+        <TabsContent value="eboekhouden">
+          <Card>
+            <CardContent className="p-6 space-y-6 max-w-lg">
+              <div>
+                <h3 className="text-base font-semibold text-foreground">e-Boekhouden.nl koppeling</h3>
+                <p className="text-sm text-muted-foreground mt-1">
+                  Vul je e-Boekhouden inloggegevens in. Facturen kunnen daarna met één klik worden doorgestuurd.
+                  Je vindt de beveiligingscodes onder <strong>Beheer → API koppelingen</strong> in e-Boekhouden.
+                </p>
+              </div>
+
+              <div className="space-y-4">
+                <div className="space-y-1.5">
+                  <Label>Gebruikersnaam</Label>
+                  <Input
+                    value={ebUsername}
+                    onChange={(e) => setEbUsername(e.target.value)}
+                    placeholder="jouw@emailadres.nl"
+                    autoComplete="off"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Beveiligingscode 1</Label>
+                  <Input
+                    type="password"
+                    value={ebCode1}
+                    onChange={(e) => setEbCode1(e.target.value)}
+                    placeholder="••••••••"
+                    autoComplete="new-password"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Beveiligingscode 2 <span className="text-muted-foreground text-xs">(optioneel)</span></Label>
+                  <Input
+                    type="password"
+                    value={ebCode2}
+                    onChange={(e) => setEbCode2(e.target.value)}
+                    placeholder="••••••••"
+                    autoComplete="new-password"
+                  />
+                </div>
+              </div>
+
+              <div className="flex items-center gap-3">
+                <Button
+                  onClick={async () => {
+                    if (!user) return;
+                    setEbSaving(true);
+                    const ok = await saveEboekhoudenCredentials(user.id, {
+                      username: ebUsername,
+                      securityCode1: ebCode1,
+                      securityCode2: ebCode2,
+                    });
+                    setEbSaving(false);
+                    if (ok) {
+                      setEbSaved(true);
+                      setTimeout(() => setEbSaved(false), 3000);
+                    }
+                  }}
+                  disabled={ebSaving || !ebUsername || !ebCode1}
+                  className="gap-1.5"
+                >
+                  <BookOpen size={14} />
+                  {ebSaving ? 'Opslaan...' : 'Instellingen opslaan'}
+                </Button>
+                {ebSaved && (
+                  <span className="text-sm text-green-600 flex items-center gap-1">
+                    <CheckCircle2 size={14} /> Opgeslagen
+                  </span>
+                )}
+              </div>
+
+              <div className="p-4 bg-muted/30 rounded-lg text-xs text-muted-foreground space-y-1">
+                <p className="font-semibold text-foreground">Hoe werkt het?</p>
+                <p>1. Sla je inloggegevens op.</p>
+                <p>2. Open een factuur en klik op <strong>e-Boekhouden</strong>.</p>
+                <p>3. De factuur wordt direct als mutatie aangemaakt in je administratie.</p>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
       </Tabs>
 
       {/* CSV Import Preview Dialog */}
@@ -592,6 +694,7 @@ export default function SettingsPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
     </div>
   );
 }

@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Send, Copy, FileText, Save, Pencil } from 'lucide-react';
+import { ArrowLeft, Send, Copy, FileText, Save, Pencil, Mail } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -11,10 +11,9 @@ import { useInvoices } from '@/hooks/useInvoices';
 import QuoteStatusBadge from '@/components/quotation/QuoteStatusBadge';
 import LineItemsEditor from '@/components/quotation/LineItemsEditor';
 import ClientInfoCard from '@/components/quotation/ClientInfoCard';
-import PdfOverlayEditor from '@/components/quotation/PdfOverlayEditor';
-import type { OverlayField } from '@/components/quotation/PdfOverlayEditor';
 import DeleteConfirmDialog from '@/components/quotation/DeleteConfirmDialog';
 import DocumentMetadata, { formatDate } from '@/components/quotation/DocumentMetadata';
+import DocumentViewer from '@/components/quotation/DocumentViewer';
 import type { Quote, LineItem } from '@/types/quotation';
 import { calcFinancials } from '@/types/quotation';
 import { useToast } from '@/hooks/use-toast';
@@ -45,8 +44,7 @@ export default function QuoteDetailPage() {
   const [notes, setNotes] = useState('');
   const [validUntil, setValidUntil] = useState('');
   const [lineItems, setLineItems] = useState<LineItem[]>([]);
-  const [pdfUrl, setPdfUrl] = useState<string | null>(null);
-  const [overlayFields, setOverlayFields] = useState<OverlayField[]>([]);
+  const [contentBlocks, setContentBlocks] = useState<any[]>([]);
 
   const loadQuote = useCallback(async () => {
     if (!id) return;
@@ -65,8 +63,7 @@ export default function QuoteDetailPage() {
       setNotes(q.notes || '');
       setValidUntil(q.validUntil || '');
       setLineItems(q.lineItems || []);
-      setPdfUrl(q.pdfUrl || null);
-      setOverlayFields((q.overlayFields as OverlayField[]) || []);
+      setContentBlocks((q.contentBlocks as any[]) || []);
     }
     setLoading(false);
   }, [id, getQuoteWithItems]);
@@ -91,8 +88,7 @@ export default function QuoteDetailPage() {
       termsAndConditions: termsAndConditions || undefined,
       notes: notes || undefined,
       validUntil: validUntil || undefined,
-      pdfUrl,
-      overlayFields,
+      contentBlocks,
       subtotal: fin.subtotal,
       vatAmount: fin.vatAmount,
       discountAmount: fin.discountAmount,
@@ -253,55 +249,40 @@ export default function QuoteDetailPage() {
         <Card><CardContent className="pt-6"><p className="text-sm whitespace-pre-wrap">{quote.introduction}</p></CardContent></Card>
       )}
 
-      {/* PDF Template */}
-      {(pdfUrl || isEditable) && (
-        <PdfOverlayEditor
-          pdfUrl={pdfUrl}
-          overlayFields={overlayFields}
-          onPdfUpload={setPdfUrl}
-          onFieldsChange={setOverlayFields}
-          readOnly={!isEditable}
-        />
+      {/* Document blocks (block-based templates) */}
+      {contentBlocks.length > 0 && (
+        <div>
+          <p className="text-sm font-medium text-muted-foreground mb-3">Document</p>
+          <DocumentViewer blocks={contentBlocks} />
+        </div>
       )}
 
-      {/* Line items */}
-      <Card>
-        <CardHeader><CardTitle className="text-base">Producten & Diensten</CardTitle></CardHeader>
-        <CardContent>
-          <LineItemsEditor items={lineItems} onChange={isEditable ? setLineItems : () => {}} readOnly={!isEditable} />
-        </CardContent>
-      </Card>
-
-      {/* Terms & Notes */}
-      {isEditable ? (
+      {/* Line items (fallback / supplemental) */}
+      {lineItems.length > 0 && contentBlocks.length === 0 && (
         <Card>
-          <CardHeader><CardTitle className="text-base">Voorwaarden & Notities</CardTitle></CardHeader>
-          <CardContent className="space-y-4">
-            <div className="space-y-1.5">
-              <Label>Algemene voorwaarden</Label>
-              <Textarea value={termsAndConditions} onChange={(e) => setTermsAndConditions(e.target.value)} className="min-h-[80px]" />
-            </div>
-            <div className="space-y-1.5">
-              <Label>Interne notities</Label>
-              <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} className="min-h-[60px]" />
-            </div>
+          <CardHeader><CardTitle className="text-base">Producten & Diensten</CardTitle></CardHeader>
+          <CardContent>
+            <LineItemsEditor items={lineItems} onChange={isEditable ? setLineItems : () => {}} readOnly={!isEditable} />
           </CardContent>
         </Card>
-      ) : (
-        <>
-          {quote.termsAndConditions && (
-            <Card>
-              <CardHeader><CardTitle className="text-base">Voorwaarden</CardTitle></CardHeader>
-              <CardContent><p className="text-sm whitespace-pre-wrap text-muted-foreground">{quote.termsAndConditions}</p></CardContent>
-            </Card>
-          )}
-          {quote.notes && (
-            <Card>
-              <CardHeader><CardTitle className="text-base">Notities</CardTitle></CardHeader>
-              <CardContent><p className="text-sm whitespace-pre-wrap text-muted-foreground">{quote.notes}</p></CardContent>
-            </Card>
-          )}
-        </>
+      )}
+
+      {/* Notes (edit mode) */}
+      {isEditable && (
+        <Card>
+          <CardHeader><CardTitle className="text-base">Notities</CardTitle></CardHeader>
+          <CardContent>
+            <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} className="min-h-[60px]" placeholder="Interne notities..." />
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Notes (read-only) */}
+      {!isEditable && quote.notes && (
+        <Card>
+          <CardHeader><CardTitle className="text-base">Notities</CardTitle></CardHeader>
+          <CardContent><p className="text-sm whitespace-pre-wrap text-muted-foreground">{quote.notes}</p></CardContent>
+        </Card>
       )}
 
       {/* Signature */}

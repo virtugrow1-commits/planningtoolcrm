@@ -37,6 +37,7 @@ function mapRow(r: any): Quote {
     ghlOpportunityId: r.ghl_opportunity_id,
     pdfUrl: r.pdf_url,
     overlayFields: r.overlay_fields || [],
+    contentBlocks: r.content_blocks || [],
     createdAt: r.created_at,
     updatedAt: r.updated_at,
   };
@@ -104,6 +105,7 @@ export function useQuotes() {
       valid_until: quoteData.validUntil || null,
       pdf_url: quoteData.pdfUrl || null,
       overlay_fields: quoteData.overlayFields || [],
+      content_blocks: quoteData.contentBlocks || [],
     }).select().single();
 
     if (error) {
@@ -159,6 +161,7 @@ export function useQuotes() {
     if (updates.validUntil !== undefined) dbUpdates.valid_until = updates.validUntil;
     if (updates.pdfUrl !== undefined) dbUpdates.pdf_url = updates.pdfUrl;
     if (updates.overlayFields !== undefined) dbUpdates.overlay_fields = updates.overlayFields;
+    if (updates.contentBlocks !== undefined) dbUpdates.content_blocks = updates.contentBlocks;
     if (updates.introduction !== undefined) dbUpdates.introduction = updates.introduction;
     if (updates.termsAndConditions !== undefined) dbUpdates.terms_and_conditions = updates.termsAndConditions;
     if (updates.notes !== undefined) dbUpdates.notes = updates.notes;

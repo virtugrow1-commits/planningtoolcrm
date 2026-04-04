@@ -43,6 +43,7 @@ export interface Quote {
   ghlOpportunityId?: string;
   pdfUrl?: string;
   overlayFields?: any[];
+  contentBlocks?: any[];
   createdAt: string;
   updatedAt: string;
   lineItems?: LineItem[];

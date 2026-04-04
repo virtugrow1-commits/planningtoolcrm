@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Send, Save, CheckCircle, Pencil, ExternalLink } from 'lucide-react';
+import { ArrowLeft, Send, Save, CheckCircle, Pencil, ExternalLink, BookOpen } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -15,6 +15,7 @@ import DocumentMetadata, { formatDate } from '@/components/quotation/DocumentMet
 import type { Invoice, LineItem } from '@/types/quotation';
 import { calcFinancials } from '@/types/quotation';
 import { useToast } from '@/hooks/use-toast';
+import { pushInvoiceToEboekhouden } from '@/lib/eboekhouden';
 
 export default function InvoiceDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -26,6 +27,7 @@ export default function InvoiceDetailPage() {
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [pushingEboekhouden, setPushingEboekhouden] = useState(false);
 
   const [title, setTitle] = useState('');
   const [contactName, setContactName] = useState('');
@@ -104,6 +106,19 @@ export default function InvoiceDetailPage() {
     }
   };
 
+  const handlePushEboekhouden = async () => {
+    if (!invoice) return;
+    setPushingEboekhouden(true);
+    const result = await pushInvoiceToEboekhouden(invoice.id);
+    setPushingEboekhouden(false);
+    if (result.success) {
+      toast({ title: 'Doorgestuurd naar e-Boekhouden', description: `Mutatienummer: ${result.mutationId}` });
+      await loadInvoice();
+    } else {
+      toast({ title: 'Fout bij e-Boekhouden', description: result.error, variant: 'destructive' });
+    }
+  };
+
   const handleDelete = async () => {
     if (!invoice) return;
     const ok = await deleteInvoice(invoice.id);
@@ -149,6 +164,23 @@ export default function InvoiceDetailPage() {
           {(invoice.status === 'sent' || invoice.status === 'overdue') && (
             <Button size="sm" onClick={handleMarkPaid} className="gap-1.5">
               <CheckCircle size={14} /> Markeer als betaald
+            </Button>
+          )}
+          {invoice.eboekhoudenMutationId ? (
+            <span className="text-xs text-green-600 flex items-center gap-1">
+              <BookOpen size={12} /> e-Boekhouden ✓
+            </span>
+          ) : (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handlePushEboekhouden}
+              disabled={pushingEboekhouden || invoice.status === 'draft'}
+              className="gap-1.5"
+              title={invoice.status === 'draft' ? 'Verzend de factuur eerst' : 'Doorsturen naar e-Boekhouden'}
+            >
+              <BookOpen size={14} />
+              {pushingEboekhouden ? 'Bezig...' : 'e-Boekhouden'}
             </Button>
           )}
           {isDraft && <DeleteConfirmDialog title="Factuur verwijderen?" onConfirm={handleDelete} />}
