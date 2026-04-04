@@ -50,7 +50,7 @@ export async function saveEboekhoudenCredentials(
 }
 
 export async function loadEboekhoudenCredentials(userId: string) {
-  const { data } = await supabase
+  const { data } = await (supabase as any)
     .from('app_settings')
     .select('key, value')
     .eq('user_id', userId)
