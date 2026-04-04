@@ -911,6 +911,7 @@ export type Database = {
           declined_at: string | null
           discount_amount: number
           display_number: string | null
+          ghl_document_id: string | null
           ghl_opportunity_id: string | null
           id: string
           introduction: string | null
@@ -946,6 +947,7 @@ export type Database = {
           declined_at?: string | null
           discount_amount?: number
           display_number?: string | null
+          ghl_document_id?: string | null
           ghl_opportunity_id?: string | null
           id?: string
           introduction?: string | null
@@ -981,6 +983,7 @@ export type Database = {
           declined_at?: string | null
           discount_amount?: number
           display_number?: string | null
+          ghl_document_id?: string | null
           ghl_opportunity_id?: string | null
           id?: string
           introduction?: string | null
