@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Send, Copy, FileText, Save, Pencil, Check, AlertTriangle, FileEdit } from 'lucide-react';
+import { ArrowLeft, Send, Copy, FileText, Save, Pencil, Check, AlertTriangle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
