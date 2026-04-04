@@ -177,7 +177,7 @@ export default function QuotesPage() {
               );
             })}
           </div>
-          <UnifiedDocumentTable documents={filteredQuotes} loading={qLoading} emptyMessage="Geen offertes gevonden" />
+          <UnifiedDocumentTable documents={filteredQuotes} loading={qLoading} emptyMessage="Geen offertes gevonden" onDeleteQuote={deleteQuote} />
         </TabsContent>
 
         {/* Invoices tab */}
