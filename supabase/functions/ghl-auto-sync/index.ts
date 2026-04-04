@@ -154,6 +154,8 @@ Deno.serve(async (req) => {
       await syncTasks(supabase, ghlHeaders, GHL_LOCATION_ID, userId, results, lookups);
       await delay(200);
       await syncConversations(supabase, ghlHeaders, GHL_LOCATION_ID, userId, results, lookups);
+      await delay(200);
+      await syncDocuments(supabase, ghlHeaders, GHL_LOCATION_ID, userId, results);
 
       // Push local inquiries without GHL opportunity ID
       await pushLocalInquiries(supabase, ghlHeaders, GHL_LOCATION_ID, userId, results);
