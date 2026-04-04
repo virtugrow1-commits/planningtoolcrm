@@ -1,6 +1,6 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Send, Save, CheckCircle, Pencil, ExternalLink, BookOpen } from 'lucide-react';
+import { ArrowLeft, Send, Save, CheckCircle, Pencil, ExternalLink, BookOpen, AlertTriangle, Clock } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -16,6 +16,8 @@ import type { Invoice, LineItem } from '@/types/quotation';
 import { calcFinancials } from '@/types/quotation';
 import { useToast } from '@/hooks/use-toast';
 import { pushInvoiceToEboekhouden } from '@/lib/eboekhouden';
+import { format, differenceInDays } from 'date-fns';
+import { nl } from 'date-fns/locale';
 
 export default function InvoiceDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -28,6 +30,7 @@ export default function InvoiceDetailPage() {
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [pushingEboekhouden, setPushingEboekhouden] = useState(false);
+  const hasUnsaved = useRef(false);
 
   const [title, setTitle] = useState('');
   const [contactName, setContactName] = useState('');
@@ -57,16 +60,27 @@ export default function InvoiceDetailPage() {
 
   useEffect(() => { loadInvoice(); }, [loadInvoice]);
 
+  useEffect(() => {
+    if (editing) hasUnsaved.current = true;
+  }, [title, contactName, clientEmail, clientAddress, dueDate, notes, lineItems]);
+
   const isDraft = invoice?.status === 'draft';
   const isEditable = isDraft && editing;
+  const isOverdue = invoice?.status === 'sent' && invoice.dueDate &&
+    new Date(invoice.dueDate) < new Date();
+
+  const daysOverdue = invoice?.dueDate
+    ? differenceInDays(new Date(), new Date(invoice.dueDate))
+    : 0;
 
   const handleSave = async () => {
-    if (!invoice) return;
+    if (!invoice || saving) return;
     setSaving(true);
     const fin = calcFinancials(lineItems);
 
     const ok1 = await updateInvoice(invoice.id, {
-      title, contactName,
+      title,
+      contactName,
       companyName: companyName || undefined,
       clientEmail: clientEmail || undefined,
       clientAddress: clientAddress || undefined,
@@ -82,6 +96,7 @@ export default function InvoiceDetailPage() {
 
     setSaving(false);
     if (ok1 && ok2) {
+      hasUnsaved.current = false;
       toast({ title: 'Factuur opgeslagen' });
       setEditing(false);
       await loadInvoice();
@@ -90,9 +105,10 @@ export default function InvoiceDetailPage() {
 
   const handleSend = async () => {
     if (!invoice) return;
+    if (editing) await handleSave();
     const ok = await updateInvoiceStatus(invoice.id, 'sent');
     if (ok) {
-      toast({ title: 'Factuur verzonden' });
+      toast({ title: 'Factuur gemarkeerd als verzonden' });
       await loadInvoice();
     }
   };
@@ -106,16 +122,12 @@ export default function InvoiceDetailPage() {
     }
   };
 
-  const handlePushEboekhouden = async () => {
+  const handleMarkOverdue = async () => {
     if (!invoice) return;
-    setPushingEboekhouden(true);
-    const result = await pushInvoiceToEboekhouden(invoice.id);
-    setPushingEboekhouden(false);
-    if (result.success) {
-      toast({ title: 'Doorgestuurd naar e-Boekhouden', description: `Mutatienummer: ${result.mutationId}` });
+    const ok = await updateInvoiceStatus(invoice.id, 'overdue');
+    if (ok) {
+      toast({ title: 'Factuur gemarkeerd als verlopen' });
       await loadInvoice();
-    } else {
-      toast({ title: 'Fout bij e-Boekhouden', description: result.error, variant: 'destructive' });
     }
   };
 
@@ -128,46 +140,75 @@ export default function InvoiceDetailPage() {
     }
   };
 
-  if (loading) return <div className="flex items-center justify-center min-h-[50vh]"><p className="text-muted-foreground">Laden...</p></div>;
-  if (!invoice) return <div className="flex items-center justify-center min-h-[50vh]"><p className="text-muted-foreground">Factuur niet gevonden</p></div>;
+  const handlePushEboekhouden = async () => {
+    if (!invoice) return;
+    setPushingEboekhouden(true);
+    const result = await pushInvoiceToEboekhouden(invoice.id);
+    setPushingEboekhouden(false);
+    if (result.success) {
+      toast({
+        title: 'Doorgestuurd naar e-Boekhouden',
+        description: result.mutationId ? `Mutatienummer: ${result.mutationId}` : undefined,
+      });
+      await loadInvoice();
+    } else {
+      toast({ title: 'Fout bij e-Boekhouden', description: result.error, variant: 'destructive' });
+    }
+  };
+
+  const handleBackClick = () => {
+    if (editing && hasUnsaved.current) {
+      if (window.confirm('Je hebt niet-opgeslagen wijzigingen. Toch weg?')) navigate('/quotes');
+    } else {
+      navigate('/quotes');
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="p-4 md:p-6 max-w-5xl mx-auto space-y-4">
+        {[...Array(3)].map((_, i) => (
+          <div key={i} className="h-24 bg-muted animate-pulse rounded-lg" />
+        ))}
+      </div>
+    );
+  }
+
+  if (!invoice) {
+    return (
+      <div className="flex items-center justify-center min-h-[50vh] flex-col gap-3">
+        <AlertTriangle size={32} className="text-muted-foreground" />
+        <p className="text-muted-foreground">Factuur niet gevonden</p>
+        <Button variant="outline" onClick={() => navigate('/quotes')}>Terug naar overzicht</Button>
+      </div>
+    );
+  }
 
   return (
     <div className="p-4 md:p-6 max-w-5xl mx-auto space-y-6">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center gap-3">
-        <Button variant="ghost" size="icon" onClick={() => navigate('/quotes')}>
+        <Button variant="ghost" size="icon" onClick={handleBackClick}>
           <ArrowLeft size={18} />
         </Button>
-        <div className="flex-1">
-          <div className="flex items-center gap-3">
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-3 flex-wrap">
             <h1 className="text-xl font-bold text-foreground">{invoice.displayNumber}</h1>
-            <QuoteStatusBadge status={invoice.status} />
+            <QuoteStatusBadge status={isOverdue ? 'overdue' : invoice.status} />
+            {isOverdue && daysOverdue > 0 && (
+              <span className="text-xs text-red-600 bg-red-50 border border-red-200 px-2 py-0.5 rounded-full flex items-center gap-1">
+                <Clock size={10} /> {daysOverdue} dag{daysOverdue !== 1 ? 'en' : ''} te laat
+              </span>
+            )}
           </div>
-          <p className="text-sm text-muted-foreground">{invoice.title}</p>
+          <p className="text-sm text-muted-foreground truncate">{invoice.title}</p>
         </div>
+
+        {/* Actions */}
         <div className="flex items-center gap-2 flex-wrap">
-          {isDraft && !editing && (
-            <Button variant="outline" size="sm" onClick={() => setEditing(true)} className="gap-1.5">
-              <Pencil size={14} /> Bewerken
-            </Button>
-          )}
-          {isEditable && (
-            <Button variant="outline" size="sm" onClick={handleSave} disabled={saving} className="gap-1.5">
-              <Save size={14} /> {saving ? 'Opslaan...' : 'Opslaan'}
-            </Button>
-          )}
-          {isDraft && (
-            <Button size="sm" onClick={handleSend} className="gap-1.5">
-              <Send size={14} /> Verzenden
-            </Button>
-          )}
-          {(invoice.status === 'sent' || invoice.status === 'overdue') && (
-            <Button size="sm" onClick={handleMarkPaid} className="gap-1.5">
-              <CheckCircle size={14} /> Markeer als betaald
-            </Button>
-          )}
+          {/* e-Boekhouden */}
           {invoice.eboekhoudenMutationId ? (
-            <span className="text-xs text-green-600 flex items-center gap-1">
+            <span className="text-xs text-green-600 flex items-center gap-1 px-2 py-1 bg-green-50 border border-green-200 rounded">
               <BookOpen size={12} /> e-Boekhouden ✓
             </span>
           ) : (
@@ -183,9 +224,54 @@ export default function InvoiceDetailPage() {
               {pushingEboekhouden ? 'Bezig...' : 'e-Boekhouden'}
             </Button>
           )}
+
+          {isDraft && !editing && (
+            <Button variant="outline" size="sm" onClick={() => setEditing(true)} className="gap-1.5">
+              <Pencil size={14} /> Bewerken
+            </Button>
+          )}
+
+          {isEditable && (
+            <Button variant="outline" size="sm" onClick={handleSave} disabled={saving} className="gap-1.5">
+              <Save size={14} /> {saving ? 'Opslaan...' : 'Opslaan'}
+            </Button>
+          )}
+
+          {isDraft && (
+            <Button size="sm" onClick={handleSend} className="gap-1.5">
+              <Send size={14} /> Markeer verzonden
+            </Button>
+          )}
+
+          {(invoice.status === 'sent' || invoice.status === 'overdue' || isOverdue) && (
+            <>
+              {isOverdue && invoice.status === 'sent' && (
+                <Button variant="outline" size="sm" onClick={handleMarkOverdue} className="gap-1.5 text-amber-600 border-amber-300">
+                  Markeer verlopen
+                </Button>
+              )}
+              <Button size="sm" onClick={handleMarkPaid} className="gap-1.5 bg-green-600 hover:bg-green-700">
+                <CheckCircle size={14} /> Betaald
+              </Button>
+            </>
+          )}
+
           {isDraft && <DeleteConfirmDialog title="Factuur verwijderen?" onConfirm={handleDelete} />}
         </div>
       </div>
+
+      {/* Overdue warning */}
+      {(invoice.status === 'overdue' || isOverdue) && (
+        <Card className="border-red-200 bg-red-50">
+          <CardContent className="pt-4 pb-4 flex items-center gap-3">
+            <AlertTriangle size={16} className="text-red-600 shrink-0" />
+            <p className="text-sm text-red-800">
+              Deze factuur is verlopen op {invoice.dueDate ? format(new Date(invoice.dueDate), 'dd MMMM yyyy', { locale: nl }) : '—'}.
+              {daysOverdue > 0 && ` (${daysOverdue} dag${daysOverdue !== 1 ? 'en' : ''} geleden)`}
+            </p>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Client info */}
       {isEditable ? (
@@ -207,7 +293,7 @@ export default function InvoiceDetailPage() {
               </div>
               <div className="space-y-1.5">
                 <Label>E-mail</Label>
-                <Input value={clientEmail} onChange={(e) => setClientEmail(e.target.value)} />
+                <Input type="email" value={clientEmail} onChange={(e) => setClientEmail(e.target.value)} />
               </div>
               <div className="space-y-1.5">
                 <Label>Bedrijf</Label>
@@ -223,8 +309,12 @@ export default function InvoiceDetailPage() {
       ) : (
         <ClientInfoCard
           data={{
-            contactId: '', contactName: invoice.contactName, companyId: '', companyName: invoice.companyName || '',
-            clientEmail: invoice.clientEmail || '', clientAddress: invoice.clientAddress || '',
+            contactId: '',
+            contactName: invoice.contactName,
+            companyId: '',
+            companyName: invoice.companyName || '',
+            clientEmail: invoice.clientEmail || '',
+            clientAddress: invoice.clientAddress || '',
           }}
           readOnly
         />
@@ -234,29 +324,45 @@ export default function InvoiceDetailPage() {
       <Card>
         <CardHeader><CardTitle className="text-base">Producten & Diensten</CardTitle></CardHeader>
         <CardContent>
-          <LineItemsEditor items={lineItems} onChange={isEditable ? setLineItems : () => {}} readOnly={!isEditable} />
+          <LineItemsEditor
+            items={lineItems}
+            onChange={isEditable ? setLineItems : () => {}}
+            readOnly={!isEditable}
+          />
         </CardContent>
       </Card>
 
       {/* Notes */}
-      <Card>
-        <CardHeader><CardTitle className="text-base">Notities</CardTitle></CardHeader>
-        <CardContent>
-          {isEditable ? (
-            <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Interne notities..." className="min-h-[80px]" />
-          ) : (
-            <p className="text-sm text-muted-foreground whitespace-pre-wrap">{invoice.notes || 'Geen notities'}</p>
-          )}
-        </CardContent>
-      </Card>
+      {(isEditable || invoice.notes) && (
+        <Card>
+          <CardHeader><CardTitle className="text-base">Notities</CardTitle></CardHeader>
+          <CardContent>
+            {isEditable ? (
+              <Textarea
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+                placeholder="Interne notities (niet zichtbaar voor klant)..."
+                className="min-h-[80px]"
+              />
+            ) : (
+              <p className="text-sm text-muted-foreground whitespace-pre-wrap">{invoice.notes}</p>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       {/* Linked quote */}
       {invoice.quoteId && (
         <Card>
           <CardContent className="pt-6">
             <div className="flex items-center justify-between">
-              <p className="text-sm text-muted-foreground">Gekoppeld aan offerte</p>
-              <Button variant="link" size="sm" onClick={() => navigate(`/quotes/${invoice.quoteId}`)} className="gap-1.5">
+              <p className="text-sm text-muted-foreground">Afkomstig van offerte</p>
+              <Button
+                variant="link"
+                size="sm"
+                onClick={() => navigate(`/quotes/${invoice.quoteId}`)}
+                className="gap-1.5"
+              >
                 <ExternalLink size={14} /> Bekijk offerte
               </Button>
             </div>

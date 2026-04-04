@@ -1,6 +1,6 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Send, Copy, FileText, Save, Pencil, Mail } from 'lucide-react';
+import { ArrowLeft, Send, Copy, FileText, Save, Pencil, Check, AlertTriangle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -22,7 +22,7 @@ import { supabase } from '@/integrations/supabase/client';
 export default function QuoteDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { getQuoteWithItems, updateQuoteStatus, updateQuote } = useQuotes();
+  const { getQuoteWithItems, updateQuoteStatus, updateQuote, createQuote } = useQuotes();
   const { createInvoiceFromQuote } = useInvoices();
   const { toast } = useToast();
 
@@ -30,6 +30,8 @@ export default function QuoteDetailPage() {
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [linkCopied, setLinkCopied] = useState(false);
+  const hasUnsaved = useRef(false);
 
   // Editable state
   const [title, setTitle] = useState('');
@@ -70,11 +72,18 @@ export default function QuoteDetailPage() {
 
   useEffect(() => { loadQuote(); }, [loadQuote]);
 
-  const isDraft = quote?.status === 'draft';
-  const isEditable = isDraft && editing;
+  // Track unsaved changes
+  useEffect(() => {
+    if (editing) hasUnsaved.current = true;
+  }, [title, contactName, companyName, clientEmail, clientAddress, introduction, termsAndConditions, notes, validUntil, lineItems]);
+
+  // Allow editing on draft AND viewed (not yet decided) quotes
+  const canEdit = quote?.status === 'draft' || quote?.status === 'viewed';
+  const isEditable = canEdit && editing;
+  const isExpired = quote?.validUntil && new Date(quote.validUntil) < new Date();
 
   const handleSave = async () => {
-    if (!quote) return;
+    if (!quote || saving) return;
     setSaving(true);
     const fin = calcFinancials(lineItems);
 
@@ -96,6 +105,7 @@ export default function QuoteDetailPage() {
     });
 
     if (ok) {
+      // Replace line items
       await supabase.from('quote_line_items').delete().eq('quote_id', quote.id);
       if (lineItems.length > 0) {
         await supabase.from('quote_line_items').insert(
@@ -112,27 +122,59 @@ export default function QuoteDetailPage() {
           }))
         );
       }
-    }
-
-    setSaving(false);
-    if (ok) {
+      hasUnsaved.current = false;
       toast({ title: 'Offerte opgeslagen' });
       setEditing(false);
       await loadQuote();
     }
+    setSaving(false);
   };
 
   const handleSend = async () => {
     if (!quote) return;
-    await updateQuoteStatus(quote.id, 'sent');
-    toast({ title: 'Offerte verzonden', description: 'Status bijgewerkt naar Verzonden.' });
-    await loadQuote();
+    // If still in edit mode, save first
+    if (editing) await handleSave();
+    const ok = await updateQuoteStatus(quote.id, 'sent');
+    if (ok) {
+      toast({ title: 'Offerte gemarkeerd als verzonden' });
+      await loadQuote();
+    }
   };
 
   const handleCreateInvoice = async () => {
     if (!quote) return;
     const inv = await createInvoiceFromQuote(quote.id);
     if (inv) navigate(`/invoices/${inv.id}`);
+  };
+
+  const handleDuplicate = async () => {
+    if (!quote) return;
+    const dup = await createQuote(
+      {
+        title: `${quote.title} (kopie)`,
+        templateId: quote.templateId,
+        contactId: quote.contactId,
+        companyId: quote.companyId,
+        contactName: quote.contactName,
+        companyName: quote.companyName,
+        clientEmail: quote.clientEmail,
+        clientAddress: quote.clientAddress,
+        introduction: quote.introduction,
+        termsAndConditions: quote.termsAndConditions,
+        notes: quote.notes,
+        validUntil: quote.validUntil,
+        contentBlocks: contentBlocks,
+        subtotal: quote.subtotal,
+        vatAmount: quote.vatAmount,
+        discountAmount: quote.discountAmount,
+        total: quote.total,
+      },
+      lineItems
+    );
+    if (dup) {
+      toast({ title: 'Offerte gedupliceerd', description: dup.displayNumber });
+      navigate(`/quotes/${dup.id}`);
+    }
   };
 
   const handleDelete = async () => {
@@ -151,55 +193,114 @@ export default function QuoteDetailPage() {
     if (!quote?.publicToken) return;
     const url = `${window.location.origin}/quote/view/${quote.publicToken}`;
     navigator.clipboard.writeText(url);
-    toast({ title: 'Link gekopieerd' });
+    setLinkCopied(true);
+    setTimeout(() => setLinkCopied(false), 2000);
+    toast({ title: 'Link gekopieerd naar klembord' });
   };
 
-  if (loading) return <div className="flex items-center justify-center min-h-[50vh]"><p className="text-muted-foreground">Laden...</p></div>;
-  if (!quote) return <div className="flex items-center justify-center min-h-[50vh]"><p className="text-muted-foreground">Offerte niet gevonden</p></div>;
+  const handleBackClick = () => {
+    if (editing && hasUnsaved.current) {
+      if (window.confirm('Je hebt niet-opgeslagen wijzigingen. Toch weg?')) {
+        navigate('/quotes');
+      }
+    } else {
+      navigate('/quotes');
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="p-4 md:p-6 max-w-5xl mx-auto space-y-4">
+        {[...Array(4)].map((_, i) => (
+          <div key={i} className="h-24 bg-muted animate-pulse rounded-lg" />
+        ))}
+      </div>
+    );
+  }
+
+  if (!quote) {
+    return (
+      <div className="flex items-center justify-center min-h-[50vh] flex-col gap-3">
+        <AlertTriangle size={32} className="text-muted-foreground" />
+        <p className="text-muted-foreground">Offerte niet gevonden</p>
+        <Button variant="outline" onClick={() => navigate('/quotes')}>Terug naar overzicht</Button>
+      </div>
+    );
+  }
 
   return (
     <div className="p-4 md:p-6 max-w-5xl mx-auto space-y-6">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center gap-3">
-        <Button variant="ghost" size="icon" onClick={() => navigate('/quotes')}>
+        <Button variant="ghost" size="icon" onClick={handleBackClick}>
           <ArrowLeft size={18} />
         </Button>
-        <div className="flex-1">
-          <div className="flex items-center gap-3">
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-3 flex-wrap">
             <h1 className="text-xl font-bold text-foreground">{quote.displayNumber}</h1>
             <QuoteStatusBadge status={quote.status} />
+            {isExpired && quote.status !== 'accepted' && quote.status !== 'declined' && (
+              <span className="text-xs text-amber-600 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full">
+                Verlopen
+              </span>
+            )}
           </div>
-          <p className="text-sm text-muted-foreground">{quote.title}</p>
+          <p className="text-sm text-muted-foreground truncate">{quote.title}</p>
         </div>
+
+        {/* Action buttons */}
         <div className="flex items-center gap-2 flex-wrap">
           {quote.publicToken && (
             <Button variant="outline" size="sm" onClick={copyPublicLink} className="gap-1.5">
-              <Copy size={14} /> Kopieer link
+              {linkCopied ? <Check size={14} className="text-green-600" /> : <Copy size={14} />}
+              {linkCopied ? 'Gekopieerd!' : 'Kopieer link'}
             </Button>
           )}
-          {isDraft && !editing && (
+
+          <Button variant="outline" size="sm" onClick={handleDuplicate} className="gap-1.5">
+            <Copy size={14} /> Dupliceer
+          </Button>
+
+          {canEdit && !editing && (
             <Button variant="outline" size="sm" onClick={() => setEditing(true)} className="gap-1.5">
               <Pencil size={14} /> Bewerken
             </Button>
           )}
+
           {isEditable && (
             <Button variant="outline" size="sm" onClick={handleSave} disabled={saving} className="gap-1.5">
               <Save size={14} /> {saving ? 'Opslaan...' : 'Opslaan'}
             </Button>
           )}
-          {isDraft && (
+
+          {(quote.status === 'draft' || quote.status === 'viewed') && (
             <Button size="sm" onClick={handleSend} className="gap-1.5">
-              <Send size={14} /> Verzenden
+              <Send size={14} /> Markeer verzonden
             </Button>
           )}
+
           {quote.status === 'accepted' && (
             <Button size="sm" onClick={handleCreateInvoice} className="gap-1.5">
               <FileText size={14} /> Maak factuur
             </Button>
           )}
-          {isDraft && <DeleteConfirmDialog title="Offerte verwijderen?" onConfirm={handleDelete} />}
+
+          {canEdit && <DeleteConfirmDialog title="Offerte verwijderen?" onConfirm={handleDelete} />}
         </div>
       </div>
+
+      {/* Expired warning */}
+      {isExpired && quote.status === 'sent' && (
+        <Card className="border-amber-200 bg-amber-50">
+          <CardContent className="pt-4 pb-4 flex items-center gap-3">
+            <AlertTriangle size={16} className="text-amber-600 shrink-0" />
+            <p className="text-sm text-amber-800">
+              Deze offerte is verlopen op {formatDate(quote.validUntil!, false)}.
+              Bewerk de geldigheidsdatum en stuur opnieuw.
+            </p>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Client info */}
       {isEditable ? (
@@ -216,12 +317,19 @@ export default function QuoteDetailPage() {
         />
       ) : (
         <ClientInfoCard
-          data={{ contactId, contactName, companyId, companyName, clientEmail: quote.clientEmail || '', clientAddress: quote.clientAddress || '' }}
+          data={{
+            contactId,
+            contactName: quote.contactName,
+            companyId,
+            companyName: quote.companyName || '',
+            clientEmail: quote.clientEmail || '',
+            clientAddress: quote.clientAddress || '',
+          }}
           readOnly
         />
       )}
 
-      {/* Quote details (edit mode) */}
+      {/* Edit mode: metadata fields */}
       {isEditable && (
         <Card>
           <CardHeader><CardTitle className="text-base">Offerte details</CardTitle></CardHeader>
@@ -244,12 +352,16 @@ export default function QuoteDetailPage() {
         </Card>
       )}
 
-      {/* Introduction (read-only) */}
+      {/* Read-only introduction */}
       {!isEditable && quote.introduction && (
-        <Card><CardContent className="pt-6"><p className="text-sm whitespace-pre-wrap">{quote.introduction}</p></CardContent></Card>
+        <Card>
+          <CardContent className="pt-6">
+            <p className="text-sm whitespace-pre-wrap text-foreground">{quote.introduction}</p>
+          </CardContent>
+        </Card>
       )}
 
-      {/* Document blocks (block-based templates) */}
+      {/* Document blocks */}
       {contentBlocks.length > 0 && (
         <div>
           <p className="text-sm font-medium text-muted-foreground mb-3">Document</p>
@@ -257,32 +369,71 @@ export default function QuoteDetailPage() {
         </div>
       )}
 
-      {/* Line items (fallback / supplemental) */}
-      {lineItems.length > 0 && contentBlocks.length === 0 && (
+      {/* Line items (shown when no block-based content, or always in edit mode) */}
+      {(contentBlocks.length === 0 || isEditable) && (
         <Card>
-          <CardHeader><CardTitle className="text-base">Producten & Diensten</CardTitle></CardHeader>
+          <CardHeader>
+            <CardTitle className="text-base">
+              {contentBlocks.length > 0 ? 'Extra regelitems' : 'Producten & Diensten'}
+            </CardTitle>
+          </CardHeader>
           <CardContent>
-            <LineItemsEditor items={lineItems} onChange={isEditable ? setLineItems : () => {}} readOnly={!isEditable} />
+            <LineItemsEditor
+              items={lineItems}
+              onChange={isEditable ? setLineItems : () => {}}
+              readOnly={!isEditable}
+            />
           </CardContent>
         </Card>
       )}
 
-      {/* Notes (edit mode) */}
+      {/* Notes & Terms in edit mode */}
       {isEditable && (
         <Card>
-          <CardHeader><CardTitle className="text-base">Notities</CardTitle></CardHeader>
-          <CardContent>
-            <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} className="min-h-[60px]" placeholder="Interne notities..." />
+          <CardHeader><CardTitle className="text-base">Voorwaarden & Notities</CardTitle></CardHeader>
+          <CardContent className="space-y-4">
+            <div className="space-y-1.5">
+              <Label>Algemene voorwaarden</Label>
+              <Textarea
+                value={termsAndConditions}
+                onChange={(e) => setTermsAndConditions(e.target.value)}
+                className="min-h-[80px]"
+                placeholder="Betalingstermijn, annuleringsbeleid, etc."
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Interne notities</Label>
+              <Textarea
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+                className="min-h-[60px]"
+                placeholder="Niet zichtbaar voor de klant"
+              />
+            </div>
           </CardContent>
         </Card>
       )}
 
-      {/* Notes (read-only) */}
-      {!isEditable && quote.notes && (
-        <Card>
-          <CardHeader><CardTitle className="text-base">Notities</CardTitle></CardHeader>
-          <CardContent><p className="text-sm whitespace-pre-wrap text-muted-foreground">{quote.notes}</p></CardContent>
-        </Card>
+      {/* Read-only terms & notes */}
+      {!isEditable && (
+        <>
+          {quote.termsAndConditions && (
+            <Card>
+              <CardHeader><CardTitle className="text-base">Voorwaarden</CardTitle></CardHeader>
+              <CardContent>
+                <p className="text-sm whitespace-pre-wrap text-muted-foreground">{quote.termsAndConditions}</p>
+              </CardContent>
+            </Card>
+          )}
+          {quote.notes && (
+            <Card>
+              <CardHeader><CardTitle className="text-base">Interne notities</CardTitle></CardHeader>
+              <CardContent>
+                <p className="text-sm whitespace-pre-wrap text-muted-foreground">{quote.notes}</p>
+              </CardContent>
+            </Card>
+          )}
+        </>
       )}
 
       {/* Signature */}
@@ -290,7 +441,7 @@ export default function QuoteDetailPage() {
         <Card>
           <CardHeader><CardTitle className="text-base">Handtekening</CardTitle></CardHeader>
           <CardContent>
-            <img src={quote.signatureData} alt="Handtekening" className="border rounded-lg max-w-xs" />
+            <img src={quote.signatureData} alt="Handtekening" className="border rounded-lg max-w-xs bg-white" />
             <p className="text-xs text-muted-foreground mt-2">
               Ondertekend op {quote.acceptedAt ? formatDate(quote.acceptedAt) : '—'}
               {quote.signatureIp && ` · IP: ${quote.signatureIp}`}
@@ -306,6 +457,8 @@ export default function QuoteDetailPage() {
           { label: 'Verzonden', value: quote.sentAt ? formatDate(quote.sentAt) : undefined },
           { label: 'Geldig tot', value: quote.validUntil ? formatDate(quote.validUntil, false) : undefined },
           { label: 'Bekeken', value: quote.viewedAt ? formatDate(quote.viewedAt) : undefined },
+          { label: 'Geaccepteerd', value: quote.acceptedAt ? formatDate(quote.acceptedAt) : undefined },
+          { label: 'Afgewezen', value: quote.declinedAt ? formatDate(quote.declinedAt) : undefined },
         ]}
       />
     </div>

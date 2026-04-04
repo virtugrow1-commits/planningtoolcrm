@@ -64,13 +64,14 @@ export function useQuotes() {
   const { toast } = useToast();
 
   const fetchQuotes = useCallback(async () => {
-    if (!user) return;
+    if (!user) { setLoading(false); return; }
     const { data, error } = await supabase
       .from('quotes')
       .select('*')
       .order('created_at', { ascending: false });
     if (error) {
       toast({ title: 'Fout bij laden offertes', description: error.message, variant: 'destructive' });
+      setLoading(false);
       return;
     }
     setQuotes((data || []).map(mapRow));
@@ -137,18 +138,20 @@ export function useQuotes() {
     return data ? mapRow(data) : null;
   }, [user, fetchQuotes]);
 
-  const updateQuoteStatus = useCallback(async (id: string, status: string) => {
+  const updateQuoteStatus = useCallback(async (id: string, status: string): Promise<boolean> => {
     const updates: any = { status };
     if (status === 'sent') updates.sent_at = new Date().toISOString();
     if (status === 'accepted') updates.accepted_at = new Date().toISOString();
     if (status === 'declined') updates.declined_at = new Date().toISOString();
+    if (status === 'viewed') updates.viewed_at = new Date().toISOString();
 
     const { error } = await supabase.from('quotes').update(updates).eq('id', id);
     if (error) {
       toast({ title: 'Fout bij updaten status', description: error.message, variant: 'destructive' });
-      return;
+      return false;
     }
     await fetchQuotes();
+    return true;
   }, [fetchQuotes]);
 
   const updateQuote = useCallback(async (id: string, updates: Partial<Quote>) => {
@@ -194,5 +197,5 @@ export function useQuotes() {
     return quote;
   }, []);
 
-  return { quotes, loading, createQuote, updateQuote, updateQuoteStatus, getQuoteWithItems, refetch: fetchQuotes };
+  return { quotes, loading, createQuote, updateQuote, updateQuoteStatus, getQuoteWithItems, refetch: fetchQuotes, fetchQuotes };
 }

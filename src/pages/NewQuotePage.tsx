@@ -12,9 +12,10 @@ import { calcFinancials } from '@/types/quotation';
 import type { LineItem } from '@/types/quotation';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
-import { resolveBlocksMergeTags, resolveMergeTags } from '@/lib/mergeTags';
+import { resolveBlocksMergeTags } from '@/lib/mergeTags';
 import type { MergeTagData } from '@/lib/mergeTags';
 import DocumentViewer from '@/components/quotation/DocumentViewer';
+import LineItemsEditor from '@/components/quotation/LineItemsEditor';
 
 type Step = 'template' | 'contact' | 'document';
 
@@ -41,6 +42,7 @@ export default function NewQuotePage() {
   const [title, setTitle] = useState('Offerte');
   const [validUntil, setValidUntil] = useState('');
   const [resolvedBlocks, setResolvedBlocks] = useState<any[]>([]);
+  const [manualLineItems, setManualLineItems] = useState<LineItem[]>([]);
 
   const selectedTemplate = templates.find((t) => t.id === selectedTemplateId);
 
@@ -117,28 +119,33 @@ export default function NewQuotePage() {
     );
   });
 
-  /** Extract line items from product-list blocks */
+  const hasProductListBlocks = resolvedBlocks.some((b) => b.type === 'product-list');
+
+  /** Extract line items from product-list blocks or manual items */
   const extractLineItems = (): LineItem[] => {
-    const productBlocks = resolvedBlocks.filter((b) => b.type === 'product-list');
-    const items: LineItem[] = [];
-    let sortOrder = 0;
-    for (const block of productBlocks) {
-      for (const item of block.items || []) {
-        const base = item.quantity * item.unitPrice;
-        items.push({
-          id: item.id || `li-${sortOrder}`,
-          sortOrder: sortOrder++,
-          itemName: item.name,
-          description: item.description || undefined,
-          quantity: item.quantity,
-          unitPrice: item.unitPrice,
-          vatRate: item.vatRate,
-          discountPercent: 0,
-          lineTotal: base,
-        });
+    if (hasProductListBlocks) {
+      const productBlocks = resolvedBlocks.filter((b) => b.type === 'product-list');
+      const items: LineItem[] = [];
+      let sortOrder = 0;
+      for (const block of productBlocks) {
+        for (const item of block.items || []) {
+          const base = item.quantity * item.unitPrice;
+          items.push({
+            id: item.id || `li-${sortOrder}`,
+            sortOrder: sortOrder++,
+            itemName: item.name,
+            description: item.description || undefined,
+            quantity: item.quantity,
+            unitPrice: item.unitPrice,
+            vatRate: item.vatRate,
+            discountPercent: 0,
+            lineTotal: base,
+          });
+        }
       }
+      return items;
     }
-    return items;
+    return manualLineItems;
   };
 
   const handleSave = async () => {
@@ -427,6 +434,19 @@ export default function NewQuotePage() {
               />
             )}
           </div>
+
+          {/* Manual line items — shown when template has no product-list blocks */}
+          {resolvedBlocks.length > 0 && !hasProductListBlocks && (
+            <Card>
+              <CardHeader><CardTitle className="text-base">Producten & Diensten</CardTitle></CardHeader>
+              <CardContent>
+                <p className="text-xs text-muted-foreground mb-3">
+                  Dit sjabloon bevat geen productlijst. Voeg hier handmatig de regelitems toe voor de facturatie.
+                </p>
+                <LineItemsEditor items={manualLineItems} onChange={setManualLineItems} />
+              </CardContent>
+            </Card>
+          )}
 
           <div className="flex gap-3 justify-between">
             <Button variant="outline" onClick={() => setStep('contact')} className="gap-1.5">

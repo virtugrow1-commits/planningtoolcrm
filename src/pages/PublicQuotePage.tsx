@@ -283,9 +283,21 @@ export default function PublicQuotePage() {
               </div>
 
               {!hasRequiredSignatures() && (
-                <p className="text-xs text-amber-600">
-                  Zet uw handtekening in het document hierboven om verder te gaan.
-                </p>
+                <div className="flex items-center gap-2">
+                  <p className="text-xs text-amber-600">
+                    Zet uw handtekening in het document hierboven om verder te gaan.
+                  </p>
+                  <button
+                    type="button"
+                    className="text-xs text-primary underline shrink-0"
+                    onClick={() => {
+                      const el = document.querySelector('[data-block-type="signature"]');
+                      el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    }}
+                  >
+                    Ga naar handtekening
+                  </button>
+                </div>
               )}
 
               <div className="flex gap-3 pt-2">

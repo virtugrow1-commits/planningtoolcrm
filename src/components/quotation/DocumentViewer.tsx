@@ -3,21 +3,13 @@
  * Renders resolved blocks (merge tags already substituted).
  */
 import { useRef, useEffect, useState } from 'react';
-import { PenTool, CheckSquare } from 'lucide-react';
-import type { TemplateBlock } from '@/types/templateBlocks';
-import * as pdfjsLib from 'pdfjs-dist';
-
-pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.mjs`;
-
-interface SignatureState {
-  blockId: string;
-  data: string; // base64 dataURL
-}
+import { PenTool } from 'lucide-react';
+import { calcFinancials } from '@/types/quotation';
+import type { LineItem } from '@/types/quotation';
 
 interface DocumentViewerProps {
-  blocks: any[]; // resolved TemplateBlocks
+  blocks: any[];
   pdfBackgroundUrl?: string | null;
-  /** When provided, signature/checkbox blocks become interactive */
   onSignatureCapture?: (blockId: string, dataUrl: string) => void;
   onCheckboxChange?: (blockId: string, checked: boolean) => void;
   signatureValues?: Record<string, string>;
@@ -34,7 +26,7 @@ export default function DocumentViewer({
 }: DocumentViewerProps) {
   const sortedBlocks = [...blocks].sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
 
-  // Group blocks by pages (split on page-break)
+  // Split on page-break
   const pages: any[][] = [];
   let current: any[] = [];
   for (const block of sortedBlocks) {
@@ -50,17 +42,17 @@ export default function DocumentViewer({
   return (
     <div className="space-y-8 max-w-[800px] mx-auto">
       {pages.map((pageBlocks, pi) => (
-        <div key={pi} className="bg-white shadow-sm rounded-lg border overflow-hidden print:shadow-none print:border-none">
-          {pdfBackgroundUrl && (
-            <PdfPageBackground url={pdfBackgroundUrl} pageNumber={pi + 1} />
-          )}
-          <div className="p-8 md:p-12 space-y-4">
+        <div
+          key={pi}
+          className="bg-white shadow-sm rounded-lg border overflow-hidden print:shadow-none print:border-none"
+        >
+          <div className="p-8 md:p-12 space-y-6">
             {pageBlocks.map((block) => (
               <BlockView
                 key={block.id}
                 block={block}
-                onSignatureCapture={onSignatureCapture}
-                onCheckboxChange={onCheckboxChange}
+                onSignatureCapture={onSignatureCapture ? (data) => onSignatureCapture(block.id, data) : undefined}
+                onCheckboxChange={onCheckboxChange ? (checked) => onCheckboxChange(block.id, checked) : undefined}
                 signatureValue={signatureValues[block.id]}
                 checkboxValue={checkboxValues[block.id]}
               />
@@ -72,38 +64,16 @@ export default function DocumentViewer({
   );
 }
 
-function PdfPageBackground({ url, pageNumber }: { url: string; pageNumber: number }) {
-  const [imgSrc, setImgSrc] = useState<string | null>(null);
-
-  useEffect(() => {
-    (async () => {
-      try {
-        const pdf = await pdfjsLib.getDocument(url).promise;
-        if (pageNumber > pdf.numPages) return;
-        const page = await pdf.getPage(pageNumber);
-        const viewport = page.getViewport({ scale: 2 });
-        const canvas = document.createElement('canvas');
-        canvas.width = viewport.width;
-        canvas.height = viewport.height;
-        const ctx = canvas.getContext('2d')!;
-        await page.render({ canvasContext: ctx, viewport }).promise;
-        setImgSrc(canvas.toDataURL());
-      } catch { /* ignore */ }
-    })();
-  }, [url, pageNumber]);
-
-  if (!imgSrc) return null;
-  return (
-    <div className="absolute inset-0 pointer-events-none z-0">
-      <img src={imgSrc} alt="" className="w-full h-auto" />
-    </div>
-  );
-}
-
-function BlockView({ block, onSignatureCapture, onCheckboxChange, signatureValue, checkboxValue }: {
+function BlockView({
+  block,
+  onSignatureCapture,
+  onCheckboxChange,
+  signatureValue,
+  checkboxValue,
+}: {
   block: any;
-  onSignatureCapture?: (id: string, dataUrl: string) => void;
-  onCheckboxChange?: (id: string, checked: boolean) => void;
+  onSignatureCapture?: (dataUrl: string) => void;
+  onCheckboxChange?: (checked: boolean) => void;
   signatureValue?: string;
   checkboxValue?: boolean;
 }) {
@@ -121,8 +91,12 @@ function BlockView({ block, onSignatureCapture, onCheckboxChange, signatureValue
             color: block.color,
             lineHeight: block.lineHeight,
           }}
-          dangerouslySetInnerHTML={{ __html: block.content || '' }}
-          className="whitespace-pre-wrap"
+          // Strip merge-tag spans that weren't resolved (replace with plain text)
+          dangerouslySetInnerHTML={{
+            __html: (block.content || '')
+              .replace(/<span[^>]*class="[^"]*bg-primary[^"]*"[^>]*contenteditable="false"[^>]*>([^<]+)<\/span>/g, '$1'),
+          }}
+          className="whitespace-pre-wrap break-words"
         />
       );
 
@@ -144,17 +118,24 @@ function BlockView({ block, onSignatureCapture, onCheckboxChange, signatureValue
         <div className="overflow-x-auto">
           <table className="w-full border-collapse text-sm">
             <thead>
-              <tr className="bg-muted/50">
+              <tr className="bg-gray-50">
                 {(block.columns || []).map((col: any) => (
-                  <th key={col.id} className="border border-border p-2 text-left font-semibold">{col.header}</th>
+                  <th
+                    key={col.id}
+                    className="border border-gray-200 p-2 text-left font-semibold text-gray-700"
+                  >
+                    {col.header}
+                  </th>
                 ))}
               </tr>
             </thead>
             <tbody>
               {(block.rows || []).map((row: any, ri: number) => (
-                <tr key={ri} className={ri % 2 === 1 ? 'bg-muted/20' : ''}>
+                <tr key={ri} className={ri % 2 === 1 ? 'bg-gray-50/50' : ''}>
                   {(block.columns || []).map((col: any) => (
-                    <td key={col.id} className="border border-border p-2 text-sm">{row[col.id] || ''}</td>
+                    <td key={col.id} className="border border-gray-200 p-2 text-sm text-gray-700">
+                      {row[col.id] || ''}
+                    </td>
                   ))}
                 </tr>
               ))}
@@ -168,11 +149,11 @@ function BlockView({ block, onSignatureCapture, onCheckboxChange, signatureValue
 
     case 'details':
       return (
-        <div className="grid grid-cols-2 gap-x-8 gap-y-1 p-4 bg-muted/20 rounded-lg text-sm">
+        <div className="grid grid-cols-2 gap-x-8 gap-y-2 p-4 bg-gray-50 rounded-lg text-sm border border-gray-100">
           {(block.fields || []).map((field: any) => (
             <div key={field.id} className="flex gap-2">
-              <span className="font-semibold text-foreground min-w-[120px]">{field.label}:</span>
-              <span className="text-muted-foreground">{field.resolvedValue || field.mergeTag || '—'}</span>
+              <span className="font-semibold text-gray-700 min-w-[120px] shrink-0">{field.label}:</span>
+              <span className="text-gray-600">{field.resolvedValue || '—'}</span>
             </div>
           ))}
         </div>
@@ -183,24 +164,32 @@ function BlockView({ block, onSignatureCapture, onCheckboxChange, signatureValue
         <SignatureView
           block={block}
           value={signatureValue}
-          onCapture={onSignatureCapture ? (data) => onSignatureCapture(block.id, data) : undefined}
+          onCapture={onSignatureCapture}
         />
       );
 
     case 'checkbox':
       return (
-        <div className="flex items-start gap-3 p-4 border rounded-lg bg-muted/10">
+        <div className="flex items-start gap-3 p-4 border border-gray-200 rounded-lg bg-gray-50/50">
           <input
             type="checkbox"
             id={`cb-${block.id}`}
             checked={checkboxValue ?? false}
-            onChange={onCheckboxChange ? (e) => onCheckboxChange(block.id, e.target.checked) : undefined}
+            onChange={onCheckboxChange ? (e) => onCheckboxChange(e.target.checked) : undefined}
             disabled={!onCheckboxChange}
-            className="mt-0.5 w-4 h-4 accent-primary"
+            className="mt-0.5 w-4 h-4 accent-blue-600"
           />
-          <label htmlFor={`cb-${block.id}`} className="cursor-pointer">
-            <p className="text-sm font-medium text-foreground">{block.label}</p>
-            {block.description && <p className="text-xs text-muted-foreground mt-0.5">{block.description}</p>}
+          <label
+            htmlFor={`cb-${block.id}`}
+            className={onCheckboxChange ? 'cursor-pointer' : ''}
+          >
+            <p className="text-sm font-medium text-gray-800">
+              {block.label}
+              {block.required && <span className="text-red-500 ml-1">*</span>}
+            </p>
+            {block.description && (
+              <p className="text-xs text-gray-500 mt-0.5">{block.description}</p>
+            )}
           </label>
         </div>
       );
@@ -208,11 +197,14 @@ function BlockView({ block, onSignatureCapture, onCheckboxChange, signatureValue
     case 'text-field':
       return (
         <div className="space-y-1">
-          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">{block.label}</p>
+          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+            {block.label}
+            {block.required && <span className="text-red-500 ml-1">*</span>}
+          </p>
           {block.resolvedValue ? (
-            <p className="text-sm text-foreground">{block.resolvedValue}</p>
+            <p className="text-sm text-gray-800">{block.resolvedValue}</p>
           ) : (
-            <div className="border-b border-muted-foreground/30 pb-1 min-h-[1.5rem]" />
+            <div className="border-b border-gray-300 pb-1 min-h-[1.5rem]" />
           )}
         </div>
       );
@@ -220,25 +212,26 @@ function BlockView({ block, onSignatureCapture, onCheckboxChange, signatureValue
     case 'date-field':
       return (
         <div className="space-y-1">
-          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">{block.label}</p>
-          <p className="text-sm text-foreground">{block.resolvedValue || '—'}</p>
+          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">{block.label}</p>
+          <p className="text-sm text-gray-800">{block.resolvedValue || '—'}</p>
         </div>
       );
 
     case 'initials':
       return (
         <div className="space-y-1">
-          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">{block.label}</p>
-          <div className="border-2 border-dashed border-muted-foreground/30 rounded w-20 h-12 flex items-center justify-center">
-            <span className="text-xs text-muted-foreground">Paraaf</span>
+          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">{block.label}</p>
+          <div className="border-2 border-dashed border-gray-300 rounded w-20 h-12 flex items-center justify-center">
+            <span className="text-xs text-gray-400">Paraaf</span>
           </div>
         </div>
       );
 
     case 'video':
+      if (!block.url) return null;
       return (
-        <div className="aspect-video bg-muted rounded flex items-center justify-center">
-          <span className="text-sm text-muted-foreground">🎥 Video: {block.url}</span>
+        <div className="aspect-video bg-gray-100 rounded flex items-center justify-center border">
+          <span className="text-sm text-gray-500">🎥 {block.url}</span>
         </div>
       );
 
@@ -248,60 +241,109 @@ function BlockView({ block, onSignatureCapture, onCheckboxChange, signatureValue
 }
 
 function ProductListView({ block }: { block: any }) {
-  const items = block.items || [];
-  const totals = items.reduce(
-    (acc: any, item: any) => {
-      const net = item.quantity * item.unitPrice;
-      const vat = net * (item.vatRate / 100);
-      acc.subtotal += net;
-      acc.vat += vat;
-      acc.total += net + vat;
-      return acc;
-    },
-    { subtotal: 0, vat: 0, total: 0 }
-  );
+  const items: any[] = block.items || [];
+
+  // Build LineItem-compatible array for calcFinancials (uses discount correctly)
+  const lineItems: LineItem[] = items.map((item: any, i: number) => ({
+    id: item.id || String(i),
+    sortOrder: i,
+    itemName: item.name || '',
+    description: item.description,
+    quantity: Number(item.quantity) || 0,
+    unitPrice: Number(item.unitPrice) || 0,
+    vatRate: Number(item.vatRate) ?? 21,
+    discountPercent: Number(item.discountPercent) || 0,
+    lineTotal: 0, // will be overridden
+  }));
+
+  const financials = calcFinancials(lineItems);
+  const hasDiscount = lineItems.some((li) => li.discountPercent > 0);
 
   return (
     <div className="overflow-x-auto">
       <table className="w-full border-collapse text-sm">
         <thead>
-          <tr className="bg-muted/50 text-xs uppercase tracking-wide">
-            <th className="border border-border p-2 text-left font-semibold">Omschrijving</th>
-            <th className="border border-border p-2 text-right font-semibold w-16">Aantal</th>
-            <th className="border border-border p-2 text-right font-semibold w-24">Prijs</th>
-            <th className="border border-border p-2 text-right font-semibold w-16">BTW</th>
-            <th className="border border-border p-2 text-right font-semibold w-24">Totaal</th>
+          <tr className="bg-gray-50 text-xs uppercase tracking-wide text-gray-500">
+            <th className="border border-gray-200 p-2 text-left font-semibold">Omschrijving</th>
+            <th className="border border-gray-200 p-2 text-right font-semibold w-16">Aantal</th>
+            <th className="border border-gray-200 p-2 text-right font-semibold w-24">Stukprijs</th>
+            {hasDiscount && (
+              <th className="border border-gray-200 p-2 text-right font-semibold w-20">Korting</th>
+            )}
+            <th className="border border-gray-200 p-2 text-right font-semibold w-16">BTW</th>
+            <th className="border border-gray-200 p-2 text-right font-semibold w-24">Totaal</th>
           </tr>
         </thead>
         <tbody>
           {items.map((item: any, i: number) => {
-            const lineTotal = item.quantity * item.unitPrice;
+            const gross = item.quantity * item.unitPrice;
+            const disc = gross * ((item.discountPercent || 0) / 100);
+            const net = gross - disc;
             return (
-              <tr key={item.id || i} className={i % 2 === 1 ? 'bg-muted/10' : ''}>
-                <td className="border border-border p-2">
-                  <p className="font-medium text-foreground">{item.name}</p>
-                  {item.description && <p className="text-xs text-muted-foreground">{item.description}</p>}
+              <tr key={item.id || i} className={i % 2 === 1 ? 'bg-gray-50/40' : ''}>
+                <td className="border border-gray-200 p-2">
+                  <p className="font-medium text-gray-800">{item.name}</p>
+                  {item.description && (
+                    <p className="text-xs text-gray-500 mt-0.5">{item.description}</p>
+                  )}
                 </td>
-                <td className="border border-border p-2 text-right tabular-nums">{item.quantity}</td>
-                <td className="border border-border p-2 text-right tabular-nums">€ {Number(item.unitPrice).toFixed(2)}</td>
-                <td className="border border-border p-2 text-right">{item.vatRate}%</td>
-                <td className="border border-border p-2 text-right tabular-nums font-medium">€ {lineTotal.toFixed(2)}</td>
+                <td className="border border-gray-200 p-2 text-right tabular-nums text-gray-700">
+                  {item.quantity}
+                </td>
+                <td className="border border-gray-200 p-2 text-right tabular-nums text-gray-700">
+                  € {Number(item.unitPrice).toFixed(2)}
+                </td>
+                {hasDiscount && (
+                  <td className="border border-gray-200 p-2 text-right tabular-nums text-gray-500">
+                    {item.discountPercent > 0 ? `${item.discountPercent}%` : '—'}
+                  </td>
+                )}
+                <td className="border border-gray-200 p-2 text-right text-gray-500">
+                  {item.vatRate}%
+                </td>
+                <td className="border border-gray-200 p-2 text-right tabular-nums font-medium text-gray-800">
+                  € {net.toFixed(2)}
+                </td>
               </tr>
             );
           })}
         </tbody>
         <tfoot>
-          <tr className="border-t-2 border-border">
-            <td colSpan={4} className="p-2 text-right text-xs text-muted-foreground">Subtotaal excl. BTW</td>
-            <td className="p-2 text-right tabular-nums font-medium">€ {totals.subtotal.toFixed(2)}</td>
-          </tr>
           <tr>
-            <td colSpan={4} className="p-2 text-right text-xs text-muted-foreground">BTW</td>
-            <td className="p-2 text-right tabular-nums">€ {totals.vat.toFixed(2)}</td>
+            <td colSpan={hasDiscount ? 5 : 4} className="p-2 text-right text-xs text-gray-500">
+              Subtotaal excl. BTW
+            </td>
+            <td className="p-2 text-right tabular-nums font-medium text-gray-700">
+              € {financials.subtotal.toFixed(2)}
+            </td>
           </tr>
-          <tr className="bg-muted/30 font-bold">
-            <td colSpan={4} className="p-2 text-right">Totaal incl. BTW</td>
-            <td className="p-2 text-right tabular-nums">€ {totals.total.toFixed(2)}</td>
+          {financials.discountAmount > 0 && (
+            <tr>
+              <td colSpan={hasDiscount ? 5 : 4} className="p-2 text-right text-xs text-red-500">
+                Korting
+              </td>
+              <td className="p-2 text-right tabular-nums text-red-500">
+                -€ {financials.discountAmount.toFixed(2)}
+              </td>
+            </tr>
+          )}
+          {financials.vatBuckets.map((b) => (
+            <tr key={b.rate}>
+              <td colSpan={hasDiscount ? 5 : 4} className="p-2 text-right text-xs text-gray-500">
+                BTW {b.rate}%
+              </td>
+              <td className="p-2 text-right tabular-nums text-gray-600">
+                € {b.amount.toFixed(2)}
+              </td>
+            </tr>
+          ))}
+          <tr className="font-bold border-t-2 border-gray-300">
+            <td colSpan={hasDiscount ? 5 : 4} className="p-2 text-right text-gray-800">
+              Totaal incl. BTW
+            </td>
+            <td className="p-2 text-right tabular-nums text-gray-900">
+              € {financials.total.toFixed(2)}
+            </td>
           </tr>
         </tfoot>
       </table>
@@ -309,76 +351,109 @@ function ProductListView({ block }: { block: any }) {
   );
 }
 
-function SignatureView({ block, value, onCapture }: {
+function SignatureView({
+  block,
+  value,
+  onCapture,
+}: {
   block: any;
   value?: string;
   onCapture?: (dataUrl: string) => void;
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const [drawing, setDrawing] = useState(false);
-  const [hasSignature, setHasSignature] = useState(false);
+  const [isDrawing, setIsDrawing] = useState(false);
+  const [hasStrokes, setHasStrokes] = useState(false);
+  const lastPos = useRef<{ x: number; y: number } | null>(null);
+
+  const getPos = (e: React.MouseEvent | React.TouchEvent, canvas: HTMLCanvasElement) => {
+    const rect = canvas.getBoundingClientRect();
+    const scaleX = canvas.width / rect.width;
+    const scaleY = canvas.height / rect.height;
+    if ('touches' in e) {
+      return {
+        x: (e.touches[0].clientX - rect.left) * scaleX,
+        y: (e.touches[0].clientY - rect.top) * scaleY,
+      };
+    }
+    return {
+      x: (e.clientX - rect.left) * scaleX,
+      y: (e.clientY - rect.top) * scaleY,
+    };
+  };
 
   const startDraw = (e: React.MouseEvent | React.TouchEvent) => {
     if (!onCapture || !canvasRef.current) return;
-    setDrawing(true);
+    e.preventDefault();
+    const pos = getPos(e, canvasRef.current);
+    lastPos.current = pos;
+    setIsDrawing(true);
     const ctx = canvasRef.current.getContext('2d')!;
-    const rect = canvasRef.current.getBoundingClientRect();
-    const x = 'touches' in e ? e.touches[0].clientX - rect.left : e.clientX - rect.left;
-    const y = 'touches' in e ? e.touches[0].clientY - rect.top : e.clientY - rect.top;
     ctx.beginPath();
-    ctx.moveTo(x, y);
+    ctx.arc(pos.x, pos.y, 1, 0, Math.PI * 2);
+    ctx.fill();
   };
 
   const draw = (e: React.MouseEvent | React.TouchEvent) => {
-    if (!drawing || !canvasRef.current) return;
+    if (!isDrawing || !canvasRef.current || !lastPos.current) return;
     e.preventDefault();
     const ctx = canvasRef.current.getContext('2d')!;
-    const rect = canvasRef.current.getBoundingClientRect();
-    const x = 'touches' in e ? e.touches[0].clientX - rect.left : e.clientX - rect.left;
-    const y = 'touches' in e ? e.touches[0].clientY - rect.top : e.clientY - rect.top;
-    ctx.lineWidth = 2;
+    const pos = getPos(e, canvasRef.current);
+    ctx.lineWidth = 2.5;
     ctx.lineCap = 'round';
-    ctx.strokeStyle = '#000';
-    ctx.lineTo(x, y);
+    ctx.lineJoin = 'round';
+    ctx.strokeStyle = '#1a1a2e';
+    ctx.beginPath();
+    ctx.moveTo(lastPos.current.x, lastPos.current.y);
+    ctx.lineTo(pos.x, pos.y);
     ctx.stroke();
-    setHasSignature(true);
+    lastPos.current = pos;
+    setHasStrokes(true);
   };
 
   const endDraw = () => {
-    if (!drawing || !canvasRef.current) return;
-    setDrawing(false);
-    if (hasSignature && onCapture) {
+    if (!isDrawing || !canvasRef.current) return;
+    setIsDrawing(false);
+    lastPos.current = null;
+    if (hasStrokes && onCapture) {
       onCapture(canvasRef.current.toDataURL());
     }
   };
 
-  const clearSignature = () => {
+  const clear = () => {
     if (!canvasRef.current) return;
     const ctx = canvasRef.current.getContext('2d')!;
     ctx.clearRect(0, 0, canvasRef.current.width, canvasRef.current.height);
-    setHasSignature(false);
-    if (onCapture) onCapture('');
+    setHasStrokes(false);
+    onCapture?.('');
   };
 
+  // Show signed state
   if (value) {
     return (
-      <div className="space-y-1">
-        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">{block.label}</p>
-        <img src={value} alt="Handtekening" className="border rounded max-w-xs" />
+      <div className="space-y-2" data-block-type="signature">
+        <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+          {block.label || 'Handtekening'}
+          {block.required && <span className="text-red-500 ml-1">*</span>}
+        </p>
+        <img src={value} alt="Handtekening" className="border border-gray-200 rounded max-w-xs bg-white" />
       </div>
     );
   }
 
   return (
-    <div className="space-y-2">
-      <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">{block.label}</p>
+    <div className="space-y-2" data-block-type="signature">
+      <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+        {block.label || 'Handtekening'}
+        {block.required && <span className="text-red-500 ml-1">*</span>}
+      </p>
       {onCapture ? (
-        <div className="space-y-2">
+        <div className="space-y-1.5">
           <canvas
             ref={canvasRef}
-            width={400}
-            height={120}
-            className="border-2 border-dashed border-muted-foreground/40 rounded-lg w-full touch-none cursor-crosshair bg-white"
+            width={600}
+            height={150}
+            className="border-2 border-dashed border-gray-300 rounded-lg w-full touch-none cursor-crosshair bg-white select-none"
+            style={{ maxWidth: '480px' }}
             onMouseDown={startDraw}
             onMouseMove={draw}
             onMouseUp={endDraw}
@@ -387,16 +462,22 @@ function SignatureView({ block, value, onCapture }: {
             onTouchMove={draw}
             onTouchEnd={endDraw}
           />
-          {hasSignature && (
-            <button onClick={clearSignature} className="text-xs text-muted-foreground hover:text-destructive">
-              Wissen
-            </button>
-          )}
+          <div className="flex items-center gap-3">
+            <p className="text-xs text-gray-400">Teken uw handtekening hierboven</p>
+            {hasStrokes && (
+              <button
+                onClick={clear}
+                className="text-xs text-gray-400 hover:text-red-500 underline transition-colors"
+              >
+                Wissen
+              </button>
+            )}
+          </div>
         </div>
       ) : (
-        <div className="border-2 border-dashed border-muted-foreground/30 rounded-lg p-6 flex flex-col items-center gap-2">
-          <PenTool size={20} className="text-muted-foreground" />
-          <span className="text-xs text-muted-foreground">{block.label}</span>
+        <div className="border-2 border-dashed border-gray-200 rounded-lg p-6 flex flex-col items-center gap-2 max-w-xs">
+          <PenTool size={20} className="text-gray-300" />
+          <span className="text-xs text-gray-400">{block.label || 'Handtekening'}</span>
         </div>
       )}
     </div>

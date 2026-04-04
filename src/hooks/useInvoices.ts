@@ -57,18 +57,27 @@ export function useInvoices() {
   const { toast } = useToast();
 
   const fetchInvoices = useCallback(async () => {
-    if (!user) return;
+    if (!user) { setLoading(false); return; }
     const { data, error } = await supabase
       .from('invoices')
       .select('*')
       .order('created_at', { ascending: false });
     if (error) {
       toast({ title: 'Fout bij laden facturen', description: error.message, variant: 'destructive' });
+      setLoading(false);
       return;
     }
-    setInvoices((data || []).map(mapRow));
+    // Auto-mark overdue invoices
+    const now = new Date().toISOString().split('T')[0];
+    setInvoices((data || []).map((r) => {
+      const inv = mapRow(r);
+      if (inv.status === 'sent' && inv.dueDate && inv.dueDate < now) {
+        inv.status = 'overdue';
+      }
+      return inv;
+    }));
     setLoading(false);
-  }, [user]);
+  }, [user]);</anvoice_calls>
 
   useEffect(() => { fetchInvoices(); }, [fetchInvoices]);
 

@@ -34,13 +34,14 @@ export function useQuoteTemplates() {
   const { toast } = useToast();
 
   const fetchTemplates = useCallback(async () => {
-    if (!user) return;
+    if (!user) { setLoading(false); return; }
     const { data, error } = await supabase
       .from('quote_templates')
       .select('*')
       .order('created_at', { ascending: false });
     if (error) {
       toast({ title: 'Fout bij laden sjablonen', description: error.message, variant: 'destructive' });
+      setLoading(false);
       return;
     }
     setTemplates((data || []).map(mapRow));
