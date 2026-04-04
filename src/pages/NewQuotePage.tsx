@@ -1,13 +1,13 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Save, Layout } from 'lucide-react';
+import { ArrowLeft, Save, LayoutTemplate } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import ContactSelector from '@/components/quotation/ContactSelector';
+import ClientInfoCard from '@/components/quotation/ClientInfoCard';
 import LineItemsEditor from '@/components/quotation/LineItemsEditor';
 import PdfOverlayEditor from '@/components/quotation/PdfOverlayEditor';
 import type { OverlayField } from '@/components/quotation/PdfOverlayEditor';
@@ -42,44 +42,23 @@ export default function NewQuotePage() {
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);
   const [overlayFields, setOverlayFields] = useState<OverlayField[]>([]);
 
-  const handleContactSelect = (
-    contactId: string,
-    contactName: string,
-    companyId?: string,
-    companyName?: string,
-    email?: string
-  ) => {
-    setForm((prev) => ({
-      ...prev,
-      contactId,
-      contactName,
-      companyId: companyId || '',
-      companyName: companyName || '',
-      clientEmail: email || prev.clientEmail,
-    }));
-  };
+  const updateForm = (updates: Partial<typeof form>) => setForm((p) => ({ ...p, ...updates }));
 
   const handleTemplateSelect = (templateId: string) => {
-    const tpl = templates.find(t => t.id === templateId);
+    const tpl = templates.find((t) => t.id === templateId);
     if (!tpl) return;
-    const content = tpl.contentBlocks as any;
-    if (content?.pdfUrl) setPdfUrl(content.pdfUrl);
-    if (content?.overlayFields) setOverlayFields(content.overlayFields);
-    if (tpl.termsAndConditions) {
-      setForm(prev => ({ ...prev, termsAndConditions: tpl.termsAndConditions || '' }));
-    }
+    const cb = tpl.contentBlocks as any;
+    if (cb?.pdfBackgroundUrl) setPdfUrl(cb.pdfBackgroundUrl);
+    if (cb?.pdfUrl) setPdfUrl(cb.pdfUrl);
+    if (cb?.overlayFields) setOverlayFields(cb.overlayFields);
+    if (tpl.termsAndConditions) updateForm({ termsAndConditions: tpl.termsAndConditions });
   };
 
   const handleSave = async () => {
     if (!form.contactName) {
-      toast({ title: 'Vul een contactpersoon in', variant: 'destructive' });
+      toast({ title: 'Selecteer een contactpersoon', variant: 'destructive' });
       return;
     }
-    if (lineItems.length === 0 && !pdfUrl) {
-      toast({ title: 'Voeg minimaal één item toe of upload een PDF', variant: 'destructive' });
-      return;
-    }
-
     setSaving(true);
     const fin = calcFinancials(lineItems);
 
@@ -108,7 +87,7 @@ export default function NewQuotePage() {
 
     setSaving(false);
     if (result) {
-      toast({ title: 'Offerte aangemaakt', description: `${result.displayNumber} is opgeslagen als concept.` });
+      toast({ title: 'Offerte aangemaakt', description: `${result.displayNumber} opgeslagen als concept.` });
       navigate(`/quotes/${result.id}`);
     }
   };
@@ -122,6 +101,7 @@ export default function NewQuotePage() {
         </Button>
         <div className="flex-1">
           <h1 className="text-xl font-bold text-foreground">Nieuwe offerte</h1>
+          <p className="text-sm text-muted-foreground">Maak een nieuwe offerte aan als concept</p>
         </div>
         <Button onClick={handleSave} disabled={saving} className="gap-1.5">
           <Save size={16} /> {saving ? 'Opslaan...' : 'Opslaan als concept'}
@@ -133,13 +113,11 @@ export default function NewQuotePage() {
         <Card>
           <CardContent className="p-4">
             <div className="flex items-center gap-3">
-              <Layout size={16} className="text-muted-foreground" />
+              <LayoutTemplate size={16} className="text-muted-foreground shrink-0" />
               <div className="flex-1 space-y-1">
                 <Label className="text-sm">Sjabloon gebruiken</Label>
                 <Select onValueChange={handleTemplateSelect}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Selecteer een sjabloon (optioneel)" />
-                  </SelectTrigger>
+                  <SelectTrigger><SelectValue placeholder="Selecteer een sjabloon (optioneel)" /></SelectTrigger>
                   <SelectContent>
                     {templates.map((tpl) => (
                       <SelectItem key={tpl.id} value={tpl.id}>{tpl.name}</SelectItem>
@@ -153,68 +131,37 @@ export default function NewQuotePage() {
       )}
 
       {/* Client info */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Klantgegevens</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-1.5">
-              <Label>Contactpersoon</Label>
-              <ContactSelector value={form.contactId} onChange={handleContactSelect} />
-            </div>
-            <div className="space-y-1.5">
-              <Label>E-mail</Label>
-              <Input
-                value={form.clientEmail}
-                onChange={(e) => setForm((p) => ({ ...p, clientEmail: e.target.value }))}
-                placeholder="email@voorbeeld.nl"
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label>Bedrijf</Label>
-              <Input value={form.companyName} onChange={(e) => setForm((p) => ({ ...p, companyName: e.target.value }))} />
-            </div>
-            <div className="space-y-1.5">
-              <Label>Adres</Label>
-              <Input
-                value={form.clientAddress}
-                onChange={(e) => setForm((p) => ({ ...p, clientAddress: e.target.value }))}
-                placeholder="Straat, Postcode, Plaats"
-              />
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+      <ClientInfoCard
+        data={{
+          contactId: form.contactId,
+          contactName: form.contactName,
+          companyId: form.companyId,
+          companyName: form.companyName,
+          clientEmail: form.clientEmail,
+          clientAddress: form.clientAddress,
+        }}
+        onChange={(updates) => updateForm(updates as any)}
+      />
 
       {/* Quote details */}
       <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Offerte details</CardTitle>
-        </CardHeader>
+        <CardHeader><CardTitle className="text-base">Offerte details</CardTitle></CardHeader>
         <CardContent className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-1.5">
               <Label>Titel</Label>
-              <Input
-                value={form.title}
-                onChange={(e) => setForm((p) => ({ ...p, title: e.target.value }))}
-              />
+              <Input value={form.title} onChange={(e) => updateForm({ title: e.target.value })} />
             </div>
             <div className="space-y-1.5">
               <Label>Geldig tot</Label>
-              <Input
-                type="date"
-                value={form.validUntil}
-                onChange={(e) => setForm((p) => ({ ...p, validUntil: e.target.value }))}
-              />
+              <Input type="date" value={form.validUntil} onChange={(e) => updateForm({ validUntil: e.target.value })} />
             </div>
           </div>
           <div className="space-y-1.5">
             <Label>Introductietekst</Label>
             <Textarea
               value={form.introduction}
-              onChange={(e) => setForm((p) => ({ ...p, introduction: e.target.value }))}
+              onChange={(e) => updateForm({ introduction: e.target.value })}
               placeholder="Optionele inleidende tekst voor de offerte..."
               className="min-h-[80px]"
             />
@@ -223,18 +170,11 @@ export default function NewQuotePage() {
       </Card>
 
       {/* PDF Template Editor */}
-      <PdfOverlayEditor
-        pdfUrl={pdfUrl}
-        overlayFields={overlayFields}
-        onPdfUpload={setPdfUrl}
-        onFieldsChange={setOverlayFields}
-      />
+      <PdfOverlayEditor pdfUrl={pdfUrl} overlayFields={overlayFields} onPdfUpload={setPdfUrl} onFieldsChange={setOverlayFields} />
 
       {/* Line items */}
       <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Producten & Diensten</CardTitle>
-        </CardHeader>
+        <CardHeader><CardTitle className="text-base">Producten & Diensten</CardTitle></CardHeader>
         <CardContent>
           <LineItemsEditor items={lineItems} onChange={setLineItems} />
         </CardContent>
@@ -242,15 +182,13 @@ export default function NewQuotePage() {
 
       {/* Notes & Terms */}
       <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Voorwaarden & Notities</CardTitle>
-        </CardHeader>
+        <CardHeader><CardTitle className="text-base">Voorwaarden & Notities</CardTitle></CardHeader>
         <CardContent className="space-y-4">
           <div className="space-y-1.5">
             <Label>Algemene voorwaarden</Label>
             <Textarea
               value={form.termsAndConditions}
-              onChange={(e) => setForm((p) => ({ ...p, termsAndConditions: e.target.value }))}
+              onChange={(e) => updateForm({ termsAndConditions: e.target.value })}
               placeholder="Betalingstermijn, annuleringsbeleid, etc."
               className="min-h-[80px]"
             />
@@ -259,7 +197,7 @@ export default function NewQuotePage() {
             <Label>Interne notities</Label>
             <Textarea
               value={form.notes}
-              onChange={(e) => setForm((p) => ({ ...p, notes: e.target.value }))}
+              onChange={(e) => updateForm({ notes: e.target.value })}
               placeholder="Niet zichtbaar voor de klant..."
               className="min-h-[60px]"
             />

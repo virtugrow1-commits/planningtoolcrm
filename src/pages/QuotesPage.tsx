@@ -1,18 +1,21 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, FileText, Search, Layout, Trash2 } from 'lucide-react';
+import { Plus, Search, Layout, Trash2, FileText, Receipt, LayoutTemplate, TrendingUp, Clock, CheckCircle2, Euro } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Badge } from '@/components/ui/badge';
 import { useQuotes } from '@/hooks/useQuotes';
 import { useInvoices } from '@/hooks/useInvoices';
 import { useQuoteTemplates } from '@/hooks/useQuoteTemplates';
 import QuoteStatusBadge from '@/components/quotation/QuoteStatusBadge';
-import { format } from 'date-fns';
-import { nl } from 'date-fns/locale';
 import { useToast } from '@/hooks/use-toast';
+import { formatDate } from '@/components/quotation/DocumentMetadata';
+
+type QuoteFilter = 'all' | 'draft' | 'sent' | 'viewed' | 'accepted' | 'declined';
+type InvoiceFilter = 'all' | 'draft' | 'sent' | 'overdue' | 'paid';
 
 export default function QuotesPage() {
   const navigate = useNavigate();
@@ -20,24 +23,22 @@ export default function QuotesPage() {
   const { invoices, loading: iLoading } = useInvoices();
   const { templates, loading: tLoading, deleteTemplate } = useQuoteTemplates();
   const { toast } = useToast();
+
   const [search, setSearch] = useState('');
   const [tab, setTab] = useState('quotes');
+  const [quoteFilter, setQuoteFilter] = useState<QuoteFilter>('all');
+  const [invoiceFilter, setInvoiceFilter] = useState<InvoiceFilter>('all');
 
-  const filteredQuotes = quotes.filter((q) =>
-    [q.displayNumber, q.contactName, q.companyName, q.title]
-      .filter(Boolean)
-      .join(' ')
-      .toLowerCase()
-      .includes(search.toLowerCase())
-  );
+  const searchFilter = (fields: (string | undefined)[]) =>
+    fields.filter(Boolean).join(' ').toLowerCase().includes(search.toLowerCase());
 
-  const filteredInvoices = invoices.filter((inv) =>
-    [inv.displayNumber, inv.contactName, inv.companyName, inv.title]
-      .filter(Boolean)
-      .join(' ')
-      .toLowerCase()
-      .includes(search.toLowerCase())
-  );
+  const filteredQuotes = quotes
+    .filter((q) => quoteFilter === 'all' || q.status === quoteFilter)
+    .filter((q) => searchFilter([q.displayNumber, q.contactName, q.companyName, q.title]));
+
+  const filteredInvoices = invoices
+    .filter((inv) => invoiceFilter === 'all' || inv.status === invoiceFilter)
+    .filter((inv) => searchFilter([inv.displayNumber, inv.contactName, inv.companyName, inv.title]));
 
   // KPIs
   const totalQuotesSent = quotes.filter((q) => q.status !== 'draft').length;
@@ -46,100 +47,138 @@ export default function QuotesPage() {
   const pendingInvoices = invoices.filter((inv) => inv.status === 'sent' || inv.status === 'overdue').length;
   const revenueCollected = invoices.filter((inv) => inv.status === 'paid').reduce((sum, inv) => sum + inv.total, 0);
 
+  const quoteStatusCounts = {
+    all: quotes.length,
+    draft: quotes.filter((q) => q.status === 'draft').length,
+    sent: quotes.filter((q) => q.status === 'sent').length,
+    viewed: quotes.filter((q) => q.status === 'viewed').length,
+    accepted: quotes.filter((q) => q.status === 'accepted').length,
+    declined: quotes.filter((q) => q.status === 'declined').length,
+  };
+
+  const invoiceStatusCounts = {
+    all: invoices.length,
+    draft: invoices.filter((i) => i.status === 'draft').length,
+    sent: invoices.filter((i) => i.status === 'sent').length,
+    overdue: invoices.filter((i) => i.status === 'overdue').length,
+    paid: invoices.filter((i) => i.status === 'paid').length,
+  };
+
+  const kpis = [
+    { label: 'Verzonden', value: totalQuotesSent, icon: FileText, color: 'text-blue-500' },
+    { label: 'Acceptatiegraad', value: `${acceptanceRate}%`, icon: TrendingUp, color: 'text-green-500' },
+    { label: 'Openstaand', value: pendingInvoices, icon: Clock, color: 'text-amber-500' },
+    { label: 'Omzet geïnd', value: `€${revenueCollected.toLocaleString('nl-NL', { minimumFractionDigits: 2 })}`, icon: Euro, color: 'text-emerald-500' },
+  ];
+
   return (
     <div className="p-4 md:p-6 space-y-6 max-w-7xl mx-auto">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-foreground">Offertes & Facturen</h1>
-          <p className="text-sm text-muted-foreground">Beheer offertes, facturen en betalingen</p>
+          <p className="text-sm text-muted-foreground">Beheer offertes, facturen en sjablonen</p>
         </div>
         <div className="flex gap-2">
           <Button onClick={() => navigate('/quotes/new')} className="gap-1.5">
             <Plus size={16} /> Nieuwe offerte
           </Button>
           <Button variant="outline" onClick={() => navigate('/templates/new')} className="gap-1.5">
-            <Layout size={16} /> Nieuw sjabloon
+            <LayoutTemplate size={16} /> Nieuw sjabloon
           </Button>
         </div>
       </div>
 
       {/* KPI cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        {[
-          { label: 'Offertes verzonden', value: totalQuotesSent, icon: FileText },
-          { label: 'Acceptatiegraad', value: `${acceptanceRate}%`, icon: FileText },
-          { label: 'Openstaande facturen', value: pendingInvoices, icon: FileText },
-          { label: 'Omzet geïnd', value: `€ ${revenueCollected.toLocaleString('nl-NL', { minimumFractionDigits: 2 })}`, icon: FileText },
-        ].map((kpi, i) => (
-          <Card key={i}>
-            <CardContent className="p-4">
-              <p className="text-xs font-medium text-muted-foreground">{kpi.label}</p>
-              <p className="text-2xl font-bold text-foreground mt-1">{kpi.value}</p>
+        {kpis.map((kpi) => (
+          <Card key={kpi.label}>
+            <CardContent className="p-4 flex items-start gap-3">
+              <div className={`p-2 rounded-lg bg-muted ${kpi.color}`}>
+                <kpi.icon size={18} />
+              </div>
+              <div>
+                <p className="text-xs font-medium text-muted-foreground">{kpi.label}</p>
+                <p className="text-xl font-bold text-foreground mt-0.5">{kpi.value}</p>
+              </div>
             </CardContent>
           </Card>
         ))}
       </div>
 
-      {/* Search + tabs */}
-      <div className="flex items-center gap-3">
-        <div className="relative flex-1 max-w-sm">
-          <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            placeholder="Zoeken..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="pl-9"
-          />
-        </div>
+      {/* Search */}
+      <div className="relative max-w-sm">
+        <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+        <Input placeholder="Zoeken..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-9" />
       </div>
 
+      {/* Tabs */}
       <Tabs value={tab} onValueChange={setTab}>
         <TabsList>
-          <TabsTrigger value="quotes">Offertes ({quotes.length})</TabsTrigger>
-          <TabsTrigger value="invoices">Facturen ({invoices.length})</TabsTrigger>
-          <TabsTrigger value="templates">Sjablonen ({templates.length})</TabsTrigger>
+          <TabsTrigger value="quotes" className="gap-1.5">
+            <FileText size={14} /> Offertes
+            <Badge variant="secondary" className="ml-1 text-xs h-5 px-1.5">{quotes.length}</Badge>
+          </TabsTrigger>
+          <TabsTrigger value="invoices" className="gap-1.5">
+            <Receipt size={14} /> Facturen
+            <Badge variant="secondary" className="ml-1 text-xs h-5 px-1.5">{invoices.length}</Badge>
+          </TabsTrigger>
+          <TabsTrigger value="templates" className="gap-1.5">
+            <LayoutTemplate size={14} /> Sjablonen
+            <Badge variant="secondary" className="ml-1 text-xs h-5 px-1.5">{templates.length}</Badge>
+          </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="quotes" className="mt-4">
+        {/* Quotes tab */}
+        <TabsContent value="quotes" className="mt-4 space-y-3">
+          {/* Status filter chips */}
+          <div className="flex flex-wrap gap-2">
+            {(['all', 'draft', 'sent', 'viewed', 'accepted', 'declined'] as QuoteFilter[]).map((f) => {
+              const labels: Record<QuoteFilter, string> = { all: 'Alle', draft: 'Concept', sent: 'Verzonden', viewed: 'Bekeken', accepted: 'Geaccepteerd', declined: 'Afgewezen' };
+              return (
+                <button
+                  key={f}
+                  onClick={() => setQuoteFilter(f)}
+                  className={`px-3 py-1 text-xs rounded-full border transition-colors ${
+                    quoteFilter === f
+                      ? 'bg-primary text-primary-foreground border-primary'
+                      : 'bg-background text-muted-foreground border-border hover:bg-accent'
+                  }`}
+                >
+                  {labels[f]} ({quoteStatusCounts[f]})
+                </button>
+              );
+            })}
+          </div>
+
           <Card>
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Nummer</TableHead>
+                  <TableHead className="w-28">Nummer</TableHead>
                   <TableHead>Titel</TableHead>
                   <TableHead>Klant</TableHead>
-                  <TableHead>Bedrijf</TableHead>
+                  <TableHead className="hidden md:table-cell">Bedrijf</TableHead>
                   <TableHead className="text-right">Totaal</TableHead>
                   <TableHead>Status</TableHead>
-                  <TableHead>Datum</TableHead>
+                  <TableHead className="hidden md:table-cell">Datum</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {qLoading ? (
-                  <TableRow>
-                    <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">Laden...</TableCell>
-                  </TableRow>
+                  <TableRow><TableCell colSpan={7} className="text-center py-8 text-muted-foreground">Laden...</TableCell></TableRow>
                 ) : filteredQuotes.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">Geen offertes gevonden</TableCell>
-                  </TableRow>
+                  <TableRow><TableCell colSpan={7} className="text-center py-8 text-muted-foreground">Geen offertes gevonden</TableCell></TableRow>
                 ) : (
                   filteredQuotes.map((q) => (
-                    <TableRow
-                      key={q.id}
-                      className="cursor-pointer"
-                      onClick={() => navigate(`/quotes/${q.id}`)}
-                    >
-                      <TableCell className="font-mono text-xs">{q.displayNumber}</TableCell>
+                    <TableRow key={q.id} className="cursor-pointer hover:bg-muted/50" onClick={() => navigate(`/quotes/${q.id}`)}>
+                      <TableCell className="font-mono text-xs text-muted-foreground">{q.displayNumber}</TableCell>
                       <TableCell className="font-medium">{q.title}</TableCell>
                       <TableCell>{q.contactName}</TableCell>
-                      <TableCell className="text-muted-foreground">{q.companyName || '—'}</TableCell>
-                      <TableCell className="text-right font-medium">€ {q.total.toFixed(2)}</TableCell>
+                      <TableCell className="hidden md:table-cell text-muted-foreground">{q.companyName || '—'}</TableCell>
+                      <TableCell className="text-right font-medium tabular-nums">€{q.total.toFixed(2)}</TableCell>
                       <TableCell><QuoteStatusBadge status={q.status} /></TableCell>
-                      <TableCell className="text-muted-foreground text-xs">
-                        {format(new Date(q.createdAt), 'dd MMM yyyy', { locale: nl })}
-                      </TableCell>
+                      <TableCell className="hidden md:table-cell text-muted-foreground text-xs">{formatDate(q.createdAt, false)}</TableCell>
                     </TableRow>
                   ))
                 )}
@@ -148,12 +187,32 @@ export default function QuotesPage() {
           </Card>
         </TabsContent>
 
-        <TabsContent value="invoices" className="mt-4">
+        {/* Invoices tab */}
+        <TabsContent value="invoices" className="mt-4 space-y-3">
+          <div className="flex flex-wrap gap-2">
+            {(['all', 'draft', 'sent', 'overdue', 'paid'] as InvoiceFilter[]).map((f) => {
+              const labels: Record<InvoiceFilter, string> = { all: 'Alle', draft: 'Concept', sent: 'Verzonden', overdue: 'Verlopen', paid: 'Betaald' };
+              return (
+                <button
+                  key={f}
+                  onClick={() => setInvoiceFilter(f)}
+                  className={`px-3 py-1 text-xs rounded-full border transition-colors ${
+                    invoiceFilter === f
+                      ? 'bg-primary text-primary-foreground border-primary'
+                      : 'bg-background text-muted-foreground border-border hover:bg-accent'
+                  }`}
+                >
+                  {labels[f]} ({invoiceStatusCounts[f]})
+                </button>
+              );
+            })}
+          </div>
+
           <Card>
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Nummer</TableHead>
+                  <TableHead className="w-28">Nummer</TableHead>
                   <TableHead>Titel</TableHead>
                   <TableHead>Klant</TableHead>
                   <TableHead className="text-right">Totaal</TableHead>
@@ -163,27 +222,19 @@ export default function QuotesPage() {
               </TableHeader>
               <TableBody>
                 {iLoading ? (
-                  <TableRow>
-                    <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">Laden...</TableCell>
-                  </TableRow>
+                  <TableRow><TableCell colSpan={6} className="text-center py-8 text-muted-foreground">Laden...</TableCell></TableRow>
                 ) : filteredInvoices.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">Geen facturen gevonden</TableCell>
-                  </TableRow>
+                  <TableRow><TableCell colSpan={6} className="text-center py-8 text-muted-foreground">Geen facturen gevonden</TableCell></TableRow>
                 ) : (
                   filteredInvoices.map((inv) => (
-                    <TableRow
-                      key={inv.id}
-                      className="cursor-pointer"
-                      onClick={() => navigate(`/invoices/${inv.id}`)}
-                    >
-                      <TableCell className="font-mono text-xs">{inv.displayNumber}</TableCell>
+                    <TableRow key={inv.id} className="cursor-pointer hover:bg-muted/50" onClick={() => navigate(`/invoices/${inv.id}`)}>
+                      <TableCell className="font-mono text-xs text-muted-foreground">{inv.displayNumber}</TableCell>
                       <TableCell className="font-medium">{inv.title}</TableCell>
                       <TableCell>{inv.contactName}</TableCell>
-                      <TableCell className="text-right font-medium">€ {inv.total.toFixed(2)}</TableCell>
+                      <TableCell className="text-right font-medium tabular-nums">€{inv.total.toFixed(2)}</TableCell>
                       <TableCell><QuoteStatusBadge status={inv.status} /></TableCell>
                       <TableCell className="text-muted-foreground text-xs">
-                        {inv.dueDate ? format(new Date(inv.dueDate), 'dd MMM yyyy', { locale: nl }) : '—'}
+                        {inv.dueDate ? formatDate(inv.dueDate, false) : '—'}
                       </TableCell>
                     </TableRow>
                   ))
@@ -193,6 +244,7 @@ export default function QuotesPage() {
           </Card>
         </TabsContent>
 
+        {/* Templates tab */}
         <TabsContent value="templates" className="mt-4">
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {tLoading ? (
@@ -200,7 +252,7 @@ export default function QuotesPage() {
             ) : templates.length === 0 ? (
               <Card className="col-span-full">
                 <CardContent className="py-12 text-center">
-                  <Layout size={32} className="mx-auto text-muted-foreground mb-3" />
+                  <LayoutTemplate size={32} className="mx-auto text-muted-foreground mb-3" />
                   <p className="text-muted-foreground">Nog geen sjablonen aangemaakt.</p>
                   <Button variant="outline" className="mt-4 gap-1.5" onClick={() => navigate('/templates/new')}>
                     <Plus size={14} /> Eerste sjabloon maken
@@ -209,17 +261,22 @@ export default function QuotesPage() {
               </Card>
             ) : (
               templates.map((tpl) => (
-                <Card key={tpl.id} className="cursor-pointer hover:ring-1 hover:ring-primary/30 transition-all" onClick={() => navigate(`/templates/${tpl.id}`)}>
+                <Card
+                  key={tpl.id}
+                  className="cursor-pointer hover:ring-1 hover:ring-primary/30 transition-all group"
+                  onClick={() => navigate(`/templates/${tpl.id}`)}
+                >
                   <CardContent className="p-4">
                     <div className="flex items-start justify-between">
-                      <div>
-                        <p className="font-medium text-foreground">{tpl.name}</p>
-                        {tpl.description && <p className="text-xs text-muted-foreground mt-0.5">{tpl.description}</p>}
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium text-foreground truncate">{tpl.name}</p>
+                        {tpl.description && <p className="text-xs text-muted-foreground mt-0.5 truncate">{tpl.description}</p>}
+                        {tpl.isDefault && <Badge variant="secondary" className="mt-1.5 text-xs">Standaard</Badge>}
                       </div>
                       <Button
                         variant="ghost"
                         size="icon"
-                        className="h-7 w-7 text-muted-foreground hover:text-destructive"
+                        className="h-7 w-7 text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity"
                         onClick={async (e) => {
                           e.stopPropagation();
                           const ok = await deleteTemplate(tpl.id);
@@ -229,9 +286,7 @@ export default function QuotesPage() {
                         <Trash2 size={14} />
                       </Button>
                     </div>
-                    <p className="text-xs text-muted-foreground mt-2">
-                      {format(new Date(tpl.createdAt), 'dd MMM yyyy', { locale: nl })}
-                    </p>
+                    <p className="text-xs text-muted-foreground mt-3">{formatDate(tpl.createdAt, false)}</p>
                   </CardContent>
                 </Card>
               ))

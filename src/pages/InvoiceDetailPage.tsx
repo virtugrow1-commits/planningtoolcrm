@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Send, Save, Trash2, CheckCircle, CreditCard, Pencil } from 'lucide-react';
+import { ArrowLeft, Send, Save, CheckCircle, Pencil, ExternalLink } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -9,33 +9,17 @@ import { Label } from '@/components/ui/label';
 import { useInvoices } from '@/hooks/useInvoices';
 import QuoteStatusBadge from '@/components/quotation/QuoteStatusBadge';
 import LineItemsEditor from '@/components/quotation/LineItemsEditor';
+import ClientInfoCard from '@/components/quotation/ClientInfoCard';
+import DeleteConfirmDialog from '@/components/quotation/DeleteConfirmDialog';
+import DocumentMetadata, { formatDate } from '@/components/quotation/DocumentMetadata';
 import type { Invoice, LineItem } from '@/types/quotation';
 import { calcFinancials } from '@/types/quotation';
 import { useToast } from '@/hooks/use-toast';
-import { format } from 'date-fns';
-import { nl } from 'date-fns/locale';
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from '@/components/ui/alert-dialog';
 
 export default function InvoiceDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const {
-    getInvoiceWithItems,
-    updateInvoice,
-    updateInvoiceStatus,
-    updateInvoiceLineItems,
-    deleteInvoice,
-  } = useInvoices();
+  const { getInvoiceWithItems, updateInvoice, updateInvoiceStatus, updateInvoiceLineItems, deleteInvoice } = useInvoices();
   const { toast } = useToast();
 
   const [invoice, setInvoice] = useState<Invoice | null>(null);
@@ -43,7 +27,6 @@ export default function InvoiceDetailPage() {
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
 
-  // Editable fields
   const [title, setTitle] = useState('');
   const [contactName, setContactName] = useState('');
   const [companyName, setCompanyName] = useState('');
@@ -73,6 +56,7 @@ export default function InvoiceDetailPage() {
   useEffect(() => { loadInvoice(); }, [loadInvoice]);
 
   const isDraft = invoice?.status === 'draft';
+  const isEditable = isDraft && editing;
 
   const handleSave = async () => {
     if (!invoice) return;
@@ -80,8 +64,7 @@ export default function InvoiceDetailPage() {
     const fin = calcFinancials(lineItems);
 
     const ok1 = await updateInvoice(invoice.id, {
-      title,
-      contactName,
+      title, contactName,
       companyName: companyName || undefined,
       clientEmail: clientEmail || undefined,
       clientAddress: clientAddress || undefined,
@@ -107,7 +90,7 @@ export default function InvoiceDetailPage() {
     if (!invoice) return;
     const ok = await updateInvoiceStatus(invoice.id, 'sent');
     if (ok) {
-      toast({ title: 'Factuur verzonden', description: 'Status bijgewerkt naar Verzonden.' });
+      toast({ title: 'Factuur verzonden' });
       await loadInvoice();
     }
   };
@@ -116,7 +99,7 @@ export default function InvoiceDetailPage() {
     if (!invoice) return;
     const ok = await updateInvoiceStatus(invoice.id, 'paid');
     if (ok) {
-      toast({ title: 'Factuur betaald', description: 'Status bijgewerkt naar Betaald.' });
+      toast({ title: 'Factuur als betaald gemarkeerd' });
       await loadInvoice();
     }
   };
@@ -130,23 +113,8 @@ export default function InvoiceDetailPage() {
     }
   };
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-[50vh]">
-        <p className="text-muted-foreground">Laden...</p>
-      </div>
-    );
-  }
-
-  if (!invoice) {
-    return (
-      <div className="flex items-center justify-center min-h-[50vh]">
-        <p className="text-muted-foreground">Factuur niet gevonden</p>
-      </div>
-    );
-  }
-
-  const isEditable = isDraft || editing;
+  if (loading) return <div className="flex items-center justify-center min-h-[50vh]"><p className="text-muted-foreground">Laden...</p></div>;
+  if (!invoice) return <div className="flex items-center justify-center min-h-[50vh]"><p className="text-muted-foreground">Factuur niet gevonden</p></div>;
 
   return (
     <div className="p-4 md:p-6 max-w-5xl mx-auto space-y-6">
@@ -179,43 +147,19 @@ export default function InvoiceDetailPage() {
             </Button>
           )}
           {(invoice.status === 'sent' || invoice.status === 'overdue') && (
-            <Button size="sm" variant="default" onClick={handleMarkPaid} className="gap-1.5">
+            <Button size="sm" onClick={handleMarkPaid} className="gap-1.5">
               <CheckCircle size={14} /> Markeer als betaald
             </Button>
           )}
-          {isDraft && (
-            <AlertDialog>
-              <AlertDialogTrigger asChild>
-                <Button variant="ghost" size="sm" className="gap-1.5 text-destructive hover:text-destructive">
-                  <Trash2 size={14} /> Verwijderen
-                </Button>
-              </AlertDialogTrigger>
-              <AlertDialogContent>
-                <AlertDialogHeader>
-                  <AlertDialogTitle>Factuur verwijderen?</AlertDialogTitle>
-                  <AlertDialogDescription>
-                    Dit kan niet ongedaan worden gemaakt.
-                  </AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                  <AlertDialogCancel>Annuleren</AlertDialogCancel>
-                  <AlertDialogAction onClick={handleDelete} className="bg-destructive text-destructive-foreground">
-                    Verwijderen
-                  </AlertDialogAction>
-                </AlertDialogFooter>
-              </AlertDialogContent>
-            </AlertDialog>
-          )}
+          {isDraft && <DeleteConfirmDialog title="Factuur verwijderen?" onConfirm={handleDelete} />}
         </div>
       </div>
 
       {/* Client info */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Klantgegevens</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {isEditable ? (
+      {isEditable ? (
+        <Card>
+          <CardHeader><CardTitle className="text-base">Klant & Factuurgegevens</CardTitle></CardHeader>
+          <CardContent>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-1.5">
                 <Label>Titel</Label>
@@ -242,60 +186,34 @@ export default function InvoiceDetailPage() {
                 <Input value={clientAddress} onChange={(e) => setClientAddress(e.target.value)} />
               </div>
             </div>
-          ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
-              <div>
-                <p className="text-xs text-muted-foreground font-semibold mb-0.5">Contactpersoon</p>
-                <p>{invoice.contactName}</p>
-              </div>
-              <div>
-                <p className="text-xs text-muted-foreground font-semibold mb-0.5">E-mail</p>
-                <p>{invoice.clientEmail || '—'}</p>
-              </div>
-              <div>
-                <p className="text-xs text-muted-foreground font-semibold mb-0.5">Bedrijf</p>
-                <p>{invoice.companyName || '—'}</p>
-              </div>
-              <div>
-                <p className="text-xs text-muted-foreground font-semibold mb-0.5">Adres</p>
-                <p>{invoice.clientAddress || '—'}</p>
-              </div>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+      ) : (
+        <ClientInfoCard
+          data={{
+            contactId: '', contactName: invoice.contactName, companyId: '', companyName: invoice.companyName || '',
+            clientEmail: invoice.clientEmail || '', clientAddress: invoice.clientAddress || '',
+          }}
+          readOnly
+        />
+      )}
 
       {/* Line items */}
       <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Producten & Diensten</CardTitle>
-        </CardHeader>
+        <CardHeader><CardTitle className="text-base">Producten & Diensten</CardTitle></CardHeader>
         <CardContent>
-          <LineItemsEditor
-            items={lineItems}
-            onChange={isEditable ? setLineItems : () => {}}
-            readOnly={!isEditable}
-          />
+          <LineItemsEditor items={lineItems} onChange={isEditable ? setLineItems : () => {}} readOnly={!isEditable} />
         </CardContent>
       </Card>
 
       {/* Notes */}
       <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Notities</CardTitle>
-        </CardHeader>
+        <CardHeader><CardTitle className="text-base">Notities</CardTitle></CardHeader>
         <CardContent>
           {isEditable ? (
-            <Textarea
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              placeholder="Interne notities..."
-              className="min-h-[80px]"
-            />
+            <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Interne notities..." className="min-h-[80px]" />
           ) : (
-            <p className="text-sm text-muted-foreground whitespace-pre-wrap">
-              {invoice.notes || 'Geen notities'}
-            </p>
+            <p className="text-sm text-muted-foreground whitespace-pre-wrap">{invoice.notes || 'Geen notities'}</p>
           )}
         </CardContent>
       </Card>
@@ -305,11 +223,9 @@ export default function InvoiceDetailPage() {
         <Card>
           <CardContent className="pt-6">
             <div className="flex items-center justify-between">
-              <p className="text-sm text-muted-foreground">
-                Gekoppeld aan offerte
-              </p>
-              <Button variant="link" size="sm" onClick={() => navigate(`/quotes/${invoice.quoteId}`)}>
-                Bekijk offerte →
+              <p className="text-sm text-muted-foreground">Gekoppeld aan offerte</p>
+              <Button variant="link" size="sm" onClick={() => navigate(`/quotes/${invoice.quoteId}`)} className="gap-1.5">
+                <ExternalLink size={14} /> Bekijk offerte
               </Button>
             </div>
           </CardContent>
@@ -317,34 +233,14 @@ export default function InvoiceDetailPage() {
       )}
 
       {/* Metadata */}
-      <Card>
-        <CardContent className="pt-6">
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-xs text-muted-foreground">
-            <div>
-              <p className="font-semibold mb-0.5">Aangemaakt</p>
-              <p>{format(new Date(invoice.createdAt), 'dd MMM yyyy HH:mm', { locale: nl })}</p>
-            </div>
-            {invoice.dueDate && (
-              <div>
-                <p className="font-semibold mb-0.5">Vervaldatum</p>
-                <p>{format(new Date(invoice.dueDate), 'dd MMM yyyy', { locale: nl })}</p>
-              </div>
-            )}
-            {invoice.sentAt && (
-              <div>
-                <p className="font-semibold mb-0.5">Verzonden</p>
-                <p>{format(new Date(invoice.sentAt), 'dd MMM yyyy HH:mm', { locale: nl })}</p>
-              </div>
-            )}
-            {invoice.paidAt && (
-              <div>
-                <p className="font-semibold mb-0.5">Betaald</p>
-                <p>{format(new Date(invoice.paidAt), 'dd MMM yyyy HH:mm', { locale: nl })}</p>
-              </div>
-            )}
-          </div>
-        </CardContent>
-      </Card>
+      <DocumentMetadata
+        items={[
+          { label: 'Aangemaakt', value: formatDate(invoice.createdAt) },
+          { label: 'Vervaldatum', value: invoice.dueDate ? formatDate(invoice.dueDate, false) : undefined },
+          { label: 'Verzonden', value: invoice.sentAt ? formatDate(invoice.sentAt) : undefined },
+          { label: 'Betaald', value: invoice.paidAt ? formatDate(invoice.paidAt) : undefined },
+        ]}
+      />
     </div>
   );
 }
