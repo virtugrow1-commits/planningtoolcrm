@@ -99,7 +99,7 @@ Deno.serve(async (req) => {
 
   // Run heavy sync in background using EdgeRuntime.waitUntil
   const backgroundSync = async () => {
-    const results: any = { bookings_pulled: 0, bookings_pushed: 0, contacts: 0, opportunities: 0, contacts_pushed: 0, companies_synced: 0, companies_pushed: 0, tasks_pulled: 0, tasks_pushed: 0, conversations_synced: 0, errors: [] };
+    const results: any = { bookings_pulled: 0, bookings_pushed: 0, contacts: 0, opportunities: 0, contacts_pushed: 0, companies_synced: 0, companies_pushed: 0, tasks_pulled: 0, tasks_pushed: 0, conversations_synced: 0, documents_synced: 0, errors: [] };
 
     try {
       // PRE-LOAD: Fetch all existing CRM records into lookup Maps ONCE
