@@ -12,7 +12,7 @@ import CompanyDetailPage from "@/pages/CompanyDetailPage";
 import ContactDetailPage from "@/pages/ContactDetailPage";
 import InquiriesPage from "@/pages/InquiriesPage";
 
-import DocumentsPage from "@/pages/DocumentsPage";
+
 import ReserveringenPage from "@/pages/ReserveringenPage";
 import SettingsPage from "@/pages/SettingsPage";
 import BookingDetailPage from "@/pages/BookingDetailPage";
@@ -67,6 +67,7 @@ function ProtectedRoutes() {
                   <Route path="/inquiries" element={<InquiriesPage />} />
                   <Route path="/inquiries/:id" element={<InquiryDetailPage />} />
                   <Route path="/tasks/:id" element={<TaskDetailPage />} />
+                  <Route path="/documents" element={<QuotesPage />} />
                   <Route path="/quotes" element={<QuotesPage />} />
                   <Route path="/quotes/new" element={<NewQuotePage />} />
                   <Route path="/quotes/:id" element={<QuoteDetailPage />} />
@@ -76,7 +77,7 @@ function ProtectedRoutes() {
                   <Route path="/reserveringen" element={<ReserveringenPage />} />
                   <Route path="/reserveringen/:id" element={<BookingDetailPage />} />
                   
-                  <Route path="/documents" element={<DocumentsPage />} />
+                  
                   
                   <Route path="/calendar" element={<CalendarPage />} />
                   <Route path="/settings" element={<SettingsPage />} />

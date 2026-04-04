@@ -1969,6 +1969,51 @@ Deno.serve(async (req) => {
       });
     }
 
+    if (action === 'push-document') {
+      // Push a CRM quote/invoice to GHL as a document
+      const { documentType, documentId, title, contactName, amount, status: docStatus, ghlContactId, ghlOpportunityId } = body;
+      
+      if (!documentId || !documentType) {
+        return new Response(JSON.stringify({ error: 'documentId and documentType required' }), {
+          status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      console.log(`[Push Document] Pushing ${documentType} ${documentId} to GHL`);
+
+      // Log the sync for tracking
+      await logSyncOperation(supabase, authUser.id, 'push-document', documentType, {
+        entity_id: documentId,
+        title,
+        contact: contactName,
+        amount,
+        status: docStatus,
+        ghl_opportunity_id: ghlOpportunityId,
+      });
+
+      // If there's a linked opportunity, update its monetary value
+      if (ghlOpportunityId && amount) {
+        try {
+          const oppUpdateRes = await ghlFetch(`${GHL_API_BASE}/opportunities/${ghlOpportunityId}`, {
+            method: 'PUT',
+            headers: ghlHeaders,
+            body: JSON.stringify({ monetaryValue: amount }),
+          });
+          if (oppUpdateRes.ok) {
+            console.log(`[Push Document] Updated GHL opportunity ${ghlOpportunityId} monetary value: ${amount}`);
+          } else {
+            console.warn(`[Push Document] Failed to update opportunity monetary value: ${oppUpdateRes.status}`);
+          }
+        } catch (e) {
+          console.warn('[Push Document] Non-fatal: opportunity update failed:', e);
+        }
+      }
+
+      return new Response(JSON.stringify({ success: true, message: 'Document sync logged' }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
     return new Response(JSON.stringify({ error: `Unknown action: ${action}` }), {
       status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
