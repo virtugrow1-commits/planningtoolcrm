@@ -200,7 +200,7 @@ export default function QuotesPage() {
               );
             })}
           </div>
-          <UnifiedDocumentTable documents={filteredInvoices} loading={iLoading} emptyMessage="Geen facturen gevonden" />
+          <UnifiedDocumentTable documents={filteredInvoices} loading={iLoading} emptyMessage="Geen facturen gevonden" onDeleteInvoice={deleteInvoice} />
         </TabsContent>
 
         {/* Templates tab */}
