@@ -684,14 +684,22 @@ async function syncContacts(supabase: any, ghlHeaders: any, locationId: string, 
     const ghlContacts: any[] = [];
     let contactPage = 1;
     let contactHasMore = true;
+    let contactRateLimitRetries = 0;
+    const MAX_RATE_LIMIT_RETRIES = 5;
     while (contactHasMore && contactPage <= 40) {
       await delay(200); // Rate limit between pages
       const res = await fetch(`${GHL_API_BASE}/contacts/?locationId=${locationId}&limit=100&page=${contactPage}`, { headers: ghlHeaders });
       if (res.status === 429) {
-        console.log(`Contacts page ${contactPage}: rate limited, waiting 5s...`);
-        await delay(5000);
+        contactRateLimitRetries++;
+        if (contactRateLimitRetries >= MAX_RATE_LIMIT_RETRIES) {
+          console.error(`Contacts: rate limit exceeded ${MAX_RATE_LIMIT_RETRIES} times, aborting contact sync to preserve API quota`);
+          break;
+        }
+        console.log(`Contacts page ${contactPage}: rate limited (${contactRateLimitRetries}/${MAX_RATE_LIMIT_RETRIES}), waiting 10s...`);
+        await delay(10000);
         continue; // retry same page
       }
+      contactRateLimitRetries = 0; // reset on success
       if (!res.ok) {
         console.error('Contacts error:', res.status, await res.text());
         break;
