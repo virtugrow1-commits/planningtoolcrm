@@ -1798,6 +1798,9 @@ async function processSyncQueue(supabase: any, ghlHeaders: any, locationId: stri
         failed++;
       }
       await delay(200); // Minimal delay between queue items
+    }
+    console.log(`[Queue] Done: ${succeeded} succeeded, ${failed} failed`);
+  } catch (e) { console.error('Queue processing error:', e); }
 }
 
 // === DOCUMENTS SYNC (GHL → CRM) ===
@@ -1878,7 +1881,4 @@ async function syncDocuments(supabase: any, ghlHeaders: any, locationId: string,
     console.error('[Documents Sync] Error:', e);
     results.errors.push(`documents: ${e}`);
   }
-}
-    console.log(`[Queue] Done: ${succeeded} succeeded, ${failed} failed`);
-  } catch (e) { console.error('Queue processing error:', e); }
 }
