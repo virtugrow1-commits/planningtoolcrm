@@ -79,7 +79,7 @@ Deno.serve(async (req) => {
     const fieldDefsMap: Record<string, string> = {};
     if (GHL_LOCATION_ID) {
       try {
-        const cfRes = await fetch(`${GHL_API_BASE}/locations/${GHL_LOCATION_ID}/customFields`, { headers: ghlHeaders });
+        const cfRes = await ghlFetch(`${GHL_API_BASE}/locations/${GHL_LOCATION_ID}/customFields`, { headers: ghlHeaders });
         if (cfRes.ok) {
           const cfData = await cfRes.json();
           const fields = cfData.customFields || cfData || [];
@@ -113,7 +113,7 @@ Deno.serve(async (req) => {
     // Fetch opportunity from GHL
     let opp: any = {};
     let ghlContactId: string | null = null;
-    const oppRes = await fetch(`${GHL_API_BASE}/opportunities/${inquiry.ghl_opportunity_id}`, { headers: ghlHeaders });
+    const oppRes = await ghlFetch(`${GHL_API_BASE}/opportunities/${inquiry.ghl_opportunity_id}`, { headers: ghlHeaders });
     if (oppRes.ok) {
       const oppData = await oppRes.json();
       opp = oppData.opportunity || oppData;
