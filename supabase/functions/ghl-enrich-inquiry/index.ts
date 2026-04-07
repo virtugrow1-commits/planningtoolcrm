@@ -82,7 +82,7 @@ Deno.serve(async (req) => {
     ]);
 
     // Process custom field definitions
-    const fieldDefsMap: Record<string, string> = cachedFieldDefs || {};
+    const fieldDefsMap: Record<string, string> = cachedFieldDefs ? { ...cachedFieldDefs } : {};
     if (fieldDefsRes && fieldDefsRes.ok) {
       const cfData = await fieldDefsRes.json();
       const fields = cfData.customFields || cfData || [];
@@ -91,6 +91,10 @@ Deno.serve(async (req) => {
       }
       cachedFieldDefs = fieldDefsMap;
       cachedFieldDefsAt = Date.now();
+      console.log(`Loaded ${Object.keys(fieldDefsMap).length} custom field definitions`);
+    } else if (fieldDefsRes && !fieldDefsRes.ok) {
+      console.warn(`Custom field defs fetch failed: ${fieldDefsRes.status} (using ${Object.keys(fieldDefsMap).length} cached)`);
+      await fieldDefsRes.text(); // consume body
     }
 
     const resolveCustomField = (cf: any): { name: string; value: string } => {
