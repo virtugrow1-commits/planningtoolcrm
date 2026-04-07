@@ -143,7 +143,8 @@ Deno.serve(async (req) => {
     } else if (hasFormData) {
       await handleFormSubmission(supabase, userId, payload);
     } else if (type.includes('opportunity') || type.includes('OpportunityStatus') || type.includes('pipeline') || (hasPipelineData && !hasAppointmentData)) {
-      await handleOpportunityFromWebhookPayload(supabase, ghlHeaders, GHL_LOCATION_ID, userId, payload);
+      // Pass form fields from payload so we don't need extra API calls
+      await handleOpportunityFromWebhookPayload(supabase, ghlHeaders, GHL_LOCATION_ID, userId, payload, hasFormFields ? payload : null);
     } else if (isContactSyncEcho || type.includes('contact') || type.includes('Contact') || (hasContactData && !hasPipelineData && !hasAppointmentData)) {
       await handleContactWebhook(supabase, userId, payload);
     } else if (type.includes('appointment') || type.includes('calendar') || type.includes('event') || hasAppointmentData) {
@@ -448,7 +449,7 @@ async function handleOpportunityDelete(supabase: any, userId: string, payload: a
   }
 }
 
-async function handleOpportunityFromWebhookPayload(supabase: any, ghlHeaders: any, locationId: string, userId: string, payload: any) {
+async function handleOpportunityFromWebhookPayload(supabase: any, ghlHeaders: any, locationId: string, userId: string, payload: any, formFieldsPayload?: any) {
   // GHL sends pipeline webhooks in two formats:
   // 1. With an opportunity ID (fetch full data from API)
   // 2. Direct payload with pipleline_stage, opportunity_name, contact_id etc.
@@ -579,23 +580,41 @@ async function handleOpportunityFromWebhookPayload(supabase: any, ghlHeaders: an
       mergedExisting = newInq; // use for auto-enrich below
     }
 
-    // Auto-enrich: fetch custom fields from GHL opportunity
+    // Auto-enrich: extract custom fields from webhook payload directly (no API call needed)
     const enrichTargetId = mergedExisting?.id;
-    if (enrichTargetId && ghlOppId) {
+    if (enrichTargetId) {
       try {
-        const oppRes = await ghlFetch(`${GHL_API_BASE}/opportunities/${ghlOppId}`, { headers: ghlHeaders });
-        if (oppRes.ok) {
-          const oppData = await oppRes.json();
-          const opp = oppData.opportunity || oppData;
-          const customFields = opp.customFields || opp.custom_fields || [];
-          const fieldMap: Record<string, string> = {};
+        const fieldMap: Record<string, string> = {};
+        
+        // 1. Extract form fields directly from the webhook payload (top-level keys)
+        const knownFormKeys = [
+          'Type Evenement', 'Type gelegenheid', 'Soort evenement',
+          'Aantal gasten', 'Selecteer de gewenste datum', 'Gewenste datum',
+          'Kies je dagdeel', 'Gewenste zaalopstelling', 'Gewenste catering',
+          'Extra informatie', 'Speciale Benodigdheden', 'Na-zit gewenst?',
+          'Service Type', 'Bedrijfsnaam', 'Budget', 'Opmerkingen',
+          'Selecteer dagdeel',
+        ];
+        
+        // Check both direct payload and formFieldsPayload
+        const sources = [payload, formFieldsPayload].filter(Boolean);
+        for (const src of sources) {
+          for (const key of knownFormKeys) {
+            const val = src[key];
+            if (val && String(val).trim()) {
+              fieldMap[key.toLowerCase()] = String(val).trim();
+            }
+          }
+          // Also check customFields array if present
+          const customFields = src.customFields || src.custom_fields || [];
           for (const cf of customFields) {
             const name = (cf.name || cf.fieldName || cf.key || '').toLowerCase();
             const value = cf.value || cf.fieldValue || '';
-            if (value) fieldMap[name || cf.id || ''] = String(value);
+            if (value && name) fieldMap[name] = String(value);
           }
+        }
 
-          // Fuzzy field lookup
+        if (Object.keys(fieldMap).length > 0) {
           const fuzzyFind = (...terms: string[]): string => {
             for (const term of terms) { if (fieldMap[term]) return fieldMap[term]; }
             for (const term of terms) { for (const [key, value] of Object.entries(fieldMap)) { if (key.includes(term) && value) return value; } }
@@ -605,7 +624,7 @@ async function handleOpportunityFromWebhookPayload(supabase: any, ghlHeaders: an
           const guestCount = parseInt(fuzzyFind('aantal gasten', 'guest_count', 'guests', 'gasten') || '0', 10) || 0;
           const preferredDate = fuzzyFind('gewenste datum', 'selecteer de gewenste datum', 'preferred_date', 'datum') || null;
           const roomPreference = fuzzyFind('gewenste zaalopstelling', 'zaalopstelling', 'room_preference', 'zaal') || null;
-          const enrichedBudget = fuzzyFind('budget') ? Number(fuzzyFind('budget')) : (opp.monetaryValue ? Number(opp.monetaryValue) : monetaryValue);
+          const enrichedBudget = fuzzyFind('budget') ? Number(fuzzyFind('budget')) : (monetaryValue || null);
           const enrichedEventType = fuzzyFind('type evenement', 'type gelegenheid', 'soort evenement') || eventType;
 
           const messageParts: string[] = [];
@@ -614,17 +633,17 @@ async function handleOpportunityFromWebhookPayload(supabase: any, ghlHeaders: an
             if (value) messageParts.push(`${capitalize(key)}: ${value}`);
           }
 
-          if (guestCount || preferredDate || roomPreference || messageParts.length > 0) {
-            await supabase.from('inquiries').update({
-              event_type: enrichedEventType,
-              guest_count: guestCount || 0,
-              preferred_date: preferredDate,
-              room_preference: roomPreference,
-              budget: enrichedBudget,
-              message: messageParts.join('\n') || null,
-            }).eq('id', enrichTargetId);
-            console.log(`Webhook: Auto-enriched opp ${ghlOppId} with ${Object.keys(fieldMap).length} custom fields`);
-          }
+          await supabase.from('inquiries').update({
+            event_type: enrichedEventType,
+            guest_count: guestCount || 0,
+            preferred_date: preferredDate,
+            room_preference: roomPreference,
+            budget: enrichedBudget,
+            message: messageParts.join('\n') || null,
+          }).eq('id', enrichTargetId);
+          console.log(`Webhook: Auto-enriched opp ${ghlOppId} with ${Object.keys(fieldMap).length} fields from payload (no API call)`);
+        } else {
+          console.log(`Webhook: No form fields found in payload for opp ${ghlOppId}`);
         }
       } catch (enrichErr) {
         console.error('Webhook: Auto-enrich failed (non-fatal):', enrichErr);
