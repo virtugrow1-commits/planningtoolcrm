@@ -449,7 +449,7 @@ async function handleOpportunityDelete(supabase: any, userId: string, payload: a
   }
 }
 
-async function handleOpportunityFromWebhookPayload(supabase: any, ghlHeaders: any, locationId: string, userId: string, payload: any) {
+async function handleOpportunityFromWebhookPayload(supabase: any, ghlHeaders: any, locationId: string, userId: string, payload: any, formFieldsPayload?: any) {
   // GHL sends pipeline webhooks in two formats:
   // 1. With an opportunity ID (fetch full data from API)
   // 2. Direct payload with pipleline_stage, opportunity_name, contact_id etc.
