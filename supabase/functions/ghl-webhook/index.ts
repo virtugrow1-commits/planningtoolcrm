@@ -7,6 +7,25 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version',
 };
 
+const delayMs = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+/** Rate-limit-aware fetch for GHL API calls within the webhook */
+async function ghlFetch(url: string, opts: RequestInit = {}): Promise<Response> {
+  const MAX_RETRIES = 4;
+  for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+    if (attempt > 0) {
+      const backoff = Math.min(2000 * Math.pow(2, attempt - 1), 12000) + Math.floor(Math.random() * 1500);
+      console.warn(`ghl-webhook: retry ${attempt}/${MAX_RETRIES} for ${url}`);
+      await delayMs(backoff);
+    }
+    const res = await fetch(url, opts);
+    if (res.status !== 429) return res;
+    await res.text();
+  }
+  console.error(`ghl-webhook: rate limit exceeded after ${MAX_RETRIES} retries for ${url}`);
+  return new Response(JSON.stringify({ error: 'Rate limit exceeded' }), { status: 429 });
+}
+
 /** Map GHL pipeline stage name to CRM status */
 function stageToStatus(stageName: string): string {
   const l = stageName.toLowerCase();
@@ -564,7 +583,7 @@ async function handleOpportunityFromWebhookPayload(supabase: any, ghlHeaders: an
     const enrichTargetId = mergedExisting?.id;
     if (enrichTargetId && ghlOppId) {
       try {
-        const oppRes = await fetch(`${GHL_API_BASE}/opportunities/${ghlOppId}`, { headers: ghlHeaders });
+        const oppRes = await ghlFetch(`${GHL_API_BASE}/opportunities/${ghlOppId}`, { headers: ghlHeaders });
         if (oppRes.ok) {
           const oppData = await oppRes.json();
           const opp = oppData.opportunity || oppData;

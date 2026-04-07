@@ -7,6 +7,31 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version',
 };
 
+const delay = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+/** Rate-limit-aware fetch: retries on 429 with exponential backoff + jitter */
+async function ghlFetch(url: string, opts: RequestInit = {}): Promise<Response> {
+  const MAX_RETRIES = 5;
+  for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+    if (attempt > 0) {
+      const baseBackoff = Math.min(2000 * Math.pow(2, attempt - 1), 15000);
+      const jitter = Math.floor(Math.random() * 1500);
+      await delay(baseBackoff + jitter);
+      console.warn(`ghl-enrich: retry ${attempt}/${MAX_RETRIES} for ${url}`);
+    }
+    const res = await fetch(url, opts);
+    if (res.status !== 429) return res;
+    await res.text(); // consume body
+    const retryAfter = res.headers.get('retry-after');
+    if (retryAfter) {
+      const waitMs = parseInt(retryAfter) * 1000;
+      if (!isNaN(waitMs) && waitMs > 0) await delay(waitMs);
+    }
+  }
+  console.error(`ghl-enrich: rate limit exceeded after ${MAX_RETRIES} retries for ${url}`);
+  return new Response(JSON.stringify({ error: 'Rate limit exceeded' }), { status: 429 });
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -54,7 +79,7 @@ Deno.serve(async (req) => {
     const fieldDefsMap: Record<string, string> = {};
     if (GHL_LOCATION_ID) {
       try {
-        const cfRes = await fetch(`${GHL_API_BASE}/locations/${GHL_LOCATION_ID}/customFields`, { headers: ghlHeaders });
+        const cfRes = await ghlFetch(`${GHL_API_BASE}/locations/${GHL_LOCATION_ID}/customFields`, { headers: ghlHeaders });
         if (cfRes.ok) {
           const cfData = await cfRes.json();
           const fields = cfData.customFields || cfData || [];
@@ -88,7 +113,7 @@ Deno.serve(async (req) => {
     // Fetch opportunity from GHL
     let opp: any = {};
     let ghlContactId: string | null = null;
-    const oppRes = await fetch(`${GHL_API_BASE}/opportunities/${inquiry.ghl_opportunity_id}`, { headers: ghlHeaders });
+    const oppRes = await ghlFetch(`${GHL_API_BASE}/opportunities/${inquiry.ghl_opportunity_id}`, { headers: ghlHeaders });
     if (oppRes.ok) {
       const oppData = await oppRes.json();
       opp = oppData.opportunity || oppData;
@@ -113,7 +138,7 @@ Deno.serve(async (req) => {
     // 2. Fetch contact custom fields from GHL (form data lives here)
     if (ghlContactId) {
       try {
-        const contactRes = await fetch(`${GHL_API_BASE}/contacts/${ghlContactId}`, { headers: ghlHeaders });
+        const contactRes = await ghlFetch(`${GHL_API_BASE}/contacts/${ghlContactId}`, { headers: ghlHeaders });
         if (contactRes.ok) {
           const contactData = await contactRes.json();
           const ghlContact = contactData.contact || contactData;
