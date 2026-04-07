@@ -11,10 +11,10 @@ const delayMs = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 /** Rate-limit-aware fetch for GHL API calls within the webhook */
 async function ghlFetch(url: string, opts: RequestInit = {}): Promise<Response> {
-  const MAX_RETRIES = 4;
+  const MAX_RETRIES = 2;
   for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
     if (attempt > 0) {
-      const backoff = Math.min(2000 * Math.pow(2, attempt - 1), 12000) + Math.floor(Math.random() * 1500);
+      const backoff = 2000 + Math.floor(Math.random() * 1000);
       console.warn(`ghl-webhook: retry ${attempt}/${MAX_RETRIES} for ${url}`);
       await delayMs(backoff);
     }
@@ -22,7 +22,7 @@ async function ghlFetch(url: string, opts: RequestInit = {}): Promise<Response> 
     if (res.status !== 429) return res;
     await res.text();
   }
-  console.error(`ghl-webhook: rate limit exceeded after ${MAX_RETRIES} retries for ${url}`);
+  console.error(`ghl-webhook: rate limit after ${MAX_RETRIES} retries: ${url}`);
   return new Response(JSON.stringify({ error: 'Rate limit exceeded' }), { status: 429 });
 }
 

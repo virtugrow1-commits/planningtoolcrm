@@ -9,32 +9,20 @@ const GHL_API_BASE = 'https://services.leadconnectorhq.com';
 
 const delay = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-/** Rate-limit-aware fetch: retries on 429 with exponential backoff + jitter */
+/** Rate-limit-aware fetch: retries on 429 with SHORT backoff to preserve quota */
 async function ghlFetch(url: string, opts: RequestInit = {}): Promise<Response> {
-  const MAX_RETRIES = 7;
+  const MAX_RETRIES = 3;
   for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
     if (attempt > 0) {
-      const baseBackoff = Math.min(3000 * Math.pow(2, attempt - 1), 30000);
-      const jitter = Math.floor(Math.random() * 2000);
-      const backoff = baseBackoff + jitter;
-      console.warn(`GHL retry attempt ${attempt}/${MAX_RETRIES}, waiting ${backoff}ms for ${url}`);
+      const backoff = Math.min(2000 * attempt, 5000) + Math.floor(Math.random() * 1000);
+      console.warn(`GHL retry ${attempt}/${MAX_RETRIES}, waiting ${backoff}ms for ${url}`);
       await delay(backoff);
     }
     const res = await fetch(url, opts);
     if (res.status !== 429) return res;
-    // Consume body to free resources
     await res.text();
-    const retryAfter = res.headers.get('retry-after');
-    if (retryAfter) {
-      const waitMs = parseInt(retryAfter) * 1000;
-      if (!isNaN(waitMs) && waitMs > 0) {
-        console.warn(`GHL Retry-After header: waiting ${waitMs}ms`);
-        await delay(waitMs);
-      }
-    }
   }
-  // Return a synthetic 429 response instead of throwing so callers can handle gracefully
-  console.error(`GHL API rate limit exceeded after ${MAX_RETRIES} retries for ${url}`);
+  console.error(`GHL rate limit after ${MAX_RETRIES} retries: ${url}`);
   return new Response(JSON.stringify({ error: 'Rate limit exceeded' }), { status: 429 });
 }
 
