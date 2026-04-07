@@ -138,7 +138,7 @@ Deno.serve(async (req) => {
     // 2. Fetch contact custom fields from GHL (form data lives here)
     if (ghlContactId) {
       try {
-        const contactRes = await fetch(`${GHL_API_BASE}/contacts/${ghlContactId}`, { headers: ghlHeaders });
+        const contactRes = await ghlFetch(`${GHL_API_BASE}/contacts/${ghlContactId}`, { headers: ghlHeaders });
         if (contactRes.ok) {
           const contactData = await contactRes.json();
           const ghlContact = contactData.contact || contactData;
