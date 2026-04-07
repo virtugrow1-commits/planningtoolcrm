@@ -267,7 +267,10 @@ export default function ConversationsPage() {
   const handleRefresh = async () => {
     setLoading(true);
     try {
-      await supabase.functions.invoke('ghl-auto-sync');
+      const { error } = await supabase.functions.invoke('ghl-sync', {
+        body: { action: 'sync-notes' },
+      });
+      if (error) throw error;
       await fetchConversations();
       toast({ title: 'Gesprekken gesynchroniseerd' });
     } catch (err: any) {

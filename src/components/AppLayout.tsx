@@ -54,9 +54,15 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     if (syncing) return;
     setSyncing(true);
     try {
-      const { error } = await supabase.functions.invoke('ghl-auto-sync');
+      const { data, error } = await supabase.functions.invoke('ghl-auto-sync', {
+        body: { scope: 'full', source: 'manual' },
+      });
       if (error) throw error;
-      toast({ title: 'Synchronisatie gestart', description: 'Volledige sync is gestart op de achtergrond.' });
+      if (data?.skipped) {
+        toast({ title: 'Synchronisatie al actief', description: 'Er draait al een sync op de achtergrond.' });
+      } else {
+        toast({ title: 'Synchronisatie gestart', description: 'Volledige sync is gestart op de achtergrond.' });
+      }
     } catch (err: any) {
       toast({ title: 'Sync mislukt', description: err.message, variant: 'destructive' });
     } finally {
