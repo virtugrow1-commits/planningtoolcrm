@@ -201,7 +201,12 @@ export default function InquiryDetailsTab({ inquiry, editing, form, setForm, con
                 });
                 if (error) throw error;
                 await refetch();
-                toast({ title: 'Formuliergegevens opgehaald', description: `${(data?.fieldsFound || []).length} velden gevonden` });
+                const fieldsCount = (data?.fieldsFound || []).length;
+                if (data?.rateLimited && fieldsCount === 0) {
+                  toast({ title: 'VirtuGrow API tijdelijk niet beschikbaar', description: 'De API is even overbelast. Probeer het over een paar minuten opnieuw.', variant: 'destructive' });
+                } else {
+                  toast({ title: 'Formuliergegevens opgehaald', description: `${fieldsCount} velden gevonden` });
+                }
               } catch (e: any) {
                 toast({ title: 'Fout bij ophalen', description: e.message, variant: 'destructive' });
               } finally {
