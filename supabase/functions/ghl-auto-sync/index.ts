@@ -63,6 +63,30 @@ async function fetchAll(supabase: any, table: string, selectCols: string, filter
   return rows;
 }
 
+const AUTO_SYNC_COOLDOWN_MS = 2 * 60 * 1000;
+const FULL_SYNC_INTERVAL_MS = 30 * 60 * 1000;
+
+async function logSystemSync(
+  supabase: any,
+  userId: string,
+  action: string,
+  details: Record<string, any>,
+  status: 'success' | 'error' = 'success'
+) {
+  try {
+    await supabase.from('sync_log').insert({
+      user_id: userId,
+      action,
+      entity_type: 'system',
+      entity_id: null,
+      details,
+      status,
+    });
+  } catch (error) {
+    console.error(`Failed to log ${action}:`, error);
+  }
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -78,6 +102,12 @@ Deno.serve(async (req) => {
   }
 
   const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+  let requestBody: Record<string, any> = {};
+  try {
+    requestBody = await req.json();
+  } catch {
+    requestBody = {};
+  }
 
   const ghlHeaders = {
     'Authorization': `Bearer ${GHL_API_KEY}`,
@@ -97,9 +127,50 @@ Deno.serve(async (req) => {
     return new Response(JSON.stringify({ error: 'No user found' }), { status: 200, headers: corsHeaders });
   }
 
+  const triggerSource = requestBody.trigger || requestBody.source || (Object.keys(requestBody).length === 0 ? 'manual' : 'background');
+  const requestedScope = requestBody.scope || null;
+  const isManualFullSync = Object.keys(requestBody).length === 0 || requestedScope === 'full' || triggerSource === 'manual';
+
+  const { data: latestRun } = await supabase
+    .from('sync_log')
+    .select('created_at, details')
+    .eq('action', 'auto-sync-run')
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (latestRun?.created_at) {
+    const lastRunAt = new Date(latestRun.created_at).getTime();
+    if (Date.now() - lastRunAt < AUTO_SYNC_COOLDOWN_MS) {
+      return new Response(JSON.stringify({
+        success: true,
+        skipped: true,
+        reason: 'cooldown_active',
+        trigger: triggerSource,
+      }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    }
+  }
+
+  const { data: latestFullSync } = await supabase
+    .from('sync_log')
+    .select('created_at')
+    .eq('action', 'auto-sync-full')
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  const shouldRunFullSync = isManualFullSync || !latestFullSync?.created_at || (Date.now() - new Date(latestFullSync.created_at).getTime()) >= FULL_SYNC_INTERVAL_MS;
+  const syncScope = shouldRunFullSync ? 'full' : 'light';
+
+  await logSystemSync(supabase, userId, 'auto-sync-run', {
+    phase: 'started',
+    scope: syncScope,
+    trigger: triggerSource,
+  });
+
   // Run heavy sync in background using EdgeRuntime.waitUntil
   const backgroundSync = async () => {
-    const results: any = { bookings_pulled: 0, bookings_pushed: 0, contacts: 0, opportunities: 0, contacts_pushed: 0, companies_synced: 0, companies_pushed: 0, tasks_pulled: 0, tasks_pushed: 0, conversations_synced: 0, documents_synced: 0, errors: [] };
+    const results: any = { scope: syncScope, bookings_pulled: 0, bookings_pushed: 0, contacts: 0, opportunities: 0, contacts_pushed: 0, companies_synced: 0, companies_pushed: 0, tasks_pulled: 0, tasks_pushed: 0, conversations_synced: 0, documents_synced: 0, errors: [] };
 
     try {
       // PRE-LOAD: Fetch all existing CRM records into lookup Maps ONCE
@@ -141,21 +212,25 @@ Deno.serve(async (req) => {
 
       const lookups = { contactByGhlId, contactByNameEmail, companyByGhlId, companyByName, inquiryByGhlId, taskByGhlId, taskByTitle, existingContacts, existingCompanies, existingInquiries };
 
-      // Run syncs SEQUENTIALLY to avoid GHL 429 rate limits
-      // Minimal delays — sequential execution already prevents concurrent rate limiting
-      await syncContacts(supabase, ghlHeaders, GHL_LOCATION_ID, userId, results, lookups);
-      await delay(200);
-      await syncCompanies(supabase, ghlHeaders, GHL_LOCATION_ID, userId, results, lookups);
-      await delay(200);
+      if (shouldRunFullSync) {
+        await syncContacts(supabase, ghlHeaders, GHL_LOCATION_ID, userId, results, lookups);
+        await delay(200);
+        await syncCompanies(supabase, ghlHeaders, GHL_LOCATION_ID, userId, results, lookups);
+        await delay(200);
+      }
+
       await syncOpportunities(supabase, ghlHeaders, GHL_LOCATION_ID, userId, results, lookups);
       await delay(200);
-      await syncCalendar(supabase, ghlHeaders, GHL_LOCATION_ID, userId, results);
-      await delay(200);
-      await syncTasks(supabase, ghlHeaders, GHL_LOCATION_ID, userId, results, lookups);
-      await delay(200);
-      await syncConversations(supabase, ghlHeaders, GHL_LOCATION_ID, userId, results, lookups);
-      await delay(200);
-      await syncDocuments(supabase, ghlHeaders, GHL_LOCATION_ID, userId, results);
+
+      if (shouldRunFullSync) {
+        await syncCalendar(supabase, ghlHeaders, GHL_LOCATION_ID, userId, results);
+        await delay(200);
+        await syncTasks(supabase, ghlHeaders, GHL_LOCATION_ID, userId, results, lookups);
+        await delay(200);
+        await syncConversations(supabase, ghlHeaders, GHL_LOCATION_ID, userId, results, lookups);
+        await delay(200);
+        await syncDocuments(supabase, ghlHeaders, GHL_LOCATION_ID, userId, results);
+      }
 
       // Push local inquiries without GHL opportunity ID
       await pushLocalInquiries(supabase, ghlHeaders, GHL_LOCATION_ID, userId, results);
@@ -163,16 +238,36 @@ Deno.serve(async (req) => {
       // Process sync queue (retry failed items — skip permanently failed)
       await processSyncQueue(supabase, ghlHeaders, GHL_LOCATION_ID, userId, results);
 
+      await logSystemSync(supabase, userId, 'auto-sync-run', {
+        phase: 'completed',
+        scope: syncScope,
+        trigger: triggerSource,
+        results,
+      });
+
+      if (shouldRunFullSync) {
+        await logSystemSync(supabase, userId, 'auto-sync-full', {
+          trigger: triggerSource,
+          results,
+        });
+      }
+
       console.log('Auto-sync completed:', JSON.stringify(results));
     } catch (err) {
       console.error('Background sync error:', err);
+      await logSystemSync(supabase, userId, 'auto-sync-run', {
+        phase: 'failed',
+        scope: syncScope,
+        trigger: triggerSource,
+        error: String(err),
+      }, 'error');
     }
   };
 
   // @ts-ignore - EdgeRuntime.waitUntil is available in Supabase Edge Functions
   EdgeRuntime.waitUntil(backgroundSync());
 
-  return new Response(JSON.stringify({ success: true, message: 'Sync started in background' }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+  return new Response(JSON.stringify({ success: true, message: 'Sync started in background', scope: syncScope }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
 });
 
 // === CALENDAR SYNC ===
@@ -1389,7 +1484,7 @@ async function syncConversations(supabase: any, ghlHeaders: any, locationId: str
     console.log(`Fetched ${conversations.length} conversations from GHL`);
     
     let messagesSyncCount = 0;
-    const MAX_MESSAGE_SYNCS = 10;
+    const MAX_MESSAGE_SYNCS = 3;
 
     // Batch upsert conversations
     const convUpsertRows = [];
