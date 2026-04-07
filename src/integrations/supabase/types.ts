@@ -907,6 +907,7 @@ export type Database = {
           company_name: string | null
           contact_id: string | null
           contact_name: string
+          content_blocks: Json | null
           created_at: string
           declined_at: string | null
           discount_amount: number
@@ -943,6 +944,7 @@ export type Database = {
           company_name?: string | null
           contact_id?: string | null
           contact_name?: string
+          content_blocks?: Json | null
           created_at?: string
           declined_at?: string | null
           discount_amount?: number
@@ -979,6 +981,7 @@ export type Database = {
           company_name?: string | null
           contact_id?: string | null
           contact_name?: string
+          content_blocks?: Json | null
           created_at?: string
           declined_at?: string | null
           discount_amount?: number
