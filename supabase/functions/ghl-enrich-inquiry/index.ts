@@ -111,6 +111,7 @@ Deno.serve(async (req) => {
       const oppData = await oppRes.json();
       opp = oppData.opportunity || oppData;
       ghlContactId = opp.contactId || opp.contact?.id;
+      console.log(`Opportunity fetched. contactId: ${ghlContactId}, customFields: ${(opp.customFields || opp.custom_fields || []).length}`);
 
       const oppCustomFields = opp.customFields || opp.custom_fields || [];
       for (const cf of oppCustomFields) {
@@ -118,10 +119,14 @@ Deno.serve(async (req) => {
         if (value) fieldMap[name] = value;
       }
     } else {
-      console.warn('GHL opportunity not found:', oppRes.status);
+      const status = oppRes.status;
+      await oppRes.text(); // consume body
+      console.warn(`GHL opportunity fetch failed: ${status}`);
+      // Fallback: get ghl_contact_id from local DB
       if (inquiry.contact_id) {
         const { data: localContact } = await supabase.from('contacts').select('ghl_contact_id').eq('id', inquiry.contact_id).maybeSingle();
         ghlContactId = localContact?.ghl_contact_id || null;
+        console.log(`Fallback contact lookup: ghl_contact_id=${ghlContactId}`);
       }
     }
 
