@@ -564,7 +564,7 @@ async function handleOpportunityFromWebhookPayload(supabase: any, ghlHeaders: an
     const enrichTargetId = mergedExisting?.id;
     if (enrichTargetId && ghlOppId) {
       try {
-        const oppRes = await fetch(`${GHL_API_BASE}/opportunities/${ghlOppId}`, { headers: ghlHeaders });
+        const oppRes = await ghlFetch(`${GHL_API_BASE}/opportunities/${ghlOppId}`, { headers: ghlHeaders });
         if (oppRes.ok) {
           const oppData = await oppRes.json();
           const opp = oppData.opportunity || oppData;
