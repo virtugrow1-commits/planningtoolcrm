@@ -143,7 +143,8 @@ Deno.serve(async (req) => {
     } else if (hasFormData) {
       await handleFormSubmission(supabase, userId, payload);
     } else if (type.includes('opportunity') || type.includes('OpportunityStatus') || type.includes('pipeline') || (hasPipelineData && !hasAppointmentData)) {
-      await handleOpportunityFromWebhookPayload(supabase, ghlHeaders, GHL_LOCATION_ID, userId, payload);
+      // Pass form fields from payload so we don't need extra API calls
+      await handleOpportunityFromWebhookPayload(supabase, ghlHeaders, GHL_LOCATION_ID, userId, payload, hasFormFields ? payload : null);
     } else if (isContactSyncEcho || type.includes('contact') || type.includes('Contact') || (hasContactData && !hasPipelineData && !hasAppointmentData)) {
       await handleContactWebhook(supabase, userId, payload);
     } else if (type.includes('appointment') || type.includes('calendar') || type.includes('event') || hasAppointmentData) {
