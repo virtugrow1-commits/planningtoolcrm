@@ -7,6 +7,31 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version',
 };
 
+const delay = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+/** Rate-limit-aware fetch: retries on 429 with exponential backoff + jitter */
+async function ghlFetch(url: string, opts: RequestInit = {}): Promise<Response> {
+  const MAX_RETRIES = 5;
+  for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+    if (attempt > 0) {
+      const baseBackoff = Math.min(2000 * Math.pow(2, attempt - 1), 15000);
+      const jitter = Math.floor(Math.random() * 1500);
+      await delay(baseBackoff + jitter);
+      console.warn(`ghl-enrich: retry ${attempt}/${MAX_RETRIES} for ${url}`);
+    }
+    const res = await fetch(url, opts);
+    if (res.status !== 429) return res;
+    await res.text(); // consume body
+    const retryAfter = res.headers.get('retry-after');
+    if (retryAfter) {
+      const waitMs = parseInt(retryAfter) * 1000;
+      if (!isNaN(waitMs) && waitMs > 0) await delay(waitMs);
+    }
+  }
+  console.error(`ghl-enrich: rate limit exceeded after ${MAX_RETRIES} retries for ${url}`);
+  return new Response(JSON.stringify({ error: 'Rate limit exceeded' }), { status: 429 });
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
