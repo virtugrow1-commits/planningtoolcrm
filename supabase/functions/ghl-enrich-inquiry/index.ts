@@ -9,28 +9,25 @@ const corsHeaders = {
 
 const delay = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-/** Rate-limit-aware fetch: retries on 429 with exponential backoff + jitter */
+/** Rate-limit-aware fetch with max 3 retries and shorter backoff */
 async function ghlFetch(url: string, opts: RequestInit = {}): Promise<Response> {
-  const MAX_RETRIES = 5;
+  const MAX_RETRIES = 3;
   for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
     if (attempt > 0) {
-      const baseBackoff = Math.min(2000 * Math.pow(2, attempt - 1), 15000);
-      const jitter = Math.floor(Math.random() * 1500);
-      await delay(baseBackoff + jitter);
-      console.warn(`ghl-enrich: retry ${attempt}/${MAX_RETRIES} for ${url}`);
+      const backoff = Math.min(1000 * Math.pow(2, attempt - 1), 8000);
+      await delay(backoff + Math.floor(Math.random() * 500));
     }
     const res = await fetch(url, opts);
     if (res.status !== 429) return res;
-    await res.text(); // consume body
-    const retryAfter = res.headers.get('retry-after');
-    if (retryAfter) {
-      const waitMs = parseInt(retryAfter) * 1000;
-      if (!isNaN(waitMs) && waitMs > 0) await delay(waitMs);
-    }
+    await res.text();
   }
-  console.error(`ghl-enrich: rate limit exceeded after ${MAX_RETRIES} retries for ${url}`);
   return new Response(JSON.stringify({ error: 'Rate limit exceeded' }), { status: 429 });
 }
+
+// In-memory cache for custom field definitions (persists across warm invocations)
+let cachedFieldDefs: Record<string, string> | null = null;
+let cachedFieldDefsAt = 0;
+const CACHE_TTL = 10 * 60 * 1000; // 10 minutes
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -53,7 +50,6 @@ Deno.serve(async (req) => {
       return new Response(JSON.stringify({ error: 'inquiry_id required' }), { status: 400, headers: corsHeaders });
     }
 
-    // Get the inquiry
     const { data: inquiry, error: inqErr } = await supabase
       .from('inquiries')
       .select('*')
@@ -75,83 +71,70 @@ Deno.serve(async (req) => {
       'Version': '2021-07-28',
     };
 
-    // Fetch custom field definitions to map IDs to human-readable names
-    const fieldDefsMap: Record<string, string> = {};
-    if (GHL_LOCATION_ID) {
-      try {
-        const cfRes = await ghlFetch(`${GHL_API_BASE}/locations/${GHL_LOCATION_ID}/customFields`, { headers: ghlHeaders });
-        if (cfRes.ok) {
-          const cfData = await cfRes.json();
-          const fields = cfData.customFields || cfData || [];
-          for (const f of fields) {
-            if (f.id && f.name) {
-              fieldDefsMap[f.id] = f.name;
-            }
-          }
-          console.log('Custom field definitions loaded:', Object.keys(fieldDefsMap).length, 'fields:', JSON.stringify(fieldDefsMap));
-        } else {
-          console.error('Failed to fetch custom field defs:', cfRes.status, await cfRes.text());
-        }
-      } catch (e) {
-        console.error('Error fetching custom field defs:', e);
+    // Parallel fetch: opportunity + custom field defs (if not cached)
+    const needFieldDefs = GHL_LOCATION_ID && (!cachedFieldDefs || Date.now() - cachedFieldDefsAt > CACHE_TTL);
+    
+    const [oppRes, fieldDefsRes] = await Promise.all([
+      ghlFetch(`${GHL_API_BASE}/opportunities/${inquiry.ghl_opportunity_id}`, { headers: ghlHeaders }),
+      needFieldDefs
+        ? ghlFetch(`${GHL_API_BASE}/locations/${GHL_LOCATION_ID}/customFields`, { headers: ghlHeaders })
+        : Promise.resolve(null),
+    ]);
+
+    // Process custom field definitions
+    const fieldDefsMap: Record<string, string> = cachedFieldDefs || {};
+    if (fieldDefsRes && fieldDefsRes.ok) {
+      const cfData = await fieldDefsRes.json();
+      const fields = cfData.customFields || cfData || [];
+      for (const f of fields) {
+        if (f.id && f.name) fieldDefsMap[f.id] = f.name;
       }
-    } else {
-      console.warn('GHL_LOCATION_ID not set — cannot resolve custom field names');
+      cachedFieldDefs = fieldDefsMap;
+      cachedFieldDefsAt = Date.now();
     }
 
-    // Helper: resolve a custom field entry to {name, value}
     const resolveCustomField = (cf: any): { name: string; value: string } => {
-      // Try cf.name first (some endpoints include it), then look up cf.id in definitions
       const name = cf.name || cf.fieldName || cf.key || fieldDefsMap[cf.id] || cf.id || '';
       const value = cf.value || cf.fieldValue || '';
       return { name: name.toLowerCase(), value: String(value) };
     };
 
-    // Custom fields can be on opportunity OR on the contact — fetch both
     const fieldMap: Record<string, string> = {};
-
-    // Fetch opportunity from GHL
     let opp: any = {};
     let ghlContactId: string | null = null;
-    const oppRes = await ghlFetch(`${GHL_API_BASE}/opportunities/${inquiry.ghl_opportunity_id}`, { headers: ghlHeaders });
+
     if (oppRes.ok) {
       const oppData = await oppRes.json();
       opp = oppData.opportunity || oppData;
-      console.log('GHL opportunity data:', JSON.stringify(opp).substring(0, 1000));
       ghlContactId = opp.contactId || opp.contact?.id;
 
-      // 1. Opportunity custom fields
       const oppCustomFields = opp.customFields || opp.custom_fields || [];
       for (const cf of oppCustomFields) {
         const { name, value } = resolveCustomField(cf);
         if (value) fieldMap[name] = value;
       }
     } else {
-      // Opportunity deleted or invalid — try to get contactId from local contact record
-      console.warn('GHL opportunity not found (deleted?), falling back to contact-only enrichment:', oppRes.status);
+      console.warn('GHL opportunity not found:', oppRes.status);
       if (inquiry.contact_id) {
         const { data: localContact } = await supabase.from('contacts').select('ghl_contact_id').eq('id', inquiry.contact_id).maybeSingle();
         ghlContactId = localContact?.ghl_contact_id || null;
       }
     }
 
-    // 2. Fetch contact custom fields from GHL (form data lives here)
+    // Fetch contact custom fields
     if (ghlContactId) {
       try {
         const contactRes = await ghlFetch(`${GHL_API_BASE}/contacts/${ghlContactId}`, { headers: ghlHeaders });
         if (contactRes.ok) {
           const contactData = await contactRes.json();
           const ghlContact = contactData.contact || contactData;
-          console.log('GHL contact data:', JSON.stringify(ghlContact).substring(0, 1500));
 
-          // Contact custom fields
           const contactCustomFields = ghlContact.customFields || ghlContact.custom_fields || ghlContact.customField || [];
           for (const cf of contactCustomFields) {
             const { name, value } = resolveCustomField(cf);
             if (value && !fieldMap[name]) fieldMap[name] = value;
           }
 
-          // Also check top-level contact fields that might contain form data
           const contactTopFields: Record<string, string | undefined> = {
             'aantal gasten': ghlContact.numberOfGuests || ghlContact.guest_count,
             'type evenement': ghlContact.eventType || ghlContact.event_type,
@@ -161,7 +144,6 @@ Deno.serve(async (req) => {
             if (val && !fieldMap[key]) fieldMap[key] = val;
           }
 
-          // Update local contact with any new info
           if (inquiry.contact_id) {
             const updateData: Record<string, any> = {};
             if (ghlContact.email) updateData.email = ghlContact.email;
@@ -179,13 +161,10 @@ Deno.serve(async (req) => {
 
     const contact = opp.contact || {};
 
-    // Fuzzy field lookup: find a value by checking if any fieldMap key contains one of the search terms
     const fuzzyFind = (...terms: string[]): string => {
       for (const term of terms) {
-        // Exact match first
         if (fieldMap[term]) return fieldMap[term];
       }
-      // Partial match: check if any key contains one of the terms
       for (const term of terms) {
         for (const [key, value] of Object.entries(fieldMap)) {
           if (key.includes(term) && value) return value;
@@ -194,36 +173,21 @@ Deno.serve(async (req) => {
       return '';
     };
 
-    // Map known fields using fuzzy matching
-    const guestCount = parseInt(
-      fuzzyFind('aantal gasten', 'guest_count', 'guests', 'gasten') || '0', 10
-    ) || inquiry.guest_count || 0;
-
+    const guestCount = parseInt(fuzzyFind('aantal gasten', 'guest_count', 'guests', 'gasten') || '0', 10) || inquiry.guest_count || 0;
     const preferredDate = fuzzyFind('gewenste datum', 'selecteer de gewenste datum', 'preferred_date', 'datum') || inquiry.preferred_date;
     const roomPreference = fuzzyFind('gewenste zaalopstelling', 'zaalopstelling', 'room_preference', 'zaal') || inquiry.room_preference;
     const budget = fuzzyFind('budget') ? Number(fuzzyFind('budget')) : (opp.monetaryValue ? Number(opp.monetaryValue) : inquiry.budget);
 
-    // Build message from ALL custom fields so everything is visible in Klantinvoer
     const messageParts: string[] = [];
-    
-    // Capitalize first letter of field name for display
     const capitalize = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
-    
     for (const [key, value] of Object.entries(fieldMap)) {
-      if (value) {
-        messageParts.push(`${capitalize(key)}: ${value}`);
-      }
+      if (value) messageParts.push(`${capitalize(key)}: ${value}`);
     }
-
     const fullMessage = messageParts.join('\n').trim() || null;
 
-    // Also get event type from custom fields if available
     const eventType = fuzzyFind('type evenement', 'type gelegenheid', 'event_type', 'soort evenement') || opp.name || inquiry.event_type;
-
-    // Use opportunity source (e.g. "Snel een offerte (Klaar)") as inquiry source if available
     const enrichedSource = opp.source && opp.source !== 'GHL' ? opp.source : inquiry.source;
 
-    // Update the inquiry with enriched data
     const { error: updateErr } = await supabase.from('inquiries').update({
       event_type: eventType,
       guest_count: guestCount,
@@ -239,7 +203,7 @@ Deno.serve(async (req) => {
       return new Response(JSON.stringify({ error: updateErr.message }), { status: 500, headers: corsHeaders });
     }
 
-    console.log(`Enriched inquiry ${inquiry_id} with GHL data. Fields found: ${Object.keys(fieldMap).join(', ')}`);
+    console.log(`Enriched inquiry ${inquiry_id}. Fields: ${Object.keys(fieldMap).join(', ')}`);
 
     return new Response(JSON.stringify({
       success: true,
