@@ -223,6 +223,7 @@ export default function Dashboard() {
         dueDate: form.dueDate || undefined,
         companyId: form.companyId || undefined,
         contactId: form.contactId || undefined,
+        assignedTo: form.assignedTo || undefined,
       });
       toast({ title: 'Taak aangemaakt' });
     }
