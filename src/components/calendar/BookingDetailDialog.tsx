@@ -95,7 +95,38 @@ export default function BookingDetailDialog({ booking, open, onOpenChange, onUpd
             </div>
             <div className="grid gap-1.5">
               <Label>Contactpersoon</Label>
-              <Input value={form.contactName} onChange={(e) => setForm({ ...form, contactName: e.target.value })} />
+              <CrmCombobox
+                options={contactOptions.map(c => ({
+                  value: c.id,
+                  label: `${c.firstName} ${c.lastName}`,
+                  sub: c.company || c.email || '',
+                }))}
+                value={form.contactId || ''}
+                onValueChange={(v) => {
+                  const contact = contacts.find(c => c.id === v);
+                  setForm({
+                    ...form,
+                    contactId: v || undefined,
+                    contactName: contact ? `${contact.firstName} ${contact.lastName}` : form.contactName,
+                    companyId: contact?.companyId || form.companyId,
+                  });
+                }}
+                placeholder="Zoek contactpersoon..."
+              />
+            </div>
+
+            <div className="grid gap-1.5">
+              <Label>Bedrijf</Label>
+              <CrmCombobox
+                options={companyOptions.map(c => ({
+                  value: c.id,
+                  label: c.name,
+                  sub: '',
+                }))}
+                value={form.companyId || ''}
+                onValueChange={(v) => setForm({ ...form, companyId: v || undefined })}
+                placeholder="Zoek bedrijf..."
+              />
             </div>
 
             {/* Room selection */}
