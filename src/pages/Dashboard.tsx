@@ -663,13 +663,26 @@ export default function Dashboard() {
                 />
               </div>
             </div>
-            <div className="grid gap-1.5">
-              <Label>Datum</Label>
-              <Input
-                type="date"
-                value={form.dueDate}
-                onChange={(e) => setForm({ ...form, dueDate: e.target.value })}
-              />
+            <div className="grid grid-cols-2 gap-3">
+              <div className="grid gap-1.5">
+                <Label>Datum</Label>
+                <Input
+                  type="date"
+                  value={form.dueDate}
+                  onChange={(e) => setForm({ ...form, dueDate: e.target.value })}
+                />
+              </div>
+              <div className="grid gap-1.5">
+                <Label>Verantwoordelijke</Label>
+                <Select value={form.assignedTo || '__none__'} onValueChange={(v) => setForm({ ...form, assignedTo: v === '__none__' ? '' : v })}>
+                  <SelectTrigger><SelectValue placeholder="Niemand" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">Niemand</SelectItem>
+                    <SelectItem value="Sjors Jochems">Sjors Jochems</SelectItem>
+                    <SelectItem value="Iris Machielse">Iris Machielse</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
           </div>
           <DialogFooter>
