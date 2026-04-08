@@ -373,9 +373,8 @@ export default function Dashboard() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="__all__">Alle gebruikers</SelectItem>
-                {members.map(m => (
-                  <SelectItem key={m.id} value={m.displayName}>{m.displayName}</SelectItem>
-                ))}
+                <SelectItem value="Sjors Jochems">Sjors Jochems</SelectItem>
+                <SelectItem value="Iris Machielse">Iris Machielse</SelectItem>
               </SelectContent>
             </Select>
 
