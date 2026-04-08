@@ -24,8 +24,20 @@ interface BookingDetailDialogProps {
 }
 
 export default function BookingDetailDialog({ booking, open, onOpenChange, onUpdate, onDelete, onCopy, getRoomDisplayName }: BookingDetailDialogProps) {
+  const navigate = useNavigate();
   const [editing, setEditing] = useState(false);
   const [form, setForm] = useState<Booking | null>(null);
+  const { contacts } = useContactsContext();
+  const { companies } = useCompaniesContext();
+
+  const contactOptions = useMemo(() => contacts.map(c => ({
+    id: c.id, firstName: c.firstName, lastName: c.lastName,
+    email: c.email || null, company: c.company || null,
+  })), [contacts]);
+
+  const companyOptions = useMemo(() => companies.map(c => ({
+    id: c.id, name: c.name,
+  })), [companies]);
 
   useEffect(() => {
     if (booking) {
@@ -35,6 +47,9 @@ export default function BookingDetailDialog({ booking, open, onOpenChange, onUpd
   }, [booking]);
 
   if (!booking || !form) return null;
+
+  const linkedContact = booking.contactId ? contacts.find(c => c.id === booking.contactId) : null;
+  const linkedCompany = booking.companyId ? companies.find(c => c.id === booking.companyId) : null;
 
   const handleSave = () => {
     onUpdate(form);
