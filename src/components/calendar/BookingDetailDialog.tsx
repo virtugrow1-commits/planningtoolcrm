@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Booking, ROOMS, RoomName } from '@/types/crm';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
@@ -6,8 +7,11 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { CalendarDays, Clock, User, MapPin, Pencil, Users, Hash, ClipboardList, Package, Copy, UserCheck } from 'lucide-react';
+import { CalendarDays, Clock, User, MapPin, Pencil, Users, ClipboardList, Copy, UserCheck, Building2, ExternalLink } from 'lucide-react';
 import TeamMemberSelect from '@/components/TeamMemberSelect';
+import CrmCombobox from '@/components/CrmCombobox';
+import { useContacts } from '@/hooks/useContacts';
+import { useCompanies } from '@/hooks/useContactCompanies';
 
 interface BookingDetailDialogProps {
   booking: Booking | null;
