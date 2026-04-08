@@ -97,21 +97,22 @@ export default function BookingDetailDialog({ booking, open, onOpenChange, onUpd
               <Label>Contactpersoon</Label>
               <CrmCombobox
                 options={contactOptions.map(c => ({
-                  value: c.id,
+                  id: c.id,
                   label: `${c.firstName} ${c.lastName}`,
-                  sub: c.company || c.email || '',
+                  secondary: c.company || c.email || undefined,
                 }))}
                 value={form.contactId || ''}
-                onValueChange={(v) => {
-                  const contact = contacts.find(c => c.id === v);
+                onSelect={(id) => {
+                  const contact = contacts.find(c => c.id === id);
                   setForm({
                     ...form,
-                    contactId: v || undefined,
+                    contactId: id || undefined,
                     contactName: contact ? `${contact.firstName} ${contact.lastName}` : form.contactName,
                     companyId: contact?.companyId || form.companyId,
                   });
                 }}
                 placeholder="Zoek contactpersoon..."
+                allowClear
               />
             </div>
 
@@ -119,13 +120,13 @@ export default function BookingDetailDialog({ booking, open, onOpenChange, onUpd
               <Label>Bedrijf</Label>
               <CrmCombobox
                 options={companyOptions.map(c => ({
-                  value: c.id,
+                  id: c.id,
                   label: c.name,
-                  sub: '',
                 }))}
                 value={form.companyId || ''}
-                onValueChange={(v) => setForm({ ...form, companyId: v || undefined })}
+                onSelect={(id) => setForm({ ...form, companyId: id || undefined })}
                 placeholder="Zoek bedrijf..."
+                allowClear
               />
             </div>
 
