@@ -1,4 +1,5 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Booking, ROOMS, RoomName } from '@/types/crm';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
@@ -6,8 +7,11 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { CalendarDays, Clock, User, MapPin, Pencil, Users, Hash, ClipboardList, Package, Copy, UserCheck } from 'lucide-react';
+import { CalendarDays, Clock, User, MapPin, Pencil, Users, ClipboardList, Copy, UserCheck, Building2, ExternalLink } from 'lucide-react';
 import TeamMemberSelect from '@/components/TeamMemberSelect';
+import CrmCombobox from '@/components/CrmCombobox';
+import { useContactsContext } from '@/contexts/ContactsContext';
+import { useCompaniesContext } from '@/contexts/CompaniesContext';
 
 interface BookingDetailDialogProps {
   booking: Booking | null;
@@ -20,8 +24,20 @@ interface BookingDetailDialogProps {
 }
 
 export default function BookingDetailDialog({ booking, open, onOpenChange, onUpdate, onDelete, onCopy, getRoomDisplayName }: BookingDetailDialogProps) {
+  const navigate = useNavigate();
   const [editing, setEditing] = useState(false);
   const [form, setForm] = useState<Booking | null>(null);
+  const { contacts } = useContactsContext();
+  const { companies } = useCompaniesContext();
+
+  const contactOptions = useMemo(() => contacts.map(c => ({
+    id: c.id, firstName: c.firstName, lastName: c.lastName,
+    email: c.email || null, company: c.company || null,
+  })), [contacts]);
+
+  const companyOptions = useMemo(() => companies.map(c => ({
+    id: c.id, name: c.name,
+  })), [companies]);
 
   useEffect(() => {
     if (booking) {
@@ -31,6 +47,9 @@ export default function BookingDetailDialog({ booking, open, onOpenChange, onUpd
   }, [booking]);
 
   if (!booking || !form) return null;
+
+  const linkedContact = booking.contactId ? contacts.find(c => c.id === booking.contactId) : null;
+  const linkedCompany = booking.companyId ? companies.find(c => c.id === booking.companyId) : null;
 
   const handleSave = () => {
     onUpdate(form);
@@ -76,7 +95,39 @@ export default function BookingDetailDialog({ booking, open, onOpenChange, onUpd
             </div>
             <div className="grid gap-1.5">
               <Label>Contactpersoon</Label>
-              <Input value={form.contactName} onChange={(e) => setForm({ ...form, contactName: e.target.value })} />
+              <CrmCombobox
+                options={contactOptions.map(c => ({
+                  id: c.id,
+                  label: `${c.firstName} ${c.lastName}`,
+                  secondary: c.company || c.email || undefined,
+                }))}
+                value={form.contactId || ''}
+                onSelect={(id) => {
+                  const contact = contacts.find(c => c.id === id);
+                  setForm({
+                    ...form,
+                    contactId: id || undefined,
+                    contactName: contact ? `${contact.firstName} ${contact.lastName}` : form.contactName,
+                    companyId: contact?.companyId || form.companyId,
+                  });
+                }}
+                placeholder="Zoek contactpersoon..."
+                allowClear
+              />
+            </div>
+
+            <div className="grid gap-1.5">
+              <Label>Bedrijf</Label>
+              <CrmCombobox
+                options={companyOptions.map(c => ({
+                  id: c.id,
+                  label: c.name,
+                }))}
+                value={form.companyId || ''}
+                onSelect={(id) => setForm({ ...form, companyId: id || undefined })}
+                placeholder="Zoek bedrijf..."
+                allowClear
+              />
             </div>
 
             {/* Room selection */}
@@ -221,7 +272,31 @@ export default function BookingDetailDialog({ booking, open, onOpenChange, onUpd
               </div>
               <div className="flex items-center gap-2 text-sm">
                 <User size={14} className="text-muted-foreground" />
-                <span>{booking.contactName}</span>
+                {linkedContact ? (
+                  <button
+                    onClick={() => { onOpenChange(false); navigate(`/contacts/${linkedContact.id}`); }}
+                    className="font-medium text-primary hover:underline flex items-center gap-1"
+                  >
+                    {linkedContact.firstName} {linkedContact.lastName}
+                    <ExternalLink size={12} />
+                  </button>
+                ) : (
+                  <span>{booking.contactName}</span>
+                )}
+              </div>
+              <div className="flex items-center gap-2 text-sm">
+                <Building2 size={14} className="text-muted-foreground" />
+                {linkedCompany ? (
+                  <button
+                    onClick={() => { onOpenChange(false); navigate(`/companies/${linkedCompany.id}`); }}
+                    className="font-medium text-primary hover:underline flex items-center gap-1"
+                  >
+                    {linkedCompany.name}
+                    <ExternalLink size={12} />
+                  </button>
+                ) : (
+                  <span className="text-muted-foreground italic">Geen bedrijf gekoppeld</span>
+                )}
               </div>
               {(booking.guestCount ?? 0) > 0 && (
                 <div className="flex items-center gap-2 text-sm">
