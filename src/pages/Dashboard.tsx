@@ -59,6 +59,7 @@ export default function Dashboard() {
     dueDate: '',
     companyId: '',
     contactId: '',
+    assignedTo: '',
   });
   const [filter, setFilter] = useState<'all' | 'open' | 'in_progress' | 'completed'>('all');
   const [kpiDialog, setKpiDialog] = useState<{ open: boolean; type: 'tasks' | 'inquiries' | 'bookings' }>({ open: false, type: 'tasks' });
@@ -183,7 +184,7 @@ export default function Dashboard() {
   };
 
   const resetForm = () => {
-    setForm({ title: '', description: '', status: 'open', priority: 'normal', dueDate: '', companyId: '', contactId: '' });
+    setForm({ title: '', description: '', status: 'open', priority: 'normal', dueDate: '', companyId: '', contactId: '', assignedTo: '' });
   };
 
   const openNew = () => {
@@ -222,6 +223,7 @@ export default function Dashboard() {
         dueDate: form.dueDate || undefined,
         companyId: form.companyId || undefined,
         contactId: form.contactId || undefined,
+        assignedTo: form.assignedTo || undefined,
       });
       toast({ title: 'Taak aangemaakt' });
     }
@@ -663,13 +665,26 @@ export default function Dashboard() {
                 />
               </div>
             </div>
-            <div className="grid gap-1.5">
-              <Label>Datum</Label>
-              <Input
-                type="date"
-                value={form.dueDate}
-                onChange={(e) => setForm({ ...form, dueDate: e.target.value })}
-              />
+            <div className="grid grid-cols-2 gap-3">
+              <div className="grid gap-1.5">
+                <Label>Datum</Label>
+                <Input
+                  type="date"
+                  value={form.dueDate}
+                  onChange={(e) => setForm({ ...form, dueDate: e.target.value })}
+                />
+              </div>
+              <div className="grid gap-1.5">
+                <Label>Verantwoordelijke</Label>
+                <Select value={form.assignedTo || '__none__'} onValueChange={(v) => setForm({ ...form, assignedTo: v === '__none__' ? '' : v })}>
+                  <SelectTrigger><SelectValue placeholder="Niemand" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">Niemand</SelectItem>
+                    <SelectItem value="Sjors Jochems">Sjors Jochems</SelectItem>
+                    <SelectItem value="Iris Machielse">Iris Machielse</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
           </div>
           <DialogFooter>
