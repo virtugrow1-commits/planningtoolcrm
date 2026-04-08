@@ -59,6 +59,7 @@ export default function Dashboard() {
     dueDate: '',
     companyId: '',
     contactId: '',
+    assignedTo: '',
   });
   const [filter, setFilter] = useState<'all' | 'open' | 'in_progress' | 'completed'>('all');
   const [kpiDialog, setKpiDialog] = useState<{ open: boolean; type: 'tasks' | 'inquiries' | 'bookings' }>({ open: false, type: 'tasks' });
