@@ -272,7 +272,31 @@ export default function BookingDetailDialog({ booking, open, onOpenChange, onUpd
               </div>
               <div className="flex items-center gap-2 text-sm">
                 <User size={14} className="text-muted-foreground" />
-                <span>{booking.contactName}</span>
+                {linkedContact ? (
+                  <button
+                    onClick={() => { onOpenChange(false); navigate(`/contacts/${linkedContact.id}`); }}
+                    className="font-medium text-primary hover:underline flex items-center gap-1"
+                  >
+                    {linkedContact.firstName} {linkedContact.lastName}
+                    <ExternalLink size={12} />
+                  </button>
+                ) : (
+                  <span>{booking.contactName}</span>
+                )}
+              </div>
+              <div className="flex items-center gap-2 text-sm">
+                <Building2 size={14} className="text-muted-foreground" />
+                {linkedCompany ? (
+                  <button
+                    onClick={() => { onOpenChange(false); navigate(`/companies/${linkedCompany.id}`); }}
+                    className="font-medium text-primary hover:underline flex items-center gap-1"
+                  >
+                    {linkedCompany.name}
+                    <ExternalLink size={12} />
+                  </button>
+                ) : (
+                  <span className="text-muted-foreground italic">Geen bedrijf gekoppeld</span>
+                )}
               </div>
               {(booking.guestCount ?? 0) > 0 && (
                 <div className="flex items-center gap-2 text-sm">
