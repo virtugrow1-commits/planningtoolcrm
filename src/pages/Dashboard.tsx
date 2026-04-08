@@ -19,19 +19,25 @@ import { useInquiriesContext } from '@/contexts/InquiriesContext';
 import { useTasksContext } from '@/contexts/TasksContext';
 import { useContactsContext } from '@/contexts/ContactsContext';
 import { useCompaniesContext } from '@/contexts/CompaniesContext';
+import { useAuth } from '@/contexts/AuthContext';
+import { useTeamMembers } from '@/hooks/useTeamMembers';
 import { useMemo, useState, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Calendar } from '@/components/ui/calendar';
 import CrmCombobox, { ComboboxOption } from '@/components/CrmCombobox';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { Task, TASK_STATUSES, TASK_PRIORITIES } from '@/types/task';
 import { cn } from '@/lib/utils';
+import { format } from 'date-fns';
+import { nl } from 'date-fns/locale';
 
 export default function Dashboard() {
   const { bookings, loading: bookingsLoading } = useBookings();
@@ -39,6 +45,8 @@ export default function Dashboard() {
   const { contacts } = useContactsContext();
   const { companies } = useCompaniesContext();
   const { tasks, loading: tasksLoading, addTask, updateTask, deleteTask, deleteTasks } = useTasksContext();
+  const { user } = useAuth();
+  const { members } = useTeamMembers();
   
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [newOpen, setNewOpen] = useState(false);
@@ -54,6 +62,25 @@ export default function Dashboard() {
   });
   const [filter, setFilter] = useState<'all' | 'open' | 'in_progress' | 'completed'>('all');
   const [kpiDialog, setKpiDialog] = useState<{ open: boolean; type: 'tasks' | 'inquiries' | 'bookings' }>({ open: false, type: 'tasks' });
+
+  // User filter — default to current user's display name
+  const currentUserName = useMemo(() => {
+    if (!user) return '';
+    const profile = members.find(m => m.id === user.id);
+    return profile?.displayName || '';
+  }, [user, members]);
+
+  const [userFilter, setUserFilter] = useState<string>('__current__');
+
+  // Resolve the actual filter value (lazy init for current user)
+  const resolvedUserFilter = useMemo(() => {
+    if (userFilter === '__current__') return currentUserName;
+    return userFilter;
+  }, [userFilter, currentUserName]);
+
+  // Bulk date change
+  const [bulkDate, setBulkDate] = useState<Date | undefined>();
+  const [bulkDateOpen, setBulkDateOpen] = useState(false);
 
   // Combobox options
   const companyOptions = useMemo<ComboboxOption[]>(() =>
@@ -93,25 +120,50 @@ export default function Dashboard() {
   const openInquiries = useMemo(() => inquiries.filter((i) => i.status === 'new' || i.status === 'contacted'), [inquiries]);
 
   const contactMap = useMemo(() => {
+    const m = new Map<string, { name: string; id: string }>();
+    contacts.forEach(c => m.set(c.id, {
+      name: [c.firstName, c.lastName].filter(n => n && n !== '—').join(' '),
+      id: c.id,
+    }));
+    return m;
+  }, [contacts]);
+
+  // Also build a simple name map for backward compat
+  const contactNameMap = useMemo(() => {
     const m = new Map<string, string>();
     contacts.forEach(c => m.set(c.id, [c.firstName, c.lastName].filter(n => n && n !== '—').join(' ')));
     return m;
   }, [contacts]);
 
   const companyMap = useMemo(() => {
-    const m = new Map<string, string>();
-    companies.forEach(c => m.set(c.id, c.name));
+    const m = new Map<string, { name: string; id: string }>();
+    companies.forEach(c => m.set(c.id, { name: c.name, id: c.id }));
     return m;
   }, [companies]);
 
+  // Contact -> company lookup (for tasks that have contactId but no companyId)
+  const contactCompanyMap = useMemo(() => {
+    const m = new Map<string, string>();
+    contacts.forEach(c => {
+      if (c.companyId) m.set(c.id, c.companyId);
+    });
+    return m;
+  }, [contacts]);
+
   const filteredTasks = useMemo(() => {
-    if (filter === 'all') return tasks;
-    return tasks.filter((t) => t.status === filter);
-  }, [tasks, filter]);
+    let result = tasks;
+    // User filter
+    if (resolvedUserFilter && resolvedUserFilter !== '__all__') {
+      result = result.filter(t => t.assignedTo === resolvedUserFilter);
+    }
+    // Status filter
+    if (filter !== 'all') {
+      result = result.filter((t) => t.status === filter);
+    }
+    return result;
+  }, [tasks, filter, resolvedUserFilter]);
 
   const openTaskCount = useMemo(() => tasks.filter((t) => t.status !== 'completed').length, [tasks]);
-
-  // (company/contact filtering is now handled by CrmCombobox)
 
   const toggleSelect = (id: string) => {
     setSelected((prev) => {
@@ -201,6 +253,21 @@ export default function Dashboard() {
     toast({ title: `${ids.length} taken bijgewerkt` });
   };
 
+  const handleBulkDateChange = async () => {
+    if (!bulkDate) return;
+    const dateStr = `${bulkDate.getFullYear()}-${String(bulkDate.getMonth() + 1).padStart(2, '0')}-${String(bulkDate.getDate()).padStart(2, '0')}`;
+    const ids = Array.from(selected);
+    for (const id of ids) {
+      const task = tasks.find(t => t.id === id);
+      if (task) await updateTask({ ...task, dueDate: dateStr });
+    }
+    const count = ids.length;
+    setSelected(new Set());
+    setBulkDate(undefined);
+    setBulkDateOpen(false);
+    toast({ title: `${count} taken verplaatst naar ${format(bulkDate, 'd MMM yyyy', { locale: nl })}` });
+  };
+
   const handleStatusChange = async (task: Task, newStatus: Task['status']) => {
     await updateTask({ ...task, status: newStatus });
     if (newStatus === 'completed') {
@@ -288,30 +355,29 @@ export default function Dashboard() {
 
       {/* Taken */}
       <div className="rounded-xl bg-card card-shadow animate-fade-in-up overflow-hidden">
-        <div className="flex items-center justify-between border-b px-5 py-3">
+        <div className="flex items-center justify-between border-b px-5 py-3 flex-wrap gap-2">
           <h2 className="text-sm font-semibold text-card-foreground flex items-center gap-2">
             <CheckSquare size={16} /> Taken
-            <span className="rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">{tasks.length}</span>
+            <span className="rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">{filteredTasks.length}</span>
           </h2>
-          <div className="flex items-center gap-2">
-            {selected.size > 0 && (
-              <>
-                <span className="text-xs text-muted-foreground">{selected.size} geselecteerd</span>
-                <Select onValueChange={(v) => handleBulkStatus(v as Task['status'])}>
-                  <SelectTrigger className="h-8 w-36 text-xs">
-                    <SelectValue placeholder="Status wijzigen" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {TASK_STATUSES.map((s) => (
-                      <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <Button variant="destructive" size="sm" className="h-8" onClick={handleBulkDelete}>
-                  <Trash2 size={14} className="mr-1" /> Verwijderen
-                </Button>
-              </>
-            )}
+          <div className="flex items-center gap-2 flex-wrap">
+            {/* User filter */}
+            <Select
+              value={userFilter === '__current__' ? '__current__' : (resolvedUserFilter === '__all__' ? '__all__' : resolvedUserFilter)}
+              onValueChange={(v) => setUserFilter(v)}
+            >
+              <SelectTrigger className="h-8 w-40 text-xs">
+                <SelectValue placeholder="Gebruiker" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__all__">Alle gebruikers</SelectItem>
+                {members.map(m => (
+                  <SelectItem key={m.id} value={m.displayName}>{m.displayName}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            {/* Status filter */}
             <Select value={filter} onValueChange={(v) => setFilter(v as any)}>
               <SelectTrigger className="h-8 w-32 text-xs">
                 <SelectValue />
@@ -328,6 +394,56 @@ export default function Dashboard() {
             </Button>
           </div>
         </div>
+
+        {/* Bulk action bar */}
+        {selected.size > 0 && (
+          <div className="flex items-center gap-3 px-5 py-2.5 bg-primary/5 border-b flex-wrap">
+            <span className="text-xs font-medium text-foreground">{selected.size} geselecteerd</span>
+            <div className="flex items-center gap-2 ml-auto flex-wrap">
+              {/* Bulk status change */}
+              <Select onValueChange={(v) => handleBulkStatus(v as Task['status'])}>
+                <SelectTrigger className="h-8 w-36 text-xs">
+                  <SelectValue placeholder="Status wijzigen" />
+                </SelectTrigger>
+                <SelectContent>
+                  {TASK_STATUSES.map((s) => (
+                    <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              {/* Bulk date change */}
+              <Popover open={bulkDateOpen} onOpenChange={setBulkDateOpen}>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" size="sm" className={cn('h-8 text-xs gap-1.5', !bulkDate && 'text-muted-foreground')}>
+                    <CalendarIcon size={12} />
+                    {bulkDate ? format(bulkDate, 'd MMM yyyy', { locale: nl }) : 'Verplaats naar datum'}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <Calendar
+                    mode="single"
+                    selected={bulkDate}
+                    onSelect={setBulkDate}
+                    initialFocus
+                    className="p-3 pointer-events-auto"
+                  />
+                  {bulkDate && (
+                    <div className="px-3 pb-3">
+                      <Button size="sm" className="w-full text-xs" onClick={handleBulkDateChange}>
+                        Toepassen op {selected.size} {selected.size === 1 ? 'taak' : 'taken'}
+                      </Button>
+                    </div>
+                  )}
+                </PopoverContent>
+              </Popover>
+
+              <Button variant="destructive" size="sm" className="h-8" onClick={handleBulkDelete}>
+                <Trash2 size={14} className="mr-1" /> Verwijderen
+              </Button>
+            </div>
+          </div>
+        )}
 
         {filteredTasks.length === 0 ? (
           <div className="p-8 text-center">
@@ -348,6 +464,10 @@ export default function Dashboard() {
 
             {filteredTasks.map((task) => {
               const statusInfo = TASK_STATUSES.find((s) => s.value === task.status);
+              const contact = task.contactId ? contactMap.get(task.contactId) : null;
+              const effectiveCompanyId = task.companyId || (task.contactId ? contactCompanyMap.get(task.contactId) : undefined);
+              const company = effectiveCompanyId ? companyMap.get(effectiveCompanyId) : null;
+
               return (
                 <div key={task.id} className="flex items-center gap-3 px-5 py-3 hover:bg-muted/20 transition-colors group">
                   <Checkbox
@@ -355,20 +475,39 @@ export default function Dashboard() {
                     onCheckedChange={() => toggleSelect(task.id)}
                   />
                   {priorityIcon(task.priority)}
-                  <div className="flex-1 min-w-0 cursor-pointer" onClick={() => openEdit(task)}>
-                    <p className={`text-sm font-medium truncate ${task.status === 'completed' ? 'line-through text-muted-foreground' : 'text-card-foreground'}`}>
-                      {task.title}
-                    </p>
+                  <div className="flex-1 min-w-0">
+                    <div className="cursor-pointer" onClick={() => openEdit(task)}>
+                      <p className={`text-sm font-medium truncate ${task.status === 'completed' ? 'line-through text-muted-foreground' : 'text-card-foreground'}`}>
+                        {task.title}
+                      </p>
+                    </div>
                     <div className="flex items-center gap-2 text-xs text-muted-foreground flex-wrap">
-                      {task.contactId && contactMap.get(task.contactId) && (
-                        <span className="truncate max-w-[160px]">👤 {contactMap.get(task.contactId)}</span>
+                      {contact && (
+                        <Link
+                          to={`/crm/${contact.id}`}
+                          className="truncate max-w-[160px] hover:text-primary hover:underline transition-colors"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          👤 {contact.name}
+                        </Link>
                       )}
-                      {task.companyId && companyMap.get(task.companyId) && (
-                        <span className="truncate max-w-[160px]">🏢 {companyMap.get(task.companyId)}</span>
+                      {company && (
+                        <Link
+                          to={`/companies/${company.id}`}
+                          className="truncate max-w-[160px] hover:text-primary hover:underline transition-colors"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          🏢 {company.name}
+                        </Link>
                       )}
                       {task.dueDate && (
                         <span className={task.dueDate < today ? 'text-destructive font-medium' : ''}>
                           📅 {task.dueDate}
+                        </span>
+                      )}
+                      {task.assignedTo && (
+                        <span className="truncate max-w-[120px]">
+                          👤 {task.assignedTo}
                         </span>
                       )}
                     </div>
