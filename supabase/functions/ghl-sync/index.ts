@@ -683,7 +683,7 @@ Deno.serve(async (req) => {
     if (action === 'push-task') {
       const { task } = body;
       if (!task) {
-        return new Response(JSON.stringify({ error: 'Task data required' }), { status: 400, headers: corsHeaders });
+        return new Response(JSON.stringify({ ok: false, error: 'Task data required' }), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
       }
 
       console.log(`[Push Task] Pushing single task: ${task.title} (${task.id})`);
@@ -699,19 +699,24 @@ Deno.serve(async (req) => {
         ghlContactId = contact?.ghl_contact_id;
       }
 
+      // GHL Tasks API requires a contactId — skip if none available
+      if (!ghlContactId) {
+        console.log(`[Push Task] No GHL contact linked for task ${task.id}, skipping GHL sync`);
+        await logSyncOperation(supabase, authUser.id, 'push-task', 'task', { taskId: task.id, note: 'no_ghl_contact' });
+        return new Response(JSON.stringify({ ok: true, skipped: true, reason: 'no_ghl_contact' }), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      }
+
       const ghlPayload: Record<string, any> = {
         title: task.title || 'Taak',
         body: task.description || '',
-        locationId: GHL_LOCATION_ID,
       };
-      if (ghlContactId) ghlPayload.contactId = ghlContactId;
       if (task.due_date) ghlPayload.dueDate = task.due_date;
       if (task.status === 'completed') ghlPayload.completed = true;
 
       try {
         if (task.ghl_task_id) {
           // Update existing GHL task
-          const res = await ghlFetch(`${GHL_API_BASE}/tasks/${task.ghl_task_id}`, {
+          const res = await ghlFetch(`${GHL_API_BASE}/contacts/${ghlContactId}/tasks/${task.ghl_task_id}`, {
             method: 'PUT',
             headers: ghlHeaders,
             body: JSON.stringify(ghlPayload),
@@ -722,11 +727,11 @@ Deno.serve(async (req) => {
             const errText = await res.text();
             console.error(`Failed to update GHL task: [${res.status}] ${errText}`);
             await logSyncOperation(supabase, authUser.id, 'push-task', 'task', { error: errText, taskId: task.id }, 'error');
-            return new Response(JSON.stringify({ error: errText }), { status: res.status, headers: corsHeaders });
+            return new Response(JSON.stringify({ ok: false, error: `GHL update failed: ${errText}` }), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
           }
         } else {
-          // Create new GHL task
-          const res = await ghlFetch(`${GHL_API_BASE}/tasks/`, {
+          // Create new GHL task under the contact
+          const res = await ghlFetch(`${GHL_API_BASE}/contacts/${ghlContactId}/tasks`, {
             method: 'POST',
             headers: ghlHeaders,
             body: JSON.stringify(ghlPayload),
@@ -744,16 +749,16 @@ Deno.serve(async (req) => {
             const errText = await res.text();
             console.error(`Failed to create GHL task: [${res.status}] ${errText}`);
             await logSyncOperation(supabase, authUser.id, 'push-task', 'task', { error: errText, taskId: task.id }, 'error');
-            return new Response(JSON.stringify({ error: errText }), { status: res.status, headers: corsHeaders });
+            return new Response(JSON.stringify({ ok: false, error: `GHL create failed: ${errText}` }), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
           }
         }
 
         await logSyncOperation(supabase, authUser.id, 'push-task', 'task', { taskId: task.id, ghlId: task.ghl_task_id });
-        return new Response(JSON.stringify({ success: true }), { headers: corsHeaders });
+        return new Response(JSON.stringify({ ok: true, success: true }), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
       } catch (err) {
         console.error('Error pushing task:', err);
         await logSyncOperation(supabase, authUser.id, 'push-task', 'task', { error: String(err), taskId: task.id }, 'error');
-        return new Response(JSON.stringify({ error: String(err) }), { status: 500, headers: corsHeaders });
+        return new Response(JSON.stringify({ ok: false, error: String(err) }), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
       }
     }
 
