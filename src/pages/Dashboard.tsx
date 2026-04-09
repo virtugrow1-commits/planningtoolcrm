@@ -161,6 +161,13 @@ export default function Dashboard() {
     if (filter !== 'all') {
       result = result.filter((t) => t.status === filter);
     }
+    // Sort by due date ascending (oldest first), tasks without date at the end
+    result = [...result].sort((a, b) => {
+      if (!a.dueDate && !b.dueDate) return 0;
+      if (!a.dueDate) return 1;
+      if (!b.dueDate) return -1;
+      return a.dueDate.localeCompare(b.dueDate);
+    });
     return result;
   }, [tasks, filter, resolvedUserFilter]);
 
