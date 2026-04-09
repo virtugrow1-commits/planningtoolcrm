@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Send, Copy, FileText, Save, Pencil, Check, AlertTriangle } from 'lucide-react';
+import { ArrowLeft, Send, Copy, FileText, Save, Pencil, Check, AlertTriangle, Eye } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -14,6 +14,7 @@ import ClientInfoCard from '@/components/quotation/ClientInfoCard';
 import DeleteConfirmDialog from '@/components/quotation/DeleteConfirmDialog';
 import DocumentMetadata, { formatDate } from '@/components/quotation/DocumentMetadata';
 import DocumentViewer from '@/components/quotation/DocumentViewer';
+import QuotePreviewDialog from '@/components/quotation/QuotePreviewDialog';
 import type { Quote, LineItem } from '@/types/quotation';
 import { calcFinancials } from '@/types/quotation';
 import { useToast } from '@/hooks/use-toast';
@@ -256,6 +257,8 @@ export default function QuoteDetailPage() {
               {linkCopied ? 'Gekopieerd!' : 'Kopieer link'}
             </Button>
           )}
+
+          <QuotePreviewDialog quote={quote} contentBlocks={contentBlocks} />
 
           <Button variant="outline" size="sm" onClick={handleDuplicate} className="gap-1.5">
             <Copy size={14} /> Dupliceer
