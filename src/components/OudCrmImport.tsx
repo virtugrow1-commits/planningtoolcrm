@@ -426,8 +426,7 @@ export default function OudCrmImport() {
           const contactId = contactLookup[contactName?.toLowerCase()?.trim() || ''] || null;
           const statusVal = (findCol(row, 'Status', 'status') || 'open').toLowerCase().trim();
           const isCompleted = ['voltooid', 'completed', 'done', 'afgerond'].includes(statusVal);
-          const isInProgress = ['in_progress', 'bezig', 'lopend', 'in behandeling'].includes(statusVal);
-          const mappedStatus = isCompleted ? 'completed' : isInProgress ? 'in_progress' : 'open';
+          const mappedStatus = isCompleted ? 'completed' : 'open';
 
           const priorityVal = (findCol(row, 'Prioriteit', 'prioriteit', 'priority') || 'normal').toLowerCase().trim();
           const mappedPriority = ['low', 'normal', 'high', 'urgent'].includes(priorityVal) ? priorityVal : 'normal';

@@ -61,7 +61,7 @@ export default function Dashboard() {
     contactId: '',
     assignedTo: '',
   });
-  const [filter, setFilter] = useState<'all' | 'open' | 'in_progress' | 'completed'>('all');
+  const [filter, setFilter] = useState<'all' | 'open' | 'completed'>('all');
   const [kpiDialog, setKpiDialog] = useState<{ open: boolean; type: 'tasks' | 'inquiries' | 'bookings' }>({ open: false, type: 'tasks' });
 
   // User filter — default to current user's display name
@@ -343,7 +343,7 @@ export default function Dashboard() {
           title="Openstaande Taken"
           value={String(openTaskCount)}
           icon={<CheckSquare size={20} />}
-          subtitle={`${tasks.filter((t) => t.status === 'open').length} open · ${tasks.filter((t) => t.status === 'in_progress').length} in behandeling`}
+          subtitle={`${tasks.filter((t) => t.status === 'open').length} open · ${tasks.filter((t) => t.status === 'completed').length} afgerond`}
           onClick={() => setKpiDialog({ open: true, type: 'tasks' })}
         />
         <KpiCard

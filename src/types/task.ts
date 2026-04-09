@@ -17,7 +17,6 @@ export interface Task {
 
 export const TASK_STATUSES = [
   { value: 'open', label: 'Open', color: 'bg-info/15 text-info' },
-  { value: 'in_progress', label: 'In Behandeling', color: 'bg-warning/15 text-warning' },
   { value: 'completed', label: 'Afgerond', color: 'bg-success/15 text-success' },
 ] as const;
 
