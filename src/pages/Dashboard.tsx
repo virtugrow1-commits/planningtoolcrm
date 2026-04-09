@@ -62,6 +62,7 @@ export default function Dashboard() {
     assignedTo: '',
   });
   const [filter, setFilter] = useState<'all' | 'open' | 'completed'>('all');
+  const [visibleCount, setVisibleCount] = useState(10);
   const [kpiDialog, setKpiDialog] = useState<{ open: boolean; type: 'tasks' | 'inquiries' | 'bookings' }>({ open: false, type: 'tasks' });
 
   // User filter — default to current user's display name
@@ -153,12 +154,16 @@ export default function Dashboard() {
 
   const filteredTasks = useMemo(() => {
     let result = tasks;
+    // Hide completed tasks unless explicitly filtered
+    if (filter !== 'completed') {
+      result = result.filter(t => t.status !== 'completed');
+    }
     // User filter
     if (resolvedUserFilter && resolvedUserFilter !== '__all__') {
       result = result.filter(t => t.assignedTo === resolvedUserFilter);
     }
-    // Status filter
-    if (filter !== 'all') {
+    // Status filter (only relevant when filter is a specific non-all status)
+    if (filter !== 'all' && filter !== 'completed') {
       result = result.filter((t) => t.status === filter);
     }
     // Sort by due date ascending (oldest first), tasks without date at the end
@@ -470,7 +475,7 @@ export default function Dashboard() {
               <span className="text-xs text-muted-foreground">Alles selecteren</span>
             </div>
 
-            {filteredTasks.map((task) => {
+            {filteredTasks.slice(0, visibleCount).map((task) => {
               const statusInfo = TASK_STATUSES.find((s) => s.value === task.status);
               const contact = task.contactId ? contactMap.get(task.contactId) : null;
               const effectiveCompanyId = task.companyId || (task.contactId ? contactCompanyMap.get(task.contactId) : undefined);
@@ -547,6 +552,13 @@ export default function Dashboard() {
                 </div>
               );
             })}
+            {filteredTasks.length > visibleCount && (
+              <div className="px-5 py-3 text-center">
+                <Button variant="outline" size="sm" className="text-xs" onClick={() => setVisibleCount(prev => prev + 10)}>
+                  Laat meer taken zien ({filteredTasks.length - visibleCount} resterend)
+                </Button>
+              </div>
+            )}
           </div>
         )}
       </div>
