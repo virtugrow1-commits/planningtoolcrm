@@ -2,7 +2,7 @@ export interface Task {
   id: string;
   title: string;
   description?: string;
-  status: 'open' | 'in_progress' | 'completed';
+  status: 'open' | 'completed';
   priority: 'low' | 'normal' | 'high' | 'urgent';
   dueDate?: string;
   assignedTo?: string;
@@ -17,7 +17,6 @@ export interface Task {
 
 export const TASK_STATUSES = [
   { value: 'open', label: 'Open', color: 'bg-info/15 text-info' },
-  { value: 'in_progress', label: 'In Behandeling', color: 'bg-warning/15 text-warning' },
   { value: 'completed', label: 'Afgerond', color: 'bg-success/15 text-success' },
 ] as const;
 
