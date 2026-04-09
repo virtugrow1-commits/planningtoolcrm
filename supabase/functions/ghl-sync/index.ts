@@ -851,13 +851,29 @@ Deno.serve(async (req) => {
     if (action === 'delete-task') {
       const { ghl_task_id, contact_id } = body;
       if (!ghl_task_id) {
-        return new Response(JSON.stringify({ error: 'ghl_task_id required' }), { status: 400, headers: corsHeaders });
+        return new Response(JSON.stringify({ ok: false, error: 'ghl_task_id required' }), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
       }
 
-      console.log(`[Delete Task] Deleting GHL task: ${ghl_task_id}`);
+      // Resolve GHL contact ID for the contact-scoped endpoint
+      let ghlContactId: string | null = null;
+      if (contact_id) {
+        const { data: contact } = await supabase
+          .from('contacts')
+          .select('ghl_contact_id')
+          .eq('id', contact_id)
+          .single();
+        ghlContactId = contact?.ghl_contact_id;
+      }
+
+      if (!ghlContactId) {
+        console.log(`[Delete Task] No GHL contact for task deletion, skipping`);
+        return new Response(JSON.stringify({ ok: true, skipped: true }), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      }
+
+      console.log(`[Delete Task] Deleting GHL task: ${ghl_task_id} under contact ${ghlContactId}`);
 
       try {
-        const res = await ghlFetch(`${GHL_API_BASE}/tasks/${ghl_task_id}`, {
+        const res = await ghlFetch(`${GHL_API_BASE}/contacts/${ghlContactId}/tasks/${ghl_task_id}`, {
           method: 'DELETE',
           headers: ghlHeaders,
         });
@@ -869,14 +885,13 @@ Deno.serve(async (req) => {
           const errText = await res.text();
           console.error(`Failed to delete GHL task: [${res.status}] ${errText}`);
           await logSyncOperation(supabase, authUser.id, 'delete-task', 'task', { error: errText, ghlTaskId: ghl_task_id }, 'error');
-          return new Response(JSON.stringify({ error: errText }), { status: res.status, headers: corsHeaders });
         }
 
-        return new Response(JSON.stringify({ success: true }), { headers: corsHeaders });
+        return new Response(JSON.stringify({ ok: true, success: true }), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
       } catch (err) {
         console.error('Error deleting task:', err);
         await logSyncOperation(supabase, authUser.id, 'delete-task', 'task', { error: String(err), ghlTaskId: ghl_task_id }, 'error');
-        return new Response(JSON.stringify({ error: String(err) }), { status: 500, headers: corsHeaders });
+        return new Response(JSON.stringify({ ok: false, error: String(err) }), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
       }
     }
 
