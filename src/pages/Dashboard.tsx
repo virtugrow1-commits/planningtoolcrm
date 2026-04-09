@@ -154,6 +154,8 @@ export default function Dashboard() {
 
   const filteredTasks = useMemo(() => {
     let result = tasks;
+    // Only show tasks linked to a contact
+    result = result.filter(t => !!t.contactId);
     // Hide completed tasks unless explicitly filtered
     if (filter !== 'completed') {
       result = result.filter(t => t.status !== 'completed');
