@@ -16,6 +16,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import QuoteStatusBadge from '@/components/quotation/QuoteStatusBadge';
+import { useLanguage } from '@/contexts/LanguageContext';
 import type { UnifiedDocument } from '@/hooks/useUnifiedDocuments';
 
 const sourceIcons: Record<string, typeof FileText> = {
@@ -35,11 +36,12 @@ interface Props {
 export default function UnifiedDocumentTable({
   documents,
   loading,
-  emptyMessage = 'Geen documenten gevonden',
+  emptyMessage,
   onDeleteQuote,
   onDeleteInvoice,
 }: Props) {
   const navigate = useNavigate();
+  const { t } = useLanguage();
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -85,13 +87,14 @@ export default function UnifiedDocumentTable({
   };
 
   const showCheckboxes = !!(onDeleteQuote || onDeleteInvoice);
+  const plural = deletableSelected.length !== 1 ? 'en' : '';
 
   return (
     <>
       {canDelete && (
         <div className="flex items-center gap-3 mb-3 p-3 bg-muted/50 rounded-lg border">
           <span className="text-sm text-muted-foreground">
-            {deletableSelected.length} document{deletableSelected.length !== 1 ? 'en' : ''} geselecteerd
+            {deletableSelected.length} document{plural} {t('documents.selected')}
           </span>
           <Button
             variant="destructive"
@@ -99,10 +102,10 @@ export default function UnifiedDocumentTable({
             className="gap-1.5"
             onClick={() => setConfirmOpen(true)}
           >
-            <Trash2 size={14} /> Verwijderen
+            <Trash2 size={14} /> {t('documents.delete')}
           </Button>
           <Button variant="ghost" size="sm" onClick={() => setSelected(new Set())}>
-            Deselecteren
+            {t('documents.deselect')}
           </Button>
         </div>
       )}
@@ -119,29 +122,29 @@ export default function UnifiedDocumentTable({
                   />
                 </TableHead>
               )}
-              <TableHead className="w-28">Nummer</TableHead>
-              <TableHead>Document</TableHead>
-              <TableHead className="hidden md:table-cell">Type</TableHead>
-              <TableHead>Klant</TableHead>
-              <TableHead className="text-right">Bedrag</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead className="hidden lg:table-cell">Verzonden</TableHead>
-              <TableHead className="hidden lg:table-cell">Bekeken</TableHead>
-              <TableHead className="hidden lg:table-cell">Ondertekend</TableHead>
-              <TableHead className="w-10 text-center">Link</TableHead>
+              <TableHead className="w-28">{t('documents.number')}</TableHead>
+              <TableHead>{t('documents.document')}</TableHead>
+              <TableHead className="hidden md:table-cell">{t('documents.type')}</TableHead>
+              <TableHead>{t('documents.client')}</TableHead>
+              <TableHead className="text-right">{t('documents.amount')}</TableHead>
+              <TableHead>{t('documents.status')}</TableHead>
+              <TableHead className="hidden lg:table-cell">{t('documents.sent')}</TableHead>
+              <TableHead className="hidden lg:table-cell">{t('documents.viewed')}</TableHead>
+              <TableHead className="hidden lg:table-cell">{t('documents.signed')}</TableHead>
+              <TableHead className="w-10 text-center">{t('documents.link')}</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {loading ? (
               <TableRow>
                 <TableCell colSpan={showCheckboxes ? 12 : 11} className="text-center py-8 text-muted-foreground">
-                  Laden...
+                  {t('documents.loading')}
                 </TableCell>
               </TableRow>
             ) : documents.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={showCheckboxes ? 12 : 11} className="text-center py-8 text-muted-foreground">
-                  {emptyMessage}
+                  {emptyMessage || t('documents.noDocuments')}
                 </TableCell>
               </TableRow>
             ) : (
@@ -236,21 +239,21 @@ export default function UnifiedDocumentTable({
       <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Documenten verwijderen?</AlertDialogTitle>
+            <AlertDialogTitle>{t('documents.deleteConfirmTitle')}</AlertDialogTitle>
             <AlertDialogDescription>
-              Weet je zeker dat je {deletableSelected.length} document
-              {deletableSelected.length !== 1 ? 'en' : ''} wilt verwijderen? Dit kan niet ongedaan
-              worden gemaakt.
+              {t('documents.deleteConfirmDesc')
+                .replace('{count}', String(deletableSelected.length))
+                .replace('{plural}', plural)}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={deleting}>Annuleren</AlertDialogCancel>
+            <AlertDialogCancel disabled={deleting}>{t('documents.cancel')}</AlertDialogCancel>
             <AlertDialogAction
               onClick={handleDelete}
               disabled={deleting}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
-              {deleting ? 'Bezig...' : 'Verwijderen'}
+              {deleting ? t('documents.deleting') : t('documents.delete')}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
