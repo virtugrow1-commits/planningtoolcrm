@@ -203,7 +203,7 @@ const translations: Record<string, Record<Language, string>> = {
   'status.lost': { nl: 'Vervallen / Verloren', en: 'Expired / Lost' },
   'status.converted': { nl: 'Afgehandeld', en: 'Completed' },
   'status.after_sales': { nl: 'After Sales', en: 'After Sales' },
-  'status.condolence_reminder': { nl: 'Condoleance Herinnering', en: 'Condolence Reminder' },
+  'status.condolence_reminder': { nl: 'Condoleance Herdenkingen', en: 'Condolence Commemorations' },
 
   // Inquiries page
   'inquiries.title': { nl: 'Aanvragen', en: 'Inquiries' },
