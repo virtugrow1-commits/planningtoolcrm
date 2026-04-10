@@ -370,24 +370,32 @@ Deno.serve(async (req) => {
         // Check if booking exists across all organization users
         const { data: existing } = await supabase
           .from('bookings')
-          .select('id, room_name, user_id')
+          .select('id, room_name, user_id, updated_at')
           .in('user_id', orgUserIds)
           .eq('ghl_event_id', evt.id)
           .maybeSingle();
 
         if (existing) {
-          // Update existing but keep the room assignment (user may have moved it)
-          await supabase.from('bookings').update({
-            date: dateStr,
-            start_hour: startHour,
-            start_minute: startMinute,
-            end_hour: endHour,
-            end_minute: endMinute,
-            title,
-            contact_name: contactName,
-            status,
-          }).eq('id', existing.id);
-          console.log(`[Calendar Sync] Updated booking: ${title} (${existing.id}) for user ${existing.user_id}`);
+          // Timestamp-based: only overwrite if GHL is newer
+          const ghlUpdatedAt = evt.dateUpdated || evt.dateAdded || null;
+          const crmIsNewer = !ghlUpdatedAt || existing.updated_at >= ghlUpdatedAt;
+
+          if (!crmIsNewer) {
+            // GHL wins → update time/date fields, preserve locally-set fields (room, notes, guest_count, etc.)
+            await supabase.from('bookings').update({
+              date: dateStr,
+              start_hour: startHour,
+              start_minute: startMinute,
+              end_hour: endHour,
+              end_minute: endMinute,
+              title,
+              contact_name: contactName,
+              status,
+            }).eq('id', existing.id);
+            console.log(`[Calendar Sync] Updated booking (GHL newer): ${title} (${existing.id})`);
+          } else {
+            console.log(`[Calendar Sync] Skipped booking (CRM newer): ${title} (${existing.id})`);
+          }
         } else {
           const { data: inserted } = await supabase.from('bookings').insert({
             user_id: primaryUserId, // Assign new bookings to primary org user
