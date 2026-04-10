@@ -21,6 +21,7 @@ import { useContactsContext } from '@/contexts/ContactsContext';
 import { useCompaniesContext } from '@/contexts/CompaniesContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTeamMembers } from '@/hooks/useTeamMembers';
+import { useLanguage } from '@/contexts/LanguageContext';
 import { useMemo, useState, useRef } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -38,7 +39,6 @@ import { Task, TASK_STATUSES, TASK_PRIORITIES } from '@/types/task';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
 import { nl } from 'date-fns/locale';
-
 export default function Dashboard() {
   const { bookings, loading: bookingsLoading } = useBookings();
   const { inquiries, loading: inquiriesLoading } = useInquiriesContext();
