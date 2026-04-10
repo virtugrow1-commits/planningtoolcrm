@@ -20,6 +20,7 @@ const INQUIRY_STATUS: Record<string, { label: string }> = {
   converted: { label: 'Definitief' },
   lost: { label: 'Verloren' },
   after_sales: { label: 'Aftersales' },
+  condolence_reminder: { label: 'Condoleance Herinnering' },
 };
 
 const PREVIEW = 3; // items shown before collapsing

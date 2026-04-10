@@ -31,6 +31,7 @@ const PIPELINE_COLUMNS: { key: Inquiry['status']; label: string; badgeClass: str
   { key: 'lost', label: 'Vervallen / Verloren', badgeClass: 'status-lost' },
   { key: 'converted', label: 'Omgezet', badgeClass: 'status-converted' },
   { key: 'after_sales', label: 'After Sales', badgeClass: 'status-converted' },
+  { key: 'condolence_reminder', label: 'Condoleance Herinnering', badgeClass: 'status-contacted' },
 ];
 
 export { PIPELINE_COLUMNS };

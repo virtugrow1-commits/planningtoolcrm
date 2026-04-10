@@ -448,6 +448,7 @@ Deno.serve(async (req) => {
         if (lower.includes('facturatie') || lower.includes('invoice')) return 'invoiced';
         if (lower.includes('vervallen') || lower.includes('verloren') || lower.includes('lost')) return 'lost';
         if (lower.includes('after sales') || lower.includes('aftersales')) return 'after_sales';
+        if (lower.includes('condoleance') || lower.includes('condolence')) return 'condolence_reminder';
         if (lower.includes('evenement')) return 'converted';
         return 'new';
       };
@@ -928,6 +929,7 @@ Deno.serve(async (req) => {
               'invoiced': ['facturatie', 'invoice'],
               'lost': ['vervallen', 'verloren', 'lost'],
               'after_sales': ['after sales', 'aftersales'],
+              'condolence_reminder': ['condoleance', 'condolence'],
               'converted': ['evenement'],
             };
             const keywords = statusToStageKeywords[status] || [];
@@ -1035,6 +1037,7 @@ Deno.serve(async (req) => {
             'invoiced': ['facturatie', 'invoice'],
             'lost': ['vervallen', 'verloren', 'lost'],
             'after_sales': ['after sales', 'aftersales'],
+            'condolence_reminder': ['condoleance', 'condolence'],
             'converted': ['evenement'],
           };
 

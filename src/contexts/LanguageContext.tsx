@@ -108,6 +108,7 @@ const translations: Record<string, Record<Language, string>> = {
   'status.invoiced': { nl: 'Gefactureerd', en: 'Invoiced' },
   'status.lost': { nl: 'Vervallen', en: 'Lost' },
   'status.after_sales': { nl: 'After Sales', en: 'After Sales' },
+  'status.condolence_reminder': { nl: 'Condoleance Herinnering', en: 'Condolence Reminder' },
 };
 
 interface LanguageContextType {
