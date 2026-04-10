@@ -47,6 +47,7 @@ export default function Dashboard() {
   const { tasks, loading: tasksLoading, addTask, updateTask, deleteTask, deleteTasks } = useTasksContext();
   const { user } = useAuth();
   const { members } = useTeamMembers();
+  const { t, language } = useLanguage();
   
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [newOpen, setNewOpen] = useState(false);
