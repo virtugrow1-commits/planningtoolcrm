@@ -17,6 +17,7 @@ import { Contact } from '@/types/crm';
 import { useToast } from '@/hooks/use-toast';
 import { useContactsContext } from '@/contexts/ContactsContext';
 import { useCompaniesContext } from '@/contexts/CompaniesContext';
+import { useLanguage } from '@/contexts/LanguageContext';
 import { cn } from '@/lib/utils';
 import { exportToCSV } from '@/lib/csvExport';
 import { SortableHeader, useSortState } from '@/components/SortableHeader';
@@ -36,6 +37,7 @@ const PAGE_SIZES = [20, 50, 100] as const;
 export default function CrmPage() {
   const { contacts, loading, addContact, deleteContact, updateContact } = useContactsContext();
   const { companies, loading: companiesLoading, addCompany, deleteCompany, updateCompany } = useCompaniesContext();
+  const { t, language } = useLanguage();
   const [activeTab, setActiveTab] = useState<CrmTab>('contacts');
   const [search, setSearch] = useState('');
   const [newOpen, setNewOpen] = useState(false);
@@ -215,7 +217,7 @@ export default function CrmPage() {
   };
 
   if (loading || companiesLoading) {
-    return <div className="flex min-h-[50vh] items-center justify-center"><div className="text-muted-foreground">Laden...</div></div>;
+    return <div className="flex min-h-[50vh] items-center justify-center"><div className="text-muted-foreground">{t('common.loading')}</div></div>;
   }
 
   const allPageSelected = activeTab === 'contacts'
@@ -231,36 +233,36 @@ export default function CrmPage() {
         <div className="flex items-center gap-2">
           <div className="relative w-64">
             <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-            <Input placeholder="Zoeken..." className="pl-9" value={search} onChange={(e) => handleSearch(e.target.value)} />
+            <Input placeholder={t('common.search')} className="pl-9" value={search} onChange={(e) => handleSearch(e.target.value)} />
           </div>
           <Popover>
             <PopoverTrigger asChild>
               <Button variant="outline" size="sm" className="relative">
-                <Filter size={14} className="mr-1" /> Filters
+                <Filter size={14} className="mr-1" /> {t('crm.filter')}
                 {activeFilterCount > 0 && <Badge variant="secondary" className="ml-1.5 h-5 min-w-5 px-1 text-xs">{activeFilterCount}</Badge>}
               </Button>
             </PopoverTrigger>
             <PopoverContent className="w-72 space-y-3" align="end">
               <div className="flex items-center justify-between">
-                <span className="text-sm font-semibold">Filters</span>
-                {activeFilterCount > 0 && <Button variant="ghost" size="sm" className="h-6 text-xs" onClick={clearFilters}><X size={12} className="mr-1" /> Wissen</Button>}
+                <span className="text-sm font-semibold">{t('crm.filter')}</span>
+                {activeFilterCount > 0 && <Button variant="ghost" size="sm" className="h-6 text-xs" onClick={clearFilters}><X size={12} className="mr-1" /> {t('crm.clearFilters')}</Button>}
               </div>
               <div className="grid gap-1.5">
-                <Label className="text-xs">Status</Label>
+                <Label className="text-xs">{t('common.status')}</Label>
                 <Select value={filters.status} onValueChange={(v) => handleFilter({ ...filters, status: v === '_all' ? '' : v })}>
-                  <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Alle statussen" /></SelectTrigger>
+                  <SelectTrigger className="h-8 text-xs"><SelectValue placeholder={language === 'en' ? 'All statuses' : 'Alle statussen'} /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="_all">Alle statussen</SelectItem>
-                    {uniqueStatuses.map((s) => <SelectItem key={s} value={s}>{STATUS_LABELS[s] || s}</SelectItem>)}
+                    <SelectItem value="_all">{language === 'en' ? 'All statuses' : 'Alle statussen'}</SelectItem>
+                    {uniqueStatuses.map((s) => <SelectItem key={s} value={s}>{t(`contactStatus.${s}`)}</SelectItem>)}
                   </SelectContent>
                 </Select>
               </div>
               <div className="grid gap-1.5">
-                <Label className="text-xs">Bedrijf</Label>
+                <Label className="text-xs">{t('crm.company')}</Label>
                 <Select value={filters.company} onValueChange={(v) => handleFilter({ ...filters, company: v === '_all' ? '' : v })}>
-                  <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Alle bedrijven" /></SelectTrigger>
+                  <SelectTrigger className="h-8 text-xs"><SelectValue placeholder={language === 'en' ? 'All companies' : 'Alle bedrijven'} /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="_all">Alle bedrijven</SelectItem>
+                    <SelectItem value="_all">{language === 'en' ? 'All companies' : 'Alle bedrijven'}</SelectItem>
                     {uniqueCompanies.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
                   </SelectContent>
                 </Select>
@@ -268,29 +270,29 @@ export default function CrmPage() {
             </PopoverContent>
           </Popover>
           
-          <Button size="sm" onClick={() => activeTab === 'contacts' ? setNewOpen(true) : setNewCompanyOpen(true)}><Plus size={14} className="mr-1" /> {activeTab === 'contacts' ? 'Nieuw Contact' : 'Nieuw Bedrijf'}</Button>
+          <Button size="sm" onClick={() => activeTab === 'contacts' ? setNewOpen(true) : setNewCompanyOpen(true)}><Plus size={14} className="mr-1" /> {activeTab === 'contacts' ? t('crm.newContact') : t('crm.newCompany')}</Button>
         </div>
       </div>
 
       {activeFilterCount > 0 && (
         <div className="flex flex-wrap gap-2">
-          {filters.status && <Badge variant="secondary" className="gap-1 cursor-pointer" onClick={() => handleFilter({ ...filters, status: '' })}>Status: {STATUS_LABELS[filters.status] || filters.status} <X size={12} /></Badge>}
-          {filters.company && <Badge variant="secondary" className="gap-1 cursor-pointer" onClick={() => handleFilter({ ...filters, company: '' })}>Bedrijf: {filters.company} <X size={12} /></Badge>}
+          {filters.status && <Badge variant="secondary" className="gap-1 cursor-pointer" onClick={() => handleFilter({ ...filters, status: '' })}>{t('common.status')}: {t(`contactStatus.${filters.status}`)} <X size={12} /></Badge>}
+          {filters.company && <Badge variant="secondary" className="gap-1 cursor-pointer" onClick={() => handleFilter({ ...filters, company: '' })}>{t('crm.company')}: {filters.company} <X size={12} /></Badge>}
         </div>
       )}
 
       {/* Tab toggle */}
       <Tabs value={activeTab} onValueChange={(v) => { setActiveTab(v as CrmTab); setPage(1); setSelected(new Set()); setSearch(''); setFilters({ status: '', company: '' }); }}>
         <TabsList>
-          <TabsTrigger value="contacts" className="gap-1.5"><Users size={14} /> Contactpersonen</TabsTrigger>
-          <TabsTrigger value="companies" className="gap-1.5"><Building2 size={14} /> Bedrijven</TabsTrigger>
+          <TabsTrigger value="contacts" className="gap-1.5"><Users size={14} /> {t('crm.contacts')}</TabsTrigger>
+          <TabsTrigger value="companies" className="gap-1.5"><Building2 size={14} /> {t('crm.companies')}</TabsTrigger>
         </TabsList>
       </Tabs>
 
       {activeTab === 'contacts' && (
         <BulkActionBar selectedCount={selected.size} onClear={() => setSelected(new Set())} onDelete={handleBulkDelete}>
           <Button variant="outline" size="sm" onClick={() => { setBulkEditStatus(''); setBulkEditOpen(true); }}>
-            <Edit2 size={14} className="mr-1" /> Bulk status wijzigen
+            <Edit2 size={14} className="mr-1" /> {language === 'en' ? 'Bulk status change' : 'Bulk status wijzigen'}
           </Button>
         </BulkActionBar>
       )}
@@ -302,16 +304,16 @@ export default function CrmPage() {
             <tr className="border-b bg-muted/50">
               <th className="px-4 py-3 w-[40px]"><Checkbox checked={allPageSelected} onCheckedChange={toggleSelectAll} /></th>
               <th className="px-4 py-3 w-[110px]"><SortableHeader label="ID" sortKey="id" currentSort={contactSort.sortKey} currentDirection={contactSort.sortDir} onSort={contactSort.handleSort} /></th>
-              <th className="px-4 py-3"><SortableHeader label="Naam" sortKey="name" currentSort={contactSort.sortKey} currentDirection={contactSort.sortDir} onSort={contactSort.handleSort} /></th>
-              <th className="px-4 py-3"><SortableHeader label="Email" sortKey="email" currentSort={contactSort.sortKey} currentDirection={contactSort.sortDir} onSort={contactSort.handleSort} /></th>
-              <th className="px-4 py-3 hidden md:table-cell"><SortableHeader label="Telefoon" sortKey="phone" currentSort={contactSort.sortKey} currentDirection={contactSort.sortDir} onSort={contactSort.handleSort} /></th>
-              <th className="px-4 py-3 hidden lg:table-cell"><SortableHeader label="Bedrijf" sortKey="company" currentSort={contactSort.sortKey} currentDirection={contactSort.sortDir} onSort={contactSort.handleSort} /></th>
-              <th className="px-4 py-3 hidden lg:table-cell"><SortableHeader label="Status" sortKey="status" currentSort={contactSort.sortKey} currentDirection={contactSort.sortDir} onSort={contactSort.handleSort} /></th>
+              <th className="px-4 py-3"><SortableHeader label={t('crm.name')} sortKey="name" currentSort={contactSort.sortKey} currentDirection={contactSort.sortDir} onSort={contactSort.handleSort} /></th>
+              <th className="px-4 py-3"><SortableHeader label={t('crm.email')} sortKey="email" currentSort={contactSort.sortKey} currentDirection={contactSort.sortDir} onSort={contactSort.handleSort} /></th>
+              <th className="px-4 py-3 hidden md:table-cell"><SortableHeader label={t('crm.phone')} sortKey="phone" currentSort={contactSort.sortKey} currentDirection={contactSort.sortDir} onSort={contactSort.handleSort} /></th>
+              <th className="px-4 py-3 hidden lg:table-cell"><SortableHeader label={t('crm.company')} sortKey="company" currentSort={contactSort.sortKey} currentDirection={contactSort.sortDir} onSort={contactSort.handleSort} /></th>
+              <th className="px-4 py-3 hidden lg:table-cell"><SortableHeader label={t('common.status')} sortKey="status" currentSort={contactSort.sortKey} currentDirection={contactSort.sortDir} onSort={contactSort.handleSort} /></th>
             </tr>
           </thead>
           <tbody>
             {paginated.length === 0 && (
-              <tr><td colSpan={7} className="px-4 py-8 text-center text-muted-foreground">Geen contacten gevonden</td></tr>
+              <tr><td colSpan={7} className="px-4 py-8 text-center text-muted-foreground">{t('crm.noContacts')}</td></tr>
             )}
             {paginated.map((c) => (
               <tr
@@ -328,16 +330,16 @@ export default function CrmPage() {
                 <td className="px-4 py-3 text-muted-foreground hidden md:table-cell">{c.phone || '—'}</td>
                 <td className="px-4 py-3 text-muted-foreground hidden lg:table-cell">{c.company || '—'}</td>
                 <td className="px-4 py-3 hidden lg:table-cell" onClick={(e) => e.stopPropagation()}>
-                  <Select value={c.status} onValueChange={async (v) => { await updateContact({ ...c, status: v as Contact['status'] }); toast({ title: 'Status bijgewerkt' }); }}>
+                  <Select value={c.status} onValueChange={async (v) => { await updateContact({ ...c, status: v as Contact['status'] }); toast({ title: t('toast.updated') }); }}>
                     <SelectTrigger className={cn('h-7 w-[140px] text-xs border-0 bg-transparent hover:bg-muted/50', c.status === 'do_not_contact' && 'text-destructive')}>
-                      <SelectValue>{STATUS_LABELS[c.status] || c.status}</SelectValue>
+                      <SelectValue>{t(`contactStatus.${c.status}`)}</SelectValue>
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="prospect">Prospect</SelectItem>
-                      <SelectItem value="lead">Lead</SelectItem>
-                      <SelectItem value="client">Klant</SelectItem>
-                      <SelectItem value="inactive">Inactief</SelectItem>
-                      <SelectItem value="do_not_contact">Niet benaderen</SelectItem>
+                      <SelectItem value="prospect">{t('contactStatus.prospect')}</SelectItem>
+                      <SelectItem value="lead">{t('contactStatus.lead')}</SelectItem>
+                      <SelectItem value="client">{t('contactStatus.client')}</SelectItem>
+                      <SelectItem value="inactive">{t('contactStatus.inactive')}</SelectItem>
+                      <SelectItem value="do_not_contact">{t('contactStatus.do_not_contact')}</SelectItem>
                     </SelectContent>
                   </Select>
                 </td>

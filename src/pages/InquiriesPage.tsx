@@ -4,6 +4,7 @@ import { format } from 'date-fns';
 import { nl } from 'date-fns/locale';
 import { Inquiry, Booking, ROOMS, RoomName } from '@/types/crm';
 import { Calendar as CalendarIcon, Users, Euro, GripVertical, Repeat, Plus, X, Check, LayoutGrid, List, Trash2, ArrowRight, AlertTriangle, Download, MapPin, MessageSquare, StickyNote, CheckSquare, Clock, Building2, FileText, Pencil, Eye, Search, ArrowUpDown, ArrowUp, ArrowDown, EyeOff, Archive, ChevronDown, ChevronRight as ChevronRightIcon, FolderX, FolderCheck } from 'lucide-react';
+import { useLanguage } from '@/contexts/LanguageContext';
 import { useToast } from '@/hooks/use-toast';
 import { useRoomSettings } from '@/hooks/useRoomSettings';
 import { useBookings } from '@/contexts/BookingsContext';
@@ -88,6 +89,7 @@ export default function InquiriesPage() {
   const { bookings, addBookings } = useBookings();
   const { tasks, addTask } = useTasksContext();
   const { companies } = useCompaniesContext();
+  const { t, language } = useLanguage();
   const [dragId, setDragId] = useState<string | null>(null);
   const [scheduleOpen, setScheduleOpen] = useState(false);
   const [selectedInquiry, setSelectedInquiry] = useState<Inquiry | null>(null);
@@ -531,22 +533,22 @@ export default function InquiriesPage() {
                 viewMode === 'list' ? 'bg-primary text-primary-foreground' : 'bg-background text-muted-foreground hover:text-foreground'
               )}
             >
-              <List size={14} /> Lijst
+              <List size={14} /> {t('inquiries.listView')}
             </button>
           </div>
-          <Button onClick={() => setNewOpen(true)} size="sm"><Plus size={14} className="mr-1" /> Nieuwe Aanvraag</Button>
+          <Button onClick={() => setNewOpen(true)} size="sm"><Plus size={14} className="mr-1" /> {t('inquiries.newInquiry')}</Button>
         </div>
       </div>
 
       {/* Bulk action bar */}
       {selected.size > 0 && (
         <div className="flex items-center gap-3 rounded-lg border bg-card p-3 card-shadow">
-          <span className="text-sm font-medium text-foreground">{selected.size} geselecteerd</span>
+          <span className="text-sm font-medium text-foreground">{selected.size} {t('dashboard.selected')}</span>
           <div className="flex items-center gap-2 ml-auto">
             <Popover>
               <PopoverTrigger asChild>
                 <Button variant="outline" size="sm">
-                  <ArrowRight size={14} className="mr-1" /> Verplaatsen
+                  <ArrowRight size={14} className="mr-1" /> {language === 'en' ? 'Move' : 'Verplaatsen'}
                 </Button>
               </PopoverTrigger>
               <PopoverContent className="w-56 p-2" align="end">
@@ -557,14 +559,14 @@ export default function InquiriesPage() {
                       onClick={() => setBulkMoveTarget(col.key)}
                       className="w-full rounded-md px-3 py-1.5 text-left text-sm hover:bg-muted transition-colors"
                     >
-                      {col.label}
+                      {t(`status.${col.key}`)}
                     </button>
                   ))}
                 </div>
               </PopoverContent>
             </Popover>
             <Button variant="destructive" size="sm" onClick={() => setBulkDeleteConfirmOpen(true)}>
-              <Trash2 size={14} className="mr-1" /> Verwijderen
+              <Trash2 size={14} className="mr-1" /> {t('common.delete')}
             </Button>
             <Button variant="ghost" size="sm" onClick={() => setSelected(new Set())}>
               <X size={14} />
@@ -591,7 +593,7 @@ export default function InquiriesPage() {
               <div className="mb-3 flex items-center justify-between">
                 <div className="flex items-center gap-1.5">
                   {isArchiveCol && <Archive size={13} className="text-muted-foreground" />}
-                  <h3 className="text-sm font-semibold text-foreground">{col.label}</h3>
+                  <h3 className="text-sm font-semibold text-foreground">{t(`status.${col.key}`)}</h3>
                 </div>
                 <span className="rounded-full bg-background px-2 py-0.5 text-xs font-medium text-muted-foreground">
                   {isArchiveCol ? archiveCount : items.length}
@@ -1134,8 +1136,8 @@ export default function InquiriesPage() {
             </div>
           )}
           <DialogFooter>
-            <Button variant="outline" onClick={() => setScheduleOpen(false)}>Annuleren</Button>
-            <Button onClick={handleSchedule}>Inplannen</Button>
+            <Button variant="outline" onClick={() => setScheduleOpen(false)}>{t('common.cancel')}</Button>
+            <Button onClick={handleSchedule}>{t('inquiries.schedule')}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -1391,7 +1393,7 @@ export default function InquiriesPage() {
                     <SelectTrigger className="text-sm"><SelectValue /></SelectTrigger>
                     <SelectContent>
                       {PIPELINE_COLUMNS.map((col) => (
-                        <SelectItem key={col.key} value={col.key}>{col.label}</SelectItem>
+                        <SelectItem key={col.key} value={col.key}>{t(`status.${col.key}`)}</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
@@ -1415,11 +1417,11 @@ export default function InquiriesPage() {
                 </div>
                 <DialogFooter className="flex !justify-between">
                   <Button variant="destructive" size="sm" onClick={handleDeleteInquiry}>
-                    <Trash2 size={14} className="mr-1" /> Verwijderen
+                    <Trash2 size={14} className="mr-1" /> {t('common.delete')}
                   </Button>
                   <div className="flex gap-2">
-                    <Button variant="outline" onClick={() => setDetailOpen(false)}>Annuleren</Button>
-                    <Button onClick={handleSaveEdit}>Opslaan</Button>
+                    <Button variant="outline" onClick={() => setDetailOpen(false)}>{t('common.cancel')}</Button>
+                    <Button onClick={handleSaveEdit}>{t('common.save')}</Button>
                   </div>
                 </DialogFooter>
               </TabsContent>
@@ -1433,15 +1435,15 @@ export default function InquiriesPage() {
       <AlertDialog open={bulkDeleteConfirmOpen} onOpenChange={setBulkDeleteConfirmOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Weet je het zeker?</AlertDialogTitle>
+            <AlertDialogTitle>{t('common.areYouSure')}</AlertDialogTitle>
             <AlertDialogDescription>
-              Je staat op het punt om {selected.size} aanvra{selected.size !== 1 ? 'gen' : 'ag'} te verwijderen. Deze actie kan niet ongedaan worden gemaakt.
+              {t('inquiries.bulkDeleteConfirm')}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Annuleren</AlertDialogCancel>
+            <AlertDialogCancel>{t('common.cancel')}</AlertDialogCancel>
             <AlertDialogAction className="bg-destructive text-destructive-foreground hover:bg-destructive/90" onClick={handleBulkDelete}>
-              Verwijderen ({selected.size})
+              {t('common.delete')} ({selected.size})
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -1451,13 +1453,16 @@ export default function InquiriesPage() {
       <AlertDialog open={!!bulkMoveTarget} onOpenChange={(open) => { if (!open) setBulkMoveTarget(null); }}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Verplaatsen bevestigen</AlertDialogTitle>
+            <AlertDialogTitle>{language === 'en' ? 'Confirm move' : 'Verplaatsen bevestigen'}</AlertDialogTitle>
             <AlertDialogDescription>
-              Weet je zeker dat je {selected.size} aanvra{selected.size !== 1 ? 'gen' : 'ag'} wilt verplaatsen naar "{PIPELINE_COLUMNS.find(c => c.key === bulkMoveTarget)?.label}"?
+              {language === 'en' 
+                ? `Are you sure you want to move ${selected.size} inquir${selected.size !== 1 ? 'ies' : 'y'} to "${t(`status.${bulkMoveTarget}`)}"?`
+                : `Weet je zeker dat je ${selected.size} aanvra${selected.size !== 1 ? 'gen' : 'ag'} wilt verplaatsen naar "${t(`status.${bulkMoveTarget}`)}"?`
+              }
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Annuleren</AlertDialogCancel>
+            <AlertDialogCancel>{t('common.cancel')}</AlertDialogCancel>
             <AlertDialogAction onClick={() => bulkMoveTarget && handleBulkMove(bulkMoveTarget)}>Bevestigen</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

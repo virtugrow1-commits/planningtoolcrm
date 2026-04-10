@@ -21,6 +21,7 @@ import { useContactsContext } from '@/contexts/ContactsContext';
 import { useCompaniesContext } from '@/contexts/CompaniesContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTeamMembers } from '@/hooks/useTeamMembers';
+import { useLanguage } from '@/contexts/LanguageContext';
 import { useMemo, useState, useRef } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -38,7 +39,6 @@ import { Task, TASK_STATUSES, TASK_PRIORITIES } from '@/types/task';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
 import { nl } from 'date-fns/locale';
-
 export default function Dashboard() {
   const { bookings, loading: bookingsLoading } = useBookings();
   const { inquiries, loading: inquiriesLoading } = useInquiriesContext();
@@ -47,6 +47,7 @@ export default function Dashboard() {
   const { tasks, loading: tasksLoading, addTask, updateTask, deleteTask, deleteTasks } = useTasksContext();
   const { user } = useAuth();
   const { members } = useTeamMembers();
+  const { t, language } = useLanguage();
   
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [newOpen, setNewOpen] = useState(false);
@@ -213,7 +214,7 @@ export default function Dashboard() {
 
   const handleSave = async () => {
     if (!form.title.trim()) {
-      toast({ title: 'Geef de taak een titel', variant: 'destructive' });
+      toast({ title: t('tasks.giveTitleError'), variant: 'destructive' });
       return;
     }
     if (editTask) {
@@ -227,7 +228,7 @@ export default function Dashboard() {
         companyId: form.companyId || undefined,
         contactId: form.contactId || undefined,
       });
-      toast({ title: 'Taak bijgewerkt' });
+      toast({ title: t('tasks.taskUpdated') });
     } else {
       await addTask({
         title: form.title,
@@ -239,7 +240,7 @@ export default function Dashboard() {
         contactId: form.contactId || undefined,
         assignedTo: form.assignedTo || undefined,
       });
-      toast({ title: 'Taak aangemaakt' });
+      toast({ title: t('tasks.taskCreated') });
     }
     setNewOpen(false);
     resetForm();
@@ -249,14 +250,14 @@ export default function Dashboard() {
   const handleDelete = async (id: string) => {
     await deleteTask(id);
     setSelected((prev) => { const n = new Set(prev); n.delete(id); return n; });
-    toast({ title: 'Taak verwijderd' });
+    toast({ title: t('tasks.taskDeleted') });
   };
 
   const handleBulkDelete = async () => {
     const ids = Array.from(selected);
     await deleteTasks(ids);
     setSelected(new Set());
-    toast({ title: `${ids.length} taken verwijderd` });
+    toast({ title: `${ids.length} ${t('tasks.tasksDeleted')}` });
   };
 
   const handleBulkStatus = async (newStatus: Task['status']) => {
@@ -266,7 +267,7 @@ export default function Dashboard() {
       if (task) await updateTask({ ...task, status: newStatus });
     }
     setSelected(new Set());
-    toast({ title: `${ids.length} taken bijgewerkt` });
+    toast({ title: `${ids.length} ${t('tasks.tasksUpdated')}` });
   };
 
   const handleBulkDateChange = async () => {
@@ -281,7 +282,7 @@ export default function Dashboard() {
     setSelected(new Set());
     setBulkDate(undefined);
     setBulkDateOpen(false);
-    toast({ title: `${count} taken verplaatst naar ${format(bulkDate, 'd MMM yyyy', { locale: nl })}` });
+    toast({ title: `${count} ${t('tasks.movedToDate')}` });
   };
 
   const handleStatusChange = async (task: Task, newStatus: Task['status']) => {
@@ -316,7 +317,7 @@ export default function Dashboard() {
     });
     setFollowAdding(false);
     setShowFollowUp(false);
-    toast({ title: 'Vervolgtaak aangemaakt' });
+    toast({ title: t('tasks.followUpCreated') });
   };
 
   const priorityIcon = (p: Task['priority']) => {
@@ -331,7 +332,7 @@ export default function Dashboard() {
   if (loading) {
     return (
       <div className="flex min-h-[50vh] items-center justify-center">
-        <div className="text-muted-foreground">Laden...</div>
+        <div className="text-muted-foreground">{t('common.loading')}</div>
       </div>
     );
   }
@@ -339,32 +340,32 @@ export default function Dashboard() {
   return (
     <div className="p-6 lg:p-8 space-y-6 max-w-7xl mx-auto">
       <div className="animate-fade-in">
-        <h1 className="text-2xl font-bold text-foreground tracking-tight">Dashboard</h1>
+        <h1 className="text-2xl font-bold text-foreground tracking-tight">{t('dashboard.title')}</h1>
         <p className="text-sm text-muted-foreground mt-1">
-          {new Date().toLocaleDateString('nl-NL', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
+          {new Date().toLocaleDateString(language === 'en' ? 'en-GB' : 'nl-NL', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
         </p>
       </div>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <KpiCard
-          title="Openstaande Taken"
+          title={t('dashboard.openTasks')}
           value={String(openTaskCount)}
           icon={<CheckSquare size={20} />}
-          subtitle={`${tasks.filter((t) => t.status === 'open').length} open · ${tasks.filter((t) => t.status === 'completed').length} afgerond`}
+          subtitle={`${tasks.filter((t) => t.status === 'open').length} ${t('dashboard.open')} · ${tasks.filter((t) => t.status === 'completed').length} ${t('dashboard.completed')}`}
           onClick={() => setKpiDialog({ open: true, type: 'tasks' })}
         />
         <KpiCard
-          title="Aanvragen"
+          title={t('dashboard.inquiries')}
           value={String(openInquiries.length)}
           icon={<InboxIcon size={20} />}
-          subtitle="Nieuw & gecontacteerd"
+          subtitle={t('dashboard.newAndContacted')}
           onClick={() => setKpiDialog({ open: true, type: 'inquiries' })}
         />
         <KpiCard
-          title="Reserveringen Vandaag"
+          title={t('dashboard.bookingsToday')}
           value={String(todayBookings.length)}
           icon={<CalendarCheck size={20} />}
-          subtitle={`${todayBookings.filter((b) => b.status === 'confirmed').length} bevestigd · ${todayBookings.filter((b) => b.status === 'option').length} in optie`}
+          subtitle={`${todayBookings.filter((b) => b.status === 'confirmed').length} ${t('dashboard.confirmed')} · ${todayBookings.filter((b) => b.status === 'option').length} ${t('dashboard.inOption')}`}
           onClick={() => setKpiDialog({ open: true, type: 'bookings' })}
         />
       </div>
@@ -373,7 +374,7 @@ export default function Dashboard() {
       <div className="rounded-xl bg-card card-shadow animate-fade-in-up overflow-hidden">
         <div className="flex items-center justify-between border-b px-5 py-3 flex-wrap gap-2">
           <h2 className="text-sm font-semibold text-card-foreground flex items-center gap-2">
-            <CheckSquare size={16} /> Taken
+            <CheckSquare size={16} /> {t('dashboard.tasks')}
             <span className="rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">{filteredTasks.length}</span>
           </h2>
           <div className="flex items-center gap-2 flex-wrap">
@@ -386,7 +387,7 @@ export default function Dashboard() {
                 <SelectValue placeholder="Gebruiker" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="__all__">Alle gebruikers</SelectItem>
+                <SelectItem value="__all__">{t('dashboard.allUsers')}</SelectItem>
                 <SelectItem value="Sjors Jochems">Sjors Jochems</SelectItem>
                 <SelectItem value="Iris Machielse">Iris Machielse</SelectItem>
               </SelectContent>
@@ -398,14 +399,14 @@ export default function Dashboard() {
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">Alle</SelectItem>
+                <SelectItem value="all">{t('dashboard.all')}</SelectItem>
                 {TASK_STATUSES.map((s) => (
                   <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
             <Button size="sm" className="h-8" onClick={openNew}>
-              <Plus size={14} className="mr-1" /> Nieuwe Taak
+              <Plus size={14} className="mr-1" /> {t('dashboard.newTask')}
             </Button>
           </div>
         </div>
@@ -413,12 +414,12 @@ export default function Dashboard() {
         {/* Bulk action bar */}
         {selected.size > 0 && (
           <div className="flex items-center gap-3 px-5 py-2.5 bg-primary/5 border-b flex-wrap">
-            <span className="text-xs font-medium text-foreground">{selected.size} geselecteerd</span>
+            <span className="text-xs font-medium text-foreground">{selected.size} {t('dashboard.selected')}</span>
             <div className="flex items-center gap-2 ml-auto flex-wrap">
               {/* Bulk status change */}
               <Select onValueChange={(v) => handleBulkStatus(v as Task['status'])}>
                 <SelectTrigger className="h-8 w-36 text-xs">
-                  <SelectValue placeholder="Status wijzigen" />
+                  <SelectValue placeholder={t('dashboard.changeStatus')} />
                 </SelectTrigger>
                 <SelectContent>
                   {TASK_STATUSES.map((s) => (
@@ -432,7 +433,7 @@ export default function Dashboard() {
                 <PopoverTrigger asChild>
                   <Button variant="outline" size="sm" className={cn('h-8 text-xs gap-1.5', !bulkDate && 'text-muted-foreground')}>
                     <CalendarIcon size={12} />
-                    {bulkDate ? format(bulkDate, 'd MMM yyyy', { locale: nl }) : 'Verplaats naar datum'}
+                    {bulkDate ? format(bulkDate, 'd MMM yyyy', { locale: nl }) : t('dashboard.moveToDate')}
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent className="w-auto p-0" align="start">
@@ -446,7 +447,7 @@ export default function Dashboard() {
                   {bulkDate && (
                     <div className="px-3 pb-3">
                       <Button size="sm" className="w-full text-xs" onClick={handleBulkDateChange}>
-                        Toepassen op {selected.size} {selected.size === 1 ? 'taak' : 'taken'}
+                        {t('dashboard.applyTo')} {selected.size} {selected.size === 1 ? t('dashboard.task') : t('dashboard.tasksPlural')}
                       </Button>
                     </div>
                   )}
@@ -454,7 +455,7 @@ export default function Dashboard() {
               </Popover>
 
               <Button variant="destructive" size="sm" className="h-8" onClick={handleBulkDelete}>
-                <Trash2 size={14} className="mr-1" /> Verwijderen
+                <Trash2 size={14} className="mr-1" /> {t('common.delete')}
               </Button>
             </div>
           </div>
@@ -464,7 +465,7 @@ export default function Dashboard() {
           <div className="p-8 text-center">
             <Check size={32} className="mx-auto text-success mb-2" />
             <p className="text-sm text-muted-foreground">
-              {filter === 'all' ? 'Nog geen taken — maak je eerste taak aan' : 'Geen taken met deze status'}
+              {filter === 'all' ? t('dashboard.noTasksYet') : t('common.noResults')}
             </p>
           </div>
         ) : (
@@ -474,7 +475,7 @@ export default function Dashboard() {
                 checked={selected.size > 0 && selected.size === filteredTasks.length}
                 onCheckedChange={selectAll}
               />
-              <span className="text-xs text-muted-foreground">Alles selecteren</span>
+              <span className="text-xs text-muted-foreground">{language === 'en' ? 'Select all' : 'Alles selecteren'}</span>
             </div>
 
             {filteredTasks.slice(0, visibleCount).map((task) => {
@@ -557,7 +558,7 @@ export default function Dashboard() {
             {filteredTasks.length > visibleCount && (
               <div className="px-5 py-3 text-center">
                 <Button variant="outline" size="sm" className="text-xs" onClick={() => setVisibleCount(prev => prev + 10)}>
-                  Laat meer taken zien ({filteredTasks.length - visibleCount} resterend)
+                  {t('dashboard.showMore')} ({filteredTasks.length - visibleCount})
                 </Button>
               </div>
             )}
@@ -567,10 +568,10 @@ export default function Dashboard() {
 
       {/* Agenda Vandaag */}
       <div className="rounded-xl bg-card p-5 card-shadow animate-fade-in-up overflow-hidden">
-        <h2 className="mb-4 text-sm font-semibold text-card-foreground">Agenda Vandaag</h2>
+        <h2 className="mb-4 text-sm font-semibold text-card-foreground">{language === 'en' ? 'Today\'s Agenda' : 'Agenda Vandaag'}</h2>
         <div className="space-y-3">
           {todayBookings.length === 0 && (
-            <p className="text-sm text-muted-foreground">Geen boekingen vandaag</p>
+            <p className="text-sm text-muted-foreground">{language === 'en' ? 'No bookings today' : 'Geen boekingen vandaag'}</p>
           )}
           {todayBookings.map((booking) => (
             <div
@@ -598,9 +599,9 @@ export default function Dashboard() {
         onOpenChange={(open) => setKpiDialog((prev) => ({ ...prev, open }))}
         type={kpiDialog.type}
         title={
-          kpiDialog.type === 'tasks' ? 'Openstaande Taken' :
-          kpiDialog.type === 'inquiries' ? 'Openstaande Aanvragen' :
-          'Reserveringen Vandaag'
+          kpiDialog.type === 'tasks' ? t('dashboard.openTasks') :
+          kpiDialog.type === 'inquiries' ? (language === 'en' ? 'Open Inquiries' : 'Openstaande Aanvragen') :
+          t('dashboard.bookingsToday')
         }
         tasks={tasks.filter((t) => t.status !== 'completed')}
         inquiries={openInquiries}
@@ -612,12 +613,12 @@ export default function Dashboard() {
       <Dialog open={newOpen} onOpenChange={setNewOpen}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>{editTask ? 'Taak Bewerken' : 'Nieuwe Taak'}</DialogTitle>
-            <DialogDescription className="sr-only">Vul de taakgegevens in</DialogDescription>
+            <DialogTitle>{editTask ? t('tasks.editTask') : t('tasks.newTask')}</DialogTitle>
+            <DialogDescription className="sr-only">{language === 'en' ? 'Fill in task details' : 'Vul de taakgegevens in'}</DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-2">
             <div className="grid gap-1.5">
-              <Label>Titel *</Label>
+              <Label>{t('common.title')} *</Label>
               <Input
                 value={form.title}
                 onChange={(e) => setForm({ ...form, title: e.target.value })}
@@ -625,7 +626,7 @@ export default function Dashboard() {
               />
             </div>
             <div className="grid gap-1.5">
-              <Label>Beschrijving</Label>
+              <Label>{t('common.description')}</Label>
               <Textarea
                 value={form.description}
                 onChange={(e) => setForm({ ...form, description: e.target.value })}
@@ -635,7 +636,7 @@ export default function Dashboard() {
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div className="grid gap-1.5">
-                <Label>Status</Label>
+                <Label>{t('common.status')}</Label>
                 <Select value={form.status} onValueChange={(v) => setForm({ ...form, status: v as Task['status'] })}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
@@ -646,7 +647,7 @@ export default function Dashboard() {
                 </Select>
               </div>
               <div className="grid gap-1.5">
-                <Label>Prioriteit</Label>
+                <Label>{t('common.priority')}</Label>
                 <Select value={form.priority} onValueChange={(v) => setForm({ ...form, priority: v as Task['priority'] })}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
@@ -659,7 +660,7 @@ export default function Dashboard() {
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div className="grid gap-1.5">
-                <Label>Bedrijf</Label>
+                <Label>{t('crm.company')}</Label>
                 <CrmCombobox
                   options={companyOptions}
                   value={form.companyId}
@@ -672,7 +673,7 @@ export default function Dashboard() {
                 />
               </div>
               <div className="grid gap-1.5">
-                <Label>Contactpersoon</Label>
+                <Label>{t('inquiries.contactPerson')}</Label>
                 <CrmCombobox
                   options={contactOptions}
                   value={form.contactId}
@@ -687,7 +688,7 @@ export default function Dashboard() {
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div className="grid gap-1.5">
-                <Label>Datum</Label>
+                <Label>{t('tasks.dueDate')}</Label>
                 <Input
                   type="date"
                   value={form.dueDate}
@@ -695,11 +696,11 @@ export default function Dashboard() {
                 />
               </div>
               <div className="grid gap-1.5">
-                <Label>Verantwoordelijke</Label>
+                <Label>{t('tasks.assignedTo')}</Label>
                 <Select value={form.assignedTo || '__none__'} onValueChange={(v) => setForm({ ...form, assignedTo: v === '__none__' ? '' : v })}>
-                  <SelectTrigger><SelectValue placeholder="Niemand" /></SelectTrigger>
+                  <SelectTrigger><SelectValue placeholder={language === 'en' ? 'Nobody' : 'Niemand'} /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="__none__">Niemand</SelectItem>
+                    <SelectItem value="__none__">{language === 'en' ? 'Nobody' : 'Niemand'}</SelectItem>
                     <SelectItem value="Sjors Jochems">Sjors Jochems</SelectItem>
                     <SelectItem value="Iris Machielse">Iris Machielse</SelectItem>
                   </SelectContent>
@@ -708,8 +709,8 @@ export default function Dashboard() {
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setNewOpen(false)}>Annuleren</Button>
-            <Button onClick={handleSave}>{editTask ? 'Opslaan' : 'Aanmaken'}</Button>
+            <Button variant="outline" onClick={() => setNewOpen(false)}>{t('common.cancel')}</Button>
+            <Button onClick={handleSave}>{editTask ? t('common.save') : t('toast.created')}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -720,10 +721,10 @@ export default function Dashboard() {
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <CheckCircle2 size={18} className="text-success" />
-              Taak afgerond
+              {t('tasks.taskCompleted')}
             </DialogTitle>
             <DialogDescription>
-              "{completedTaskTitle}" is afgerond. Wil je een vervolgtaak aanmaken?
+              "{completedTaskTitle}" {language === 'en' ? 'is completed. Would you like to create a follow-up task?' : 'is afgerond. Wil je een vervolgtaak aanmaken?'}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-3 py-2">
@@ -756,14 +757,14 @@ export default function Dashboard() {
           </div>
           <DialogFooter className="gap-2 sm:gap-0">
             <Button variant="ghost" size="sm" onClick={() => setShowFollowUp(false)}>
-              Sluiten
+              {t('common.close')}
             </Button>
             <Button
               size="sm"
               onClick={handleFollowUp}
               disabled={followAdding || !followTitle.trim()}
             >
-              Aanmaken
+              {t('toast.created')}
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -13,6 +13,7 @@ import { cn } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { useState } from 'react';
+import { useLanguage } from '@/contexts/LanguageContext';
 import { InfoRow } from '@/components/detail/DetailPageComponents';
 import TeamMemberSelect from '@/components/TeamMemberSelect';
 import CrmCombobox from '@/components/CrmCombobox';
@@ -56,6 +57,7 @@ interface Props {
 export default function InquiryDetailsTab({ inquiry, editing, form, setForm, contact, company, onSave, onCancel, onDelete, onStartEdit, onConvert, refetch }: Props) {
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { t, language } = useLanguage();
   const { companies } = useCompaniesContext();
   const [enriching, setEnriching] = useState(false);
   const col = PIPELINE_COLUMNS.find(c => c.key === inquiry.status);
@@ -94,15 +96,15 @@ export default function InquiryDetailsTab({ inquiry, editing, form, setForm, con
       <div className="space-y-5">
         <div className="rounded-xl bg-card p-5 card-shadow space-y-4">
           <div className="flex items-center justify-between">
-            <h3 className="text-base font-bold text-foreground">Aanvraaggegevens</h3>
-            <Badge variant="secondary" className={cn('text-[11px] font-medium', col?.badgeClass)}>{col?.label}</Badge>
+            <h3 className="text-base font-bold text-foreground">{t('detail.inquiryDetails')}</h3>
+            <Badge variant="secondary" className={cn('text-[11px] font-medium', col?.badgeClass)}>{t(`status.${inquiry.status}`)}</Badge>
           </div>
 
           {editing ? (
             <div className="space-y-3">
-              <div><Label>Contactpersoon</Label><Input value={form!.contactName} onChange={(e) => setForm({ ...form!, contactName: e.target.value })} /></div>
+              <div><Label>{t('inquiries.contactPerson')}</Label><Input value={form!.contactName} onChange={(e) => setForm({ ...form!, contactName: e.target.value })} /></div>
               <div>
-                <Label>Bedrijf</Label>
+                <Label>{t('crm.company')}</Label>
                 <CrmCombobox
                   options={companies.map(co => ({
                     id: co.id,
@@ -117,70 +119,70 @@ export default function InquiryDetailsTab({ inquiry, editing, form, setForm, con
                   popoverWidth="w-[340px]"
                 />
               </div>
-              <div><Label>Type evenement</Label><Input value={form!.eventType} onChange={(e) => setForm({ ...form!, eventType: e.target.value })} /></div>
-              <div><Label>Voorkeursdatum</Label><Input type="date" value={form!.preferredDate} onChange={(e) => setForm({ ...form!, preferredDate: e.target.value })} /></div>
+              <div><Label>{t('inquiries.eventType')}</Label><Input value={form!.eventType} onChange={(e) => setForm({ ...form!, eventType: e.target.value })} /></div>
+              <div><Label>{t('inquiries.preferredDate')}</Label><Input type="date" value={form!.preferredDate} onChange={(e) => setForm({ ...form!, preferredDate: e.target.value })} /></div>
               <div className="grid grid-cols-2 gap-2">
-                <div><Label>Voorkeurstijd van</Label><Input type="time" value={form!.preferredStartTime || ''} onChange={(e) => setForm({ ...form!, preferredStartTime: e.target.value })} /></div>
-                <div><Label>Voorkeurstijd tot</Label><Input type="time" value={form!.preferredEndTime || ''} onChange={(e) => setForm({ ...form!, preferredEndTime: e.target.value })} /></div>
+                <div><Label>{language === 'en' ? 'Preferred time from' : 'Voorkeurstijd van'}</Label><Input type="time" value={form!.preferredStartTime || ''} onChange={(e) => setForm({ ...form!, preferredStartTime: e.target.value })} /></div>
+                <div><Label>{language === 'en' ? 'Preferred time to' : 'Voorkeurstijd tot'}</Label><Input type="time" value={form!.preferredEndTime || ''} onChange={(e) => setForm({ ...form!, preferredEndTime: e.target.value })} /></div>
               </div>
               <div className="grid grid-cols-2 gap-2">
-                <div><Label>Gasten</Label><Input type="number" min={0} value={form!.guestCount || ''} onChange={(e) => setForm({ ...form!, guestCount: Number(e.target.value) })} /></div>
-                <div><Label>Budget (€)</Label><Input type="number" min={0} value={form!.budget || ''} onChange={(e) => setForm({ ...form!, budget: Number(e.target.value) || undefined })} /></div>
+                <div><Label>{t('inquiries.guestCount')}</Label><Input type="number" min={0} value={form!.guestCount || ''} onChange={(e) => setForm({ ...form!, guestCount: Number(e.target.value) })} /></div>
+                <div><Label>{t('inquiries.budget')} (€)</Label><Input type="number" min={0} value={form!.budget || ''} onChange={(e) => setForm({ ...form!, budget: Number(e.target.value) || undefined })} /></div>
               </div>
               <div>
-                <Label>Ruimte voorkeur</Label>
+                <Label>{t('inquiries.roomPreference')}</Label>
                 <Select value={form!.roomPreference || ''} onValueChange={(v) => setForm({ ...form!, roomPreference: v })}>
-                  <SelectTrigger><SelectValue placeholder="Optioneel" /></SelectTrigger>
+                  <SelectTrigger><SelectValue placeholder={t('common.optional')} /></SelectTrigger>
                   <SelectContent>{ROOMS.map(r => <SelectItem key={r} value={r}>{r}</SelectItem>)}</SelectContent>
                 </Select>
               </div>
               <div>
-                <Label>Status</Label>
+                <Label>{t('common.status')}</Label>
                 <Select value={form!.status} onValueChange={(v: Inquiry['status']) => setForm({ ...form!, status: v })}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>{PIPELINE_COLUMNS.map(c => <SelectItem key={c.key} value={c.key}>{c.label}</SelectItem>)}</SelectContent>
+                  <SelectContent>{PIPELINE_COLUMNS.map(c => <SelectItem key={c.key} value={c.key}>{t(`status.${c.key}`)}</SelectItem>)}</SelectContent>
                 </Select>
               </div>
               <div>
-                <Label>Bron</Label>
+                <Label>{t('common.source')}</Label>
                 <Select value={form!.source} onValueChange={(v) => setForm({ ...form!, source: v })}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="Handmatig">Handmatig</SelectItem>
-                    <SelectItem value="Website">Website</SelectItem>
-                    <SelectItem value="Telefoon">Telefoon</SelectItem>
-                    <SelectItem value="Email">Email</SelectItem>
-                    <SelectItem value="GHL">VirtuGrow</SelectItem>
+                    <SelectItem value="Handmatig">{t('source.manual')}</SelectItem>
+                    <SelectItem value="Website">{t('source.website')}</SelectItem>
+                    <SelectItem value="Telefoon">{t('source.phone')}</SelectItem>
+                    <SelectItem value="Email">{t('source.email')}</SelectItem>
+                    <SelectItem value="GHL">{t('source.ghl')}</SelectItem>
                   </SelectContent>
               </Select>
               </div>
-              <div><Label>Verantwoordelijke</Label><TeamMemberSelect value={form!.assignedTo} onValueChange={(v) => setForm({ ...form!, assignedTo: v })} /></div>
-              <div><Label>Notities</Label><Textarea value={form!.message} onChange={(e) => setForm({ ...form!, message: e.target.value })} rows={4} /></div>
+              <div><Label>{t('tasks.assignedTo')}</Label><TeamMemberSelect value={form!.assignedTo} onValueChange={(v) => setForm({ ...form!, assignedTo: v })} /></div>
+              <div><Label>{t('common.notes')}</Label><Textarea value={form!.message} onChange={(e) => setForm({ ...form!, message: e.target.value })} rows={4} /></div>
               <div className="flex gap-2">
-                <Button variant="outline" size="sm" className="flex-1" onClick={onCancel}>Annuleren</Button>
-                <Button size="sm" className="flex-1" onClick={onSave}>Opslaan</Button>
+                <Button variant="outline" size="sm" className="flex-1" onClick={onCancel}>{t('common.cancel')}</Button>
+                <Button size="sm" className="flex-1" onClick={onSave}>{t('common.save')}</Button>
               </div>
-              <Button variant="destructive" size="sm" className="w-full" onClick={onDelete}><Trash2 size={14} className="mr-1" /> Aanvraag verwijderen</Button>
+              <Button variant="destructive" size="sm" className="w-full" onClick={onDelete}><Trash2 size={14} className="mr-1" /> {t('inquiries.deleteInquiry')}</Button>
             </div>
           ) : (
             <div className="space-y-3 text-sm">
-              <InfoRow icon={<User size={14} />} label="Contactpersoon" value={inquiry.contactName} onClick={contact ? () => navigate(`/crm/${contact.id}`) : undefined} />
-              {company && <InfoRow icon={<Building2 size={14} />} label="Bedrijf" value={company.name} onClick={() => navigate(`/companies/${company.id}`)} />}
-              <InfoRow icon={<CalendarIcon size={14} />} label="Voorkeursdatum" value={inquiry.preferredDate || '—'} />
+              <InfoRow icon={<User size={14} />} label={t('inquiries.contactPerson')} value={inquiry.contactName} onClick={contact ? () => navigate(`/crm/${contact.id}`) : undefined} />
+              {company && <InfoRow icon={<Building2 size={14} />} label={t('crm.company')} value={company.name} onClick={() => navigate(`/companies/${company.id}`)} />}
+              <InfoRow icon={<CalendarIcon size={14} />} label={t('inquiries.preferredDate')} value={inquiry.preferredDate || '—'} />
               {(inquiry.preferredStartTime || inquiry.preferredEndTime) && (
-                <InfoRow icon={<Clock size={14} />} label="Voorkeurstijd" value={`${inquiry.preferredStartTime || '—'} – ${inquiry.preferredEndTime || '—'}`} />
+                <InfoRow icon={<Clock size={14} />} label={t('inquiries.preferredTime')} value={`${inquiry.preferredStartTime || '—'} – ${inquiry.preferredEndTime || '—'}`} />
               )}
-              <InfoRow icon={<Users size={14} />} label="Gasten" value={`${inquiry.guestCount}`} />
-              <InfoRow icon={<Euro size={14} />} label="Budget" value={inquiry.budget ? `€${inquiry.budget.toLocaleString('nl-NL', { minimumFractionDigits: 2 })}` : '—'} />
-              <InfoRow icon={<MapPin size={14} />} label="Ruimte voorkeur" value={inquiry.roomPreference || '—'} />
-              <InfoRow icon={<FileText size={14} />} label="Bron" value={inquiry.source === 'GHL' ? 'VirtuGrow' : inquiry.source} />
-              {inquiry.assignedTo && <InfoRow icon={<UserCheck size={14} />} label="Verantwoordelijke" value={inquiry.assignedTo} />}
-              <p className="text-xs text-muted-foreground pt-2">Aangemaakt: {inquiry.createdAt}</p>
+              <InfoRow icon={<Users size={14} />} label={t('inquiries.guestCount')} value={`${inquiry.guestCount}`} />
+              <InfoRow icon={<Euro size={14} />} label={t('inquiries.budget')} value={inquiry.budget ? `€${inquiry.budget.toLocaleString('nl-NL', { minimumFractionDigits: 2 })}` : '—'} />
+              <InfoRow icon={<MapPin size={14} />} label={t('inquiries.roomPreference')} value={inquiry.roomPreference || '—'} />
+              <InfoRow icon={<FileText size={14} />} label={t('common.source')} value={inquiry.source === 'GHL' ? 'VirtuGrow' : inquiry.source} />
+              {inquiry.assignedTo && <InfoRow icon={<UserCheck size={14} />} label={t('tasks.assignedTo')} value={inquiry.assignedTo} />}
+              <p className="text-xs text-muted-foreground pt-2">{t('common.createdAt')}: {inquiry.createdAt}</p>
 
               <div className="flex gap-2 pt-2">
-                <Button variant="outline" size="sm" className="flex-1" onClick={onStartEdit}>Bewerken</Button>
+                <Button variant="outline" size="sm" className="flex-1" onClick={onStartEdit}>{t('common.edit')}</Button>
                 <Button size="sm" className="flex-1" onClick={onConvert}>
-                  <ArrowRight size={14} className="mr-1" /> Omzetten naar Reservering
+                  <ArrowRight size={14} className="mr-1" /> {t('inquiries.convertToReservation')}
                 </Button>
               </div>
             </div>
@@ -216,7 +218,7 @@ export default function InquiryDetailsTab({ inquiry, editing, form, setForm, con
             }}
           >
             <RefreshCw size={14} className={cn("mr-1", enriching && "animate-spin")} />
-            {enriching ? 'Ophalen...' : 'Formuliergegevens ophalen uit VirtuGrow'}
+            {enriching ? (language === 'en' ? 'Fetching...' : 'Ophalen...') : (language === 'en' ? 'Fetch form data from VirtuGrow' : 'Formuliergegevens ophalen uit VirtuGrow')}
           </Button>
         )}
 
@@ -224,8 +226,8 @@ export default function InquiryDetailsTab({ inquiry, editing, form, setForm, con
         {contact && !editing && (
           <div className="rounded-xl bg-card p-5 card-shadow space-y-2">
             <div className="flex items-center justify-between">
-              <h3 className="text-base font-bold text-foreground">Contactpersoon</h3>
-              <button onClick={() => navigate(`/crm/${contact.id}`)} className="text-xs text-muted-foreground hover:text-foreground transition-colors">Bekijk profiel →</button>
+              <h3 className="text-base font-bold text-foreground">{t('detail.contactPerson')}</h3>
+              <button onClick={() => navigate(`/crm/${contact.id}`)} className="text-xs text-muted-foreground hover:text-foreground transition-colors">{t('detail.viewProfile')}</button>
             </div>
             <p className="text-sm font-medium text-foreground">{contact.firstName} {contact.lastName}</p>
             {contact.email && <p className="text-xs text-muted-foreground">{contact.email}</p>}
@@ -237,7 +239,7 @@ export default function InquiryDetailsTab({ inquiry, editing, form, setForm, con
       {/* Right: Klantinvoer / formulierdata */}
       <div className="space-y-5">
         <div className="rounded-xl bg-card p-5 card-shadow space-y-3">
-          <h3 className="text-base font-bold text-foreground">Klantinvoer (Formuliergegevens)</h3>
+          <h3 className="text-base font-bold text-foreground">{t('inquiries.customerInput')}</h3>
           
           {/* Show dedicated fields that might not be in message */}
           <div className="space-y-2">
@@ -279,11 +281,11 @@ export default function InquiryDetailsTab({ inquiry, editing, form, setForm, con
             </div>
           )}
           {structuredFields.length === 0 && !inquiry.preferredDate && !inquiry.roomPreference && (
-            <p className="text-xs text-muted-foreground">Geen gestructureerde formulierdata beschikbaar.</p>
+            <p className="text-xs text-muted-foreground">{t('inquiries.noFormData')}</p>
           )}
           {freeText.length > 0 && (
             <div className="pt-2 border-t border-border">
-              <p className="text-xs font-semibold text-muted-foreground mb-1">Opmerkingen</p>
+              <p className="text-xs font-semibold text-muted-foreground mb-1">{t('inquiries.remarks')}</p>
               <p className="text-sm text-foreground whitespace-pre-wrap">{freeText.join('\n')}</p>
             </div>
           )}
@@ -296,8 +298,8 @@ export default function InquiryDetailsTab({ inquiry, editing, form, setForm, con
         {company && !editing && (
           <div className="rounded-xl bg-card p-5 card-shadow space-y-2">
             <div className="flex items-center justify-between">
-              <h3 className="text-base font-bold text-foreground">Bedrijf</h3>
-              <button onClick={() => navigate(`/companies/${company.id}`)} className="text-xs text-muted-foreground hover:text-foreground transition-colors">Bekijk bedrijf →</button>
+              <h3 className="text-base font-bold text-foreground">{t('detail.company')}</h3>
+              <button onClick={() => navigate(`/companies/${company.id}`)} className="text-xs text-muted-foreground hover:text-foreground transition-colors">{t('detail.viewCompany')}</button>
             </div>
             <p className="text-sm font-medium text-foreground">{company.name}</p>
           </div>
