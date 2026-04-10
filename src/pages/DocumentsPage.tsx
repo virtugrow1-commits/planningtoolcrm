@@ -3,26 +3,28 @@ import { useNavigate } from 'react-router-dom';
 import { FileText, Eye, CheckCircle2, XCircle, Send, ExternalLink } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
-
-const statusConfig: Record<string, { label: string; class: string; icon: any }> = {
-  sent: { label: 'Verzonden', class: 'bg-info/15 text-info border-info/30', icon: Send },
-  viewed: { label: 'Bekeken', class: 'bg-warning/15 text-warning border-warning/30', icon: Eye },
-  signed: { label: 'Ondertekend', class: 'bg-success/15 text-success border-success/30', icon: CheckCircle2 },
-  paid: { label: 'Betaald', class: 'bg-success/15 text-success border-success/30', icon: CheckCircle2 },
-  declined: { label: 'Afgewezen', class: 'bg-destructive/15 text-destructive border-destructive/30', icon: XCircle },
-};
-
-const typeLabels: Record<string, string> = {
-  proposal: 'Voorstel',
-  invoice: 'Factuur',
-  estimate: 'Offerte',
-  contract: 'Contract',
-  document: 'Document',
-};
+import { useLanguage } from '@/contexts/LanguageContext';
 
 export default function DocumentsPage() {
   const { documents, loading } = useDocuments();
   const navigate = useNavigate();
+  const { t } = useLanguage();
+
+  const statusConfig: Record<string, { label: string; class: string; icon: any }> = {
+    sent: { label: t('documents.sent'), class: 'bg-info/15 text-info border-info/30', icon: Send },
+    viewed: { label: t('documents.viewed'), class: 'bg-warning/15 text-warning border-warning/30', icon: Eye },
+    signed: { label: t('documents.signed'), class: 'bg-success/15 text-success border-success/30', icon: CheckCircle2 },
+    paid: { label: t('documents.paid'), class: 'bg-success/15 text-success border-success/30', icon: CheckCircle2 },
+    declined: { label: t('documents.declined'), class: 'bg-destructive/15 text-destructive border-destructive/30', icon: XCircle },
+  };
+
+  const typeLabels: Record<string, string> = {
+    proposal: t('documents.typeProposal'),
+    invoice: t('documents.typeInvoice'),
+    estimate: t('documents.typeQuote'),
+    contract: t('documents.typeContract'),
+    document: t('documents.typeDocument'),
+  };
 
   if (loading) {
     return (
@@ -36,32 +38,32 @@ export default function DocumentsPage() {
   return (
     <div className="p-6 lg:p-8 space-y-4">
       <div>
-        <h1 className="text-2xl font-bold text-foreground">Documenten</h1>
+        <h1 className="text-2xl font-bold text-foreground">{t('documents.title')}</h1>
         <p className="text-sm text-muted-foreground">
-          {documents.length} documenten · Voorstellen, contracten en facturen vanuit VirtuGrow
+          {documents.length} {t('documents.subtitle')}
         </p>
       </div>
 
       {documents.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-16 text-center rounded-xl border bg-card card-shadow">
           <FileText size={40} className="text-muted-foreground/40 mb-3" />
-          <p className="text-muted-foreground font-medium">Nog geen documenten</p>
-          <p className="text-xs text-muted-foreground mt-1">Documenten die vanuit VirtuGrow worden verstuurd verschijnen hier automatisch.</p>
+          <p className="text-muted-foreground font-medium">{t('documents.noDocumentsYet')}</p>
+          <p className="text-xs text-muted-foreground mt-1">{t('documents.noDocumentsHint')}</p>
         </div>
       ) : (
         <div className="overflow-x-auto rounded-xl border bg-card card-shadow">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b bg-muted/50">
-                <th className="px-4 py-3 text-left font-semibold text-muted-foreground">Document</th>
-                <th className="px-4 py-3 text-left font-semibold text-muted-foreground">Type</th>
-                <th className="px-4 py-3 text-left font-semibold text-muted-foreground">Klant</th>
-                <th className="px-4 py-3 text-right font-semibold text-muted-foreground">Bedrag</th>
-                <th className="px-4 py-3 text-left font-semibold text-muted-foreground">Status</th>
-                <th className="px-4 py-3 text-left font-semibold text-muted-foreground">Verzonden</th>
-                <th className="px-4 py-3 text-left font-semibold text-muted-foreground">Bekeken</th>
-                <th className="px-4 py-3 text-left font-semibold text-muted-foreground">Ondertekend</th>
-                <th className="px-4 py-3 text-center font-semibold text-muted-foreground">Link</th>
+                <th className="px-4 py-3 text-left font-semibold text-muted-foreground">{t('documents.document')}</th>
+                <th className="px-4 py-3 text-left font-semibold text-muted-foreground">{t('documents.type')}</th>
+                <th className="px-4 py-3 text-left font-semibold text-muted-foreground">{t('documents.client')}</th>
+                <th className="px-4 py-3 text-right font-semibold text-muted-foreground">{t('documents.amount')}</th>
+                <th className="px-4 py-3 text-left font-semibold text-muted-foreground">{t('documents.status')}</th>
+                <th className="px-4 py-3 text-left font-semibold text-muted-foreground">{t('documents.sent')}</th>
+                <th className="px-4 py-3 text-left font-semibold text-muted-foreground">{t('documents.viewed')}</th>
+                <th className="px-4 py-3 text-left font-semibold text-muted-foreground">{t('documents.signed')}</th>
+                <th className="px-4 py-3 text-center font-semibold text-muted-foreground">{t('documents.link')}</th>
               </tr>
             </thead>
             <tbody>

@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 import { useQuotes } from '@/hooks/useQuotes';
 import { useInvoices } from '@/hooks/useInvoices';
 import { useDocuments } from '@/hooks/useDocuments';
+import { useLanguage } from '@/contexts/LanguageContext';
 
 export type UnifiedDocumentSource = 'quote' | 'invoice' | 'ghl';
 
@@ -29,20 +30,20 @@ export function useUnifiedDocuments() {
   const { quotes, loading: qLoading } = useQuotes();
   const { invoices, loading: iLoading } = useInvoices();
   const { documents: ghlDocs, loading: gLoading } = useDocuments();
+  const { t } = useLanguage();
 
   const loading = qLoading || iLoading || gLoading;
 
   const unified = useMemo<UnifiedDocument[]>(() => {
     const items: UnifiedDocument[] = [];
 
-    // Map quotes
     for (const q of quotes) {
       items.push({
         id: q.id,
         source: 'quote',
         displayNumber: q.displayNumber || '',
         title: q.title,
-        documentType: 'Offerte',
+        documentType: t('documents.typeQuote'),
         contactName: q.contactName,
         contactId: q.contactId || null,
         companyName: q.companyName || null,
@@ -58,14 +59,13 @@ export function useUnifiedDocuments() {
       });
     }
 
-    // Map invoices
     for (const inv of invoices) {
       items.push({
         id: inv.id,
         source: 'invoice',
         displayNumber: inv.displayNumber || '',
         title: inv.title,
-        documentType: 'Factuur',
+        documentType: t('documents.typeInvoice'),
         contactName: inv.contactName,
         contactId: inv.contactId || null,
         companyName: inv.companyName || null,
@@ -81,7 +81,6 @@ export function useUnifiedDocuments() {
       });
     }
 
-    // Map GHL documents (skip if already linked via ghl_document_id)
     const linkedGhlDocIds = new Set<string>();
     for (const q of quotes) {
       if ((q as any).ghlDocumentId) linkedGhlDocIds.add((q as any).ghlDocumentId);
@@ -90,6 +89,13 @@ export function useUnifiedDocuments() {
       if (inv.ghlInvoiceId) linkedGhlDocIds.add(inv.ghlInvoiceId);
     }
 
+    const ghlTypeMap: Record<string, string> = {
+      proposal: t('documents.typeProposal'),
+      invoice: t('documents.typeInvoice'),
+      estimate: t('documents.typeQuote'),
+      contract: t('documents.typeContract'),
+    };
+
     for (const doc of ghlDocs) {
       if (doc.ghlDocumentId && linkedGhlDocIds.has(doc.ghlDocumentId)) continue;
       items.push({
@@ -97,10 +103,7 @@ export function useUnifiedDocuments() {
         source: 'ghl',
         displayNumber: '',
         title: doc.title,
-        documentType: doc.documentType === 'proposal' ? 'Voorstel' :
-                       doc.documentType === 'invoice' ? 'Factuur' :
-                       doc.documentType === 'estimate' ? 'Offerte' :
-                       doc.documentType === 'contract' ? 'Contract' : 'Document',
+        documentType: ghlTypeMap[doc.documentType] || t('documents.typeDocument'),
         contactName: doc.contactName,
         contactId: doc.contactId || null,
         companyName: null,
@@ -116,10 +119,9 @@ export function useUnifiedDocuments() {
       });
     }
 
-    // Sort by created date descending
     items.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
     return items;
-  }, [quotes, invoices, ghlDocs]);
+  }, [quotes, invoices, ghlDocs, t]);
 
   return { documents: unified, loading };
 }
