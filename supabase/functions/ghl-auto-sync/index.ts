@@ -338,38 +338,68 @@ async function syncCalendar(supabase: any, ghlHeaders: any, locationId: string, 
       console.log(`Skipping ${deletedGhlEventIds.size} recently deleted GHL events`);
     }
 
-    // Batch upsert events in chunks of 20
-    const CHUNK_SIZE = 20;
-    for (let i = 0; i < allEvents.length; i += CHUNK_SIZE) {
-      const chunk = allEvents.slice(i, i + CHUNK_SIZE);
-      const upsertRows = [];
+    // Pre-load all existing bookings with ghl_event_id for timestamp comparison
+    const existingBookings = await fetchAll(supabase, 'bookings', 'id, ghl_event_id, updated_at, room_name, date, start_hour, start_minute, end_hour, end_minute, title, contact_name, status, notes, guest_count, room_setup, requirements, preparation_status, assigned_to', {});
+    const bookingByGhlId = new Map<string, any>();
+    for (const b of existingBookings) {
+      if (b.ghl_event_id) bookingByGhlId.set(b.ghl_event_id, b);
+    }
 
-      for (const evt of chunk) {
-        try {
-          // Skip events that were recently deleted from CRM
-          if (deletedGhlEventIds.has(evt.id)) {
-            console.log(`Skipping re-import of deleted event: ${evt.id}`);
-            continue;
+    // Process events individually with timestamp comparison
+    let newBookingRows = [];
+    for (const evt of allEvents) {
+      try {
+        // Skip events that were recently deleted from CRM
+        if (deletedGhlEventIds.has(evt.id)) {
+          console.log(`Skipping re-import of deleted event: ${evt.id}`);
+          continue;
+        }
+
+        const evtStart = new Date(evt.startTime || evt.start || evt.startDate);
+        const evtEnd = new Date(evt.endTime || evt.end || evt.endDate);
+        if (isNaN(evtStart.getTime())) continue;
+
+        const startLocal = toAmsterdam(evtStart);
+        const endLocal = isNaN(evtEnd.getTime()) ? null : toAmsterdam(evtEnd);
+        const dateStr = startLocal.dateStr;
+        const startHour = startLocal.hours;
+        const startMinute = startLocal.minutes;
+        const endHour = endLocal ? endLocal.hours : Math.min(startHour + 1, 23);
+        const endMinute = endLocal ? endLocal.minutes : 0;
+
+        const contactName = evt.contact?.name || evt.title || evt.calendarName || 'GHL Afspraak';
+        const title = evt.title || evt.name || evt.calendarName || 'GHL Afspraak';
+        const evtStatus = (evt.status === 'confirmed' || evt.appointmentStatus === 'confirmed') ? 'confirmed' : 'option';
+        const roomName = calIdToRoom[evt.calendarId] || evt.calendarName || 'Ontmoeten Aan de Donge';
+
+        const existing = bookingByGhlId.get(evt.id);
+        if (existing) {
+          // Booking exists — compare timestamps to decide who wins
+          const ghlUpdatedAt = evt.dateUpdated || evt.dateAdded || null;
+          const crmIsNewer = !ghlUpdatedAt || existing.updated_at >= ghlUpdatedAt;
+
+          if (crmIsNewer) {
+            // CRM wins → don't overwrite local changes
+            console.log(`Booking ${existing.id}: CRM is newer, preserving local changes`);
+          } else {
+            // GHL wins → update only time/date fields, preserve locally-set fields (notes, guest_count, room_setup, etc.)
+            await supabase.from('bookings').update({
+              date: dateStr,
+              start_hour: startHour,
+              start_minute: startMinute,
+              end_hour: endHour,
+              end_minute: endMinute,
+              title,
+              contact_name: contactName,
+              status: evtStatus,
+              // Preserve: room_name (user may have moved it), notes, guest_count, room_setup, requirements, preparation_status, assigned_to
+            }).eq('id', existing.id);
+            console.log(`GHL -> CRM booking ${existing.id}: GHL is newer (GHL: ${ghlUpdatedAt}, CRM: ${existing.updated_at})`);
+            results.bookings_pulled++;
           }
-
-          const evtStart = new Date(evt.startTime || evt.start || evt.startDate);
-          const evtEnd = new Date(evt.endTime || evt.end || evt.endDate);
-          if (isNaN(evtStart.getTime())) continue;
-
-          const startLocal = toAmsterdam(evtStart);
-          const endLocal = isNaN(evtEnd.getTime()) ? null : toAmsterdam(evtEnd);
-          const dateStr = startLocal.dateStr;
-          const startHour = startLocal.hours;
-          const startMinute = startLocal.minutes;
-          const endHour = endLocal ? endLocal.hours : Math.min(startHour + 1, 23);
-          const endMinute = endLocal ? endLocal.minutes : 0;
-
-          const contactName = evt.contact?.name || evt.title || evt.calendarName || 'GHL Afspraak';
-          const title = evt.title || evt.name || evt.calendarName || 'GHL Afspraak';
-          const evtStatus = (evt.status === 'confirmed' || evt.appointmentStatus === 'confirmed') ? 'confirmed' : 'option';
-          const roomName = calIdToRoom[evt.calendarId] || evt.calendarName || 'Ontmoeten Aan de Donge';
-
-          upsertRows.push({
+        } else {
+          // New booking from GHL → insert
+          newBookingRows.push({
             user_id: userId,
             ghl_event_id: evt.id,
             room_name: roomName,
@@ -382,16 +412,21 @@ async function syncCalendar(supabase: any, ghlHeaders: any, locationId: string, 
             contact_name: contactName,
             status: evtStatus,
           });
-        } catch (evtErr) { console.error('Event error:', evt.id, evtErr); }
-      }
+        }
+      } catch (evtErr) { console.error('Event error:', evt.id, evtErr); }
+    }
 
-      if (upsertRows.length > 0) {
-        const { error: upsertErr } = await supabase.from('bookings').upsert(upsertRows, { onConflict: 'ghl_event_id' });
-        if (upsertErr) {
-          console.error(`Booking batch upsert error:`, upsertErr.message);
-          results.errors.push(`booking_batch:${upsertErr.message}`);
+    // Batch insert new bookings
+    if (newBookingRows.length > 0) {
+      const CHUNK_SIZE = 20;
+      for (let i = 0; i < newBookingRows.length; i += CHUNK_SIZE) {
+        const chunk = newBookingRows.slice(i, i + CHUNK_SIZE);
+        const { error: insertErr } = await supabase.from('bookings').insert(chunk);
+        if (insertErr) {
+          console.error(`Booking batch insert error:`, insertErr.message);
+          results.errors.push(`booking_batch:${insertErr.message}`);
         } else {
-          results.bookings_pulled += upsertRows.length;
+          results.bookings_pulled += chunk.length;
         }
       }
     }
