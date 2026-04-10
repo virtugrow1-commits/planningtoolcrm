@@ -29,7 +29,7 @@ const PIPELINE_COLUMNS: { key: Inquiry['status']; label: string; badgeClass: str
   { key: 'confirmed', label: 'Definitieve Reservering', badgeClass: 'status-converted' },
   { key: 'invoiced', label: 'Facturatie', badgeClass: 'status-new' },
   { key: 'lost', label: 'Vervallen / Verloren', badgeClass: 'status-lost' },
-  { key: 'converted', label: 'Omgezet', badgeClass: 'status-converted' },
+  { key: 'converted', label: 'Afgehandeld', badgeClass: 'status-converted' },
   { key: 'after_sales', label: 'After Sales', badgeClass: 'status-converted' },
   { key: 'condolence_reminder', label: 'Condoleance Herinnering', badgeClass: 'status-contacted' },
 ];
