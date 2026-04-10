@@ -214,7 +214,7 @@ export default function Dashboard() {
 
   const handleSave = async () => {
     if (!form.title.trim()) {
-      toast({ title: 'Geef de taak een titel', variant: 'destructive' });
+      toast({ title: t('tasks.giveTitleError'), variant: 'destructive' });
       return;
     }
     if (editTask) {
@@ -228,7 +228,7 @@ export default function Dashboard() {
         companyId: form.companyId || undefined,
         contactId: form.contactId || undefined,
       });
-      toast({ title: 'Taak bijgewerkt' });
+      toast({ title: t('tasks.taskUpdated') });
     } else {
       await addTask({
         title: form.title,
@@ -240,7 +240,7 @@ export default function Dashboard() {
         contactId: form.contactId || undefined,
         assignedTo: form.assignedTo || undefined,
       });
-      toast({ title: 'Taak aangemaakt' });
+      toast({ title: t('tasks.taskCreated') });
     }
     setNewOpen(false);
     resetForm();
@@ -250,14 +250,14 @@ export default function Dashboard() {
   const handleDelete = async (id: string) => {
     await deleteTask(id);
     setSelected((prev) => { const n = new Set(prev); n.delete(id); return n; });
-    toast({ title: 'Taak verwijderd' });
+    toast({ title: t('tasks.taskDeleted') });
   };
 
   const handleBulkDelete = async () => {
     const ids = Array.from(selected);
     await deleteTasks(ids);
     setSelected(new Set());
-    toast({ title: `${ids.length} taken verwijderd` });
+    toast({ title: `${ids.length} ${t('tasks.tasksDeleted')}` });
   };
 
   const handleBulkStatus = async (newStatus: Task['status']) => {
@@ -267,7 +267,7 @@ export default function Dashboard() {
       if (task) await updateTask({ ...task, status: newStatus });
     }
     setSelected(new Set());
-    toast({ title: `${ids.length} taken bijgewerkt` });
+    toast({ title: `${ids.length} ${t('tasks.tasksUpdated')}` });
   };
 
   const handleBulkDateChange = async () => {
@@ -282,7 +282,7 @@ export default function Dashboard() {
     setSelected(new Set());
     setBulkDate(undefined);
     setBulkDateOpen(false);
-    toast({ title: `${count} taken verplaatst naar ${format(bulkDate, 'd MMM yyyy', { locale: nl })}` });
+    toast({ title: `${count} ${t('tasks.movedToDate')}` });
   };
 
   const handleStatusChange = async (task: Task, newStatus: Task['status']) => {
@@ -317,7 +317,7 @@ export default function Dashboard() {
     });
     setFollowAdding(false);
     setShowFollowUp(false);
-    toast({ title: 'Vervolgtaak aangemaakt' });
+    toast({ title: t('tasks.followUpCreated') });
   };
 
   const priorityIcon = (p: Task['priority']) => {
