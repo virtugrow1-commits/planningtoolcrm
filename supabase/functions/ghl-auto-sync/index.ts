@@ -602,7 +602,7 @@ async function syncOpportunities(supabase: any, ghlHeaders: any, locationId: str
       'reserved': 'reservering', 'script': 'draaiboek maken',
       'confirmed': 'definitieve reservering',
       'invoiced': 'facturatie', 'lost': 'vervallen', 'after_sales': 'after sales',
-      'condolence_reminder': 'condoleance herinnering', 'converted': 'evenement',
+      'condolence_reminder': 'condoleance herdenkingen', 'converted': 'evenement',
     };
 
     const findStageId = (crmStatus: string): string | null => {
@@ -1260,7 +1260,7 @@ async function pushLocalInquiries(supabase: any, ghlHeaders: any, locationId: st
       'quoted': 'Offerte Verzonden', 'quote_revised': 'Aangepaste offerte verzonden',
       'reserved': 'Reservering', 'confirmed': 'Definitieve Reservering',
       'invoiced': 'Facturatie', 'lost': 'Vervallen / Verloren', 'after_sales': 'After Sales',
-      'condolence_reminder': 'Condoleance Herinnering',
+      'condolence_reminder': 'Condoleance Herdenkingen',
     };
 
     results.inquiries_pushed = 0;
