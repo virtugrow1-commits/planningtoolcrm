@@ -13,6 +13,7 @@ import { cn } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { useState } from 'react';
+import { useLanguage } from '@/contexts/LanguageContext';
 import { InfoRow } from '@/components/detail/DetailPageComponents';
 import TeamMemberSelect from '@/components/TeamMemberSelect';
 import CrmCombobox from '@/components/CrmCombobox';
@@ -56,6 +57,7 @@ interface Props {
 export default function InquiryDetailsTab({ inquiry, editing, form, setForm, contact, company, onSave, onCancel, onDelete, onStartEdit, onConvert, refetch }: Props) {
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { t, language } = useLanguage();
   const { companies } = useCompaniesContext();
   const [enriching, setEnriching] = useState(false);
   const col = PIPELINE_COLUMNS.find(c => c.key === inquiry.status);
