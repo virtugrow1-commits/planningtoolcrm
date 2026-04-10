@@ -1136,8 +1136,8 @@ export default function InquiriesPage() {
             </div>
           )}
           <DialogFooter>
-            <Button variant="outline" onClick={() => setScheduleOpen(false)}>Annuleren</Button>
-            <Button onClick={handleSchedule}>Inplannen</Button>
+            <Button variant="outline" onClick={() => setScheduleOpen(false)}>{t('common.cancel')}</Button>
+            <Button onClick={handleSchedule}>{t('inquiries.schedule')}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -1417,11 +1417,11 @@ export default function InquiriesPage() {
                 </div>
                 <DialogFooter className="flex !justify-between">
                   <Button variant="destructive" size="sm" onClick={handleDeleteInquiry}>
-                    <Trash2 size={14} className="mr-1" /> Verwijderen
+                    <Trash2 size={14} className="mr-1" /> {t('common.delete')}
                   </Button>
                   <div className="flex gap-2">
-                    <Button variant="outline" onClick={() => setDetailOpen(false)}>Annuleren</Button>
-                    <Button onClick={handleSaveEdit}>Opslaan</Button>
+                    <Button variant="outline" onClick={() => setDetailOpen(false)}>{t('common.cancel')}</Button>
+                    <Button onClick={handleSaveEdit}>{t('common.save')}</Button>
                   </div>
                 </DialogFooter>
               </TabsContent>
@@ -1435,15 +1435,15 @@ export default function InquiriesPage() {
       <AlertDialog open={bulkDeleteConfirmOpen} onOpenChange={setBulkDeleteConfirmOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Weet je het zeker?</AlertDialogTitle>
+            <AlertDialogTitle>{t('common.areYouSure')}</AlertDialogTitle>
             <AlertDialogDescription>
-              Je staat op het punt om {selected.size} aanvra{selected.size !== 1 ? 'gen' : 'ag'} te verwijderen. Deze actie kan niet ongedaan worden gemaakt.
+              {t('inquiries.bulkDeleteConfirm')}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Annuleren</AlertDialogCancel>
+            <AlertDialogCancel>{t('common.cancel')}</AlertDialogCancel>
             <AlertDialogAction className="bg-destructive text-destructive-foreground hover:bg-destructive/90" onClick={handleBulkDelete}>
-              Verwijderen ({selected.size})
+              {t('common.delete')} ({selected.size})
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -1453,13 +1453,16 @@ export default function InquiriesPage() {
       <AlertDialog open={!!bulkMoveTarget} onOpenChange={(open) => { if (!open) setBulkMoveTarget(null); }}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Verplaatsen bevestigen</AlertDialogTitle>
+            <AlertDialogTitle>{language === 'en' ? 'Confirm move' : 'Verplaatsen bevestigen'}</AlertDialogTitle>
             <AlertDialogDescription>
-              Weet je zeker dat je {selected.size} aanvra{selected.size !== 1 ? 'gen' : 'ag'} wilt verplaatsen naar "{PIPELINE_COLUMNS.find(c => c.key === bulkMoveTarget)?.label}"?
+              {language === 'en' 
+                ? `Are you sure you want to move ${selected.size} inquir${selected.size !== 1 ? 'ies' : 'y'} to "${t(`status.${bulkMoveTarget}`)}"?`
+                : `Weet je zeker dat je ${selected.size} aanvra${selected.size !== 1 ? 'gen' : 'ag'} wilt verplaatsen naar "${t(`status.${bulkMoveTarget}`)}"?`
+              }
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Annuleren</AlertDialogCancel>
+            <AlertDialogCancel>{t('common.cancel')}</AlertDialogCancel>
             <AlertDialogAction onClick={() => bulkMoveTarget && handleBulkMove(bulkMoveTarget)}>Bevestigen</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
