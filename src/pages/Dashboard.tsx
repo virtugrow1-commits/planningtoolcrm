@@ -558,7 +558,7 @@ export default function Dashboard() {
             {filteredTasks.length > visibleCount && (
               <div className="px-5 py-3 text-center">
                 <Button variant="outline" size="sm" className="text-xs" onClick={() => setVisibleCount(prev => prev + 10)}>
-                  Laat meer taken zien ({filteredTasks.length - visibleCount} resterend)
+                  {t('dashboard.showMore')} ({filteredTasks.length - visibleCount})
                 </Button>
               </div>
             )}
@@ -568,10 +568,10 @@ export default function Dashboard() {
 
       {/* Agenda Vandaag */}
       <div className="rounded-xl bg-card p-5 card-shadow animate-fade-in-up overflow-hidden">
-        <h2 className="mb-4 text-sm font-semibold text-card-foreground">Agenda Vandaag</h2>
+        <h2 className="mb-4 text-sm font-semibold text-card-foreground">{language === 'en' ? 'Today\'s Agenda' : 'Agenda Vandaag'}</h2>
         <div className="space-y-3">
           {todayBookings.length === 0 && (
-            <p className="text-sm text-muted-foreground">Geen boekingen vandaag</p>
+            <p className="text-sm text-muted-foreground">{language === 'en' ? 'No bookings today' : 'Geen boekingen vandaag'}</p>
           )}
           {todayBookings.map((booking) => (
             <div
@@ -599,9 +599,9 @@ export default function Dashboard() {
         onOpenChange={(open) => setKpiDialog((prev) => ({ ...prev, open }))}
         type={kpiDialog.type}
         title={
-          kpiDialog.type === 'tasks' ? 'Openstaande Taken' :
-          kpiDialog.type === 'inquiries' ? 'Openstaande Aanvragen' :
-          'Reserveringen Vandaag'
+          kpiDialog.type === 'tasks' ? t('dashboard.openTasks') :
+          kpiDialog.type === 'inquiries' ? (language === 'en' ? 'Open Inquiries' : 'Openstaande Aanvragen') :
+          t('dashboard.bookingsToday')
         }
         tasks={tasks.filter((t) => t.status !== 'completed')}
         inquiries={openInquiries}
@@ -613,12 +613,12 @@ export default function Dashboard() {
       <Dialog open={newOpen} onOpenChange={setNewOpen}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>{editTask ? 'Taak Bewerken' : 'Nieuwe Taak'}</DialogTitle>
-            <DialogDescription className="sr-only">Vul de taakgegevens in</DialogDescription>
+            <DialogTitle>{editTask ? t('tasks.editTask') : t('tasks.newTask')}</DialogTitle>
+            <DialogDescription className="sr-only">{language === 'en' ? 'Fill in task details' : 'Vul de taakgegevens in'}</DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-2">
             <div className="grid gap-1.5">
-              <Label>Titel *</Label>
+              <Label>{t('common.title')} *</Label>
               <Input
                 value={form.title}
                 onChange={(e) => setForm({ ...form, title: e.target.value })}
@@ -626,7 +626,7 @@ export default function Dashboard() {
               />
             </div>
             <div className="grid gap-1.5">
-              <Label>Beschrijving</Label>
+              <Label>{t('common.description')}</Label>
               <Textarea
                 value={form.description}
                 onChange={(e) => setForm({ ...form, description: e.target.value })}
@@ -636,7 +636,7 @@ export default function Dashboard() {
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div className="grid gap-1.5">
-                <Label>Status</Label>
+                <Label>{t('common.status')}</Label>
                 <Select value={form.status} onValueChange={(v) => setForm({ ...form, status: v as Task['status'] })}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
@@ -647,7 +647,7 @@ export default function Dashboard() {
                 </Select>
               </div>
               <div className="grid gap-1.5">
-                <Label>Prioriteit</Label>
+                <Label>{t('common.priority')}</Label>
                 <Select value={form.priority} onValueChange={(v) => setForm({ ...form, priority: v as Task['priority'] })}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
@@ -660,7 +660,7 @@ export default function Dashboard() {
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div className="grid gap-1.5">
-                <Label>Bedrijf</Label>
+                <Label>{t('crm.company')}</Label>
                 <CrmCombobox
                   options={companyOptions}
                   value={form.companyId}
@@ -673,7 +673,7 @@ export default function Dashboard() {
                 />
               </div>
               <div className="grid gap-1.5">
-                <Label>Contactpersoon</Label>
+                <Label>{t('inquiries.contactPerson')}</Label>
                 <CrmCombobox
                   options={contactOptions}
                   value={form.contactId}
@@ -688,7 +688,7 @@ export default function Dashboard() {
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div className="grid gap-1.5">
-                <Label>Datum</Label>
+                <Label>{t('tasks.dueDate')}</Label>
                 <Input
                   type="date"
                   value={form.dueDate}
@@ -696,11 +696,11 @@ export default function Dashboard() {
                 />
               </div>
               <div className="grid gap-1.5">
-                <Label>Verantwoordelijke</Label>
+                <Label>{t('tasks.assignedTo')}</Label>
                 <Select value={form.assignedTo || '__none__'} onValueChange={(v) => setForm({ ...form, assignedTo: v === '__none__' ? '' : v })}>
-                  <SelectTrigger><SelectValue placeholder="Niemand" /></SelectTrigger>
+                  <SelectTrigger><SelectValue placeholder={language === 'en' ? 'Nobody' : 'Niemand'} /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="__none__">Niemand</SelectItem>
+                    <SelectItem value="__none__">{language === 'en' ? 'Nobody' : 'Niemand'}</SelectItem>
                     <SelectItem value="Sjors Jochems">Sjors Jochems</SelectItem>
                     <SelectItem value="Iris Machielse">Iris Machielse</SelectItem>
                   </SelectContent>
@@ -709,8 +709,8 @@ export default function Dashboard() {
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setNewOpen(false)}>Annuleren</Button>
-            <Button onClick={handleSave}>{editTask ? 'Opslaan' : 'Aanmaken'}</Button>
+            <Button variant="outline" onClick={() => setNewOpen(false)}>{t('common.cancel')}</Button>
+            <Button onClick={handleSave}>{editTask ? t('common.save') : t('toast.created')}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -721,10 +721,10 @@ export default function Dashboard() {
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <CheckCircle2 size={18} className="text-success" />
-              Taak afgerond
+              {t('tasks.taskCompleted')}
             </DialogTitle>
             <DialogDescription>
-              "{completedTaskTitle}" is afgerond. Wil je een vervolgtaak aanmaken?
+              "{completedTaskTitle}" {language === 'en' ? 'is completed. Would you like to create a follow-up task?' : 'is afgerond. Wil je een vervolgtaak aanmaken?'}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-3 py-2">
@@ -757,14 +757,14 @@ export default function Dashboard() {
           </div>
           <DialogFooter className="gap-2 sm:gap-0">
             <Button variant="ghost" size="sm" onClick={() => setShowFollowUp(false)}>
-              Sluiten
+              {t('common.close')}
             </Button>
             <Button
               size="sm"
               onClick={handleFollowUp}
               disabled={followAdding || !followTitle.trim()}
             >
-              Aanmaken
+              {t('toast.created')}
             </Button>
           </DialogFooter>
         </DialogContent>
