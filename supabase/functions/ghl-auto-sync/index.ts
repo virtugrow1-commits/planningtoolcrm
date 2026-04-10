@@ -822,7 +822,7 @@ async function syncContacts(supabase: any, ghlHeaders: any, locationId: string, 
       const existing = lookups.contactByGhlId.get(ghlContact.id);
 
       if (existing) {
-        // GHL is always source of truth → overwrite CRM with GHL data
+        // Timestamp-based conflict resolution: only overwrite CRM if GHL is newer
         const crmDiffers = norm(existing.first_name) !== norm(firstName) ||
                            norm(existing.last_name) !== norm(lastName) ||
                            norm(existing.email) !== norm(ghlEmail) ||
@@ -830,16 +830,43 @@ async function syncContacts(supabase: any, ghlHeaders: any, locationId: string, 
                            (ghlCompanyName && norm(existing.company) !== norm(ghlCompanyName));
 
         if (crmDiffers) {
-          const updatePayload: any = {
-            first_name: firstName,
-            last_name: lastName,
-            email: ghlEmail,
-            phone: ghlPhone,
-          };
-          if (ghlCompanyName) {
-            updatePayload.company = ghlCompanyName;
+          // Compare timestamps: GHL dateUpdated vs CRM updated_at
+          const ghlUpdatedAt = ghlContact.dateUpdated || ghlContact.dateAdded || null;
+          const crmIsNewer = !ghlUpdatedAt || existing.updated_at >= ghlUpdatedAt;
+
+          if (crmIsNewer) {
+            // CRM wins → push local changes to GHL instead
+            const pushPayload: any = {
+              firstName: existing.first_name,
+              lastName: existing.last_name,
+              email: existing.email || undefined,
+              phone: existing.phone || undefined,
+              companyName: existing.company || undefined,
+            };
+            await delay(150);
+            const pushRes = await fetch(`${GHL_API_BASE}/contacts/${ghlContact.id}`, {
+              method: 'PUT', headers: ghlHeaders, body: JSON.stringify(pushPayload),
+            });
+            if (pushRes.ok) {
+              console.log(`CRM -> GHL contact ${ghlContact.id}: CRM is newer (CRM: ${existing.updated_at}, GHL: ${ghlUpdatedAt})`);
+              results.contacts_pushed++;
+            } else {
+              await pushRes.text();
+            }
+          } else {
+            // GHL wins → GHL has a more recent change, update CRM
+            const updatePayload: any = {
+              first_name: firstName,
+              last_name: lastName,
+              email: ghlEmail,
+              phone: ghlPhone,
+            };
+            if (ghlCompanyName) {
+              updatePayload.company = ghlCompanyName;
+            }
+            await supabase.from('contacts').update(updatePayload).eq('id', existing.id);
+            console.log(`GHL -> CRM contact ${existing.id}: GHL is newer (GHL: ${ghlUpdatedAt}, CRM: ${existing.updated_at})`);
           }
-          await supabase.from('contacts').update(updatePayload).eq('id', existing.id);
         }
       } else {
         // New from GHL → check in-memory lookup by name+email
