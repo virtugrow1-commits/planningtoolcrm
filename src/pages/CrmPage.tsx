@@ -17,6 +17,7 @@ import { Contact } from '@/types/crm';
 import { useToast } from '@/hooks/use-toast';
 import { useContactsContext } from '@/contexts/ContactsContext';
 import { useCompaniesContext } from '@/contexts/CompaniesContext';
+import { useLanguage } from '@/contexts/LanguageContext';
 import { cn } from '@/lib/utils';
 import { exportToCSV } from '@/lib/csvExport';
 import { SortableHeader, useSortState } from '@/components/SortableHeader';
