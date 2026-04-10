@@ -809,7 +809,7 @@ async function syncOpportunities(supabase: any, ghlHeaders: any, locationId: str
 // === BIDIRECTIONAL CONTACTS SYNC ===
 async function syncContacts(supabase: any, ghlHeaders: any, locationId: string, userId: string, results: any, lookups: any) {
   try {
-    const recentThreshold = new Date(Date.now() - 2 * 60 * 1000).toISOString();
+    const recentThreshold = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
 
     // 1. Pull ALL GHL contacts (paginate)
     const ghlContacts: any[] = [];
