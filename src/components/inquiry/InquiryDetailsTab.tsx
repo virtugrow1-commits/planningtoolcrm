@@ -166,23 +166,23 @@ export default function InquiryDetailsTab({ inquiry, editing, form, setForm, con
             </div>
           ) : (
             <div className="space-y-3 text-sm">
-              <InfoRow icon={<User size={14} />} label="Contactpersoon" value={inquiry.contactName} onClick={contact ? () => navigate(`/crm/${contact.id}`) : undefined} />
-              {company && <InfoRow icon={<Building2 size={14} />} label="Bedrijf" value={company.name} onClick={() => navigate(`/companies/${company.id}`)} />}
-              <InfoRow icon={<CalendarIcon size={14} />} label="Voorkeursdatum" value={inquiry.preferredDate || '—'} />
+              <InfoRow icon={<User size={14} />} label={t('inquiries.contactPerson')} value={inquiry.contactName} onClick={contact ? () => navigate(`/crm/${contact.id}`) : undefined} />
+              {company && <InfoRow icon={<Building2 size={14} />} label={t('crm.company')} value={company.name} onClick={() => navigate(`/companies/${company.id}`)} />}
+              <InfoRow icon={<CalendarIcon size={14} />} label={t('inquiries.preferredDate')} value={inquiry.preferredDate || '—'} />
               {(inquiry.preferredStartTime || inquiry.preferredEndTime) && (
-                <InfoRow icon={<Clock size={14} />} label="Voorkeurstijd" value={`${inquiry.preferredStartTime || '—'} – ${inquiry.preferredEndTime || '—'}`} />
+                <InfoRow icon={<Clock size={14} />} label={t('inquiries.preferredTime')} value={`${inquiry.preferredStartTime || '—'} – ${inquiry.preferredEndTime || '—'}`} />
               )}
-              <InfoRow icon={<Users size={14} />} label="Gasten" value={`${inquiry.guestCount}`} />
-              <InfoRow icon={<Euro size={14} />} label="Budget" value={inquiry.budget ? `€${inquiry.budget.toLocaleString('nl-NL', { minimumFractionDigits: 2 })}` : '—'} />
-              <InfoRow icon={<MapPin size={14} />} label="Ruimte voorkeur" value={inquiry.roomPreference || '—'} />
-              <InfoRow icon={<FileText size={14} />} label="Bron" value={inquiry.source === 'GHL' ? 'VirtuGrow' : inquiry.source} />
-              {inquiry.assignedTo && <InfoRow icon={<UserCheck size={14} />} label="Verantwoordelijke" value={inquiry.assignedTo} />}
-              <p className="text-xs text-muted-foreground pt-2">Aangemaakt: {inquiry.createdAt}</p>
+              <InfoRow icon={<Users size={14} />} label={t('inquiries.guestCount')} value={`${inquiry.guestCount}`} />
+              <InfoRow icon={<Euro size={14} />} label={t('inquiries.budget')} value={inquiry.budget ? `€${inquiry.budget.toLocaleString('nl-NL', { minimumFractionDigits: 2 })}` : '—'} />
+              <InfoRow icon={<MapPin size={14} />} label={t('inquiries.roomPreference')} value={inquiry.roomPreference || '—'} />
+              <InfoRow icon={<FileText size={14} />} label={t('common.source')} value={inquiry.source === 'GHL' ? 'VirtuGrow' : inquiry.source} />
+              {inquiry.assignedTo && <InfoRow icon={<UserCheck size={14} />} label={t('tasks.assignedTo')} value={inquiry.assignedTo} />}
+              <p className="text-xs text-muted-foreground pt-2">{t('common.createdAt')}: {inquiry.createdAt}</p>
 
               <div className="flex gap-2 pt-2">
-                <Button variant="outline" size="sm" className="flex-1" onClick={onStartEdit}>Bewerken</Button>
+                <Button variant="outline" size="sm" className="flex-1" onClick={onStartEdit}>{t('common.edit')}</Button>
                 <Button size="sm" className="flex-1" onClick={onConvert}>
-                  <ArrowRight size={14} className="mr-1" /> Omzetten naar Reservering
+                  <ArrowRight size={14} className="mr-1" /> {t('inquiries.convertToReservation')}
                 </Button>
               </div>
             </div>
