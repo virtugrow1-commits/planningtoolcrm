@@ -593,7 +593,7 @@ export default function InquiriesPage() {
               <div className="mb-3 flex items-center justify-between">
                 <div className="flex items-center gap-1.5">
                   {isArchiveCol && <Archive size={13} className="text-muted-foreground" />}
-                  <h3 className="text-sm font-semibold text-foreground">{col.label}</h3>
+                  <h3 className="text-sm font-semibold text-foreground">{t(`status.${col.key}`)}</h3>
                 </div>
                 <span className="rounded-full bg-background px-2 py-0.5 text-xs font-medium text-muted-foreground">
                   {isArchiveCol ? archiveCount : items.length}
@@ -1393,7 +1393,7 @@ export default function InquiriesPage() {
                     <SelectTrigger className="text-sm"><SelectValue /></SelectTrigger>
                     <SelectContent>
                       {PIPELINE_COLUMNS.map((col) => (
-                        <SelectItem key={col.key} value={col.key}>{col.label}</SelectItem>
+                        <SelectItem key={col.key} value={col.key}>{t(`status.${col.key}`)}</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
