@@ -40,6 +40,7 @@ function stageToStatus(stageName: string): string {
   if (l.includes('facturatie') || l.includes('invoice')) return 'invoiced';
   if (l.includes('vervallen') || l.includes('verloren') || l.includes('lost')) return 'lost';
   if (l.includes('after sales') || l.includes('aftersales')) return 'after_sales';
+  if (l.includes('condoleance') || l.includes('condolence')) return 'condolence_reminder';
   if (l.includes('evenement')) return 'converted';
   return 'new';
 }

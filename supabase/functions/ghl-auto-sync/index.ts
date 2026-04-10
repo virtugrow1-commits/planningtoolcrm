@@ -556,6 +556,7 @@ async function syncOpportunities(supabase: any, ghlHeaders: any, locationId: str
       if (l.includes('facturatie') || l.includes('invoice')) return 'invoiced';
       if (l.includes('vervallen') || l.includes('verloren') || l.includes('lost')) return 'lost';
       if (l.includes('after sales') || l.includes('aftersales')) return 'after_sales';
+      if (l.includes('condoleance') || l.includes('condolence')) return 'condolence_reminder';
       if (l.includes('evenement')) return 'converted';
       return 'new';
     };
@@ -566,7 +567,7 @@ async function syncOpportunities(supabase: any, ghlHeaders: any, locationId: str
       'reserved': 'reservering', 'script': 'draaiboek maken',
       'confirmed': 'definitieve reservering',
       'invoiced': 'facturatie', 'lost': 'vervallen', 'after_sales': 'after sales',
-      'converted': 'evenement',
+      'condolence_reminder': 'condoleance herinnering', 'converted': 'evenement',
     };
 
     const findStageId = (crmStatus: string): string | null => {
@@ -1197,6 +1198,7 @@ async function pushLocalInquiries(supabase: any, ghlHeaders: any, locationId: st
       'quoted': 'Offerte Verzonden', 'quote_revised': 'Aangepaste offerte verzonden',
       'reserved': 'Reservering', 'confirmed': 'Definitieve Reservering',
       'invoiced': 'Facturatie', 'lost': 'Vervallen / Verloren', 'after_sales': 'After Sales',
+      'condolence_reminder': 'Condoleance Herinnering',
     };
 
     results.inquiries_pushed = 0;
