@@ -617,8 +617,8 @@ export default function InquiriesPage() {
               <div className="space-y-2">
                 {items.map((inq) => {
                   const relatedBookings = bookings.filter(b =>
-                    (inq.contactId && b.contactId === inq.contactId && b.title === inq.eventType) ||
-                    (b.contactName === inq.contactName && b.title === inq.eventType)
+                    (inq.contactId && b.contactId === inq.contactId) ||
+                    (!inq.contactId && b.contactName === inq.contactName)
                   ).sort((a, b) => a.date.localeCompare(b.date));
                   const firstBooking = relatedBookings.length > 0 ? relatedBookings[0] : null;
                   const inquiryTaskCount = taskCountByInquiry[inq.id] || 0;
@@ -1168,7 +1168,7 @@ export default function InquiriesPage() {
             const companyContactIds = companyContacts.map(c => c.id);
             const companyInquiries = company ? inquiries.filter(i => i.contactId && companyContactIds.includes(i.contactId)) : [];
             const companyBookings = company ? bookings.filter(b => b.contactId && companyContactIds.includes(b.contactId)) : [];
-            const relatedBookings = bookings.filter(b => b.contactName === editInquiry.contactName && b.title === editInquiry.eventType);
+            const relatedBookings = bookings.filter(b => (editInquiry.contactId && b.contactId === editInquiry.contactId) || (!editInquiry.contactId && b.contactName === editInquiry.contactName));
             const inquiryTasks = tasks.filter(t => t.inquiryId === editInquiry.id);
             const col = PIPELINE_COLUMNS.find(c => c.key === editInquiry.status);
 
