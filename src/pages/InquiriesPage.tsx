@@ -43,7 +43,7 @@ const PIPELINE_COLUMNS: { key: Inquiry['status']; label: string; colorClass: str
   { key: 'lost', label: 'Vervallen / Verloren', colorClass: 'border-t-muted-foreground bg-muted/30', badgeClass: 'status-lost' },
   { key: 'converted', label: 'Afgehandeld', colorClass: 'border-t-success bg-success/5', badgeClass: 'status-converted' },
   { key: 'after_sales', label: 'After Sales', colorClass: 'border-t-success bg-success/5', badgeClass: 'status-converted' },
-  { key: 'condolence_reminder', label: 'Condoleance Herinnering', colorClass: 'border-t-warning bg-warning/5', badgeClass: 'status-contacted' },
+  { key: 'condolence_reminder', label: 'Condoleance Herdenkingen', colorClass: 'border-t-warning bg-warning/5', badgeClass: 'status-contacted' },
 ];
 
 // Statuses that are archived (shown as drop-zone columns only, no cards rendered inside)
