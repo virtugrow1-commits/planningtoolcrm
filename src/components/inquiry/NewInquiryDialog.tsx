@@ -26,7 +26,7 @@ const PIPELINE_COLUMNS: { key: Inquiry['status']; label: string }[] = [
   { key: 'confirmed', label: 'Definitieve Reservering' },
   { key: 'invoiced', label: 'Facturatie' },
   { key: 'lost', label: 'Vervallen / Verloren' },
-  { key: 'converted', label: 'Omgezet' },
+  { key: 'converted', label: 'Afgehandeld' },
   { key: 'after_sales', label: 'After Sales' },
   { key: 'condolence_reminder', label: 'Condoleance Herinnering' },
 ];
