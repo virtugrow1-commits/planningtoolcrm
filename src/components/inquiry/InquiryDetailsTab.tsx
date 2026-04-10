@@ -96,15 +96,15 @@ export default function InquiryDetailsTab({ inquiry, editing, form, setForm, con
       <div className="space-y-5">
         <div className="rounded-xl bg-card p-5 card-shadow space-y-4">
           <div className="flex items-center justify-between">
-            <h3 className="text-base font-bold text-foreground">Aanvraaggegevens</h3>
-            <Badge variant="secondary" className={cn('text-[11px] font-medium', col?.badgeClass)}>{col?.label}</Badge>
+            <h3 className="text-base font-bold text-foreground">{t('detail.inquiryDetails')}</h3>
+            <Badge variant="secondary" className={cn('text-[11px] font-medium', col?.badgeClass)}>{t(`status.${inquiry.status}`)}</Badge>
           </div>
 
           {editing ? (
             <div className="space-y-3">
-              <div><Label>Contactpersoon</Label><Input value={form!.contactName} onChange={(e) => setForm({ ...form!, contactName: e.target.value })} /></div>
+              <div><Label>{t('inquiries.contactPerson')}</Label><Input value={form!.contactName} onChange={(e) => setForm({ ...form!, contactName: e.target.value })} /></div>
               <div>
-                <Label>Bedrijf</Label>
+                <Label>{t('crm.company')}</Label>
                 <CrmCombobox
                   options={companies.map(co => ({
                     id: co.id,
@@ -119,50 +119,50 @@ export default function InquiryDetailsTab({ inquiry, editing, form, setForm, con
                   popoverWidth="w-[340px]"
                 />
               </div>
-              <div><Label>Type evenement</Label><Input value={form!.eventType} onChange={(e) => setForm({ ...form!, eventType: e.target.value })} /></div>
-              <div><Label>Voorkeursdatum</Label><Input type="date" value={form!.preferredDate} onChange={(e) => setForm({ ...form!, preferredDate: e.target.value })} /></div>
+              <div><Label>{t('inquiries.eventType')}</Label><Input value={form!.eventType} onChange={(e) => setForm({ ...form!, eventType: e.target.value })} /></div>
+              <div><Label>{t('inquiries.preferredDate')}</Label><Input type="date" value={form!.preferredDate} onChange={(e) => setForm({ ...form!, preferredDate: e.target.value })} /></div>
               <div className="grid grid-cols-2 gap-2">
-                <div><Label>Voorkeurstijd van</Label><Input type="time" value={form!.preferredStartTime || ''} onChange={(e) => setForm({ ...form!, preferredStartTime: e.target.value })} /></div>
-                <div><Label>Voorkeurstijd tot</Label><Input type="time" value={form!.preferredEndTime || ''} onChange={(e) => setForm({ ...form!, preferredEndTime: e.target.value })} /></div>
+                <div><Label>{language === 'en' ? 'Preferred time from' : 'Voorkeurstijd van'}</Label><Input type="time" value={form!.preferredStartTime || ''} onChange={(e) => setForm({ ...form!, preferredStartTime: e.target.value })} /></div>
+                <div><Label>{language === 'en' ? 'Preferred time to' : 'Voorkeurstijd tot'}</Label><Input type="time" value={form!.preferredEndTime || ''} onChange={(e) => setForm({ ...form!, preferredEndTime: e.target.value })} /></div>
               </div>
               <div className="grid grid-cols-2 gap-2">
-                <div><Label>Gasten</Label><Input type="number" min={0} value={form!.guestCount || ''} onChange={(e) => setForm({ ...form!, guestCount: Number(e.target.value) })} /></div>
-                <div><Label>Budget (€)</Label><Input type="number" min={0} value={form!.budget || ''} onChange={(e) => setForm({ ...form!, budget: Number(e.target.value) || undefined })} /></div>
+                <div><Label>{t('inquiries.guestCount')}</Label><Input type="number" min={0} value={form!.guestCount || ''} onChange={(e) => setForm({ ...form!, guestCount: Number(e.target.value) })} /></div>
+                <div><Label>{t('inquiries.budget')} (€)</Label><Input type="number" min={0} value={form!.budget || ''} onChange={(e) => setForm({ ...form!, budget: Number(e.target.value) || undefined })} /></div>
               </div>
               <div>
-                <Label>Ruimte voorkeur</Label>
+                <Label>{t('inquiries.roomPreference')}</Label>
                 <Select value={form!.roomPreference || ''} onValueChange={(v) => setForm({ ...form!, roomPreference: v })}>
-                  <SelectTrigger><SelectValue placeholder="Optioneel" /></SelectTrigger>
+                  <SelectTrigger><SelectValue placeholder={t('common.optional')} /></SelectTrigger>
                   <SelectContent>{ROOMS.map(r => <SelectItem key={r} value={r}>{r}</SelectItem>)}</SelectContent>
                 </Select>
               </div>
               <div>
-                <Label>Status</Label>
+                <Label>{t('common.status')}</Label>
                 <Select value={form!.status} onValueChange={(v: Inquiry['status']) => setForm({ ...form!, status: v })}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>{PIPELINE_COLUMNS.map(c => <SelectItem key={c.key} value={c.key}>{c.label}</SelectItem>)}</SelectContent>
+                  <SelectContent>{PIPELINE_COLUMNS.map(c => <SelectItem key={c.key} value={c.key}>{t(`status.${c.key}`)}</SelectItem>)}</SelectContent>
                 </Select>
               </div>
               <div>
-                <Label>Bron</Label>
+                <Label>{t('common.source')}</Label>
                 <Select value={form!.source} onValueChange={(v) => setForm({ ...form!, source: v })}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="Handmatig">Handmatig</SelectItem>
-                    <SelectItem value="Website">Website</SelectItem>
-                    <SelectItem value="Telefoon">Telefoon</SelectItem>
-                    <SelectItem value="Email">Email</SelectItem>
-                    <SelectItem value="GHL">VirtuGrow</SelectItem>
+                    <SelectItem value="Handmatig">{t('source.manual')}</SelectItem>
+                    <SelectItem value="Website">{t('source.website')}</SelectItem>
+                    <SelectItem value="Telefoon">{t('source.phone')}</SelectItem>
+                    <SelectItem value="Email">{t('source.email')}</SelectItem>
+                    <SelectItem value="GHL">{t('source.ghl')}</SelectItem>
                   </SelectContent>
               </Select>
               </div>
-              <div><Label>Verantwoordelijke</Label><TeamMemberSelect value={form!.assignedTo} onValueChange={(v) => setForm({ ...form!, assignedTo: v })} /></div>
-              <div><Label>Notities</Label><Textarea value={form!.message} onChange={(e) => setForm({ ...form!, message: e.target.value })} rows={4} /></div>
+              <div><Label>{t('tasks.assignedTo')}</Label><TeamMemberSelect value={form!.assignedTo} onValueChange={(v) => setForm({ ...form!, assignedTo: v })} /></div>
+              <div><Label>{t('common.notes')}</Label><Textarea value={form!.message} onChange={(e) => setForm({ ...form!, message: e.target.value })} rows={4} /></div>
               <div className="flex gap-2">
-                <Button variant="outline" size="sm" className="flex-1" onClick={onCancel}>Annuleren</Button>
-                <Button size="sm" className="flex-1" onClick={onSave}>Opslaan</Button>
+                <Button variant="outline" size="sm" className="flex-1" onClick={onCancel}>{t('common.cancel')}</Button>
+                <Button size="sm" className="flex-1" onClick={onSave}>{t('common.save')}</Button>
               </div>
-              <Button variant="destructive" size="sm" className="w-full" onClick={onDelete}><Trash2 size={14} className="mr-1" /> Aanvraag verwijderen</Button>
+              <Button variant="destructive" size="sm" className="w-full" onClick={onDelete}><Trash2 size={14} className="mr-1" /> {t('inquiries.deleteInquiry')}</Button>
             </div>
           ) : (
             <div className="space-y-3 text-sm">
