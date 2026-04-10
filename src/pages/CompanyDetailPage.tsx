@@ -36,6 +36,7 @@ const INQUIRY_STATUS: Record<string, string> = {
   converted: 'Definitief',
   lost: 'Verloren',
   after_sales: 'Aftersales',
+  condolence_reminder: 'Condoleance Herinnering',
 };
 
 const STATUS_LABELS: Record<string, string> = {

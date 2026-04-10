@@ -158,6 +158,7 @@ export default function ContactDetailPage() {
     converted: 'Definitief',
     lost: 'Verloren',
     after_sales: 'Aftersales',
+    condolence_reminder: 'Condoleance Herinnering',
   };
 
   return (
