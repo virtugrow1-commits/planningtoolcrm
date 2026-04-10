@@ -533,22 +533,22 @@ export default function InquiriesPage() {
                 viewMode === 'list' ? 'bg-primary text-primary-foreground' : 'bg-background text-muted-foreground hover:text-foreground'
               )}
             >
-              <List size={14} /> Lijst
+              <List size={14} /> {t('inquiries.listView')}
             </button>
           </div>
-          <Button onClick={() => setNewOpen(true)} size="sm"><Plus size={14} className="mr-1" /> Nieuwe Aanvraag</Button>
+          <Button onClick={() => setNewOpen(true)} size="sm"><Plus size={14} className="mr-1" /> {t('inquiries.newInquiry')}</Button>
         </div>
       </div>
 
       {/* Bulk action bar */}
       {selected.size > 0 && (
         <div className="flex items-center gap-3 rounded-lg border bg-card p-3 card-shadow">
-          <span className="text-sm font-medium text-foreground">{selected.size} geselecteerd</span>
+          <span className="text-sm font-medium text-foreground">{selected.size} {t('dashboard.selected')}</span>
           <div className="flex items-center gap-2 ml-auto">
             <Popover>
               <PopoverTrigger asChild>
                 <Button variant="outline" size="sm">
-                  <ArrowRight size={14} className="mr-1" /> Verplaatsen
+                  <ArrowRight size={14} className="mr-1" /> {language === 'en' ? 'Move' : 'Verplaatsen'}
                 </Button>
               </PopoverTrigger>
               <PopoverContent className="w-56 p-2" align="end">
@@ -559,14 +559,14 @@ export default function InquiriesPage() {
                       onClick={() => setBulkMoveTarget(col.key)}
                       className="w-full rounded-md px-3 py-1.5 text-left text-sm hover:bg-muted transition-colors"
                     >
-                      {col.label}
+                      {t(`status.${col.key}`)}
                     </button>
                   ))}
                 </div>
               </PopoverContent>
             </Popover>
             <Button variant="destructive" size="sm" onClick={() => setBulkDeleteConfirmOpen(true)}>
-              <Trash2 size={14} className="mr-1" /> Verwijderen
+              <Trash2 size={14} className="mr-1" /> {t('common.delete')}
             </Button>
             <Button variant="ghost" size="sm" onClick={() => setSelected(new Set())}>
               <X size={14} />
