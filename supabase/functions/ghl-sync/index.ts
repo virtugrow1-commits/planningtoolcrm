@@ -170,20 +170,28 @@ Deno.serve(async (req) => {
         // Check if contact exists in any user within the organization
         const { data: existing } = await supabase
           .from('contacts')
-          .select('id, user_id')
+          .select('id, user_id, updated_at')
           .in('user_id', orgUserIds)
           .eq('ghl_contact_id', ghlContact.id)
           .maybeSingle();
 
         if (existing) {
-          await supabase.from('contacts').update({
-            first_name: firstName,
-            last_name: lastName,
-            email: ghlContact.email || null,
-            phone: ghlContact.phone || null,
-            company: ghlContact.companyName || null,
-          }).eq('id', existing.id);
-          console.log(`[Contacts Sync] Updated existing contact: ${firstName} ${lastName} (${existing.id})`);
+          // Timestamp-based: only overwrite if GHL is newer
+          const ghlUpdatedAt = ghlContact.dateUpdated || ghlContact.dateAdded || null;
+          const crmIsNewer = !ghlUpdatedAt || existing.updated_at >= ghlUpdatedAt;
+
+          if (!crmIsNewer) {
+            await supabase.from('contacts').update({
+              first_name: firstName,
+              last_name: lastName,
+              email: ghlContact.email || null,
+              phone: ghlContact.phone || null,
+              company: ghlContact.companyName || null,
+            }).eq('id', existing.id);
+            console.log(`[Contacts Sync] Updated contact (GHL newer): ${firstName} ${lastName} (${existing.id})`);
+          } else {
+            console.log(`[Contacts Sync] Skipped contact (CRM newer): ${firstName} ${lastName} (${existing.id})`);
+          }
         } else {
           const { data: inserted } = await supabase.from('contacts').insert({
             user_id: primaryUserId, // Assign new contacts to primary org user
