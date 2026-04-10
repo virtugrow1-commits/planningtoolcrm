@@ -218,7 +218,7 @@ export default function InquiryDetailsTab({ inquiry, editing, form, setForm, con
             }}
           >
             <RefreshCw size={14} className={cn("mr-1", enriching && "animate-spin")} />
-            {enriching ? 'Ophalen...' : 'Formuliergegevens ophalen uit VirtuGrow'}
+            {enriching ? (language === 'en' ? 'Fetching...' : 'Ophalen...') : (language === 'en' ? 'Fetch form data from VirtuGrow' : 'Formuliergegevens ophalen uit VirtuGrow')}
           </Button>
         )}
 
@@ -226,8 +226,8 @@ export default function InquiryDetailsTab({ inquiry, editing, form, setForm, con
         {contact && !editing && (
           <div className="rounded-xl bg-card p-5 card-shadow space-y-2">
             <div className="flex items-center justify-between">
-              <h3 className="text-base font-bold text-foreground">Contactpersoon</h3>
-              <button onClick={() => navigate(`/crm/${contact.id}`)} className="text-xs text-muted-foreground hover:text-foreground transition-colors">Bekijk profiel →</button>
+              <h3 className="text-base font-bold text-foreground">{t('detail.contactPerson')}</h3>
+              <button onClick={() => navigate(`/crm/${contact.id}`)} className="text-xs text-muted-foreground hover:text-foreground transition-colors">{t('detail.viewProfile')}</button>
             </div>
             <p className="text-sm font-medium text-foreground">{contact.firstName} {contact.lastName}</p>
             {contact.email && <p className="text-xs text-muted-foreground">{contact.email}</p>}
@@ -239,7 +239,7 @@ export default function InquiryDetailsTab({ inquiry, editing, form, setForm, con
       {/* Right: Klantinvoer / formulierdata */}
       <div className="space-y-5">
         <div className="rounded-xl bg-card p-5 card-shadow space-y-3">
-          <h3 className="text-base font-bold text-foreground">Klantinvoer (Formuliergegevens)</h3>
+          <h3 className="text-base font-bold text-foreground">{t('inquiries.customerInput')}</h3>
           
           {/* Show dedicated fields that might not be in message */}
           <div className="space-y-2">
@@ -281,11 +281,11 @@ export default function InquiryDetailsTab({ inquiry, editing, form, setForm, con
             </div>
           )}
           {structuredFields.length === 0 && !inquiry.preferredDate && !inquiry.roomPreference && (
-            <p className="text-xs text-muted-foreground">Geen gestructureerde formulierdata beschikbaar.</p>
+            <p className="text-xs text-muted-foreground">{t('inquiries.noFormData')}</p>
           )}
           {freeText.length > 0 && (
             <div className="pt-2 border-t border-border">
-              <p className="text-xs font-semibold text-muted-foreground mb-1">Opmerkingen</p>
+              <p className="text-xs font-semibold text-muted-foreground mb-1">{t('inquiries.remarks')}</p>
               <p className="text-sm text-foreground whitespace-pre-wrap">{freeText.join('\n')}</p>
             </div>
           )}
@@ -298,8 +298,8 @@ export default function InquiryDetailsTab({ inquiry, editing, form, setForm, con
         {company && !editing && (
           <div className="rounded-xl bg-card p-5 card-shadow space-y-2">
             <div className="flex items-center justify-between">
-              <h3 className="text-base font-bold text-foreground">Bedrijf</h3>
-              <button onClick={() => navigate(`/companies/${company.id}`)} className="text-xs text-muted-foreground hover:text-foreground transition-colors">Bekijk bedrijf →</button>
+              <h3 className="text-base font-bold text-foreground">{t('detail.company')}</h3>
+              <button onClick={() => navigate(`/companies/${company.id}`)} className="text-xs text-muted-foreground hover:text-foreground transition-colors">{t('detail.viewCompany')}</button>
             </div>
             <p className="text-sm font-medium text-foreground">{company.name}</p>
           </div>
