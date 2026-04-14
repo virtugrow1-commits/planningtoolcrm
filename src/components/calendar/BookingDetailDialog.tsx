@@ -202,11 +202,12 @@ export default function BookingDetailDialog({ booking, open, onOpenChange, onUpd
             {/* Status */}
             <div className="grid gap-1.5">
               <Label>Status</Label>
-              <Select value={form.status} onValueChange={(v: 'confirmed' | 'option') => setForm({ ...form, status: v })}>
+              <Select value={form.status} onValueChange={(v: Booking['status']) => setForm({ ...form, status: v })}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="confirmed">Bevestigd</SelectItem>
                   <SelectItem value="option">In Optie</SelectItem>
+                  <SelectItem value="cancelled">Geannuleerd</SelectItem>
                 </SelectContent>
               </Select>
             </div>
