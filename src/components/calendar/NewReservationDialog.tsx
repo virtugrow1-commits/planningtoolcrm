@@ -310,7 +310,9 @@ export default function NewReservationDialog({
   const formatTimeValue = (h: number, m: number) =>
     `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
 
-  const endAfterStart = (form.endHour * 60 + form.endMinute) > (form.startHour * 60 + form.startMinute);
+  // Hours 0,1,2 are "next day" so treat them as 24,25,26 for comparison
+  const normalizeHour = (h: number) => h < 7 ? h + 24 : h;
+  const endAfterStart = (normalizeHour(form.endHour) * 60 + form.endMinute) > (normalizeHour(form.startHour) * 60 + form.startMinute);
   const isValid = (form.contactId || (creatingContact && contactForm.firstName && contactForm.lastName)) && form.room && form.date && form.title && endAfterStart;
 
   return (
@@ -541,7 +543,7 @@ export default function NewReservationDialog({
                 />
               </div>
             </div>
-            {!endAfterStart && form.endHour !== 0 && (
+            {!endAfterStart && (
               <p className="text-xs text-destructive flex items-center gap-1">
                 <AlertTriangle size={12} /> Eindtijd moet na begintijd liggen
               </p>
