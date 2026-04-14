@@ -176,6 +176,7 @@ export default function TasksSection({ tasks, defaults }: TasksSectionProps) {
                 className="h-8 text-xs"
               />
             </div>
+          </div>
           <div className="flex gap-1.5 justify-end">
             <Button variant="ghost" size="sm" className="h-8 text-xs" onClick={() => { setShowForm(false); setNewTitle(''); setNewDueDate(undefined); setNewAssignedTo(undefined); }}>
               Annuleren
