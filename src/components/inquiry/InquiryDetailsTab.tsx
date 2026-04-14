@@ -133,7 +133,10 @@ export default function InquiryDetailsTab({ inquiry, editing, form, setForm, con
                 <Label>{t('inquiries.roomPreference')}</Label>
                 <Select value={form!.roomPreference || ''} onValueChange={(v) => setForm({ ...form!, roomPreference: v })}>
                   <SelectTrigger><SelectValue placeholder={t('common.optional')} /></SelectTrigger>
-                  <SelectContent>{ROOMS.map(r => <SelectItem key={r} value={r}>{r}</SelectItem>)}</SelectContent>
+                  <SelectContent>
+                    {ROOMS.map(r => <SelectItem key={r} value={r}>{r}</SelectItem>)}
+                    <SelectItem value="Condoleance & Herdenkingen">Condoleance & Herdenkingen</SelectItem>
+                  </SelectContent>
                 </Select>
               </div>
               <div>
