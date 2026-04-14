@@ -1,0 +1,1 @@
+ALTER TABLE public.bookings ADD COLUMN status_reason text DEFAULT NULL;
