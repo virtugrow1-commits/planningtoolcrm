@@ -213,9 +213,12 @@ export default function ReserveringenPage() {
     if (b.isPast) {
       return <Badge variant="secondary" className="text-[11px] font-medium bg-muted text-muted-foreground">Afgelopen</Badge>;
     }
+    if (b.status === 'cancelled') {
+      return <Badge variant="secondary" className="text-[11px] font-medium bg-destructive/10 text-destructive border-destructive/20">Geannuleerd</Badge>;
+    }
     return (
-      <Badge variant="secondary" className={cn('text-[11px] font-medium', b.isPast ? 'bg-muted text-muted-foreground' : b.status === 'confirmed' ? 'bg-success/10 text-success border-success/20' : 'bg-warning/10 text-warning border-warning/20')}>
-        {b.isPast ? 'Afgelopen' : b.status === 'confirmed' ? 'Reservering' : 'Optie'}
+      <Badge variant="secondary" className={cn('text-[11px] font-medium', b.status === 'confirmed' ? 'bg-success/10 text-success border-success/20' : 'bg-warning/10 text-warning border-warning/20')}>
+        {b.status === 'confirmed' ? 'Reservering' : 'Optie'}
       </Badge>
     );
   };

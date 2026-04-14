@@ -63,7 +63,7 @@ export function BookingsProvider({ children }: { children: ReactNode }) {
       contactName: b.contact_name,
       contactId: b.contact_id || undefined,
       companyId: (b as any).company_id || undefined,
-      status: b.status as 'confirmed' | 'option',
+      status: b.status as Booking['status'],
       notes: b.notes || undefined,
       guestCount: (b as any).guest_count ?? 0,
       roomSetup: (b as any).room_setup || undefined,
@@ -135,7 +135,7 @@ export function BookingsProvider({ children }: { children: ReactNode }) {
       endMinute: sc.end_minute ?? 0,
       title: sc.title || '',
       contactName: sc.contact_name || '',
-      status: sc.status as 'confirmed' | 'option',
+      status: sc.status as Booking['status'],
     }));
   }, [getConflictRooms]);
 
@@ -238,7 +238,7 @@ export function BookingsProvider({ children }: { children: ReactNode }) {
         contactName: data.contact_name,
         contactId: data.contact_id || undefined,
         companyId: (data as any).company_id || undefined,
-        status: data.status as 'confirmed' | 'option',
+        status: data.status as Booking['status'],
         notes: data.notes || undefined,
         guestCount: (data as any).guest_count ?? 0,
         roomSetup: (data as any).room_setup || undefined,
