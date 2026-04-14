@@ -1,60 +1,38 @@
 
 
-## Plan: Documenten, Offertes en Facturen unificeren met GHL-synchronisatie
+## Plan: Vervang "Omzetten naar Reservering" door Statuswijziging met Toelichting
 
-### Probleem
-Er zijn nu drie losstaande systemen: GHL-documenten (read-only tabel), CRM-offertes en CRM-facturen. De gebruiker wil dat alles als een gecentraliseerd documentensysteem werkt, waarbij documenten zowel in GHL als in het CRM worden opgeslagen en bijgehouden.
+De knop "Omzetten naar Reservering" op de aanvraag-detailpagina wordt vervangen door een dialoog waar je een nieuw stadium kunt kiezen en een verplichte reden/toelichting moet invullen.
 
-### Aanpak
+### Wat er verandert
 
-**Stap 1: Unified DocumentsPage als centraal overzicht**
-De huidige `QuotesPage` wordt omgebouwd naar een gecombineerde "Documenten" pagina die alles toont:
-- Tab "Alle documenten" - GHL-documenten + eigen offertes + eigen facturen in dezelfde tabelweergave (zoals de huidige DocumentsPage-stijl met status-badges, datums, bedragen, externe links)
-- Tab "Offertes" - gefilterd op eigen offertes (met aanmaken-functionaliteit)
-- Tab "Facturen" - gefilterd op eigen facturen
-- Tab "Sjablonen" - bestaande sjabloon-functionaliteit
-- De aparte DocumentsPage verdwijnt; alles komt samen
+1. **Database: `status_reason` kolom toevoegen aan `inquiries` tabel**
+   - SQL migratie: `ALTER TABLE public.inquiries ADD COLUMN status_reason text DEFAULT NULL;`
 
-**Stap 2: Bidirectionele synchronisatie CRM → GHL**
-Wanneer een offerte of factuur in het CRM wordt aangemaakt of bijgewerkt, wordt dit automatisch naar GHL gesynchroniseerd via de bestaande `ghl-sync` Edge Function:
-- Nieuwe sync-actie `push-document` in `ghl-sync` die offertes/facturen naar GHL pusht via de GHL Documents/Estimates/Invoices API
-- Bij statuswijzigingen (verzonden, bekeken, geaccepteerd, betaald) wordt de GHL-status mee-geüpdatet
-- Het `ghl_opportunity_id` op offertes wordt gebruikt om documenten aan de juiste GHL-opportunity te koppelen
+2. **Type aanpassen (`src/types/crm.ts`)**
+   - `statusReason?: string` toevoegen aan de `Inquiry` interface
 
-**Stap 3: GHL → CRM synchronisatie voor documenten**
-De bestaande auto-sync wordt uitgebreid:
-- Nieuwe functie `syncDocuments()` in `ghl-auto-sync` die documenten/voorstellen/facturen uit GHL ophaalt
-- Inkomende GHL-documenten worden gematcht aan bestaande offertes/facturen via `ghl_document_id` of aangemaakt als losse documenten in de `documents` tabel
-- Status-updates (bekeken, ondertekend) vanuit GHL worden overgenomen
+3. **InquiriesContext aanpassen (`src/contexts/InquiriesContext.tsx`)**
+   - `status_reason` meenemen bij het ophalen en opslaan van aanvragen
 
-**Stap 4: Webhook-ondersteuning voor realtime updates**
-De `ghl-webhook` Edge Function wordt uitgebreid om document-events te verwerken:
-- `DocumentSigned`, `DocumentViewed`, `InvoicePaid` events
-- Status-updates worden direct doorgevoerd op de gekoppelde offerte/factuur
+4. **Nieuw component: `InquiryStatusChangeDialog`**
+   - Vergelijkbaar met `OptionStatusChangeDialog` maar met alle inquiry-stadia als keuze
+   - Verplicht veld voor reden/toelichting
+   - Huidige status uitgesloten van de keuzelijst
 
-**Stap 5: Koppeling op detailpagina's**
-- Contact-, bedrijfs- en aanvraagdetailpagina's tonen een gecombineerde "Documenten" sectie met zowel GHL-documenten als eigen offertes/facturen
-- Externe GHL-link wordt altijd getoond zodat het document ook in GHL te openen is
+5. **InquiryDetailsTab aanpassen**
+   - "Omzetten naar Reservering" knop vervangen door "Stadium wijzigen" knop
+   - Bij klik opent het `InquiryStatusChangeDialog`
+   - Na bevestiging wordt de inquiry bijgewerkt met nieuw stadium + reden
 
-### Technische details
+6. **InquiryDetailPage aanpassen**
+   - State en handler toevoegen voor het nieuwe dialoog
+   - `onConvert` prop hernoemen/aanpassen naar `onStatusChange`
+   - Toelichting tonen op de detailpagina als deze is ingevuld
 
-**Database-wijzigingen:**
-- Kolom `ghl_document_id` toevoegen aan `quotes` tabel (voor koppeling met GHL)
-- Kolom `ghl_invoice_id` bestaat al op `invoices` tabel
-- Geen nieuwe tabellen nodig; bestaande `documents`, `quotes` en `invoices` worden gecombineerd in de UI
+### Technisch
 
-**Bestanden die worden aangepast:**
-- `src/pages/QuotesPage.tsx` - Unified overzicht met GHL-documenten erbij
-- `src/pages/DocumentsPage.tsx` - Redirect naar unified pagina of verwijderen
-- `src/hooks/useDocuments.ts` - Uitbreiden om ook quotes/invoices op te halen als unified view
-- `supabase/functions/ghl-sync/index.ts` - Nieuwe `push-document` actie
-- `supabase/functions/ghl-auto-sync/index.ts` - Nieuwe `syncDocuments()` functie
-- `supabase/functions/ghl-webhook/index.ts` - Document-event handlers
-- `src/components/AppLayout.tsx` - Navigatie aanpassen (1 menu-item i.p.v. 2)
-
-**GHL API Endpoints die worden gebruikt:**
-- `GET /documents/search` - Documenten ophalen
-- `POST /documents` - Document aanmaken
-- `PUT /documents/{id}` - Document updaten
-- `GET /invoices` / `POST /invoices` - Facturen via GHL
+- Het dialoog toont alle PIPELINE_COLUMNS behalve het huidige stadium
+- De `statusReason` wordt opgeslagen in de database en getoond als InfoRow op de detailpagina
+- De bestaande "Omzetten naar Reservering" (NewReservationDialog) blijft beschikbaar als aparte actie via de bewerkknop of kan later worden teruggezet indien gewenst
 
