@@ -280,6 +280,18 @@ export default function InquiryDetailPage() {
         </div>
       )}
 
+      {/* Status Change dialog */}
+      <InquiryStatusChangeDialog
+        open={showStatusDialog}
+        onOpenChange={setShowStatusDialog}
+        currentStatus={inquiry.status}
+        onConfirm={async (newStatus, reason) => {
+          await updateInquiry({ ...inquiry, status: newStatus, statusReason: reason });
+          setShowStatusDialog(false);
+          toast({ title: 'Stadium gewijzigd', description: PIPELINE_COLUMNS.find(c => c.key === newStatus)?.label });
+        }}
+      />
+
       {/* Convert to Reservation dialog */}
       <NewReservationDialog
         open={showReservationDialog}
