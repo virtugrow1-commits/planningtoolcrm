@@ -110,6 +110,18 @@ export default function InquiryDetailPage() {
     );
   }
 
+  // Helper: log activity to contact timeline
+  const logActivity = async (subject: string, body?: string) => {
+    if (!user || !inquiry.contactId) return;
+    await supabase.from('contact_activities').insert({
+      user_id: user.id,
+      contact_id: inquiry.contactId,
+      type: 'note',
+      subject,
+      body: body || null,
+    });
+  };
+
   const startEdit = () => { setForm({ ...inquiry }); setEditing(true); };
   const cancelEdit = () => { setForm(null); setEditing(false); };
   const saveEdit = async () => {
@@ -122,6 +134,11 @@ export default function InquiryDetailPage() {
     setEditing(false);
     setForm(null);
     toast({ title: 'Aanvraag bijgewerkt' });
+    // Log edit to contact activity timeline
+    await logActivity(
+      `Aanvraag bewerkt – ${form.eventType}`,
+      `Aanvraag ${inquiry.displayNumber || ''} is bijgewerkt.`
+    );
   };
   const handleDelete = async () => {
     await deleteInquiry(inquiry.id);
