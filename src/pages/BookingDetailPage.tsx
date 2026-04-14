@@ -253,6 +253,12 @@ export default function BookingDetailPage() {
                 <InfoRow icon={<FileText size={14} />} label="Voorbereiding" value={prepStatusLabel(booking.preparationStatus)} />
                 <InfoRow icon={<FileText size={14} />} label="Evenement" value={booking.title} />
                 {booking.assignedTo && <InfoRow icon={<UserCheck size={14} />} label="Verantwoordelijke" value={booking.assignedTo} />}
+                {booking.statusReason && (
+                  <div className="pt-2 border-t border-border">
+                    <p className="text-xs font-medium text-muted-foreground mb-1">Reden statuswijziging</p>
+                    <p className="text-sm text-foreground">{booking.statusReason}</p>
+                  </div>
+                )}
                 <p className="text-xs text-muted-foreground pt-2">Aangemaakt: {(booking as any).created_at?.split('T')[0] || '—'}</p>
 
                 <div className="flex gap-2 pt-2">
