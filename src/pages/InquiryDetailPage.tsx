@@ -23,6 +23,7 @@ import InquiryDetailsTab, { PIPELINE_COLUMNS } from '@/components/inquiry/Inquir
 import InquiryHistoryTab from '@/components/inquiry/InquiryHistoryTab';
 import TasksSection from '@/components/detail/TasksSection';
 import NewReservationDialog from '@/components/calendar/NewReservationDialog';
+import InquiryStatusChangeDialog from '@/components/inquiry/InquiryStatusChangeDialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import ConflictAlertDialog from '@/components/calendar/ConflictAlertDialog';
 import { Booking } from '@/types/crm';
@@ -46,6 +47,7 @@ export default function InquiryDetailPage() {
   const [editing, setEditing] = useState(false);
   const [form, setForm] = useState<Inquiry | null>(null);
   const [showReservationDialog, setShowReservationDialog] = useState(false);
+  const [showStatusDialog, setShowStatusDialog] = useState(false);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [reportText, setReportText] = useState('');
   const [savingReport, setSavingReport] = useState(false);
@@ -174,6 +176,7 @@ export default function InquiryDetailPage() {
         onDelete={() => setDeleteConfirmOpen(true)}
         onStartEdit={startEdit}
         onConvert={() => setShowReservationDialog(true)}
+        onStatusChange={() => setShowStatusDialog(true)}
         refetch={refetch}
       />
 
@@ -276,6 +279,18 @@ export default function InquiryDetailPage() {
           </div>
         </div>
       )}
+
+      {/* Status Change dialog */}
+      <InquiryStatusChangeDialog
+        open={showStatusDialog}
+        onOpenChange={setShowStatusDialog}
+        currentStatus={inquiry.status}
+        onConfirm={async (newStatus, reason) => {
+          await updateInquiry({ ...inquiry, status: newStatus, statusReason: reason });
+          setShowStatusDialog(false);
+          toast({ title: 'Stadium gewijzigd', description: PIPELINE_COLUMNS.find(c => c.key === newStatus)?.label });
+        }}
+      />
 
       {/* Convert to Reservation dialog */}
       <NewReservationDialog
