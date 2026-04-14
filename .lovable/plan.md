@@ -1,31 +1,17 @@
 
 
-## Plan: Stadiumwijzigingen automatisch loggen in gesprekhistorie
+## Plan: Toelichting verplaatsen van kaart naar historie
 
-Wanneer een aanvraag wordt aangepast (stadium gewijzigd via het dialoog of via de status-dropdown, of gegevens bewerkt), wordt dit automatisch vastgelegd als een activiteit bij de contactpersoon. Zo is altijd terug te zien wat er wanneer is gewijzigd.
+De `statusReason` (toelichting) wordt verwijderd van de detailkaart en wordt alleen zichtbaar in de historie-sectie via de gelogde `contact_activities`.
 
 ### Wat er verandert
 
-1. **Stadium wijzigen via dialoog** (`InquiryDetailPage.tsx`, regel 288-292)
-   - Na het opslaan van de stadiumwijziging wordt automatisch een `contact_activity` aangemaakt met:
-     - Type: `note`
-     - Onderwerp: "Stadium gewijzigd → [nieuw stadium label]"
-     - Body: de ingevulde reden/toelichting
-   - Dit gebeurt alleen als er een gekoppelde contactpersoon is
+1. **InquiryDetailsTab.tsx** — Regel 184 verwijderen: de `InfoRow` met `statusReason` wordt weggehaald uit de detailkaart.
 
-2. **Stadium wijzigen via header dropdown** (`InquiryDetailPage.tsx`, regel 149-152)
-   - Ook hier wordt een activiteit gelogd met het oude en nieuwe stadium
-
-3. **Aanvraag bewerken en opslaan** (`InquiryDetailPage.tsx`, `saveEdit` functie, regel 115-125)
-   - Na het opslaan van bewerkingen wordt een activiteit aangemaakt met een samenvatting van wat er is gewijzigd (bijv. "Aanvraag bewerkt – [evenement type]")
+Dat is alles. De toelichting wordt al automatisch gelogd als activiteit bij de contactpersoon (via de `logActivity` calls in `InquiryDetailPage.tsx`), dus die is altijd terug te vinden in de historie/tijdlijn. Er hoeft geen nieuwe code geschreven te worden.
 
 ### Technisch
 
-- Geen database-wijzigingen nodig — de `contact_activities` tabel bestaat al met de juiste kolommen (`type`, `subject`, `body`, `contact_id`, `user_id`)
-- Alle logging gebeurt in `InquiryDetailPage.tsx` door na elke update een `supabase.from('contact_activities').insert(...)` aan te roepen
-- De activiteiten zijn direct zichtbaar op de contactpersoon- en bedrijfsdetailpagina via de bestaande `ActivityTimeline` component
-
-### Bestanden die worden aangepast
-
-- `src/pages/InquiryDetailPage.tsx` — activiteit-logging toevoegen op 3 plekken (status dialoog, status dropdown, bewerkingen opslaan)
+- Eén regel verwijderen in `src/components/inquiry/InquiryDetailsTab.tsx` (regel 184)
+- De `statusReason` blijft in de database opgeslagen en wordt nog steeds gelogd naar `contact_activities` — alleen de weergave op de kaart verdwijnt
 
