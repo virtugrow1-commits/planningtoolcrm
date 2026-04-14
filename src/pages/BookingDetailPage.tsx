@@ -193,11 +193,12 @@ export default function BookingDetailPage() {
                 </div>
                 <div>
                   <Label>Status</Label>
-                  <Select value={form!.status} onValueChange={(v: 'confirmed' | 'option') => setForm({ ...form!, status: v })}>
+                  <Select value={form!.status} onValueChange={(v: Booking['status']) => setForm({ ...form!, status: v })}>
                     <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="confirmed">Bevestigd</SelectItem>
                       <SelectItem value="option">Optie</SelectItem>
+                      <SelectItem value="cancelled">Geannuleerd</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
