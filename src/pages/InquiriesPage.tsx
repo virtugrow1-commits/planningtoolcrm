@@ -323,6 +323,10 @@ export default function InquiriesPage() {
     e.dataTransfer.setData('text/plain', id);
   }, []);
 
+  const handleDragEnd = useCallback(() => {
+    setDragId(null);
+  }, []);
+
   const handleDragOver = useCallback((e: DragEvent) => {
     e.preventDefault();
     e.dataTransfer.dropEffect = 'move';

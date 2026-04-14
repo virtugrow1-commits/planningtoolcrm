@@ -129,7 +129,10 @@ export function InquiriesProvider({ children }: { children: ReactNode }) {
   }, [user, toast]);
 
   const updateInquiry = useCallback(async (inquiry: Inquiry) => {
-    // Update local DB immediately (don't wait for GHL)
+    // Optimistic local update — move card immediately
+    setInquiries(prev => prev.map(i => i.id === inquiry.id ? inquiry : i));
+
+    // Update local DB
     const { error } = await supabase.from('inquiries').update({
       contact_id: inquiry.contactId || null,
       contact_name: inquiry.contactName,
@@ -148,6 +151,8 @@ export function InquiriesProvider({ children }: { children: ReactNode }) {
     } as any).eq('id', inquiry.id);
     if (error) {
       toast({ title: 'Fout bij bijwerken aanvraag', description: error.message, variant: 'destructive' });
+      // Revert on error
+      fetchInquiries();
       return;
     }
 
