@@ -181,7 +181,7 @@ export default function InquiryDetailsTab({ inquiry, editing, form, setForm, con
               <InfoRow icon={<MapPin size={14} />} label={t('inquiries.roomPreference')} value={inquiry.roomPreference || '—'} />
               <InfoRow icon={<FileText size={14} />} label={t('common.source')} value={inquiry.source === 'GHL' ? 'VirtuGrow' : inquiry.source} />
               {inquiry.assignedTo && <InfoRow icon={<UserCheck size={14} />} label={t('tasks.assignedTo')} value={inquiry.assignedTo} />}
-              {inquiry.statusReason && <InfoRow icon={<MessageCircle size={14} />} label="Toelichting" value={inquiry.statusReason} />}
+              
               <p className="text-xs text-muted-foreground pt-2">{t('common.createdAt')}: {inquiry.createdAt}</p>
 
               <div className="flex gap-2 pt-2">
