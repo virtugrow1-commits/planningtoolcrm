@@ -15,7 +15,7 @@ function formatDate(date: Date) {
 }
 
 const DAY_NAMES = ['Zo', 'Ma', 'Di', 'Wo', 'Do', 'Vr', 'Za'];
-const HOURS = [...Array.from({ length: 17 }, (_, i) => i + 7), 0, 1];
+const HOURS = [...Array.from({ length: 17 }, (_, i) => i + 7), 0, 1, 2];
 
 export default function WeekView({ currentDate, bookings, onDayClick, onBookingClick, getRoomDisplayName }: WeekViewProps) {
   const weekDays = useMemo(() => {

@@ -52,7 +52,7 @@ const ARCHIVE_STATUSES = ['lost', 'converted'] as const;
 const PIPELINE_ACTIVE_COLUMNS = PIPELINE_COLUMNS;
 const ARCHIVE_COLUMN_KEYS = ARCHIVE_STATUSES as readonly string[];
 
-const HOURS = [...Array.from({ length: 17 }, (_, i) => i + 7), 0, 1];
+const HOURS = [...Array.from({ length: 17 }, (_, i) => i + 7), 0, 1, 2];
 
 const RECURRENCE_OPTIONS = [
   { value: 'none', label: 'Eenmalig' },
