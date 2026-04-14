@@ -1,38 +1,31 @@
 
 
-## Plan: Vervang "Omzetten naar Reservering" door Statuswijziging met Toelichting
+## Plan: Stadiumwijzigingen automatisch loggen in gesprekhistorie
 
-De knop "Omzetten naar Reservering" op de aanvraag-detailpagina wordt vervangen door een dialoog waar je een nieuw stadium kunt kiezen en een verplichte reden/toelichting moet invullen.
+Wanneer een aanvraag wordt aangepast (stadium gewijzigd via het dialoog of via de status-dropdown, of gegevens bewerkt), wordt dit automatisch vastgelegd als een activiteit bij de contactpersoon. Zo is altijd terug te zien wat er wanneer is gewijzigd.
 
 ### Wat er verandert
 
-1. **Database: `status_reason` kolom toevoegen aan `inquiries` tabel**
-   - SQL migratie: `ALTER TABLE public.inquiries ADD COLUMN status_reason text DEFAULT NULL;`
+1. **Stadium wijzigen via dialoog** (`InquiryDetailPage.tsx`, regel 288-292)
+   - Na het opslaan van de stadiumwijziging wordt automatisch een `contact_activity` aangemaakt met:
+     - Type: `note`
+     - Onderwerp: "Stadium gewijzigd → [nieuw stadium label]"
+     - Body: de ingevulde reden/toelichting
+   - Dit gebeurt alleen als er een gekoppelde contactpersoon is
 
-2. **Type aanpassen (`src/types/crm.ts`)**
-   - `statusReason?: string` toevoegen aan de `Inquiry` interface
+2. **Stadium wijzigen via header dropdown** (`InquiryDetailPage.tsx`, regel 149-152)
+   - Ook hier wordt een activiteit gelogd met het oude en nieuwe stadium
 
-3. **InquiriesContext aanpassen (`src/contexts/InquiriesContext.tsx`)**
-   - `status_reason` meenemen bij het ophalen en opslaan van aanvragen
-
-4. **Nieuw component: `InquiryStatusChangeDialog`**
-   - Vergelijkbaar met `OptionStatusChangeDialog` maar met alle inquiry-stadia als keuze
-   - Verplicht veld voor reden/toelichting
-   - Huidige status uitgesloten van de keuzelijst
-
-5. **InquiryDetailsTab aanpassen**
-   - "Omzetten naar Reservering" knop vervangen door "Stadium wijzigen" knop
-   - Bij klik opent het `InquiryStatusChangeDialog`
-   - Na bevestiging wordt de inquiry bijgewerkt met nieuw stadium + reden
-
-6. **InquiryDetailPage aanpassen**
-   - State en handler toevoegen voor het nieuwe dialoog
-   - `onConvert` prop hernoemen/aanpassen naar `onStatusChange`
-   - Toelichting tonen op de detailpagina als deze is ingevuld
+3. **Aanvraag bewerken en opslaan** (`InquiryDetailPage.tsx`, `saveEdit` functie, regel 115-125)
+   - Na het opslaan van bewerkingen wordt een activiteit aangemaakt met een samenvatting van wat er is gewijzigd (bijv. "Aanvraag bewerkt – [evenement type]")
 
 ### Technisch
 
-- Het dialoog toont alle PIPELINE_COLUMNS behalve het huidige stadium
-- De `statusReason` wordt opgeslagen in de database en getoond als InfoRow op de detailpagina
-- De bestaande "Omzetten naar Reservering" (NewReservationDialog) blijft beschikbaar als aparte actie via de bewerkknop of kan later worden teruggezet indien gewenst
+- Geen database-wijzigingen nodig — de `contact_activities` tabel bestaat al met de juiste kolommen (`type`, `subject`, `body`, `contact_id`, `user_id`)
+- Alle logging gebeurt in `InquiryDetailPage.tsx` door na elke update een `supabase.from('contact_activities').insert(...)` aan te roepen
+- De activiteiten zijn direct zichtbaar op de contactpersoon- en bedrijfsdetailpagina via de bestaande `ActivityTimeline` component
+
+### Bestanden die worden aangepast
+
+- `src/pages/InquiryDetailPage.tsx` — activiteit-logging toevoegen op 3 plekken (status dialoog, status dropdown, bewerkingen opslaan)
 
