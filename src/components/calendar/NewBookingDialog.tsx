@@ -6,7 +6,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { AlertTriangle } from 'lucide-react';
 
-const HOURS = [...Array.from({ length: 17 }, (_, i) => i + 7), 0, 1];
+const HOURS = [...Array.from({ length: 17 }, (_, i) => i + 7), 0, 1, 2];
 
 interface NewBookingForm {
   room: RoomName;

@@ -69,12 +69,12 @@ function computeColumns(roomBookings: Booking[]): Map<string, { col: number; tot
 
 const HOUR_HEIGHT = 36; // px per hour — compact to fit full day in view
 const QUARTER_HEIGHT = HOUR_HEIGHT / 4; // 9px per 15min
-const HOURS = [...Array.from({ length: 17 }, (_, i) => i + 7), 0, 1]; // 07:00–01:00
+const HOURS = [...Array.from({ length: 17 }, (_, i) => i + 7), 0, 1, 2]; // 07:00–02:00
 const TOTAL_SLOTS = HOURS.length * 4; // 15-min slots
 
 function hourToIndex(h: number): number {
   if (h >= 7) return h - 7;
-  return h + 17; // 0→17, 1→18
+  return h + 17; // 0→17, 1→18, 2→19
 }
 
 function timeToY(hour: number, minute: number): number {
