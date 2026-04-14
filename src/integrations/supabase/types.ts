@@ -36,6 +36,7 @@ export type Database = {
           start_hour: number
           start_minute: number
           status: string
+          status_reason: string | null
           title: string
           updated_at: string
           user_id: string
@@ -61,6 +62,7 @@ export type Database = {
           start_hour: number
           start_minute?: number
           status?: string
+          status_reason?: string | null
           title: string
           updated_at?: string
           user_id: string
@@ -86,6 +88,7 @@ export type Database = {
           start_hour?: number
           start_minute?: number
           status?: string
+          status_reason?: string | null
           title?: string
           updated_at?: string
           user_id?: string

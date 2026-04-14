@@ -207,6 +207,7 @@ export default function BookingDetailDialog({ booking, open, onOpenChange, onUpd
                 <SelectContent>
                   <SelectItem value="confirmed">Bevestigd</SelectItem>
                   <SelectItem value="option">In Optie</SelectItem>
+                  <SelectItem value="expired">Vervallen</SelectItem>
                   <SelectItem value="cancelled">Geannuleerd</SelectItem>
                 </SelectContent>
               </Select>
@@ -321,9 +322,9 @@ export default function BookingDetailDialog({ booking, open, onOpenChange, onUpd
             <div className="grid grid-cols-2 gap-4">
               <div className="grid gap-1.5">
                 <Label>Status</Label>
-                <p className={`text-sm font-medium ${booking.status === 'confirmed' ? 'text-success' : 'text-warning'}`}>
-                  {booking.status === 'confirmed' ? 'Bevestigd' : 'In Optie'}
-                </p>
+                 <p className={`text-sm font-medium ${booking.status === 'confirmed' ? 'text-success' : booking.status === 'expired' ? 'text-muted-foreground' : booking.status === 'cancelled' ? 'text-destructive' : 'text-warning'}`}>
+                   {booking.status === 'confirmed' ? 'Bevestigd' : booking.status === 'expired' ? 'Vervallen' : booking.status === 'cancelled' ? 'Geannuleerd' : 'In Optie'}
+                 </p>
               </div>
               <div className="grid gap-1.5">
                 <Label>Voorbereiding</Label>

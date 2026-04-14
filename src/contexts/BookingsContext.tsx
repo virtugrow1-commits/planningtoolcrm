@@ -64,6 +64,7 @@ export function BookingsProvider({ children }: { children: ReactNode }) {
       contactId: b.contact_id || undefined,
       companyId: (b as any).company_id || undefined,
       status: b.status as Booking['status'],
+      statusReason: (b as any).status_reason || undefined,
       notes: b.notes || undefined,
       guestCount: (b as any).guest_count ?? 0,
       roomSetup: (b as any).room_setup || undefined,
@@ -359,7 +360,7 @@ export function BookingsProvider({ children }: { children: ReactNode }) {
       requirements: updated.requirements || null,
       preparation_status: updated.preparationStatus || 'pending',
       assigned_to: updated.assignedTo || null,
-      // Preserve ghl_event_id — never overwrite it during an update
+      status_reason: updated.statusReason || null,
     } as any).eq('id', updated.id).select().single();
     if (error) {
       toast({ title: 'Fout bij bijwerken boeking', description: error.message, variant: 'destructive' });
