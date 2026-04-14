@@ -215,6 +215,7 @@ export default function BookingDetailPage() {
                     <SelectContent>
                       <SelectItem value="confirmed">Bevestigd</SelectItem>
                       <SelectItem value="option">Optie</SelectItem>
+                      <SelectItem value="expired">Vervallen</SelectItem>
                       <SelectItem value="cancelled">Geannuleerd</SelectItem>
                     </SelectContent>
                   </Select>
