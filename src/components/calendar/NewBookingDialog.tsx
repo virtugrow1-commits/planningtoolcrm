@@ -59,7 +59,7 @@ export default function NewBookingDialog({ open, onOpenChange, form, onFormChang
               <Label>Tot</Label>
               <Select value={String(form.endHour)} onValueChange={(v) => onFormChange({ ...form, endHour: Number(v) })}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>{HOURS.filter((h) => h > form.startHour).map((h) => <SelectItem key={h} value={String(h)}>{h}:00</SelectItem>)}</SelectContent>
+                <SelectContent>{HOURS.filter((h) => { const norm = (x: number) => x < 7 ? x + 24 : x; return norm(h) > norm(form.startHour); }).map((h) => <SelectItem key={h} value={String(h)}>{h}:00</SelectItem>)}</SelectContent>
               </Select>
             </div>
           </div>
