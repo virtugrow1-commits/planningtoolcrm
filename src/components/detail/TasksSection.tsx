@@ -2,6 +2,8 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Task, TASK_PRIORITIES } from '@/types/task';
 import { useTasksContext } from '@/contexts/TasksContext';
+import { useContactsContext } from '@/contexts/ContactsContext';
+import { useCompaniesContext } from '@/contexts/CompaniesContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -9,7 +11,8 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
-import { Plus, CalendarIcon, User } from 'lucide-react';
+import CrmCombobox from '@/components/CrmCombobox';
+import { Plus, CalendarIcon, User, Building2, UserCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
 import { nl } from 'date-fns/locale';
@@ -28,6 +31,8 @@ interface TasksSectionProps {
 
 export default function TasksSection({ tasks, defaults }: TasksSectionProps) {
   const { addTask, updateTask } = useTasksContext();
+  const { contacts } = useContactsContext();
+  const { companies } = useCompaniesContext();
   const { toast } = useToast();
   const navigate = useNavigate();
   
@@ -35,6 +40,8 @@ export default function TasksSection({ tasks, defaults }: TasksSectionProps) {
   const [newPriority, setNewPriority] = useState<Task['priority']>('normal');
   const [newDueDate, setNewDueDate] = useState<Date | undefined>();
   const [newAssignedTo, setNewAssignedTo] = useState<string | undefined>();
+  const [newContactId, setNewContactId] = useState<string | undefined>(defaults.contactId);
+  const [newCompanyId, setNewCompanyId] = useState<string | undefined>(defaults.companyId);
   const [adding, setAdding] = useState(false);
   const [showForm, setShowForm] = useState(false);
 
@@ -53,12 +60,17 @@ export default function TasksSection({ tasks, defaults }: TasksSectionProps) {
       priority: newPriority,
       dueDate,
       assignedTo: newAssignedTo,
-      ...defaults,
+      contactId: newContactId,
+      companyId: newCompanyId,
+      inquiryId: defaults.inquiryId,
+      bookingId: defaults.bookingId,
     });
     setNewTitle('');
     setNewPriority('normal');
     setNewDueDate(undefined);
     setNewAssignedTo(undefined);
+    setNewContactId(defaults.contactId);
+    setNewCompanyId(defaults.companyId);
     setAdding(false);
     setShowForm(false);
     toast({ title: 'Taak aangemaakt' });
