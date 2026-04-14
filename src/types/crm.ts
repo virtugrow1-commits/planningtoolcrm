@@ -38,6 +38,7 @@ export interface Inquiry {
   assignedTo?: string;
   preferredStartTime?: string;
   preferredEndTime?: string;
+  statusReason?: string;
 }
 
 
