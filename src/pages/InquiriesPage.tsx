@@ -635,6 +635,7 @@ export default function InquiriesPage() {
                     key={inq.id}
                     draggable
                     onDragStart={(e) => handleDragStart(e, inq.id)}
+                    onDragEnd={handleDragEnd}
                     onClick={() => openDetailDialog(inq)}
                     className={`relative cursor-pointer rounded-lg border bg-card p-3 card-shadow hover:card-shadow-hover transition-all active:cursor-grabbing ${dragId === inq.id ? 'opacity-50 scale-95' : ''} ${selected.has(inq.id) ? 'ring-2 ring-primary' : ''} ${!inq.isRead ? 'border-l-4 border-l-destructive' : ''}`}
                   >
