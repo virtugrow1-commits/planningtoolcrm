@@ -67,7 +67,7 @@ export interface Booking {
   contactName: string;
   contactId?: string;
   companyId?: string;
-  status: 'confirmed' | 'option';
+  status: 'confirmed' | 'option' | 'cancelled';
   notes?: string;
   color?: string;
   guestCount?: number;

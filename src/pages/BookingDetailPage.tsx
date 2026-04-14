@@ -116,8 +116,8 @@ export default function BookingDetailPage() {
     }
   };
 
-  const statusBadgeClass = booking.status === 'confirmed' ? 'bg-success/10 text-success border-success/20' : 'bg-warning/10 text-warning border-warning/20';
-  const statusLabel = booking.status === 'confirmed' ? 'Bevestigd' : 'Optie';
+  const statusBadgeClass = booking.status === 'confirmed' ? 'bg-success/10 text-success border-success/20' : booking.status === 'cancelled' ? 'bg-destructive/10 text-destructive border-destructive/20' : 'bg-warning/10 text-warning border-warning/20';
+  const statusLabel = booking.status === 'confirmed' ? 'Bevestigd' : booking.status === 'cancelled' ? 'Geannuleerd' : 'Optie';
 
   const current = editing ? form! : booking;
 
@@ -143,7 +143,7 @@ export default function BookingDetailPage() {
         <h1 className="text-xl font-bold text-foreground">{booking.contactName}</h1>
         <Select
           value={booking.status}
-          onValueChange={async (v: 'confirmed' | 'option') => {
+          onValueChange={async (v: Booking['status']) => {
             await updateBooking({ ...booking, status: v });
             toast({ title: 'Status gewijzigd' });
           }}
@@ -154,6 +154,7 @@ export default function BookingDetailPage() {
           <SelectContent>
             <SelectItem value="confirmed">Bevestigd</SelectItem>
             <SelectItem value="option">Optie</SelectItem>
+            <SelectItem value="cancelled">Geannuleerd</SelectItem>
           </SelectContent>
         </Select>
       </div>
