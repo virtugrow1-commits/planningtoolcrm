@@ -18,6 +18,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { InfoRow, SectionCard } from '@/components/detail/DetailPageComponents';
 import TeamMemberSelect from '@/components/TeamMemberSelect';
+import CrmCombobox from '@/components/CrmCombobox';
 import { ArrowLeft, ChevronRight, Pencil, Check, X, CalendarIcon, User, Building2, FileText, Bookmark, CheckCircle2, Plus, Trash2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
@@ -221,6 +222,30 @@ export default function TaskDetailPage() {
                 <div>
                   <p className="text-xs font-semibold text-muted-foreground mb-1">Verantwoordelijke</p>
                   <TeamMemberSelect value={form!.assignedTo} onValueChange={(v) => setForm({ ...form!, assignedTo: v })} />
+                </div>
+                <div>
+                  <p className="text-xs font-semibold text-muted-foreground mb-1">Contactpersoon</p>
+                  <CrmCombobox
+                    options={contacts.map(c => ({ id: c.id, label: `${c.firstName} ${c.lastName}`, secondary: c.email || c.company || undefined }))}
+                    value={form!.contactId || ''}
+                    onSelect={(id) => setForm({ ...form!, contactId: id || undefined })}
+                    placeholder="Selecteer contact..."
+                    searchPlaceholder="Zoek contact..."
+                    allowClear
+                    clearLabel="— Geen contactpersoon —"
+                  />
+                </div>
+                <div>
+                  <p className="text-xs font-semibold text-muted-foreground mb-1">Bedrijf</p>
+                  <CrmCombobox
+                    options={companies.map(c => ({ id: c.id, label: c.name, secondary: c.email || undefined }))}
+                    value={form!.companyId || ''}
+                    onSelect={(id) => setForm({ ...form!, companyId: id || undefined })}
+                    placeholder="Selecteer bedrijf..."
+                    searchPlaceholder="Zoek bedrijf..."
+                    allowClear
+                    clearLabel="— Geen bedrijf —"
+                  />
                 </div>
                 <Button variant="destructive" size="sm" className="w-full mt-2" onClick={() => setDeleteConfirmOpen(true)}>
                   <Trash2 size={14} className="mr-1" /> Taak verwijderen

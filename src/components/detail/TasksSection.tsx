@@ -2,6 +2,8 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Task, TASK_PRIORITIES } from '@/types/task';
 import { useTasksContext } from '@/contexts/TasksContext';
+import { useContactsContext } from '@/contexts/ContactsContext';
+import { useCompaniesContext } from '@/contexts/CompaniesContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -9,7 +11,8 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
-import { Plus, CalendarIcon, User } from 'lucide-react';
+import CrmCombobox from '@/components/CrmCombobox';
+import { Plus, CalendarIcon, User, Building2, UserCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
 import { nl } from 'date-fns/locale';
@@ -28,6 +31,8 @@ interface TasksSectionProps {
 
 export default function TasksSection({ tasks, defaults }: TasksSectionProps) {
   const { addTask, updateTask } = useTasksContext();
+  const { contacts } = useContactsContext();
+  const { companies } = useCompaniesContext();
   const { toast } = useToast();
   const navigate = useNavigate();
   
@@ -35,6 +40,8 @@ export default function TasksSection({ tasks, defaults }: TasksSectionProps) {
   const [newPriority, setNewPriority] = useState<Task['priority']>('normal');
   const [newDueDate, setNewDueDate] = useState<Date | undefined>();
   const [newAssignedTo, setNewAssignedTo] = useState<string | undefined>();
+  const [newContactId, setNewContactId] = useState<string | undefined>(defaults.contactId);
+  const [newCompanyId, setNewCompanyId] = useState<string | undefined>(defaults.companyId);
   const [adding, setAdding] = useState(false);
   const [showForm, setShowForm] = useState(false);
 
@@ -53,12 +60,17 @@ export default function TasksSection({ tasks, defaults }: TasksSectionProps) {
       priority: newPriority,
       dueDate,
       assignedTo: newAssignedTo,
-      ...defaults,
+      contactId: newContactId,
+      companyId: newCompanyId,
+      inquiryId: defaults.inquiryId,
+      bookingId: defaults.bookingId,
     });
     setNewTitle('');
     setNewPriority('normal');
     setNewDueDate(undefined);
     setNewAssignedTo(undefined);
+    setNewContactId(defaults.contactId);
+    setNewCompanyId(defaults.companyId);
     setAdding(false);
     setShowForm(false);
     toast({ title: 'Taak aangemaakt' });
@@ -136,6 +148,34 @@ export default function TasksSection({ tasks, defaults }: TasksSectionProps) {
                 <SelectItem value="Iris Machielse" className="text-xs">Iris Machielse</SelectItem>
               </SelectContent>
             </Select>
+          </div>
+          <div className="flex flex-wrap gap-2 items-end">
+            <div className="flex-1 min-w-[140px]">
+              <p className="text-[10px] font-medium text-muted-foreground mb-0.5">Contactpersoon</p>
+              <CrmCombobox
+                options={contacts.map(c => ({ id: c.id, label: `${c.firstName} ${c.lastName}`, secondary: c.email || c.company || undefined }))}
+                value={newContactId || ''}
+                onSelect={(id) => setNewContactId(id || undefined)}
+                placeholder="Contact..."
+                searchPlaceholder="Zoek contact..."
+                allowClear
+                clearLabel="— Geen —"
+                className="h-8 text-xs"
+              />
+            </div>
+            <div className="flex-1 min-w-[140px]">
+              <p className="text-[10px] font-medium text-muted-foreground mb-0.5">Bedrijf</p>
+              <CrmCombobox
+                options={companies.map(c => ({ id: c.id, label: c.name, secondary: c.email || undefined }))}
+                value={newCompanyId || ''}
+                onSelect={(id) => setNewCompanyId(id || undefined)}
+                placeholder="Bedrijf..."
+                searchPlaceholder="Zoek bedrijf..."
+                allowClear
+                clearLabel="— Geen —"
+                className="h-8 text-xs"
+              />
+            </div>
           </div>
           <div className="flex gap-1.5 justify-end">
             <Button variant="ghost" size="sm" className="h-8 text-xs" onClick={() => { setShowForm(false); setNewTitle(''); setNewDueDate(undefined); setNewAssignedTo(undefined); }}>
