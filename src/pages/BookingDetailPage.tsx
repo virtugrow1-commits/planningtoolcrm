@@ -23,6 +23,7 @@ import { InfoRow } from '@/components/detail/DetailPageComponents';
 import TasksSection from '@/components/detail/TasksSection';
 import TeamMemberSelect from '@/components/TeamMemberSelect';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
+import OptionStatusChangeDialog from '@/components/calendar/OptionStatusChangeDialog';
 
 export default function BookingDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -39,6 +40,7 @@ export default function BookingDetailPage() {
   const [editing, setEditing] = useState(false);
   const [form, setForm] = useState<Booking | null>(null);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [optionDialogOpen, setOptionDialogOpen] = useState(false);
 
   const contact = useMemo(() => booking?.contactId ? contacts.find(c => c.id === booking.contactId) : null, [booking, contacts]);
   const company = useMemo(() => contact?.companyId ? companies.find(co => co.id === contact.companyId) : null, [contact, companies]);
@@ -116,8 +118,8 @@ export default function BookingDetailPage() {
     }
   };
 
-  const statusBadgeClass = booking.status === 'confirmed' ? 'bg-success/10 text-success border-success/20' : booking.status === 'cancelled' ? 'bg-destructive/10 text-destructive border-destructive/20' : 'bg-warning/10 text-warning border-warning/20';
-  const statusLabel = booking.status === 'confirmed' ? 'Bevestigd' : booking.status === 'cancelled' ? 'Geannuleerd' : 'Optie';
+  const statusBadgeClass = booking.status === 'confirmed' ? 'bg-success/10 text-success border-success/20' : booking.status === 'cancelled' ? 'bg-destructive/10 text-destructive border-destructive/20' : booking.status === 'expired' ? 'bg-muted text-muted-foreground' : 'bg-warning/10 text-warning border-warning/20';
+  const statusLabel = booking.status === 'confirmed' ? 'Bevestigd' : booking.status === 'cancelled' ? 'Geannuleerd' : booking.status === 'expired' ? 'Vervallen' : 'Optie';
 
   const current = editing ? form! : booking;
 
@@ -144,6 +146,11 @@ export default function BookingDetailPage() {
         <Select
           value={booking.status}
           onValueChange={async (v: Booking['status']) => {
+            // If current status is 'option' and changing away, show dialog
+            if (booking.status === 'option' && v !== 'option') {
+              setOptionDialogOpen(true);
+              return;
+            }
             await updateBooking({ ...booking, status: v });
             toast({ title: 'Status gewijzigd' });
           }}
@@ -154,9 +161,19 @@ export default function BookingDetailPage() {
           <SelectContent>
             <SelectItem value="confirmed">Bevestigd</SelectItem>
             <SelectItem value="option">Optie</SelectItem>
+            <SelectItem value="expired">Vervallen</SelectItem>
             <SelectItem value="cancelled">Geannuleerd</SelectItem>
           </SelectContent>
         </Select>
+        <OptionStatusChangeDialog
+          open={optionDialogOpen}
+          onOpenChange={setOptionDialogOpen}
+          onConfirm={async (newStatus, reason) => {
+            await updateBooking({ ...booking, status: newStatus, statusReason: reason });
+            setOptionDialogOpen(false);
+            toast({ title: 'Status gewijzigd' });
+          }}
+        />
       </div>
 
       {/* Two-column layout like InquiryDetailsTab */}
