@@ -40,11 +40,13 @@ export default function BookingDetailDialog({ booking, open, onOpenChange, onUpd
   })), [companies]);
 
   useEffect(() => {
-    if (booking) {
+    if (booking && !editing) {
       setForm({ ...booking });
+    }
+    if (!booking) {
       setEditing(false);
     }
-  }, [booking]);
+  }, [booking, editing]);
 
   if (!booking || !form) return null;
 
