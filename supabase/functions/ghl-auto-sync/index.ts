@@ -1145,19 +1145,27 @@ async function syncCompanies(supabase: any, ghlHeaders: any, locationId: string,
       const existing = lookups.companyByGhlId.get(ghlCompany.id);
 
       if (existing) {
-        // GHL is always source of truth → overwrite CRM with GHL data
-        const crmDiffers = norm(existing.name) !== norm(ghlName) ||
-                           norm(existing.email) !== norm(ghlEmail) ||
-                           norm(existing.phone) !== norm(ghlPhone) ||
-                           norm(existing.website) !== norm(ghlWebsite) ||
-                           norm(existing.address) !== norm(ghlAddress) ||
-                           norm(existing.city) !== norm(ghlCity);
+        // Timestamp-based conflict resolution: if CRM was updated recently (within 24h), skip GHL overwrite
+        const crmUpdated = existing.updated_at ? new Date(existing.updated_at).getTime() : 0;
+        const recentlyEditedLocally = (Date.now() - crmUpdated) < 24 * 60 * 60 * 1000;
 
-        if (crmDiffers) {
-          await supabase.from('companies').update({
-            name: ghlName, email: ghlEmail, phone: ghlPhone,
-            website: ghlWebsite, address: ghlAddress, city: ghlCity,
-          }).eq('id', existing.id);
+        if (recentlyEditedLocally) {
+          // CRM has recent local edits — don't overwrite, push CRM → GHL instead
+          console.log(`Company "${existing.name}" was recently edited locally, skipping GHL overwrite`);
+        } else {
+          const crmDiffers = norm(existing.name) !== norm(ghlName) ||
+                             norm(existing.email) !== norm(ghlEmail) ||
+                             norm(existing.phone) !== norm(ghlPhone) ||
+                             norm(existing.website) !== norm(ghlWebsite) ||
+                             norm(existing.address) !== norm(ghlAddress) ||
+                             norm(existing.city) !== norm(ghlCity);
+
+          if (crmDiffers) {
+            await supabase.from('companies').update({
+              name: ghlName, email: ghlEmail, phone: ghlPhone,
+              website: ghlWebsite, address: ghlAddress, city: ghlCity,
+            }).eq('id', existing.id);
+          }
         }
       } else {
         // New from GHL → in-memory name match
