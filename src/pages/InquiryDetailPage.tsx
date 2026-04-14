@@ -164,8 +164,14 @@ export default function InquiryDetailPage() {
         <Select
           value={inquiry.status}
           onValueChange={async (v: Inquiry['status']) => {
+            const oldLabel = PIPELINE_COLUMNS.find(c => c.key === inquiry.status)?.label;
+            const newLabel = PIPELINE_COLUMNS.find(c => c.key === v)?.label;
             await updateInquiry({ ...inquiry, status: v });
-            toast({ title: 'Status gewijzigd', description: PIPELINE_COLUMNS.find(c => c.key === v)?.label });
+            toast({ title: 'Status gewijzigd', description: newLabel });
+            await logActivity(
+              `Stadium gewijzigd: ${oldLabel} → ${newLabel}`,
+              `Aanvraag ${inquiry.displayNumber || inquiry.eventType} is van stadium "${oldLabel}" naar "${newLabel}" gezet.`
+            );
           }}
         >
           <SelectTrigger className={cn('w-auto h-7 text-[11px] font-medium rounded-full px-3 border-0', col?.badgeClass)}>
@@ -303,9 +309,15 @@ export default function InquiryDetailPage() {
         onOpenChange={setShowStatusDialog}
         currentStatus={inquiry.status}
         onConfirm={async (newStatus, reason) => {
+          const oldLabel = PIPELINE_COLUMNS.find(c => c.key === inquiry.status)?.label;
+          const newLabel = PIPELINE_COLUMNS.find(c => c.key === newStatus)?.label;
           await updateInquiry({ ...inquiry, status: newStatus, statusReason: reason });
           setShowStatusDialog(false);
-          toast({ title: 'Stadium gewijzigd', description: PIPELINE_COLUMNS.find(c => c.key === newStatus)?.label });
+          toast({ title: 'Stadium gewijzigd', description: newLabel });
+          await logActivity(
+            `Stadium gewijzigd: ${oldLabel} → ${newLabel}`,
+            reason
+          );
         }}
       />
 
