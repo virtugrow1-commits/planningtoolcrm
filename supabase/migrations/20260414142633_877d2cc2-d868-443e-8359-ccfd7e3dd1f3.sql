@@ -1,0 +1,1 @@
+ALTER TABLE public.inquiries ADD COLUMN status_reason text DEFAULT NULL;
