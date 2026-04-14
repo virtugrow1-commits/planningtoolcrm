@@ -1346,8 +1346,15 @@ Deno.serve(async (req) => {
       const startM = String(booking.start_minute ?? 0).padStart(2, '0');
       const endH = String(booking.end_hour).padStart(2, '0');
       const endM = String(booking.end_minute ?? 0).padStart(2, '0');
+      // If end hour is past midnight (< 7) and start is during the day, use next day for end
+      let endDateStr = dateStr;
+      if (booking.end_hour < 7 && booking.start_hour >= 7) {
+        const nextDay = new Date(dateStr + 'T12:00:00Z');
+        nextDay.setUTCDate(nextDay.getUTCDate() + 1);
+        endDateStr = nextDay.toISOString().slice(0, 10);
+      }
       const startISO = `${dateStr}T${startH}:${startM}:00`;
-      const endISO = `${dateStr}T${endH}:${endM}:00`;
+      const endISO = `${endDateStr}T${endH}:${endM}:00`;
 
       // Calculate Europe/Amsterdam timezone offset
       const probeDate = new Date(`${dateStr}T12:00:00Z`);
@@ -1703,13 +1710,21 @@ Deno.serve(async (req) => {
         const endH = String(booking.end_hour).padStart(2, '0');
         const endM = String(booking.end_minute ?? 0).padStart(2, '0');
 
+        // If end hour is past midnight (< 7) and start is during the day, use next day for end
+        let endDateStr = booking.date;
+        if (booking.end_hour < 7 && booking.start_hour >= 7) {
+          const nextDay = new Date(booking.date + 'T12:00:00Z');
+          nextDay.setUTCDate(nextDay.getUTCDate() + 1);
+          endDateStr = nextDay.toISOString().slice(0, 10);
+        }
+
         const probeDate = new Date(`${booking.date}T12:00:00Z`);
         const amStr = probeDate.toLocaleString('en-US', { timeZone: 'Europe/Amsterdam', hour12: false });
         const amDate = new Date(amStr);
         const offsetH = Math.round((amDate.getTime() - probeDate.getTime()) / 3600000);
         const tz = `${offsetH >= 0 ? '+' : '-'}${String(Math.abs(offsetH)).padStart(2, '0')}:00`;
         const startISO = `${booking.date}T${startH}:${startM}:00${tz}`;
-        const endISO = `${booking.date}T${endH}:${endM}:00${tz}`;
+        const endISO = `${endDateStr}T${endH}:${endM}:00${tz}`;
 
         const ghlPayload: Record<string, any> = {
           calendarId,
