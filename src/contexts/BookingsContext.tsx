@@ -327,6 +327,8 @@ export function BookingsProvider({ children }: { children: ReactNode }) {
   }, [user, fetchBookings, toast, serverConflictCheck, queueFailedSync, logSync]);
 
   const updateBooking = useCallback(async (updated: Booking): Promise<{ success: boolean; conflicts?: Booking[] }> => {
+    const existingBooking = bookings.find((booking) => booking.id === updated.id);
+    const resolvedGuestCount = updated.guestCount ?? existingBooking?.guestCount ?? 0;
     const startMin = updated.startHour * 60 + (updated.startMinute ?? 0);
     const endMin = updated.endHour * 60 + (updated.endMinute ?? 0);
 
@@ -352,7 +354,7 @@ export function BookingsProvider({ children }: { children: ReactNode }) {
       company_id: updated.companyId || null,
       status: updated.status,
       notes: updated.notes || null,
-      guest_count: updated.guestCount ?? 0,
+      guest_count: resolvedGuestCount,
       room_setup: updated.roomSetup || null,
       requirements: updated.requirements || null,
       preparation_status: updated.preparationStatus || 'pending',
@@ -381,7 +383,7 @@ export function BookingsProvider({ children }: { children: ReactNode }) {
       await fetchBookings();
     }
     return { success: true };
-  }, [fetchBookings, toast, serverConflictCheck, queueFailedSync, logSync]);
+  }, [bookings, fetchBookings, toast, serverConflictCheck, queueFailedSync, logSync]);
 
   const deleteBooking = useCallback(async (id: string) => {
     // Optimistic removal — instantly remove from UI state to prevent "spring back"
