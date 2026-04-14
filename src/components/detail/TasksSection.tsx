@@ -149,6 +149,33 @@ export default function TasksSection({ tasks, defaults }: TasksSectionProps) {
               </SelectContent>
             </Select>
           </div>
+          <div className="flex flex-wrap gap-2 items-end">
+            <div className="flex-1 min-w-[140px]">
+              <p className="text-[10px] font-medium text-muted-foreground mb-0.5">Contactpersoon</p>
+              <CrmCombobox
+                options={contacts.map(c => ({ id: c.id, label: `${c.firstName} ${c.lastName}`, secondary: c.email || c.company || undefined }))}
+                value={newContactId || ''}
+                onSelect={(id) => setNewContactId(id || undefined)}
+                placeholder="Contact..."
+                searchPlaceholder="Zoek contact..."
+                allowClear
+                clearLabel="— Geen —"
+                className="h-8 text-xs"
+              />
+            </div>
+            <div className="flex-1 min-w-[140px]">
+              <p className="text-[10px] font-medium text-muted-foreground mb-0.5">Bedrijf</p>
+              <CrmCombobox
+                options={companies.map(c => ({ id: c.id, label: c.name, secondary: c.email || undefined }))}
+                value={newCompanyId || ''}
+                onSelect={(id) => setNewCompanyId(id || undefined)}
+                placeholder="Bedrijf..."
+                searchPlaceholder="Zoek bedrijf..."
+                allowClear
+                clearLabel="— Geen —"
+                className="h-8 text-xs"
+              />
+            </div>
           <div className="flex gap-1.5 justify-end">
             <Button variant="ghost" size="sm" className="h-8 text-xs" onClick={() => { setShowForm(false); setNewTitle(''); setNewDueDate(undefined); setNewAssignedTo(undefined); }}>
               Annuleren
