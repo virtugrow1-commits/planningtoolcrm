@@ -135,19 +135,10 @@ export function ContactsProvider({ children }: { children: ReactNode }) {
   }, [user, toast]);
 
   const updateContact = useCallback(async (contact: Contact) => {
-    // GHL first: push changes to GHL before updating local DB
-    await pushToGHL('push-contact', { contact: {
-      id: contact.id,
-      first_name: capitalizeWords(contact.firstName),
-      last_name: capitalizeWords(contact.lastName),
-      email: contact.email || null,
-      phone: contact.phone || null,
-      company: contact.company || null,
-      ghl_contact_id: contact.ghlContactId || null,
-    }}, {
-      entityType: 'contact', entityId: contact.id, actionType: 'update',
-    });
-    // Then update local DB
+    // Optimistic update: instantly reflect changes in UI
+    setContacts(prev => prev.map(c => c.id === contact.id ? contact : c));
+
+    // Update local DB first (fast)
     const { error } = await supabase.from('contacts').update({
       first_name: capitalizeWords(contact.firstName),
       last_name: capitalizeWords(contact.lastName),
@@ -166,8 +157,23 @@ export function ContactsProvider({ children }: { children: ReactNode }) {
     } as any).eq('id', contact.id);
     if (error) {
       toast({ title: 'Fout bij bijwerken contact', description: error.message, variant: 'destructive' });
+      fetchContacts(); // Rollback
+      return;
     }
-  }, [toast]);
+
+    // Fire-and-forget: push to GHL without blocking UI
+    pushToGHL('push-contact', { contact: {
+      id: contact.id,
+      first_name: capitalizeWords(contact.firstName),
+      last_name: capitalizeWords(contact.lastName),
+      email: contact.email || null,
+      phone: contact.phone || null,
+      company: contact.company || null,
+      ghl_contact_id: contact.ghlContactId || null,
+    }}, {
+      entityType: 'contact', entityId: contact.id, actionType: 'update',
+    }).catch(() => {});
+  }, [toast, fetchContacts]);
 
   const deleteContact = useCallback(async (id: string) => {
     // Optimistic: remove from UI instantly
