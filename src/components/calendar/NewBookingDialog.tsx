@@ -6,12 +6,12 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { AlertTriangle } from 'lucide-react';
 
-const HOURS = [...Array.from({ length: 17 }, (_, i) => i + 7), 0, 1, 2];
-
 interface NewBookingForm {
   room: RoomName;
   startHour: number;
+  startMinute: number;
   endHour: number;
+  endMinute: number;
   title: string;
   contactName: string;
   status: 'confirmed' | 'option';
@@ -27,6 +27,19 @@ interface NewBookingDialogProps {
 }
 
 export default function NewBookingDialog({ open, onOpenChange, form, onFormChange, onSubmit, conflictAlert }: NewBookingDialogProps) {
+  const startTime = `${String(form.startHour).padStart(2, '0')}:${String(form.startMinute ?? 0).padStart(2, '0')}`;
+  const endTime = `${String(form.endHour).padStart(2, '0')}:${String(form.endMinute ?? 0).padStart(2, '0')}`;
+
+  const handleStartChange = (val: string) => {
+    const [h, m] = val.split(':').map(Number);
+    onFormChange({ ...form, startHour: h, startMinute: m });
+  };
+
+  const handleEndChange = (val: string) => {
+    const [h, m] = val.split(':').map(Number);
+    onFormChange({ ...form, endHour: h, endMinute: m });
+  };
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
@@ -50,17 +63,11 @@ export default function NewBookingDialog({ open, onOpenChange, form, onFormChang
           <div className="grid grid-cols-2 gap-3">
             <div className="grid gap-1.5">
               <Label>Van</Label>
-              <Select value={String(form.startHour)} onValueChange={(v) => onFormChange({ ...form, startHour: Number(v) })}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>{HOURS.map((h) => <SelectItem key={h} value={String(h)}>{h}:00</SelectItem>)}</SelectContent>
-              </Select>
+              <Input type="time" value={startTime} onChange={(e) => handleStartChange(e.target.value)} />
             </div>
             <div className="grid gap-1.5">
               <Label>Tot</Label>
-              <Select value={String(form.endHour)} onValueChange={(v) => onFormChange({ ...form, endHour: Number(v) })}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>{HOURS.filter((h) => { const norm = (x: number) => x < 7 ? x + 24 : x; return norm(h) > norm(form.startHour); }).map((h) => <SelectItem key={h} value={String(h)}>{h}:00</SelectItem>)}</SelectContent>
-              </Select>
+              <Input type="time" value={endTime} onChange={(e) => handleEndChange(e.target.value)} />
             </div>
           </div>
           <div className="grid gap-1.5">
