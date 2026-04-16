@@ -1,27 +1,23 @@
 
 
-## Plan: Fix FontPicker dropdown die niet werkt
+## Plan: Zijpanelen sticky maken bij scrollen
 
-Het probleem is dat de FontPicker dropdown wordt afgekapt door parent containers met `overflow: hidden` (met name de `BlockEditor` wrapper op regel 107 en de Rnd component). De dropdown opent binnen deze containers en wordt daardoor niet zichtbaar.
+De sidebar (Element toevoegen) en het eigenschappenpaneel scrollen nu mee met de pagina omdat de parent container `overflow-hidden` heeft. De sidebars hebben al `sticky top-0` classes maar die werken niet door de overflow-instelling.
 
-### Oplossing
+### Wat er verandert
 
-**Bestand: `src/components/template-editor/FontPicker.tsx`**
+**Bestand: `src/components/template-editor/BlockEditor.tsx`** (regel 107)
+- De buitenste container `overflow-hidden` vervangen door `overflow-visible`
+- De scroll alleen op het middelste canvas-gedeelte houden (regel 162, die heeft al `overflow-y-auto`)
+- De sidebars (BlockSidebar en BlockPropertiesPanel) krijgen een `max-h-[calc(100vh-200px)]` zodat ze binnen het viewport passen en hun eigen interne scroll behouden
 
-- De dropdown renderen via een **React Portal** (`ReactDOM.createPortal`) zodat deze buiten de overflow-hidden containers verschijnt
-- De positie van de dropdown berekenen op basis van de trigger-knop positie (`getBoundingClientRect`)
-- De dropdown wordt direct aan `document.body` toegevoegd met een vaste positie (`position: fixed`)
+**Bestand: `src/components/template-editor/BlockSidebar.tsx`**
+- `h-screen max-h-screen` vervangen door een viewport-relatieve hoogte die past binnen de editor context
 
-Dit is een beproefde aanpak die ook door Radix UI (Select, Popover etc.) wordt gebruikt om dropdown-problemen in geneste containers op te lossen.
+**Bestand: `src/components/template-editor/BlockPropertiesPanel.tsx`**
+- Zelfde aanpassing als BlockSidebar
 
 ### Technisch
 
-- Import `createPortal` uit `react-dom`
-- Bij het openen van de dropdown: bereken de positie van de trigger-knop
-- Render de dropdown-lijst via `createPortal(dropdownJSX, document.body)` met `position: fixed` en de berekende `top`/`left` waarden
-- Bestaande functionaliteit (font selectie, upload, verwijderen) blijft ongewijzigd
-
-### Bestanden
-
-- `src/components/template-editor/FontPicker.tsx` — Portal-rendering toevoegen voor de dropdown
+Het kernprobleem is dat `overflow: hidden` op de parent `sticky` positioning breekt. Door overflow alleen op het canvas-deel toe te passen en de sidebars met `position: sticky; top: 0` te laten werken, blijven ze zichtbaar bij het scrollen.
 
