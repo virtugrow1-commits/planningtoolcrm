@@ -140,9 +140,10 @@ export default function FontPicker({ value, onChange, customFonts, onCustomFonts
   const allFonts = [...SYSTEM_FONTS, ...customFonts.map(f => f.name)];
 
   return (
-    <div className="relative" ref={panelRef}>
+    <div className="relative">
       <button
-        onClick={() => setOpen(!open)}
+        ref={triggerRef}
+        onClick={toggleOpen}
         className="h-7 text-xs border rounded px-2 bg-background flex items-center gap-1 min-w-[100px] max-w-[140px] hover:bg-accent transition-colors"
         style={{ fontFamily: value }}
       >
@@ -150,10 +151,13 @@ export default function FontPicker({ value, onChange, customFonts, onCustomFonts
         <ChevronDown size={10} className="shrink-0 text-muted-foreground" />
       </button>
 
-      {open && (
-        <div className="absolute top-full left-0 mt-1 z-50 w-[240px] bg-popover border border-border rounded-lg shadow-lg">
+      {open && createPortal(
+        <div
+          ref={panelRef}
+          className="w-[240px] bg-popover border border-border rounded-lg shadow-lg"
+          style={{ position: 'fixed', top: coords.top, left: coords.left, zIndex: 9999 }}
+        >
           <div className="max-h-[280px] overflow-y-auto p-1">
-            {/* System fonts */}
             <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider px-2 py-1.5">
               Systeemlettertypen
             </p>
@@ -168,7 +172,6 @@ export default function FontPicker({ value, onChange, customFonts, onCustomFonts
               </button>
             ))}
 
-            {/* Custom fonts */}
             {customFonts.length > 0 && (
               <>
                 <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider px-2 py-1.5 mt-2">
@@ -195,7 +198,6 @@ export default function FontPicker({ value, onChange, customFonts, onCustomFonts
             )}
           </div>
 
-          {/* Upload button */}
           <div className="border-t p-2">
             <label>
               <Button variant="outline" size="sm" className="w-full h-7 text-xs gap-1.5 cursor-pointer" disabled={uploading} asChild>
@@ -217,7 +219,8 @@ export default function FontPicker({ value, onChange, customFonts, onCustomFonts
               .ttf, .otf, .woff, .woff2 · max 5MB
             </p>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );
