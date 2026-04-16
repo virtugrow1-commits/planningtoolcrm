@@ -11,7 +11,7 @@ interface BlockPropertiesPanelProps {
 
 export default function BlockPropertiesPanel({ block, onUpdate }: BlockPropertiesPanelProps) {
   return (
-    <div className="w-[220px] border-l bg-background sticky top-0 self-start h-screen max-h-screen z-20 flex flex-col">
+    <div className="w-[220px] border-l bg-background sticky top-0 self-start max-h-[calc(100vh-120px)] z-20 flex flex-col">
       <div className="px-3 py-2 border-b">
         <span className="text-sm font-medium text-foreground">Eigenschappen</span>
       </div>
