@@ -1,17 +1,27 @@
 
 
-## Plan: Toelichting verplaatsen van kaart naar historie
+## Plan: Fix FontPicker dropdown die niet werkt
 
-De `statusReason` (toelichting) wordt verwijderd van de detailkaart en wordt alleen zichtbaar in de historie-sectie via de gelogde `contact_activities`.
+Het probleem is dat de FontPicker dropdown wordt afgekapt door parent containers met `overflow: hidden` (met name de `BlockEditor` wrapper op regel 107 en de Rnd component). De dropdown opent binnen deze containers en wordt daardoor niet zichtbaar.
 
-### Wat er verandert
+### Oplossing
 
-1. **InquiryDetailsTab.tsx** — Regel 184 verwijderen: de `InfoRow` met `statusReason` wordt weggehaald uit de detailkaart.
+**Bestand: `src/components/template-editor/FontPicker.tsx`**
 
-Dat is alles. De toelichting wordt al automatisch gelogd als activiteit bij de contactpersoon (via de `logActivity` calls in `InquiryDetailPage.tsx`), dus die is altijd terug te vinden in de historie/tijdlijn. Er hoeft geen nieuwe code geschreven te worden.
+- De dropdown renderen via een **React Portal** (`ReactDOM.createPortal`) zodat deze buiten de overflow-hidden containers verschijnt
+- De positie van de dropdown berekenen op basis van de trigger-knop positie (`getBoundingClientRect`)
+- De dropdown wordt direct aan `document.body` toegevoegd met een vaste positie (`position: fixed`)
+
+Dit is een beproefde aanpak die ook door Radix UI (Select, Popover etc.) wordt gebruikt om dropdown-problemen in geneste containers op te lossen.
 
 ### Technisch
 
-- Eén regel verwijderen in `src/components/inquiry/InquiryDetailsTab.tsx` (regel 184)
-- De `statusReason` blijft in de database opgeslagen en wordt nog steeds gelogd naar `contact_activities` — alleen de weergave op de kaart verdwijnt
+- Import `createPortal` uit `react-dom`
+- Bij het openen van de dropdown: bereken de positie van de trigger-knop
+- Render de dropdown-lijst via `createPortal(dropdownJSX, document.body)` met `position: fixed` en de berekende `top`/`left` waarden
+- Bestaande functionaliteit (font selectie, upload, verwijderen) blijft ongewijzigd
+
+### Bestanden
+
+- `src/components/template-editor/FontPicker.tsx` — Portal-rendering toevoegen voor de dropdown
 
