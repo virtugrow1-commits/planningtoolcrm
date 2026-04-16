@@ -1,23 +1,22 @@
 
 
-## Plan: Zijpanelen sticky maken bij scrollen
+## Plan: Tijdinvoer handmatig maken in NewBookingDialog
 
-De sidebar (Element toevoegen) en het eigenschappenpaneel scrollen nu mee met de pagina omdat de parent container `overflow-hidden` heeft. De sidebars hebben al `sticky top-0` classes maar die werken niet door de overflow-instelling.
+De `NewReservationDialog` en `BookingDetailDialog` gebruiken al `<Input type="time" />` waarmee je minuten kunt invoeren. Alleen `NewBookingDialog.tsx` gebruikt nog dropdown-selects met hele uren.
 
 ### Wat er verandert
 
-**Bestand: `src/components/template-editor/BlockEditor.tsx`** (regel 107)
-- De buitenste container `overflow-hidden` vervangen door `overflow-visible`
-- De scroll alleen op het middelste canvas-gedeelte houden (regel 162, die heeft al `overflow-y-auto`)
-- De sidebars (BlockSidebar en BlockPropertiesPanel) krijgen een `max-h-[calc(100vh-200px)]` zodat ze binnen het viewport passen en hun eigen interne scroll behouden
+**Bestand: `src/components/calendar/NewBookingDialog.tsx`**
 
-**Bestand: `src/components/template-editor/BlockSidebar.tsx`**
-- `h-screen max-h-screen` vervangen door een viewport-relatieve hoogte die past binnen de editor context
-
-**Bestand: `src/components/template-editor/BlockPropertiesPanel.tsx`**
-- Zelfde aanpassing als BlockSidebar
+1. **Interface uitbreiden** — `startMinute` en `endMinute` toevoegen aan `NewBookingForm`
+2. **Select dropdowns vervangen** door `<Input type="time" />` velden (zelfde aanpak als NewReservationDialog)
+3. De `HOURS` constante kan verwijderd worden (niet meer nodig)
 
 ### Technisch
 
-Het kernprobleem is dat `overflow: hidden` op de parent `sticky` positioning breekt. Door overflow alleen op het canvas-deel toe te passen en de sidebars met `position: sticky; top: 0` te laten werken, blijven ze zichtbaar bij het scrollen.
+- De twee `<Select>` componenten voor "Van" en "Tot" worden vervangen door `<Input type="time" value="HH:MM" onChange={...} />`
+- De `onChange` handler splitst de waarde op `:` en zet `startHour`/`startMinute` en `endHour`/`endMinute`
+- De `NewBookingForm` interface krijgt `startMinute: number` en `endMinute: number` erbij
+
+**Let op**: alle plekken die `NewBookingForm` gebruiken moeten ook `startMinute`/`endMinute` meegeven. Dit wordt gecontroleerd en indien nodig aangepast.
 
