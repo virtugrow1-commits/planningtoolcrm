@@ -104,7 +104,7 @@ export default function BlockEditor({ blocks, onBlocksChange, pdfBackgroundUrl, 
   }, []);
 
   return (
-    <div className="flex border rounded-lg overflow-hidden bg-background min-h-[600px]">
+    <div className="flex border rounded-lg bg-background min-h-[600px]">
       {/* Sidebar - sticky */}
       <BlockSidebar
         open={sidebarOpen}

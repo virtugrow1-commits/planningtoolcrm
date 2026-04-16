@@ -30,7 +30,7 @@ export default function BlockSidebar({ open, onClose, onAddBlock }: BlockSidebar
   };
 
   return (
-    <div className="w-[220px] border-r bg-background flex flex-col sticky top-0 self-start h-screen max-h-screen z-20">
+    <div className="w-[220px] border-r bg-background flex flex-col sticky top-0 self-start max-h-[calc(100vh-120px)] z-20">
       <div className="flex items-center justify-between px-3 py-2 border-b">
         <span className="text-sm font-medium text-foreground">Element toevoegen</span>
         <button onClick={onClose} className="text-muted-foreground hover:text-foreground">
