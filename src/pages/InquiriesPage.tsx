@@ -61,7 +61,7 @@ const RECURRENCE_OPTIONS = [
   { value: 'adrandom', label: 'Ad random (vrije datums)' },
 ];
 
-const hourLabel = (h: number) => `${String(h).padStart(2, '0')}:00`;
+
 
 interface DateOption {
   id: string;
