@@ -55,6 +55,8 @@ function loadFontFace(name: string, url: string) {
 export default function FontPicker({ value, onChange, customFonts, onCustomFontsChange }: FontPickerProps) {
   const [open, setOpen] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [coords, setCoords] = useState({ top: 0, left: 0 });
+  const triggerRef = useRef<HTMLButtonElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const { user } = useAuth();
@@ -65,11 +67,23 @@ export default function FontPicker({ value, onChange, customFonts, onCustomFonts
     customFonts.forEach(f => loadFontFace(f.name, f.url));
   }, [customFonts]);
 
+  // Calculate position when opening
+  const toggleOpen = useCallback(() => {
+    if (!open && triggerRef.current) {
+      const rect = triggerRef.current.getBoundingClientRect();
+      setCoords({ top: rect.bottom + 4, left: rect.left });
+    }
+    setOpen(o => !o);
+  }, [open]);
+
   // Close on outside click
   useEffect(() => {
     if (!open) return;
     const handler = (e: MouseEvent) => {
-      if (panelRef.current && !panelRef.current.contains(e.target as Node)) setOpen(false);
+      if (panelRef.current && !panelRef.current.contains(e.target as Node) &&
+          triggerRef.current && !triggerRef.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
     };
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
