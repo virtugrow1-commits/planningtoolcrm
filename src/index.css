@@ -4,6 +4,20 @@
 
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
 
+@font-face {
+  font-family: 'Grown';
+  src: url('/fonts/Grown_Regular.otf') format('opentype');
+  font-weight: 400;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'TT Interphases Pro Condensed';
+  src: url('/fonts/TT-Interphases-Pro-Condensed-Bold.ttf') format('truetype');
+  font-weight: 700;
+  font-display: swap;
+}
+
 @layer base {
   :root {
     --background: 0 0% 97%;

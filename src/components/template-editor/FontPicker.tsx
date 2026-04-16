@@ -7,6 +7,8 @@ import { useToast } from '@/hooks/use-toast';
 
 const SYSTEM_FONTS = [
   'Inter',
+  'Grown',
+  'TT Interphases Pro Condensed',
   'Arial',
   'Helvetica',
   'Georgia',
