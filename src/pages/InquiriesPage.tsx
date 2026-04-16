@@ -52,8 +52,6 @@ const ARCHIVE_STATUSES = ['lost', 'converted'] as const;
 const PIPELINE_ACTIVE_COLUMNS = PIPELINE_COLUMNS;
 const ARCHIVE_COLUMN_KEYS = ARCHIVE_STATUSES as readonly string[];
 
-const HOURS = [...Array.from({ length: 17 }, (_, i) => i + 7), 0, 1, 2];
-
 const RECURRENCE_OPTIONS = [
   { value: 'none', label: 'Eenmalig' },
   { value: 'weekly', label: 'Elke week' },
@@ -63,13 +61,15 @@ const RECURRENCE_OPTIONS = [
   { value: 'adrandom', label: 'Ad random (vrije datums)' },
 ];
 
-const hourLabel = (h: number) => `${String(h).padStart(2, '0')}:00`;
+
 
 interface DateOption {
   id: string;
   date: Date | undefined;
   startHour: number;
+  startMinute: number;
   endHour: number;
+  endMinute: number;
   room: RoomName | '';
   status: 'confirmed' | 'option';
 }
@@ -78,7 +78,9 @@ const createDateOption = (): DateOption => ({
   id: `opt-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
   date: undefined,
   startHour: 9,
+  startMinute: 0,
   endHour: 17,
+  endMinute: 0,
   room: '',
   status: 'option',
 });
@@ -398,9 +400,9 @@ export default function InquiriesPage() {
           roomName: opt.room as RoomName,
           date: dateStr,
           startHour: opt.startHour,
-          startMinute: 0,
+          startMinute: opt.startMinute,
           endHour: opt.endHour,
-          endMinute: 0,
+          endMinute: opt.endMinute,
           title: selectedInquiry.eventType,
           contactName: selectedInquiry.contactName,
           contactId: selectedInquiry.contactId || undefined,
@@ -1069,17 +1071,27 @@ export default function InquiriesPage() {
                     <div className="grid grid-cols-2 gap-3">
                       <div className="grid gap-1.5">
                         <Label className="text-xs">Van</Label>
-                        <Select value={String(opt.startHour)} onValueChange={(v) => updateDateOption(opt.id, { startHour: Number(v) })}>
-                          <SelectTrigger className="text-sm"><SelectValue /></SelectTrigger>
-                          <SelectContent>{HOURS.map((h) => <SelectItem key={h} value={String(h)}>{hourLabel(h)}</SelectItem>)}</SelectContent>
-                        </Select>
+                        <Input
+                          type="time"
+                          className="text-sm"
+                          value={`${String(opt.startHour).padStart(2, '0')}:${String(opt.startMinute).padStart(2, '0')}`}
+                          onChange={(e) => {
+                            const [h, m] = e.target.value.split(':').map(Number);
+                            updateDateOption(opt.id, { startHour: h, startMinute: m });
+                          }}
+                        />
                       </div>
                       <div className="grid gap-1.5">
                         <Label className="text-xs">Tot</Label>
-                        <Select value={String(opt.endHour)} onValueChange={(v) => updateDateOption(opt.id, { endHour: Number(v) })}>
-                          <SelectTrigger className="text-sm"><SelectValue /></SelectTrigger>
-                          <SelectContent>{HOURS.filter((h) => h > opt.startHour).map((h) => <SelectItem key={h} value={String(h)}>{hourLabel(h)}</SelectItem>)}</SelectContent>
-                        </Select>
+                        <Input
+                          type="time"
+                          className="text-sm"
+                          value={`${String(opt.endHour).padStart(2, '0')}:${String(opt.endMinute).padStart(2, '0')}`}
+                          onChange={(e) => {
+                            const [h, m] = e.target.value.split(':').map(Number);
+                            updateDateOption(opt.id, { endHour: h, endMinute: m });
+                          }}
+                        />
                       </div>
                     </div>
 
