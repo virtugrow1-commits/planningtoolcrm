@@ -78,7 +78,7 @@ export default function Dashboard() {
 
   // Resolve the actual filter value (lazy init for current user)
   const resolvedUserFilter = useMemo(() => {
-    if (userFilter === '__current__') return currentUserName;
+    if (userFilter === '__current__') return currentUserName || '__all__';
     return userFilter;
   }, [userFilter, currentUserName]);
 
