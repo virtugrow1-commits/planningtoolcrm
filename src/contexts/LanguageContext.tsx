@@ -5,6 +5,7 @@ type Language = 'nl' | 'en';
 const translations: Record<string, Record<Language, string>> = {
   // Navigation
   'nav.dashboard': { nl: 'Dashboard', en: 'Dashboard' },
+  'nav.tasks': { nl: 'Taken', en: 'Tasks' },
   'nav.crm': { nl: 'CRM', en: 'CRM' },
   'nav.companies': { nl: 'Bedrijven', en: 'Companies' },
   'nav.inquiries': { nl: 'Aanvragen', en: 'Inquiries' },
