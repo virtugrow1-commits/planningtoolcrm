@@ -11,6 +11,7 @@ import CompaniesPage from "@/pages/CompaniesPage";
 import CompanyDetailPage from "@/pages/CompanyDetailPage";
 import ContactDetailPage from "@/pages/ContactDetailPage";
 import InquiriesPage from "@/pages/InquiriesPage";
+import TasksPage from "@/pages/TasksPage";
 
 
 import ReserveringenPage from "@/pages/ReserveringenPage";
@@ -60,6 +61,7 @@ function ProtectedRoutes() {
               <AppLayout>
                 <Routes>
                   <Route path="/" element={<Dashboard />} />
+                  <Route path="/tasks" element={<TasksPage />} />
                   <Route path="/crm" element={<CrmPage />} />
                   <Route path="/crm/:id" element={<ContactDetailPage />} />
                   <Route path="/companies" element={<CompaniesPage />} />

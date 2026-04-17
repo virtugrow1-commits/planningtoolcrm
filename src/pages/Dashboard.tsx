@@ -73,7 +73,8 @@ export default function Dashboard() {
     return profile?.displayName || '';
   }, [user, members]);
 
-  const [userFilter, setUserFilter] = useState<string>('__all__');
+  // Default to current user — Dashboard shows tasks assigned to me
+  const [userFilter, setUserFilter] = useState<string>('__current__');
 
   // Resolve the actual filter value (lazy init for current user)
   const resolvedUserFilter = useMemo(() => {

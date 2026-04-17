@@ -14,6 +14,7 @@ import {
   ChevronDown,
   RefreshCw,
   Building2,
+  CheckSquare,
 } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { cn } from '@/lib/utils';
@@ -32,6 +33,7 @@ import { Button } from '@/components/ui/button';
 
 const navItemDefs = [
   { to: '/', icon: LayoutDashboard, key: 'nav.dashboard' },
+  { to: '/tasks', icon: CheckSquare, key: 'nav.tasks' },
   { to: '/crm', icon: Users, key: 'nav.crm' },
   
   { to: '/inquiries', icon: InboxIcon, key: 'nav.inquiries' },
