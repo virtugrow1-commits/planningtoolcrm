@@ -434,7 +434,9 @@ export default function TasksPage() {
                         </span>
                       )}
                       {task.assignedTo && (
-                        <span className="truncate max-w-[140px]">👤 {task.assignedTo}</span>
+                        <span className="truncate max-w-[160px] inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-primary">
+                          🧑‍💼 {task.assignedTo}
+                        </span>
                       )}
                     </div>
                   </div>
