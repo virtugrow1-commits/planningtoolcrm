@@ -25,8 +25,8 @@ export default function PdfBackgroundUpload({ pdfUrl, onPdfChange }: PdfBackgrou
       return;
     }
 
-    if (file.size > 25 * 1024 * 1024) {
-      toast({ title: 'Bestand te groot (max 25MB)', variant: 'destructive' });
+    if (file.size > 50 * 1024 * 1024) {
+      toast({ title: 'Bestand te groot (max 50MB)', variant: 'destructive' });
       return;
     }
 

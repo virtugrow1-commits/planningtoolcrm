@@ -211,7 +211,7 @@ export default function PdfEditor({
     const file = e.target.files?.[0];
     if (!file || !user || !onPdfUpload) return;
     if (file.type !== 'application/pdf') { toast({ title: 'Alleen PDF-bestanden', variant: 'destructive' }); return; }
-    if (file.size > 25 * 1024 * 1024) { toast({ title: 'Max 25MB', variant: 'destructive' }); return; }
+    if (file.size > 50 * 1024 * 1024) { toast({ title: 'Max 50MB', variant: 'destructive' }); return; }
     setUploading(true);
     const filePath = `${user.id}/${Date.now()}-${file.name}`;
     const { error } = await supabase.storage.from('quote-pdfs').upload(filePath, file);
@@ -233,7 +233,7 @@ export default function PdfEditor({
             {uploading ? <Loader2 size={32} className="text-muted-foreground animate-spin" /> : <Upload size={32} className="text-muted-foreground" />}
             <div className="text-center">
               <p className="text-sm font-medium">{uploading ? 'Uploaden...' : 'Upload een PDF om te bewerken'}</p>
-              <p className="text-xs text-muted-foreground mt-1">Max 25MB · Sleep tekst, markeringen en handtekeningen op de PDF</p>
+              <p className="text-xs text-muted-foreground mt-1">Max 50MB · Sleep tekst, markeringen en handtekeningen op de PDF</p>
             </div>
             <input type="file" accept="application/pdf" className="hidden" onChange={handleFileUpload} disabled={uploading} />
           </label>

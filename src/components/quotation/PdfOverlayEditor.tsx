@@ -139,7 +139,7 @@ export default function PdfOverlayEditor({
     const file = e.target.files?.[0];
     if (!file || !user) return;
     if (file.type !== 'application/pdf') { toast({ title: 'Alleen PDF-bestanden', variant: 'destructive' }); return; }
-    if (file.size > 25 * 1024 * 1024) { toast({ title: 'Max 25MB', variant: 'destructive' }); return; }
+    if (file.size > 50 * 1024 * 1024) { toast({ title: 'Max 50MB', variant: 'destructive' }); return; }
 
     setUploading(true);
     const filePath = `${user.id}/${Date.now()}-${file.name}`;
@@ -275,7 +275,7 @@ export default function PdfOverlayEditor({
             <Upload size={32} className="text-muted-foreground" />
             <div className="text-center">
               <p className="text-sm font-medium text-foreground">{uploading ? 'Uploaden...' : 'Upload een PDF als achtergrond'}</p>
-              <p className="text-xs text-muted-foreground mt-1">Max 25MB · Alleen PDF</p>
+              <p className="text-xs text-muted-foreground mt-1">Max 50MB · Alleen PDF</p>
             </div>
             <input type="file" accept="application/pdf" className="hidden" onChange={handleFileUpload} disabled={uploading} />
           </label>
