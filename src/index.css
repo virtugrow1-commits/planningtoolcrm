@@ -18,6 +18,13 @@
   font-display: swap;
 }
 
+@font-face {
+  font-family: 'TT Interphases Pro Condensed';
+  src: url('/fonts/TT-Interphases-Pro-Condensed-Regular.ttf') format('truetype');
+  font-weight: 400;
+  font-display: swap;
+}
+
 @layer base {
   :root {
     --background: 0 0% 97%;
