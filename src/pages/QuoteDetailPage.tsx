@@ -1,6 +1,10 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Send, Copy, FileText, Save, Pencil, Check, AlertTriangle, Eye } from 'lucide-react';
+import { ArrowLeft, Send, Copy, FileText, Save, Pencil, Check, AlertTriangle, Eye, ChevronDown, Mail } from 'lucide-react';
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator,
+} from '@/components/ui/dropdown-menu';
+import SendQuoteDialog from '@/components/quotation/SendQuoteDialog';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -32,6 +36,7 @@ export default function QuoteDetailPage() {
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [linkCopied, setLinkCopied] = useState(false);
+  const [sendDialogOpen, setSendDialogOpen] = useState(false);
   const hasUnsaved = useRef(false);
 
   // Editable state
@@ -277,9 +282,27 @@ export default function QuoteDetailPage() {
           )}
 
           {(quote.status === 'draft' || quote.status === 'viewed') && (
-            <Button size="sm" onClick={handleSend} className="gap-1.5">
-              <Send size={14} /> Markeer verzonden
-            </Button>
+            <div className="flex items-center">
+              <Button
+                size="sm"
+                onClick={async () => { if (editing) await handleSave(); setSendDialogOpen(true); }}
+                className="gap-1.5 rounded-r-none"
+              >
+                <Mail size={14} /> Verstuur naar klant
+              </Button>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button size="sm" className="rounded-l-none border-l border-primary-foreground/20 px-2">
+                    <ChevronDown size={14} />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem onClick={handleSend}>
+                    <Send size={14} className="mr-2" /> Markeer handmatig verzonden
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
           )}
 
           {quote.status === 'accepted' && (
@@ -463,6 +486,14 @@ export default function QuoteDetailPage() {
           { label: 'Geaccepteerd', value: quote.acceptedAt ? formatDate(quote.acceptedAt) : undefined },
           { label: 'Afgewezen', value: quote.declinedAt ? formatDate(quote.declinedAt) : undefined },
         ]}
+      />
+
+      {/* Send dialog */}
+      <SendQuoteDialog
+        open={sendDialogOpen}
+        onOpenChange={setSendDialogOpen}
+        quote={quote}
+        onSent={loadQuote}
       />
     </div>
   );
