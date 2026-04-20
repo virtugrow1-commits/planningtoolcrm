@@ -1,60 +1,55 @@
 
-De gebruiker wil:
-1. Een nieuwe "Taken" pagina in het hoofdmenu naast Dashboard met een overzicht van ALLE taken
-2. Op het Dashboard alleen taken tonen die voor de ingelogde gebruiker (verantwoordelijke) zijn, gefilterd/gesorteerd op datum (wat vandaag/binnenkort moet gebeuren)
 
-Ik moet kijken naar:
-- AppLayout (al gezien) — navItemDefs uitbreiden
-- Dashboard.tsx — bekijken hoe taken nu getoond worden
-- Bestaande TasksContext — al beschikbaar
-- LanguageContext voor vertaling 'nav.tasks'
-- App.tsx voor routing
-- Hoe wordt "huidige verantwoordelijke" bepaald? Profile display_name moet matchen met task.assigned_to (Sjors/Iris)
+## Plan: Offerte verzenden via e-mail met PDF-bijlage
 
-Belangrijke aandachtspunten:
-- Assignees zijn strikt 'Sjors Jochems' en 'Iris Machielse' (memory)
-- Dashboard moet filteren op huidige user → match via profile display_name → task.assigned_to
-- Voor de overzichtspagina gebruiken we patroon van bestaande pagina's (bijv. InquiriesPage stijl)
+### Wat ik heb gevonden
 
-## Plan: Taken module in hoofdmenu + persoonlijke taken op Dashboard
+De huidige "Markeer verzonden"-knop verandert alleen de status in de database — er wordt **geen e-mail verstuurd**. De klant krijgt ook geen bijlage. De publieke link (`/quote/view/:token`) bestaat wel, maar wordt niet automatisch verzonden.
 
-### 1. Nieuwe pagina `src/pages/TasksPage.tsx`
-Volledig taken-overzicht met:
-- Tabel met kolommen: Titel, Verantwoordelijke, Prioriteit, Vervaldatum, Status, Gekoppeld aan (aanvraag/contact/bedrijf)
-- Filters: status (open/afgerond), verantwoordelijke (Sjors/Iris/iedereen), prioriteit
-- Zoekbalk op titel
-- Sortering op vervaldatum (default) en prioriteit
-- Klik op rij → navigeren naar bestaande `TaskDetailPage`
-- Knop "Nieuwe taak" voor snelle aanmaak
-- Gebruikt bestaande `useTasksContext()`
+Het domein `ontmoetenaandedonge.nl` is nog **niet gekoppeld** aan deze omgeving voor e-mailverzending. Om e-mails vanaf `contact@ontmoetenaandedonge.nl` te kunnen versturen, moet dit domein eenmalig geverifieerd worden (DNS-records).
 
-### 2. Routing & navigatie
-- **`src/App.tsx`** — route `/tasks` → `TasksPage`
-- **`src/components/AppLayout.tsx`** — `navItemDefs` uitbreiden met `{ to: '/tasks', icon: CheckSquare, key: 'nav.tasks' }` direct naast Dashboard
-- **`src/contexts/LanguageContext.tsx`** — vertaling toevoegen `nav.tasks` → "Taken" / "Tasks"
+### Wat er gaat gebeuren
 
-### 3. Dashboard taken-widget (`src/pages/Dashboard.tsx`)
-Toevoegen of aanpassen van een sectie "Mijn taken" die:
-- Huidige user's `display_name` ophaalt uit `profiles` tabel (via `user.id`)
-- Taken filtert waar `assignedTo === currentUserDisplayName` EN `status === 'open'`
-- Sorteert op `dueDate` oplopend (taken zonder datum onderaan)
-- Toont taken die vandaag/binnenkort vervallen bovenaan, met visuele indicator:
-  - Rood: vervaldatum vandaag of in het verleden (achterstallig)
-  - Oranje: binnen 3 dagen
-  - Neutraal: later
-- Maximaal ~10 taken; "Bekijk alle taken" link naar `/tasks`
-- Checkbox om snel als afgerond te markeren
+**1. E-maildomein instellen** (eenmalig, door jou)
+- Een setup-dialoog opent waarin je `ontmoetenaandedonge.nl` toevoegt als afzenddomein
+- Je voegt een paar DNS-records toe bij je domeinprovider
+- Verificatie kan tot 72 uur duren, maar de rest kan vast worden gebouwd
 
-### Technisch
+**2. PDF-generator (edge function)**
+- Nieuwe edge function `generate-quote-pdf` die op basis van een offerte-ID een PDF rendert (gebaseerd op `content_blocks` en regelitems van de offerte, met huisstijl)
+- PDF wordt opgeslagen in de bestaande `quote-pdfs` storage bucket
+- De URL en bestand worden teruggegeven
 
-- Mapping huidige user → assignedTo: ophalen via `supabase.from('profiles').select('display_name').eq('id', user.id).single()`. Als display_name geen exacte match is met "Sjors Jochems" / "Iris Machielse", toon een lege staat met instructie.
-- Geen nieuwe DB-tabellen nodig; `tasks` tabel + bestaande context volstaan.
-- Realtime updates werken automatisch via bestaande `tasks-realtime` channel in TasksContext.
+**3. E-mailverzending (edge function + template)**
+- Nieuwe edge function `send-quote-email` die:
+  - De PDF genereert (of hergebruikt indien al aanwezig)
+  - Een nette e-mail samenstelt met: aanhef, intro-tekst, totaalbedrag, link naar offerte (publieke pagina), en PDF als **bijlage**
+  - Verstuurt vanaf `contact@ontmoetenaandedonge.nl`
+  - Status van de offerte op `sent` zet en `sent_at` registreert
+  - Een activiteit logt op de gekoppelde aanvraag/contact
+
+**4. UI-aanpassing op de offertepagina**
+- De huidige "Markeer verzonden"-knop wordt vervangen door **"Verstuur naar klant"**
+- Bij klik opent een bevestigingsdialoog met:
+  - E-mailadres ontvanger (vooringevuld vanuit `clientEmail`, aanpasbaar)
+  - Onderwerpregel (bewerkbaar)
+  - Persoonlijk berichtje (bewerkbaar, optioneel)
+  - Voorbeeld van de bijlage
+- Naast de hoofdknop blijft een "Markeer handmatig verzonden" optie bestaan voor offertes die buiten het systeem om verstuurd zijn
+
+**5. Tracking**
+- Verzonden e-mails worden gelogd zodat je in de offerte-historie ziet wanneer de mail is verstuurd en naar welk adres
+
+### Beperkingen / opmerkingen
+
+- Verzending werkt pas écht zodra DNS-verificatie van `ontmoetenaandedonge.nl` is voltooid. De build kan al af, maar live verzenden wacht op DNS.
+- Voor de PDF gebruik ik een server-side renderer (in de edge function) zodat opmaak consistent blijft, ook als de klant geen toegang heeft tot het systeem.
 
 ### Bestanden
 
-- **Nieuw**: `src/pages/TasksPage.tsx`
-- **Aangepast**: `src/App.tsx` (route)
-- **Aangepast**: `src/components/AppLayout.tsx` (nav-item)
-- **Aangepast**: `src/contexts/LanguageContext.tsx` (vertaling)
-- **Aangepast**: `src/pages/Dashboard.tsx` (mijn-taken widget)
+- **Nieuw**: `supabase/functions/generate-quote-pdf/index.ts`
+- **Nieuw**: `supabase/functions/send-quote-email/index.ts`
+- **Nieuw**: `src/components/quotation/SendQuoteDialog.tsx`
+- **Aangepast**: `src/pages/QuoteDetailPage.tsx` (knop + dialoog koppelen)
+- **Database**: kleine uitbreiding op `quotes` voor `last_sent_to` en `last_sent_at` (optioneel, voor tracking)
+
