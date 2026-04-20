@@ -922,6 +922,8 @@ export type Database = {
           ghl_opportunity_id: string | null
           id: string
           introduction: string | null
+          last_sent_at: string | null
+          last_sent_to: string | null
           notes: string | null
           overlay_fields: Json | null
           pdf_url: string | null
@@ -959,6 +961,8 @@ export type Database = {
           ghl_opportunity_id?: string | null
           id?: string
           introduction?: string | null
+          last_sent_at?: string | null
+          last_sent_to?: string | null
           notes?: string | null
           overlay_fields?: Json | null
           pdf_url?: string | null
@@ -996,6 +1000,8 @@ export type Database = {
           ghl_opportunity_id?: string | null
           id?: string
           introduction?: string | null
+          last_sent_at?: string | null
+          last_sent_to?: string | null
           notes?: string | null
           overlay_fields?: Json | null
           pdf_url?: string | null
