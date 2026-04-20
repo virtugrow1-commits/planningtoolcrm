@@ -304,9 +304,13 @@ export default function NewQuotePage() {
         <CardContent className="space-y-4">
           <ContactSelector
             value={contactId}
-            onChange={(id) => setContactId(id)}
-            contacts={contacts}
-            companies={companies}
+            onChange={(id, name, coId, coName, email) => {
+              setContactId(id);
+              if (name) setContactName(name);
+              if (email) setClientEmail(email);
+              if (coId) setCompanyId(coId);
+              if (coName) setCompanyName(coName);
+            }}
           />
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-1.5">
