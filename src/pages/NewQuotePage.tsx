@@ -1,23 +1,25 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Save, ChevronRight, ChevronLeft, User, Building2, LayoutTemplate } from 'lucide-react';
+import { ArrowLeft, Mail, Save, LayoutTemplate, FileText, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from '@/components/ui/select';
 import { useQuotes } from '@/hooks/useQuotes';
 import { useQuoteTemplates } from '@/hooks/useQuoteTemplates';
 import { calcFinancials } from '@/types/quotation';
-import type { LineItem } from '@/types/quotation';
+import type { LineItem, Quote } from '@/types/quotation';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { resolveBlocksMergeTags } from '@/lib/mergeTags';
 import type { MergeTagData } from '@/lib/mergeTags';
-import DocumentViewer from '@/components/quotation/DocumentViewer';
+import ContactSelector from '@/components/quotation/ContactSelector';
 import LineItemsEditor from '@/components/quotation/LineItemsEditor';
-
-type Step = 'template' | 'contact' | 'document';
+import SendQuoteDialog from '@/components/quotation/SendQuoteDialog';
 
 export default function NewQuotePage() {
   const navigate = useNavigate();
@@ -25,438 +27,362 @@ export default function NewQuotePage() {
   const { templates, loading: tLoading } = useQuoteTemplates();
   const { toast } = useToast();
 
-  const [step, setStep] = useState<Step>('template');
-  const [saving, setSaving] = useState(false);
-
-  // Step 1: template
-  const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null);
-
-  // Step 2: contact
-  const [contacts, setContacts] = useState<any[]>([]);
-  const [companies, setCompanies] = useState<any[]>([]);
-  const [contactSearch, setContactSearch] = useState('');
-  const [selectedContact, setSelectedContact] = useState<any | null>(null);
-  const [selectedCompany, setSelectedCompany] = useState<any | null>(null);
-
-  // Step 3: document
+  const [selectedTemplateId, setSelectedTemplateId] = useState<string>('');
+  const [contactId, setContactId] = useState<string>('');
+  const [contactName, setContactName] = useState<string>('');
+  const [companyId, setCompanyId] = useState<string>('');
+  const [companyName, setCompanyName] = useState<string>('');
+  const [clientEmail, setClientEmail] = useState<string>('');
+  const [clientAddress, setClientAddress] = useState<string>('');
   const [title, setTitle] = useState('Offerte');
   const [validUntil, setValidUntil] = useState('');
-  const [resolvedBlocks, setResolvedBlocks] = useState<any[]>([]);
+
+  const [contacts, setContacts] = useState<any[]>([]);
+  const [companies, setCompanies] = useState<any[]>([]);
   const [manualLineItems, setManualLineItems] = useState<LineItem[]>([]);
 
-  const selectedTemplate = templates.find((t) => t.id === selectedTemplateId);
+  const [savingDraft, setSavingDraft] = useState(false);
+  const [savingAndSend, setSavingAndSend] = useState(false);
+  const [createdQuote, setCreatedQuote] = useState<Quote | null>(null);
+  const [sendDialogOpen, setSendDialogOpen] = useState(false);
 
-  // Load contacts for step 2
+  const selectedTemplate = useMemo(
+    () => templates.find((t) => t.id === selectedTemplateId),
+    [templates, selectedTemplateId]
+  );
+
+  // Auto-pick first/default template once loaded
   useEffect(() => {
-    if (step !== 'contact') return;
-    supabase
-      .from('contacts')
+    if (!selectedTemplateId && templates.length > 0) {
+      const def = templates.find((t) => t.isDefault) || templates[0];
+      setSelectedTemplateId(def.id);
+    }
+  }, [templates, selectedTemplateId]);
+
+  // Load contacts + companies once
+  useEffect(() => {
+    supabase.from('contacts')
       .select('id, first_name, last_name, email, phone, job_title, department, company_id')
       .order('last_name')
       .then(({ data }) => setContacts(data || []));
-    supabase
-      .from('companies')
+    supabase.from('companies')
       .select('id, name, email, phone, address, postcode, city, country, kvk, btw_number, website')
       .order('name')
       .then(({ data }) => setCompanies(data || []));
-  }, [step]);
+  }, []);
 
-  // Resolve merge tags when entering document step
+  // Auto-fill company when picking contact
   useEffect(() => {
-    if (step !== 'document' || !selectedTemplate) return;
+    if (!contactId) return;
+    const c = contacts.find((x) => x.id === contactId);
+    if (!c) return;
+    setContactName([c.first_name, c.last_name].filter(Boolean).join(' '));
+    setClientEmail(c.email || '');
+    if (c.company_id) {
+      const co = companies.find((x) => x.id === c.company_id);
+      if (co) {
+        setCompanyId(co.id);
+        setCompanyName(co.name);
+        setClientAddress([co.address, co.postcode, co.city].filter(Boolean).join(', '));
+      }
+    }
+  }, [contactId, contacts, companies]);
 
+  const selectedContact = contacts.find((c) => c.id === contactId);
+  const selectedCompany = companies.find((c) => c.id === companyId);
+
+  // Resolve content blocks from template + extract line items from product-list blocks
+  const { resolvedBlocks, blockLineItems } = useMemo(() => {
+    if (!selectedTemplate) return { resolvedBlocks: [], blockLineItems: [] as LineItem[] };
     const cb = selectedTemplate.contentBlocks as any;
     const rawBlocks: any[] = cb?.blocks || [];
 
     const mergeData: MergeTagData = {
-      contact: selectedContact
-        ? {
-            name: [selectedContact.first_name, selectedContact.last_name].filter(Boolean).join(' '),
-            first_name: selectedContact.first_name,
-            last_name: selectedContact.last_name,
-            email: selectedContact.email,
-            phone: selectedContact.phone,
-            job_title: selectedContact.job_title,
-            department: selectedContact.department,
-          }
-        : undefined,
-      company: selectedCompany
-        ? {
-            name: selectedCompany.name,
-            email: selectedCompany.email,
-            phone: selectedCompany.phone,
-            address: selectedCompany.address,
-            postcode: selectedCompany.postcode,
-            city: selectedCompany.city,
-            country: selectedCompany.country,
-            kvk: selectedCompany.kvk,
-            btw_number: selectedCompany.btw_number,
-            website: selectedCompany.website,
-          }
-        : undefined,
+      contact: selectedContact ? {
+        name: contactName,
+        first_name: selectedContact.first_name,
+        last_name: selectedContact.last_name,
+        email: clientEmail,
+        phone: selectedContact.phone,
+        job_title: selectedContact.job_title,
+        department: selectedContact.department,
+      } : { name: contactName, email: clientEmail },
+      company: selectedCompany ? {
+        name: companyName,
+        email: selectedCompany.email,
+        phone: selectedCompany.phone,
+        address: selectedCompany.address,
+        postcode: selectedCompany.postcode,
+        city: selectedCompany.city,
+        country: selectedCompany.country,
+        kvk: selectedCompany.kvk,
+        btw_number: selectedCompany.btw_number,
+        website: selectedCompany.website,
+      } : { name: companyName },
       quote: { title, valid_until: validUntil || undefined },
     };
 
-    setResolvedBlocks(resolveBlocksMergeTags(rawBlocks, mergeData));
-  }, [step, selectedTemplate, selectedContact, selectedCompany, title, validUntil]);
+    const resolved = resolveBlocksMergeTags(rawBlocks, mergeData);
 
-  // Auto-load company for selected contact
-  useEffect(() => {
-    if (!selectedContact?.company_id) {
-      setSelectedCompany(null);
-      return;
-    }
-    const co = companies.find((c) => c.id === selectedContact.company_id);
-    if (co) setSelectedCompany(co);
-  }, [selectedContact, companies]);
-
-  const filteredContacts = contacts.filter((c) => {
-    const q = contactSearch.toLowerCase();
-    return (
-      (c.first_name || '').toLowerCase().includes(q) ||
-      (c.last_name || '').toLowerCase().includes(q) ||
-      (c.email || '').toLowerCase().includes(q)
-    );
-  });
-
-  const hasProductListBlocks = resolvedBlocks.some((b) => b.type === 'product-list');
-
-  /** Extract line items from product-list blocks or manual items */
-  const extractLineItems = (): LineItem[] => {
-    if (hasProductListBlocks) {
-      const productBlocks = resolvedBlocks.filter((b) => b.type === 'product-list');
-      const items: LineItem[] = [];
-      let sortOrder = 0;
-      for (const block of productBlocks) {
-        for (const item of block.items || []) {
-          const base = item.quantity * item.unitPrice;
-          items.push({
-            id: item.id || `li-${sortOrder}`,
-            sortOrder: sortOrder++,
-            itemName: item.name,
-            description: item.description || undefined,
-            quantity: item.quantity,
-            unitPrice: item.unitPrice,
-            vatRate: item.vatRate,
-            discountPercent: 0,
-            lineTotal: base,
-          });
-        }
+    const items: LineItem[] = [];
+    let sortOrder = 0;
+    for (const block of resolved) {
+      if (block.type !== 'product-list') continue;
+      for (const item of block.items || []) {
+        const base = (item.quantity || 0) * (item.unitPrice || 0);
+        items.push({
+          id: item.id || `tpl-${sortOrder}`,
+          sortOrder: sortOrder++,
+          itemName: item.name || '',
+          description: item.description || undefined,
+          quantity: item.quantity || 1,
+          unitPrice: item.unitPrice || 0,
+          vatRate: item.vatRate ?? 21,
+          discountPercent: 0,
+          lineTotal: base,
+        });
       }
-      return items;
     }
-    return manualLineItems;
-  };
+    return { resolvedBlocks: resolved, blockLineItems: items };
+  }, [selectedTemplate, selectedContact, selectedCompany, contactName, clientEmail, companyName, title, validUntil]);
 
-  const handleSave = async () => {
+  const effectiveLineItems = blockLineItems.length > 0 ? blockLineItems : manualLineItems;
+  const fin = useMemo(() => calcFinancials(effectiveLineItems), [effectiveLineItems]);
+
+  /** Create the quote. Returns the created quote or null on failure. */
+  const persistQuote = async (): Promise<Quote | null> => {
     if (!selectedTemplate) {
       toast({ title: 'Selecteer een sjabloon', variant: 'destructive' });
-      return;
+      return null;
     }
-    if (!selectedContact) {
-      toast({ title: 'Selecteer een contactpersoon', variant: 'destructive' });
-      return;
+    if (!contactName.trim()) {
+      toast({ title: 'Contactpersoon ontbreekt', variant: 'destructive' });
+      return null;
     }
-    setSaving(true);
+    const tplCb = selectedTemplate.contentBlocks as any;
 
-    const lineItems = extractLineItems();
-    const fin = calcFinancials(lineItems);
-    const contactName = [selectedContact.first_name, selectedContact.last_name].filter(Boolean).join(' ');
-
-    const result = await createQuote(
+    return await createQuote(
       {
         title,
         templateId: selectedTemplate.id,
-        contactId: selectedContact.id,
-        companyId: selectedCompany?.id,
+        contactId: contactId || undefined,
+        companyId: companyId || undefined,
         contactName,
-        companyName: selectedCompany?.name,
-        clientEmail: selectedContact.email,
-        clientAddress: [selectedCompany?.address, selectedCompany?.postcode, selectedCompany?.city]
-          .filter(Boolean)
-          .join(', ') || undefined,
-        introduction: undefined,
+        companyName: companyName || undefined,
+        clientEmail: clientEmail || undefined,
+        clientAddress: clientAddress || undefined,
         termsAndConditions: selectedTemplate.termsAndConditions || undefined,
         validUntil: validUntil || undefined,
         contentBlocks: resolvedBlocks,
+        // Carry over the template's PDF + overlay so the email attachment uses it
+        pdfUrl: tplCb?.pdfUrl || undefined,
+        overlayFields: tplCb?.overlayFields || [],
         subtotal: fin.subtotal,
         vatAmount: fin.vatAmount,
         discountAmount: fin.discountAmount,
         total: fin.total,
       },
-      lineItems
+      effectiveLineItems
     );
+  };
 
-    setSaving(false);
-    if (result) {
-      toast({ title: 'Offerte aangemaakt', description: `${result.displayNumber} opgeslagen als concept.` });
-      navigate(`/quotes/${result.id}`);
+  const handleSaveDraft = async () => {
+    setSavingDraft(true);
+    const q = await persistQuote();
+    setSavingDraft(false);
+    if (q) {
+      toast({ title: 'Concept opgeslagen', description: q.displayNumber });
+      navigate(`/quotes/${q.id}`);
     }
   };
 
-  const contactName = selectedContact
-    ? [selectedContact.first_name, selectedContact.last_name].filter(Boolean).join(' ')
-    : null;
+  const handleSaveAndSend = async () => {
+    setSavingAndSend(true);
+    const q = await persistQuote();
+    setSavingAndSend(false);
+    if (q) {
+      setCreatedQuote(q);
+      setSendDialogOpen(true);
+    }
+  };
+
+  const handleSent = () => {
+    setSendDialogOpen(false);
+    if (createdQuote) navigate(`/quotes/${createdQuote.id}`);
+  };
 
   return (
-    <div className="p-4 md:p-6 max-w-5xl mx-auto space-y-6">
+    <div className="p-4 md:p-6 max-w-4xl mx-auto space-y-6">
       {/* Header */}
-      <div className="flex items-center gap-3">
+      <div className="flex items-start gap-3">
         <Button variant="ghost" size="icon" onClick={() => navigate('/quotes')}>
           <ArrowLeft size={18} />
         </Button>
         <div className="flex-1">
           <h1 className="text-xl font-bold text-foreground">Nieuwe offerte</h1>
           <p className="text-sm text-muted-foreground">
-            {step === 'template' && 'Stap 1 — Kies een sjabloon'}
-            {step === 'contact' && 'Stap 2 — Selecteer een contactpersoon'}
-            {step === 'document' && 'Stap 3 — Controleer en sla op'}
+            Kies een sjabloon, vul de gegevens aan en verstuur direct naar de klant.
           </p>
         </div>
-        {step === 'document' && (
-          <Button onClick={handleSave} disabled={saving} className="gap-1.5">
-            <Save size={16} /> {saving ? 'Opslaan...' : 'Opslaan als concept'}
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            onClick={handleSaveDraft}
+            disabled={savingDraft || savingAndSend || !selectedTemplate}
+            className="gap-1.5"
+          >
+            {savingDraft ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
+            Opslaan als concept
           </Button>
-        )}
+          <Button
+            onClick={handleSaveAndSend}
+            disabled={savingDraft || savingAndSend || !selectedTemplate}
+            className="gap-1.5"
+          >
+            {savingAndSend ? <Loader2 size={14} className="animate-spin" /> : <Mail size={14} />}
+            Verstuur naar klant
+          </Button>
+        </div>
       </div>
 
-      {/* Step indicator */}
-      <div className="flex items-center gap-2 text-sm">
-        {(['template', 'contact', 'document'] as Step[]).map((s, i) => {
-          const labels = { template: 'Sjabloon', contact: 'Contact', document: 'Document' };
-          const icons = { template: LayoutTemplate, contact: User, document: Save };
-          const Icon = icons[s];
-          const isActive = step === s;
-          const isDone = ['template', 'contact', 'document'].indexOf(step) > i;
-          return (
-            <div key={s} className="flex items-center gap-2">
-              {i > 0 && <ChevronRight size={14} className="text-muted-foreground" />}
-              <button
-                onClick={() => {
-                  if (isDone || (s === 'contact' && selectedTemplateId)) setStep(s);
-                }}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
-                  isActive
-                    ? 'bg-primary text-primary-foreground'
-                    : isDone
-                    ? 'bg-muted text-foreground hover:bg-accent cursor-pointer'
-                    : 'text-muted-foreground cursor-default'
-                }`}
-              >
-                <Icon size={12} />
-                {labels[s]}
-              </button>
-            </div>
-          );
-        })}
-      </div>
-
-      {/* ── Step 1: Template ── */}
-      {step === 'template' && (
-        <div className="space-y-4">
+      {/* Template selector */}
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base flex items-center gap-2">
+            <LayoutTemplate size={16} className="text-primary" /> Sjabloon
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
           {tLoading ? (
-            <p className="text-muted-foreground text-sm">Laden...</p>
+            <p className="text-sm text-muted-foreground">Sjablonen laden…</p>
           ) : templates.length === 0 ? (
-            <Card>
-              <CardContent className="py-12 text-center">
-                <LayoutTemplate size={32} className="mx-auto text-muted-foreground mb-3" />
-                <p className="text-muted-foreground">Nog geen sjablonen. Maak eerst een sjabloon aan.</p>
-                <Button variant="outline" className="mt-4" onClick={() => navigate('/templates/new')}>
-                  Sjabloon aanmaken
-                </Button>
-              </CardContent>
-            </Card>
+            <div className="rounded-md border border-dashed p-4 text-center space-y-2">
+              <p className="text-sm text-muted-foreground">Nog geen sjablonen aangemaakt.</p>
+              <Button variant="outline" size="sm" onClick={() => navigate('/templates/new')}>
+                Sjabloon aanmaken
+              </Button>
+            </div>
           ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              {templates.map((tpl) => (
-                <Card
-                  key={tpl.id}
-                  className={`cursor-pointer transition-all hover:ring-2 hover:ring-primary/30 ${
-                    selectedTemplateId === tpl.id ? 'ring-2 ring-primary' : ''
-                  }`}
-                  onClick={() => setSelectedTemplateId(tpl.id)}
-                >
-                  <CardContent className="p-4">
-                    <div className="flex items-start justify-between">
-                      <div>
-                        <p className="font-medium text-foreground">{tpl.name}</p>
-                        {tpl.description && (
-                          <p className="text-xs text-muted-foreground mt-0.5">{tpl.description}</p>
-                        )}
-                        {tpl.isDefault && (
-                          <Badge variant="secondary" className="mt-1.5 text-xs">Standaard</Badge>
-                        )}
+            <>
+              <Select value={selectedTemplateId} onValueChange={setSelectedTemplateId}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Kies een sjabloon" />
+                </SelectTrigger>
+                <SelectContent>
+                  {templates.map((t) => (
+                    <SelectItem key={t.id} value={t.id}>
+                      <div className="flex items-center gap-2">
+                        <span>{t.name}</span>
+                        {t.isDefault && <Badge variant="secondary" className="text-xs">Standaard</Badge>}
                       </div>
-                      {selectedTemplateId === tpl.id && (
-                        <div className="w-5 h-5 rounded-full bg-primary flex items-center justify-center shrink-0">
-                          <svg width="10" height="8" viewBox="0 0 10 8" fill="none">
-                            <path d="M1 4L3.5 6.5L9 1" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                          </svg>
-                        </div>
-                      )}
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-          )}
-          {selectedTemplateId && (
-            <div className="flex justify-end">
-              <Button onClick={() => setStep('contact')} className="gap-1.5">
-                Volgende <ChevronRight size={16} />
-              </Button>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* ── Step 2: Contact ── */}
-      {step === 'contact' && (
-        <div className="space-y-4">
-          <div className="relative max-w-sm">
-            <User size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              placeholder="Zoek op naam of e-mail..."
-              value={contactSearch}
-              onChange={(e) => setContactSearch(e.target.value)}
-              className="pl-9"
-            />
-          </div>
-
-          <Card>
-            <div className="divide-y max-h-[400px] overflow-y-auto">
-              {filteredContacts.length === 0 ? (
-                <p className="text-center py-8 text-muted-foreground text-sm">Geen contacten gevonden</p>
-              ) : (
-                filteredContacts.map((c) => {
-                  const name = [c.first_name, c.last_name].filter(Boolean).join(' ');
-                  const company = companies.find((co) => co.id === c.company_id);
-                  const isSelected = selectedContact?.id === c.id;
-                  return (
-                    <button
-                      key={c.id}
-                      onClick={() => setSelectedContact(c)}
-                      className={`w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-accent/50 transition-colors ${
-                        isSelected ? 'bg-accent' : ''
-                      }`}
-                    >
-                      <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
-                        <User size={14} className="text-primary" />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-foreground truncate">{name}</p>
-                        <p className="text-xs text-muted-foreground truncate">{c.email}</p>
-                      </div>
-                      {company && (
-                        <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                          <Building2 size={12} />
-                          <span className="truncate max-w-[120px]">{company.name}</span>
-                        </div>
-                      )}
-                      {isSelected && (
-                        <div className="w-5 h-5 rounded-full bg-primary flex items-center justify-center shrink-0">
-                          <svg width="10" height="8" viewBox="0 0 10 8" fill="none">
-                            <path d="M1 4L3.5 6.5L9 1" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                          </svg>
-                        </div>
-                      )}
-                    </button>
-                  );
-                })
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {selectedTemplate && (
+                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                  {(selectedTemplate.contentBlocks as any)?.pdfUrl ? (
+                    <>
+                      <FileText size={12} className="text-primary" />
+                      Sjabloon-PDF wordt als bijlage gebruikt
+                      {selectedTemplate.overlayFields && selectedTemplate.overlayFields.length > 0 &&
+                        ` · ${selectedTemplate.overlayFields.length} velden worden ingevuld`}
+                    </>
+                  ) : (
+                    <span>Geen PDF in sjabloon — er wordt een gegenereerde PDF gebruikt</span>
+                  )}
+                </div>
               )}
-            </div>
-          </Card>
+            </>
+          )}
+        </CardContent>
+      </Card>
 
-          <div className="flex gap-3 justify-between">
-            <Button variant="outline" onClick={() => setStep('template')} className="gap-1.5">
-              <ChevronLeft size={16} /> Terug
-            </Button>
-            {selectedContact && (
-              <Button onClick={() => setStep('document')} className="gap-1.5">
-                Volgende <ChevronRight size={16} />
-              </Button>
-            )}
+      {/* Klant + offerte info */}
+      <Card>
+        <CardHeader className="pb-3"><CardTitle className="text-base">Klant &amp; offerte</CardTitle></CardHeader>
+        <CardContent className="space-y-4">
+          <ContactSelector
+            value={contactId}
+            onChange={(id, name, coId, coName, email) => {
+              setContactId(id);
+              if (name) setContactName(name);
+              if (email) setClientEmail(email);
+              if (coId) setCompanyId(coId);
+              if (coName) setCompanyName(coName);
+            }}
+          />
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-1.5">
+              <Label>Contactnaam</Label>
+              <Input value={contactName} onChange={(e) => setContactName(e.target.value)} placeholder="Volledige naam" />
+            </div>
+            <div className="space-y-1.5">
+              <Label>E-mail klant</Label>
+              <Input type="email" value={clientEmail} onChange={(e) => setClientEmail(e.target.value)} placeholder="naam@bedrijf.nl" />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Bedrijfsnaam</Label>
+              <Input value={companyName} onChange={(e) => setCompanyName(e.target.value)} placeholder="Optioneel" />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Adres</Label>
+              <Input value={clientAddress} onChange={(e) => setClientAddress(e.target.value)} placeholder="Straat, postcode, plaats" />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Titel</Label>
+              <Input value={title} onChange={(e) => setTitle(e.target.value)} />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Geldig tot</Label>
+              <Input type="date" value={validUntil} onChange={(e) => setValidUntil(e.target.value)} />
+            </div>
           </div>
-        </div>
+        </CardContent>
+      </Card>
+
+      {/* Line items (only if no product-list block) */}
+      {blockLineItems.length === 0 && (
+        <Card>
+          <CardHeader className="pb-3"><CardTitle className="text-base">Producten &amp; diensten</CardTitle></CardHeader>
+          <CardContent>
+            <LineItemsEditor items={manualLineItems} onChange={setManualLineItems} />
+          </CardContent>
+        </Card>
       )}
 
-      {/* ── Step 3: Document ── */}
-      {step === 'document' && (
-        <div className="space-y-6">
-          {/* Summary bar */}
-          <Card>
-            <CardContent className="p-4 flex flex-wrap items-center gap-4">
-              <div className="flex items-center gap-2 text-sm">
-                <LayoutTemplate size={14} className="text-muted-foreground" />
-                <span className="font-medium">{selectedTemplate?.name}</span>
-              </div>
-              <div className="flex items-center gap-2 text-sm">
-                <User size={14} className="text-muted-foreground" />
-                <span className="font-medium">{contactName}</span>
-                {selectedCompany && (
-                  <span className="text-muted-foreground">· {selectedCompany.name}</span>
-                )}
-              </div>
-              <Button variant="ghost" size="sm" className="ml-auto text-xs gap-1.5" onClick={() => setStep('contact')}>
-                <ChevronLeft size={12} /> Wijzigen
-              </Button>
-            </CardContent>
-          </Card>
-
-          {/* Quote metadata */}
-          <Card>
-            <CardHeader><CardTitle className="text-base">Document instellingen</CardTitle></CardHeader>
-            <CardContent className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="space-y-1.5">
-                <Label>Titel</Label>
-                <Input value={title} onChange={(e) => setTitle(e.target.value)} />
-              </div>
-              <div className="space-y-1.5">
-                <Label>Geldig tot</Label>
-                <Input type="date" value={validUntil} onChange={(e) => setValidUntil(e.target.value)} />
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Document preview */}
-          <div>
-            <p className="text-sm font-medium text-muted-foreground mb-3">Voorbeeld document</p>
-            {resolvedBlocks.length === 0 ? (
-              <Card>
-                <CardContent className="py-12 text-center text-muted-foreground text-sm">
-                  Dit sjabloon heeft nog geen inhoud. Bewerk het sjabloon eerst.
-                </CardContent>
-              </Card>
-            ) : (
-              <DocumentViewer
-                blocks={resolvedBlocks}
-                pdfBackgroundUrl={(selectedTemplate?.contentBlocks as any)?.pdfBackgroundUrl || null}
-              />
-            )}
+      {/* Totaalwaarde overzicht */}
+      <Card>
+        <CardContent className="p-4 flex items-center justify-between">
+          <div className="text-sm text-muted-foreground">
+            {effectiveLineItems.length} {effectiveLineItems.length === 1 ? 'regelitem' : 'regelitems'}
+            {blockLineItems.length > 0 && ' (uit sjabloon)'}
           </div>
-
-          {/* Manual line items — shown when template has no product-list blocks */}
-          {resolvedBlocks.length > 0 && !hasProductListBlocks && (
-            <Card>
-              <CardHeader><CardTitle className="text-base">Producten & Diensten</CardTitle></CardHeader>
-              <CardContent>
-                <p className="text-xs text-muted-foreground mb-3">
-                  Dit sjabloon bevat geen productlijst. Voeg hier handmatig de regelitems toe voor de facturatie.
-                </p>
-                <LineItemsEditor items={manualLineItems} onChange={setManualLineItems} />
-              </CardContent>
-            </Card>
-          )}
-
-          <div className="flex gap-3 justify-between">
-            <Button variant="outline" onClick={() => setStep('contact')} className="gap-1.5">
-              <ChevronLeft size={16} /> Terug
-            </Button>
-            <Button onClick={handleSave} disabled={saving} className="gap-1.5">
-              <Save size={16} /> {saving ? 'Opslaan...' : 'Opslaan als concept'}
-            </Button>
+          <div className="text-right">
+            <p className="text-xs text-muted-foreground">Totaal incl. BTW</p>
+            <p className="text-2xl font-bold text-primary">
+              {new Intl.NumberFormat('nl-NL', { style: 'currency', currency: 'EUR' }).format(fin.total)}
+            </p>
           </div>
-        </div>
+        </CardContent>
+      </Card>
+
+      {/* Footer hints */}
+      <p className="text-xs text-muted-foreground text-center">
+        Bij <strong>Verstuur naar klant</strong> wordt de offerte aangemaakt en meteen via e-mail verzonden met de sjabloon-PDF als bijlage.
+      </p>
+
+      {/* Send dialog */}
+      {createdQuote && (
+        <SendQuoteDialog
+          open={sendDialogOpen}
+          onOpenChange={(o) => {
+            setSendDialogOpen(o);
+            if (!o && createdQuote) navigate(`/quotes/${createdQuote.id}`);
+          }}
+          quote={createdQuote}
+          onSent={handleSent}
+        />
       )}
     </div>
   );
