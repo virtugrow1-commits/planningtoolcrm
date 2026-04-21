@@ -98,6 +98,25 @@ export default function PublicQuotePage() {
         setResolvedBlocks(resolveBlocksMergeTags(rawBlocks, mergeData));
       }
 
+      // Fetch line items so the product table appears in the preview
+      const { data: items } = await supabase
+        .from('quote_line_items')
+        .select('*')
+        .eq('quote_id', q.id)
+        .order('sort_order');
+      if (items) {
+        setLineItems(items.map((li: any) => ({
+          id: li.id,
+          itemName: li.item_name,
+          description: li.description || '',
+          quantity: Number(li.quantity),
+          unitPrice: Number(li.unit_price),
+          discountPercent: Number(li.discount_percent || 0),
+          vatRate: Number(li.vat_rate),
+          lineTotal: Number(li.line_total),
+        })));
+      }
+
       setLoading(false);
     })();
   }, [token]);
