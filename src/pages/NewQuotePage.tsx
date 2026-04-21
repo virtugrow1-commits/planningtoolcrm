@@ -370,7 +370,8 @@ export default function NewQuotePage() {
                     <span>Geen PDF in sjabloon — er wordt een gegenereerde PDF gebruikt</span>
                   )}
                 </div>
-              )}
+                );
+              })()}
             </>
           )}
         </CardContent>
