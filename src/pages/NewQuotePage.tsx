@@ -281,7 +281,7 @@ export default function NewQuotePage() {
             Kies een sjabloon, vul de gegevens aan en verstuur direct naar de klant.
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           <Button
             variant="outline"
             onClick={() => setPreviewOpen(true)}
@@ -290,6 +290,15 @@ export default function NewQuotePage() {
           >
             <Eye size={14} />
             Voorbeeld
+          </Button>
+          <Button
+            variant="outline"
+            onClick={handleDownloadPreview}
+            disabled={downloadingPreview || savingDraft || savingAndSend || !selectedTemplate}
+            className="gap-1.5"
+          >
+            {downloadingPreview ? <Loader2 size={14} className="animate-spin" /> : <Download size={14} />}
+            Download voorbeeld-PDF
           </Button>
           <Button
             variant="outline"
@@ -496,7 +505,11 @@ export default function NewQuotePage() {
 
             <TemplatePreview
               pdfUrl={(selectedTemplate?.contentBlocks as any)?.pdfUrl || null}
+              pdfBackgroundUrl={(selectedTemplate?.contentBlocks as any)?.pdfBackgroundUrl || null}
+              editorPdfUrl={(selectedTemplate?.contentBlocks as any)?.editorPdfUrl || null}
               blocks={resolvedBlocks}
+              lineItems={effectiveLineItems}
+              totals={fin}
             />
 
             {selectedTemplate?.termsAndConditions && (
