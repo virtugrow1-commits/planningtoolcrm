@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Mail, Save, LayoutTemplate, FileText, Loader2 } from 'lucide-react';
+import { ArrowLeft, Mail, Save, LayoutTemplate, FileText, Loader2, Eye } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -20,6 +20,10 @@ import type { MergeTagData } from '@/lib/mergeTags';
 import ContactSelector from '@/components/quotation/ContactSelector';
 import LineItemsEditor from '@/components/quotation/LineItemsEditor';
 import SendQuoteDialog from '@/components/quotation/SendQuoteDialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import DocumentViewer from '@/components/quotation/DocumentViewer';
+import { format } from 'date-fns';
+import { nl } from 'date-fns/locale';
 
 export default function NewQuotePage() {
   const navigate = useNavigate();
@@ -45,6 +49,7 @@ export default function NewQuotePage() {
   const [savingAndSend, setSavingAndSend] = useState(false);
   const [createdQuote, setCreatedQuote] = useState<Quote | null>(null);
   const [sendDialogOpen, setSendDialogOpen] = useState(false);
+  const [previewOpen, setPreviewOpen] = useState(false);
 
   const selectedTemplate = useMemo(
     () => templates.find((t) => t.id === selectedTemplateId),
@@ -227,6 +232,15 @@ export default function NewQuotePage() {
         <div className="flex items-center gap-2">
           <Button
             variant="outline"
+            onClick={() => setPreviewOpen(true)}
+            disabled={!selectedTemplate}
+            className="gap-1.5"
+          >
+            <Eye size={14} />
+            Voorbeeld
+          </Button>
+          <Button
+            variant="outline"
             onClick={handleSaveDraft}
             disabled={savingDraft || savingAndSend || !selectedTemplate}
             className="gap-1.5"
@@ -384,6 +398,89 @@ export default function NewQuotePage() {
           onSent={handleSent}
         />
       )}
+
+      {/* Preview dialog */}
+      <Dialog open={previewOpen} onOpenChange={setPreviewOpen}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto p-0">
+          <div className="sticky top-0 z-10 bg-background border-b px-6 py-3">
+            <DialogTitle className="text-lg font-bold">{title || 'Offerte'}</DialogTitle>
+            <p className="text-sm text-muted-foreground">
+              Voorbeeld · zo ziet de klant het document
+            </p>
+          </div>
+          <div className="bg-muted/30 p-6 space-y-6">
+            <Card>
+              <CardContent className="pt-6">
+                <div className="flex flex-wrap gap-x-8 gap-y-2 text-sm">
+                  {contactName && (
+                    <div>
+                      <span className="text-muted-foreground">Voor:</span>{' '}
+                      <span className="font-medium text-foreground">{contactName}</span>
+                    </div>
+                  )}
+                  {companyName && (
+                    <div>
+                      <span className="text-muted-foreground">Bedrijf:</span>{' '}
+                      <span className="font-medium text-foreground">{companyName}</span>
+                    </div>
+                  )}
+                  {clientEmail && (
+                    <div>
+                      <span className="text-muted-foreground">E-mail:</span>{' '}
+                      <span className="text-foreground">{clientEmail}</span>
+                    </div>
+                  )}
+                  {validUntil && (
+                    <div>
+                      <span className="text-muted-foreground">Geldig tot:</span>{' '}
+                      <span className="text-foreground">
+                        {format(new Date(validUntil), 'dd MMMM yyyy', { locale: nl })}
+                      </span>
+                    </div>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+
+            {resolvedBlocks.length > 0 ? (
+              <DocumentViewer blocks={resolvedBlocks} />
+            ) : (
+              <Card>
+                <CardContent className="py-12 text-center text-muted-foreground text-sm">
+                  Dit sjabloon heeft nog geen inhoudsblokken.
+                </CardContent>
+              </Card>
+            )}
+
+            {selectedTemplate?.termsAndConditions && (
+              <Card>
+                <CardContent className="pt-6">
+                  <h3 className="text-sm font-semibold text-foreground mb-2">Algemene voorwaarden</h3>
+                  <p className="text-sm whitespace-pre-wrap text-muted-foreground">
+                    {selectedTemplate.termsAndConditions}
+                  </p>
+                </CardContent>
+              </Card>
+            )}
+
+            <Card className="opacity-60">
+              <CardContent className="pt-6 space-y-3">
+                <h3 className="text-base font-semibold text-foreground">Uw akkoord</h3>
+                <p className="text-sm text-muted-foreground">
+                  Door akkoord te gaan bevestigt u de inhoud van dit document.
+                </p>
+                <div className="flex gap-3 pt-1">
+                  <Button disabled>Akkoord</Button>
+                  <Button variant="outline" disabled>Niet akkoord</Button>
+                </div>
+                <p className="text-xs text-muted-foreground italic">
+                  (Voorbeeld — knoppen werken niet)
+                </p>
+              </CardContent>
+            </Card>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
