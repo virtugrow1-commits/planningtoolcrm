@@ -382,16 +382,48 @@ export default function NewQuotePage() {
       <Card>
         <CardHeader className="pb-3"><CardTitle className="text-base">Klant &amp; offerte</CardTitle></CardHeader>
         <CardContent className="space-y-4">
-          <ContactSelector
-            value={contactId}
-            onChange={(id, name, coId, coName, email) => {
-              setContactId(id);
-              if (name) setContactName(name);
-              if (email) setClientEmail(email);
-              if (coId) setCompanyId(coId);
-              if (coName) setCompanyName(coName);
-            }}
-          />
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label className="text-xs text-muted-foreground">Bedrijf</Label>
+              <CompanySelector
+                value={companyId}
+                onChange={(id, name, full) => {
+                  setCompanyId(id || '');
+                  setCompanyName(name || '');
+                  // Reset contact selection if it doesn't belong to the new company
+                  if (id && contactId) {
+                    const c = contacts.find((x) => x.id === contactId);
+                    if (c?.company_id !== id) setContactId('');
+                  }
+                  if (full) {
+                    const addr = [full.address, [full.postcode, full.city].filter(Boolean).join(' ')]
+                      .filter(Boolean).join(', ');
+                    if (addr) setClientAddress(addr);
+                    setCompanies((prev) => (prev.some((p) => p.id === full.id) ? prev : [...prev, full]));
+                  }
+                }}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs text-muted-foreground">
+                Contactpersoon {companyId && <span className="text-primary">· gefilterd op bedrijf</span>}
+              </Label>
+              <ContactSelector
+                value={contactId}
+                filterCompanyId={companyId || undefined}
+                onChange={(id, name, coId, coName, email) => {
+                  setContactId(id);
+                  if (name) setContactName(name);
+                  if (email) setClientEmail(email);
+                  // Auto-fill company only when none is chosen yet
+                  if (!companyId && coId) {
+                    setCompanyId(coId);
+                    if (coName) setCompanyName(coName);
+                  }
+                }}
+              />
+            </div>
+          </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-1.5">
               <Label>Contactnaam</Label>
