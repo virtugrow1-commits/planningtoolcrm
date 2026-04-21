@@ -356,10 +356,15 @@ export default function NewInquiryDialog({ open, onOpenChange, contacts, compani
                     }
                     setForm(updates);
                   }}
-                  placeholder="Selecteer contactpersoon..."
+                  placeholder={selectedCompany ? `Selecteer contact van ${selectedCompany.name}...` : 'Selecteer contactpersoon...'}
                   searchPlaceholder="Zoek contactpersoon..."
                   popoverWidth="w-[380px]"
                 />
+                {selectedCompany && (
+                  <p className="text-[11px] text-muted-foreground">
+                    Toont alleen contacten van <span className="font-medium">{selectedCompany.name}</span>. Wis bedrijf om alle contacten te zien.
+                  </p>
+                )}
                 <button
                   type="button"
                   onClick={() => { setCreatingContact(true); setForm({ ...form, contactId: '', contactName: '' }); }}
