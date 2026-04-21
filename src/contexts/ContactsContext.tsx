@@ -70,6 +70,10 @@ export function ContactsProvider({ children }: { children: ReactNode }) {
       dmu: (c as any).dmu || undefined,
       functionGroup: (c as any).function_group || undefined,
       jobTitle: (c as any).job_title || undefined,
+      address: (c as any).address || undefined,
+      postcode: (c as any).postcode || undefined,
+      city: (c as any).city || undefined,
+      country: (c as any).country || undefined,
     })));
     setLoading(false);
   }, [user, toast]);
@@ -122,6 +126,10 @@ export function ContactsProvider({ children }: { children: ReactNode }) {
       dmu: contact.dmu || null,
       function_group: contact.functionGroup || null,
       job_title: contact.jobTitle || null,
+      address: contact.address || null,
+      postcode: contact.postcode || null,
+      city: contact.city || null,
+      country: contact.country || 'NL',
     } as any).select().single();
     if (error) {
       toast({ title: 'Fout bij aanmaken contact', description: error.message, variant: 'destructive' });

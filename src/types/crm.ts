@@ -16,6 +16,10 @@ export interface Contact {
   dmu?: string;
   functionGroup?: string;
   jobTitle?: string;
+  address?: string;
+  postcode?: string;
+  city?: string;
+  country?: string;
 }
 
 export interface Inquiry {
