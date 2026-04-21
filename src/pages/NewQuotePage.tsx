@@ -354,9 +354,12 @@ export default function NewQuotePage() {
                   ))}
                 </SelectContent>
               </Select>
-              {selectedTemplate && (
+              {selectedTemplate && (() => {
+                const cb = selectedTemplate.contentBlocks as any;
+                const hasPdf = !!(cb?.pdfUrl || cb?.pdfBackgroundUrl || cb?.editorPdfUrl);
+                return (
                 <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                  {(selectedTemplate.contentBlocks as any)?.pdfUrl ? (
+                  {hasPdf ? (
                     <>
                       <FileText size={12} className="text-primary" />
                       Sjabloon-PDF wordt als bijlage gebruikt
