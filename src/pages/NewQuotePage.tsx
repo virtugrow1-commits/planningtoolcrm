@@ -18,6 +18,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { resolveBlocksMergeTags } from '@/lib/mergeTags';
 import type { MergeTagData } from '@/lib/mergeTags';
 import ContactSelector from '@/components/quotation/ContactSelector';
+import CompanySelector from '@/components/quotation/CompanySelector';
 import LineItemsEditor from '@/components/quotation/LineItemsEditor';
 import SendQuoteDialog from '@/components/quotation/SendQuoteDialog';
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
