@@ -636,17 +636,20 @@ Deno.serve(async (req) => {
 
       console.log(`[Push Company] Pushing single company: ${company.name} (${company.id})`);
 
-      const ghlPayload: Record<string, any> = {
+      const baseCompanyPayload: Record<string, any> = {
         name: company.name || 'Onbekend',
-        locationId: GHL_LOCATION_ID,
       };
-      if (company.email) ghlPayload.email = company.email;
-      if (company.phone) ghlPayload.phone = company.phone;
-      if (company.website) ghlPayload.website = company.website;
-      if (company.address) ghlPayload.address = company.address;
-      if (company.city) ghlPayload.city = company.city;
-      if (company.postcode) ghlPayload.postalCode = company.postcode;
-      if (company.country) ghlPayload.country = company.country;
+      if (company.email) baseCompanyPayload.email = company.email;
+      if (company.phone) baseCompanyPayload.phone = company.phone;
+      if (company.website) baseCompanyPayload.website = company.website;
+      if (company.address) baseCompanyPayload.address = company.address;
+      if (company.city) baseCompanyPayload.city = company.city;
+      if (company.postcode) baseCompanyPayload.postalCode = company.postcode;
+      if (company.country) baseCompanyPayload.country = company.country;
+
+      // GHL business update endpoint rejects locationId; create endpoint requires it
+      const createCompanyPayload: Record<string, any> = { ...baseCompanyPayload, locationId: GHL_LOCATION_ID };
+      const updateCompanyPayload: Record<string, any> = { ...baseCompanyPayload };
 
       try {
         if (company.ghl_company_id) {
@@ -654,7 +657,7 @@ Deno.serve(async (req) => {
           const res = await ghlFetch(`${GHL_API_BASE}/businesses/${company.ghl_company_id}`, {
             method: 'PUT',
             headers: ghlHeaders,
-            body: JSON.stringify(ghlPayload),
+            body: JSON.stringify(updateCompanyPayload),
           });
           if (res.ok) {
             console.log(`[Push Company] Updated GHL company: ${company.ghl_company_id}`);
@@ -669,7 +672,7 @@ Deno.serve(async (req) => {
           const res = await ghlFetch(`${GHL_API_BASE}/businesses/`, {
             method: 'POST',
             headers: ghlHeaders,
-            body: JSON.stringify(ghlPayload),
+            body: JSON.stringify(createCompanyPayload),
           });
           if (res.ok) {
             const created = await res.json();
