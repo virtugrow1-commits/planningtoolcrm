@@ -1540,6 +1540,9 @@ Deno.serve(async (req) => {
         }
       };
 
+      // Track inactive-calendar detection so we can skip gracefully
+      let calendarInactive = false;
+
       // Helper: create appointment with /calendars/events fallback, returns new event ID or null
       const createNewAppointment = async (): Promise<string | null> => {
         const res = await ghlFetch(`${GHL_API_BASE}/calendars/events/appointments`, {
@@ -1552,6 +1555,12 @@ Deno.serve(async (req) => {
           return newId || null;
         }
         const errText = await res.text();
+        // Detect inactive calendar — benign, do not retry through fallbacks
+        if (/calendar is inactive/i.test(errText)) {
+          console.warn(`[Push Booking] Calendar ${roomSetting.ghl_calendar_id} is inactive (detected on POST), skipping fallbacks`);
+          calendarInactive = true;
+          return null;
+        }
         console.warn(`[Push Booking] Appointment create failed: [${res.status}] ${errText}, trying /calendars/events for room: ${booking.room_name}`);
         return await createViaCalendarEvents();
       };
