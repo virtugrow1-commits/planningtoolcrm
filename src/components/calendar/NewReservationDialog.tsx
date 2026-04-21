@@ -170,15 +170,32 @@ export default function NewReservationDialog({
     setLastOpen(open);
   }, [open]);
 
+  const filteredContacts = useMemo(() =>
+    form.companyId ? contacts.filter(c => c.companyId === form.companyId) : contacts,
+    [contacts, form.companyId]
+  );
+
   const contactOptions = useMemo<ComboboxOption[]>(() =>
-    contacts.map(c => ({
+    filteredContacts.map(c => ({
       id: c.id,
       label: [c.firstName, c.lastName].filter(n => n && n !== '—').join(' ') || c.email || 'Onbekend',
       secondary: [c.company, c.email].filter(Boolean).join(' · ') || undefined,
       searchText: `${c.firstName} ${c.lastName} ${c.email || ''} ${c.company || ''}`,
     })),
-    [contacts]
+    [filteredContacts]
   );
+
+  const selectedCompany = form.companyId ? companies.find(co => co.id === form.companyId) : null;
+
+  // Auto-reset contact when company changes and current contact doesn't belong
+  useEffect(() => {
+    if (!form.companyId || !form.contactId) return;
+    const selected = contacts.find(c => c.id === form.contactId);
+    if (selected && selected.companyId && selected.companyId !== form.companyId) {
+      setForm((prev) => ({ ...prev, contactId: '', contactName: '' }));
+      toast({ title: 'Contact gewist', description: 'Contact hoort niet bij het gekozen bedrijf.' });
+    }
+  }, [form.companyId]);
 
   const companyOptions = useMemo<ComboboxOption[]>(() =>
     companies.map(co => ({
@@ -320,7 +337,7 @@ export default function NewReservationDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Nieuwe Reservering</DialogTitle>
+          <DialogTitle>{form.status === 'option' ? 'Nieuwe Optie' : 'Nieuwe Reservering'}</DialogTitle>
         </DialogHeader>
 
         {conflictAlert && (
