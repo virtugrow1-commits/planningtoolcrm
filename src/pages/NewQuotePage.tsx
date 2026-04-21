@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Mail, Save, LayoutTemplate, FileText, Loader2, Eye } from 'lucide-react';
+import { ArrowLeft, Mail, Save, LayoutTemplate, FileText, Loader2, Eye, Download } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -76,21 +76,43 @@ export default function NewQuotePage() {
       .then(({ data }) => setCompanies(data || []));
   }, []);
 
-  // Auto-fill company when picking contact
+  // Auto-fill company + address when picking contact.
+  // Also fetches the company directly if it's not in our local cache, so the
+  // address fields are reliably populated for any contact in the organisation.
   useEffect(() => {
     if (!contactId) return;
     const c = contacts.find((x) => x.id === contactId);
     if (!c) return;
     setContactName([c.first_name, c.last_name].filter(Boolean).join(' '));
     setClientEmail(c.email || '');
-    if (c.company_id) {
-      const co = companies.find((x) => x.id === c.company_id);
-      if (co) {
-        setCompanyId(co.id);
-        setCompanyName(co.name);
-        setClientAddress([co.address, co.postcode, co.city].filter(Boolean).join(', '));
-      }
+
+    if (!c.company_id) return;
+
+    const fillFromCompany = (co: any) => {
+      setCompanyId(co.id);
+      setCompanyName(co.name || '');
+      const addr = [co.address, [co.postcode, co.city].filter(Boolean).join(' ')]
+        .filter(Boolean)
+        .join(', ');
+      if (addr) setClientAddress(addr);
+    };
+
+    const cached = companies.find((x) => x.id === c.company_id);
+    if (cached) {
+      fillFromCompany(cached);
+      return;
     }
+    // Not yet in cache — fetch directly so address gets filled regardless
+    supabase
+      .from('companies')
+      .select('id, name, email, phone, address, postcode, city, country, kvk, btw_number, website')
+      .eq('id', c.company_id)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (!data) return;
+        setCompanies((prev) => (prev.some((p) => p.id === data.id) ? prev : [...prev, data]));
+        fillFromCompany(data);
+      });
   }, [contactId, contacts, companies]);
 
   const selectedContact = contacts.find((c) => c.id === contactId);
