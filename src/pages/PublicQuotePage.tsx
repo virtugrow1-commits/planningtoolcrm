@@ -48,6 +48,8 @@ export default function PublicQuotePage() {
   const [signatureValues, setSignatureValues] = useState<Record<string, string>>({});
   const [checkboxValues, setCheckboxValues] = useState<Record<string, boolean>>({});
   const [resolvedBlocks, setResolvedBlocks] = useState<any[]>([]);
+  const [lineItems, setLineItems] = useState<LineItem[]>([]);
+  const [signature, setSignature] = useState<string>('');
 
   useEffect(() => {
     if (!token) return;
