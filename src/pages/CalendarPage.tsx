@@ -51,7 +51,7 @@ export default function CalendarPage() {
   const { toast } = useToast();
   const { settings: roomSettings, displayNames, ghlCalendarIds, enabledRooms, updateRoomSettings, getMaxGuests, getDisplayName, isRoomEnabled } = useRoomSettings();
   const { contacts: fullContacts, loading: contactsLoading } = useContactsContext();
-  const contacts = fullContacts.map(c => ({ id: c.id, firstName: c.firstName, lastName: c.lastName, email: c.email || null, company: c.company || null }));
+  const contacts = fullContacts.map(c => ({ id: c.id, firstName: c.firstName, lastName: c.lastName, email: c.email || null, company: c.company || null, companyId: c.companyId || null }));
   const { companies } = useCompaniesContext();
 
   const dateStr = formatDate(currentDate);
