@@ -12,7 +12,7 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
-import { ArrowLeft, Pencil, Check, X, Plus, ChevronRight, Calendar, FileText, Mail, Phone, Building2, User, CheckSquare, Send, Eye, CheckCircle2 } from 'lucide-react';
+import { ArrowLeft, Pencil, Check, X, Plus, ChevronRight, Calendar, FileText, Mail, Phone, Building2, User, CheckSquare, Send, Eye, CheckCircle2, MapPin } from 'lucide-react';
 import { Checkbox } from '@/components/ui/checkbox';
 import ActivityTimeline from '@/components/contact/ActivityTimeline';
 import TasksSection from '@/components/detail/TasksSection';
@@ -213,6 +213,44 @@ export default function ContactDetailPage() {
               linkContact={linkContact}
               unlinkContact={unlinkContact}
             />
+
+            {/* Adresgegevens — eigen adres of fallback naar bedrijfsadres */}
+            {(() => {
+              const linkedCompany = current.companyId ? companies.find((c) => c.id === current.companyId) : undefined;
+              const fallbackAddress = linkedCompany?.address || '';
+              const fallbackPostcode = linkedCompany?.postcode || '';
+              const fallbackCity = linkedCompany?.city || '';
+              const fallbackCountry = linkedCompany?.country || '';
+              const showCompanyFallback = !editing && !current.address && !current.postcode && !current.city && !!linkedCompany && (fallbackAddress || fallbackPostcode || fallbackCity);
+              return (
+                <div className="rounded-lg border border-border/50 bg-muted/20 p-3 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <p className="text-xs font-semibold text-muted-foreground flex items-center gap-1.5">
+                      <MapPin size={14} /> Adres
+                    </p>
+                    {showCompanyFallback && (
+                      <span className="text-[10px] text-muted-foreground italic">via bedrijf</span>
+                    )}
+                  </div>
+                  {showCompanyFallback ? (
+                    <div className="text-sm text-foreground space-y-0.5">
+                      {fallbackAddress && <p>{fallbackAddress}</p>}
+                      {(fallbackPostcode || fallbackCity) && <p>{fallbackPostcode} {fallbackCity}</p>}
+                      {fallbackCountry && <p className="text-muted-foreground text-xs">{fallbackCountry}</p>}
+                    </div>
+                  ) : (
+                    <>
+                      <InfoField label="Straat + huisnummer" value={current.address || ''} editing={editing} onChange={(v) => setForm({ ...form!, address: v || undefined })} />
+                      <div className="grid grid-cols-2 gap-2">
+                        <InfoField label="Postcode" value={current.postcode || ''} editing={editing} onChange={(v) => setForm({ ...form!, postcode: v || undefined })} />
+                        <InfoField label="Plaats" value={current.city || ''} editing={editing} onChange={(v) => setForm({ ...form!, city: v || undefined })} />
+                      </div>
+                      <InfoField label="Land" value={current.country || (editing ? 'NL' : '')} editing={editing} onChange={(v) => setForm({ ...form!, country: v || undefined })} />
+                    </>
+                  )}
+                </div>
+              );
+            })()}
 
             {editing && (
               <div>

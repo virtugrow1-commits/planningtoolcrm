@@ -261,8 +261,11 @@ export type Database = {
       }
       contacts: {
         Row: {
+          address: string | null
+          city: string | null
           company: string | null
           company_id: string | null
+          country: string | null
           created_at: string
           departed: boolean
           department: string | null
@@ -277,13 +280,17 @@ export type Database = {
           last_name: string
           notes: string | null
           phone: string | null
+          postcode: string | null
           status: string
           updated_at: string
           user_id: string
         }
         Insert: {
+          address?: string | null
+          city?: string | null
           company?: string | null
           company_id?: string | null
+          country?: string | null
           created_at?: string
           departed?: boolean
           department?: string | null
@@ -298,13 +305,17 @@ export type Database = {
           last_name: string
           notes?: string | null
           phone?: string | null
+          postcode?: string | null
           status?: string
           updated_at?: string
           user_id: string
         }
         Update: {
+          address?: string | null
+          city?: string | null
           company?: string | null
           company_id?: string | null
+          country?: string | null
           created_at?: string
           departed?: boolean
           department?: string | null
@@ -319,6 +330,7 @@ export type Database = {
           last_name?: string
           notes?: string | null
           phone?: string | null
+          postcode?: string | null
           status?: string
           updated_at?: string
           user_id?: string
