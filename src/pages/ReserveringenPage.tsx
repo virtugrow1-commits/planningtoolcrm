@@ -242,6 +242,7 @@ export default function ReserveringenPage() {
             <TableHead><SortableHeader label="Bedrijf" sortKey="company" currentSort={sort.sortKey} currentDirection={sort.sortDir} onSort={sort.handleSort} /></TableHead>
             <TableHead><SortableHeader label="Evenement" sortKey="event" currentSort={sort.sortKey} currentDirection={sort.sortDir} onSort={sort.handleSort} /></TableHead>
             <TableHead><SortableHeader label="Ruimte" sortKey="room" currentSort={sort.sortKey} currentDirection={sort.sortDir} onSort={sort.handleSort} /></TableHead>
+            <TableHead>Opstelling</TableHead>
             <TableHead><SortableHeader label="Datum" sortKey="date" currentSort={sort.sortKey} currentDirection={sort.sortDir} onSort={sort.handleSort} /></TableHead>
             <TableHead><SortableHeader label="Tijd" sortKey="time" currentSort={sort.sortKey} currentDirection={sort.sortDir} onSort={sort.handleSort} /></TableHead>
             <TableHead className="w-[80px]"></TableHead>
@@ -250,7 +251,7 @@ export default function ReserveringenPage() {
         <TableBody>
           {items.length === 0 ? (
             <TableRow>
-              <TableCell colSpan={11} className="text-center py-12 text-muted-foreground">{emptyMsg}</TableCell>
+              <TableCell colSpan={12} className="text-center py-12 text-muted-foreground">{emptyMsg}</TableCell>
             </TableRow>
           ) : (
             items.map((b) => (
@@ -282,6 +283,16 @@ export default function ReserveringenPage() {
                 <TableCell>{b.title}</TableCell>
                 <TableCell>
                   <span className="flex items-center gap-1.5 text-sm"><MapPin size={13} className="text-muted-foreground" />{b.roomName}</span>
+                </TableCell>
+                <TableCell>
+                  {b.roomSetup ? (
+                    <span className="text-sm text-foreground">
+                      {b.roomSetup}
+                      {b.guestCount ? <span className="text-muted-foreground"> · {b.guestCount}</span> : null}
+                    </span>
+                  ) : (
+                    <span className="text-xs text-muted-foreground">—</span>
+                  )}
                 </TableCell>
                 <TableCell>
                   <span className="flex items-center gap-1.5 text-sm"><CalendarIcon size={13} className="text-muted-foreground" />{formatDate(b.date)}</span>
