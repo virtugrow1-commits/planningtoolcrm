@@ -102,9 +102,12 @@ export default function MonthView({ currentDate, bookings, onDayClick, onBooking
                         : 'bg-warning/20 text-warning-foreground'
                     )}
                     onClick={(e) => { e.stopPropagation(); onBookingClick(b); }}
-                    title={`${b.title} — ${getRoomDisplayName(b.roomName)}`}
+                    title={`${b.title} — ${getRoomDisplayName(b.roomName)}${b.roomSetup ? ` · ${b.roomSetup}` : ''}${b.guestCount ? ` · ${b.guestCount} gasten` : ''}`}
                   >
-                    {String(b.startHour).padStart(2, '0')}:{String(b.startMinute || 0).padStart(2, '0')} {b.title}
+                    <div className="truncate">{String(b.startHour).padStart(2, '0')}:{String(b.startMinute || 0).padStart(2, '0')} {b.title}</div>
+                    {b.roomSetup && (
+                      <div className="text-[9px] opacity-70 truncate">{b.roomSetup}{b.guestCount ? ` · ${b.guestCount}` : ''}</div>
+                    )}
                   </div>
                 ))}
                 {dayBookings.length > MAX_VISIBLE && (
