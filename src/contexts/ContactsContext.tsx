@@ -162,6 +162,10 @@ export function ContactsProvider({ children }: { children: ReactNode }) {
       dmu: contact.dmu || null,
       function_group: contact.functionGroup || null,
       job_title: contact.jobTitle || null,
+      address: contact.address || null,
+      postcode: contact.postcode || null,
+      city: contact.city || null,
+      country: contact.country || 'NL',
     } as any).eq('id', contact.id);
     if (error) {
       toast({ title: 'Fout bij bijwerken contact', description: error.message, variant: 'destructive' });
