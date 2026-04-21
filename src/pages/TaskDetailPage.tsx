@@ -374,14 +374,6 @@ export default function TaskDetailPage() {
               autoFocus
             />
             <div className="flex flex-wrap gap-2 items-center">
-          <div className="space-y-3 py-2">
-            <Input
-              placeholder="Taakomschrijving..."
-              value={followTitle}
-              onChange={(e) => setFollowTitle(e.target.value)}
-              autoFocus
-            />
-            <div className="flex flex-wrap gap-2 items-center">
               <Select value={followPriority} onValueChange={(v: Task['priority']) => setFollowPriority(v)}>
                 <SelectTrigger className="w-[120px] h-8 text-xs"><SelectValue /></SelectTrigger>
                 <SelectContent>
