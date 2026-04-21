@@ -1,20 +1,31 @@
 import { useState } from 'react';
-import { Eye, X } from 'lucide-react';
+import { Eye } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Card, CardContent } from '@/components/ui/card';
 import { format } from 'date-fns';
 import { nl } from 'date-fns/locale';
-import DocumentViewer from './DocumentViewer';
-import type { Quote } from '@/types/quotation';
+import TemplatePreview from './TemplatePreview';
+import type { Quote, LineItem } from '@/types/quotation';
+import { calcFinancials } from '@/types/quotation';
 
 interface QuotePreviewDialogProps {
   quote: Quote;
   contentBlocks: any[];
+  /** Optional line items so the product table reflects real prices */
+  lineItems?: LineItem[];
 }
 
-export default function QuotePreviewDialog({ quote, contentBlocks }: QuotePreviewDialogProps) {
+export default function QuotePreviewDialog({ quote, contentBlocks, lineItems = [] }: QuotePreviewDialogProps) {
   const [open, setOpen] = useState(false);
+
+  // Use stored quote PDF (or fallback fields) — same fields that get attached to the email
+  const pdfUrl = (quote as any).pdfUrl || null;
+  const overlayFields = (quote as any).overlayFields || [];
+
+  const totals = lineItems.length > 0
+    ? calcFinancials(lineItems)
+    : { subtotal: quote.subtotal, vatAmount: quote.vatAmount, discountAmount: quote.discountAmount, total: quote.total };
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -24,13 +35,11 @@ export default function QuotePreviewDialog({ quote, contentBlocks }: QuotePrevie
         </Button>
       </DialogTrigger>
       <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto p-0">
-        <div className="sticky top-0 z-10 bg-background border-b px-6 py-3 flex items-center justify-between">
-          <div>
-            <DialogTitle className="text-lg font-bold">{quote.title}</DialogTitle>
-            <p className="text-sm text-muted-foreground">
-              {quote.displayNumber} · Zo ziet de klant het document
-            </p>
-          </div>
+        <div className="sticky top-0 z-10 bg-background border-b px-6 py-3">
+          <DialogTitle className="text-lg font-bold">{quote.title}</DialogTitle>
+          <p className="text-sm text-muted-foreground">
+            {quote.displayNumber} · Zo ziet de klant het document
+          </p>
         </div>
 
         <div className="bg-muted/30 p-6 space-y-6">
@@ -75,9 +84,14 @@ export default function QuotePreviewDialog({ quote, contentBlocks }: QuotePrevie
             </Card>
           )}
 
-          {/* Document blocks */}
-          {contentBlocks.length > 0 ? (
-            <DocumentViewer blocks={contentBlocks} />
+          {/* Document with PDF background + blocks (same renderer as 'Nieuwe offerte' preview) */}
+          {(pdfUrl || contentBlocks.length > 0 || lineItems.length > 0) ? (
+            <TemplatePreview
+              pdfUrl={pdfUrl}
+              blocks={contentBlocks as any}
+              lineItems={lineItems}
+              totals={totals}
+            />
           ) : (
             <Card>
               <CardContent className="py-12 text-center text-muted-foreground text-sm">
@@ -106,12 +120,8 @@ export default function QuotePreviewDialog({ quote, contentBlocks }: QuotePrevie
                 Door akkoord te gaan bevestigt u de inhoud van dit document en gaat u akkoord met de bijbehorende voorwaarden.
               </p>
               <div className="flex gap-3 pt-2">
-                <Button disabled className="gap-1.5">
-                  Akkoord
-                </Button>
-                <Button variant="outline" disabled className="gap-1.5">
-                  Niet akkoord
-                </Button>
+                <Button disabled className="gap-1.5">Akkoord</Button>
+                <Button variant="outline" disabled className="gap-1.5">Niet akkoord</Button>
               </div>
               <p className="text-xs text-muted-foreground italic">
                 (Dit is een voorbeeld — de knoppen werken niet)
