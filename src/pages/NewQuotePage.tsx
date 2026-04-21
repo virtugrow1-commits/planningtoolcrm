@@ -20,8 +20,8 @@ import type { MergeTagData } from '@/lib/mergeTags';
 import ContactSelector from '@/components/quotation/ContactSelector';
 import LineItemsEditor from '@/components/quotation/LineItemsEditor';
 import SendQuoteDialog from '@/components/quotation/SendQuoteDialog';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import DocumentViewer from '@/components/quotation/DocumentViewer';
+import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
+import TemplatePreview from '@/components/quotation/TemplatePreview';
 import { format } from 'date-fns';
 import { nl } from 'date-fns/locale';
 
@@ -442,15 +442,10 @@ export default function NewQuotePage() {
               </CardContent>
             </Card>
 
-            {resolvedBlocks.length > 0 ? (
-              <DocumentViewer blocks={resolvedBlocks} />
-            ) : (
-              <Card>
-                <CardContent className="py-12 text-center text-muted-foreground text-sm">
-                  Dit sjabloon heeft nog geen inhoudsblokken.
-                </CardContent>
-              </Card>
-            )}
+            <TemplatePreview
+              pdfUrl={(selectedTemplate?.contentBlocks as any)?.pdfUrl || null}
+              blocks={resolvedBlocks}
+            />
 
             {selectedTemplate?.termsAndConditions && (
               <Card>
