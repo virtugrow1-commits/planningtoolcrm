@@ -360,16 +360,11 @@ Deno.serve(async (req) => {
     const { data: pub } = supabase.storage.from('quote-pdfs').getPublicUrl(path);
     await supabase.from('quotes').update({ pdf_url: pub.publicUrl }).eq('id', quoteId);
 
-    // base64 encode chunked to avoid stack overflow on large PDFs
-    let bin = '';
-    const bytes = new Uint8Array(pdfBytes);
-    for (let i = 0; i < bytes.length; i += 0x8000) {
-      bin += String.fromCharCode.apply(null, Array.from(bytes.subarray(i, i + 0x8000)));
-    }
-
+    // NOTE: Do NOT return pdfBase64 here — base64-encoding the full PDF in memory
+    // causes WORKER_RESOURCE_LIMIT (memory) errors on edge runtime. Consumers
+    // (e.g. send-quote-email) should download the PDF from pdfUrl and stream it.
     return new Response(JSON.stringify({
       pdfUrl: pub.publicUrl,
-      pdfBase64: btoa(bin),
       filename: `${quote.display_number || 'offerte'}.pdf`,
       usedTemplate,
     }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
