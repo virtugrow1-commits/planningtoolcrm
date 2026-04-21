@@ -47,6 +47,7 @@ export default function ContactSelector({ value, onChange }: ContactSelectorProp
                   key={c.id}
                   value={`${c.firstName} ${c.lastName} ${c.company || ''} ${c.email}`}
                   onSelect={() => {
+                    // Pass the company id so the parent can fetch full company details (incl. address)
                     onChange(c.id, `${c.firstName} ${c.lastName}`, c.companyId, c.company, c.email);
                     setOpen(false);
                   }}

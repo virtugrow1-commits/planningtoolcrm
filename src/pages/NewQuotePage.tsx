@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Mail, Save, LayoutTemplate, FileText, Loader2, Eye } from 'lucide-react';
+import { ArrowLeft, Mail, Save, LayoutTemplate, FileText, Loader2, Eye, Download } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -76,21 +76,43 @@ export default function NewQuotePage() {
       .then(({ data }) => setCompanies(data || []));
   }, []);
 
-  // Auto-fill company when picking contact
+  // Auto-fill company + address when picking contact.
+  // Also fetches the company directly if it's not in our local cache, so the
+  // address fields are reliably populated for any contact in the organisation.
   useEffect(() => {
     if (!contactId) return;
     const c = contacts.find((x) => x.id === contactId);
     if (!c) return;
     setContactName([c.first_name, c.last_name].filter(Boolean).join(' '));
     setClientEmail(c.email || '');
-    if (c.company_id) {
-      const co = companies.find((x) => x.id === c.company_id);
-      if (co) {
-        setCompanyId(co.id);
-        setCompanyName(co.name);
-        setClientAddress([co.address, co.postcode, co.city].filter(Boolean).join(', '));
-      }
+
+    if (!c.company_id) return;
+
+    const fillFromCompany = (co: any) => {
+      setCompanyId(co.id);
+      setCompanyName(co.name || '');
+      const addr = [co.address, [co.postcode, co.city].filter(Boolean).join(' ')]
+        .filter(Boolean)
+        .join(', ');
+      if (addr) setClientAddress(addr);
+    };
+
+    const cached = companies.find((x) => x.id === c.company_id);
+    if (cached) {
+      fillFromCompany(cached);
+      return;
     }
+    // Not yet in cache — fetch directly so address gets filled regardless
+    supabase
+      .from('companies')
+      .select('id, name, email, phone, address, postcode, city, country, kvk, btw_number, website')
+      .eq('id', c.company_id)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (!data) return;
+        setCompanies((prev) => (prev.some((p) => p.id === data.id) ? prev : [...prev, data]));
+        fillFromCompany(data);
+      });
   }, [contactId, contacts, companies]);
 
   const selectedContact = contacts.find((c) => c.id === contactId);
@@ -165,6 +187,9 @@ export default function NewQuotePage() {
       return null;
     }
     const tplCb = selectedTemplate.contentBlocks as any;
+    // Templates may store the PDF under different field names depending on
+    // which editor uploaded it. Use any of them as a fallback.
+    const templatePdfUrl = tplCb?.pdfUrl || tplCb?.pdfBackgroundUrl || tplCb?.editorPdfUrl || undefined;
 
     return await createQuote(
       {
@@ -180,7 +205,7 @@ export default function NewQuotePage() {
         validUntil: validUntil || undefined,
         contentBlocks: resolvedBlocks,
         // Carry over the template's PDF + overlay so the email attachment uses it
-        pdfUrl: tplCb?.pdfUrl || undefined,
+        pdfUrl: templatePdfUrl,
         overlayFields: tplCb?.overlayFields || [],
         subtotal: fin.subtotal,
         vatAmount: fin.vatAmount,
@@ -189,6 +214,33 @@ export default function NewQuotePage() {
       },
       effectiveLineItems
     );
+  };
+
+  const [downloadingPreview, setDownloadingPreview] = useState(false);
+
+  /** Generate the exact PDF the client will receive and open it in a new tab. */
+  const handleDownloadPreview = async () => {
+    if (!selectedTemplate || !contactName.trim()) {
+      toast({ title: 'Vul eerst klantnaam en sjabloon in', variant: 'destructive' });
+      return;
+    }
+    setDownloadingPreview(true);
+    try {
+      const q = await persistQuote();
+      if (!q) return;
+      const { data, error } = await supabase.functions.invoke('generate-quote-pdf', {
+        body: { quoteId: q.id },
+      });
+      if (error) throw error;
+      const url = (data as any)?.pdfUrl;
+      if (url) window.open(url, '_blank');
+      toast({ title: 'Voorbeeld gegenereerd', description: 'De offerte is opgeslagen als concept.' });
+      navigate(`/quotes/${q.id}`);
+    } catch (e: any) {
+      toast({ title: 'Fout bij genereren voorbeeld', description: e.message, variant: 'destructive' });
+    } finally {
+      setDownloadingPreview(false);
+    }
   };
 
   const handleSaveDraft = async () => {
@@ -229,7 +281,7 @@ export default function NewQuotePage() {
             Kies een sjabloon, vul de gegevens aan en verstuur direct naar de klant.
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           <Button
             variant="outline"
             onClick={() => setPreviewOpen(true)}
@@ -238,6 +290,15 @@ export default function NewQuotePage() {
           >
             <Eye size={14} />
             Voorbeeld
+          </Button>
+          <Button
+            variant="outline"
+            onClick={handleDownloadPreview}
+            disabled={downloadingPreview || savingDraft || savingAndSend || !selectedTemplate}
+            className="gap-1.5"
+          >
+            {downloadingPreview ? <Loader2 size={14} className="animate-spin" /> : <Download size={14} />}
+            Download voorbeeld-PDF
           </Button>
           <Button
             variant="outline"
@@ -293,9 +354,12 @@ export default function NewQuotePage() {
                   ))}
                 </SelectContent>
               </Select>
-              {selectedTemplate && (
+              {selectedTemplate && (() => {
+                const cb = selectedTemplate.contentBlocks as any;
+                const hasPdf = !!(cb?.pdfUrl || cb?.pdfBackgroundUrl || cb?.editorPdfUrl);
+                return (
                 <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                  {(selectedTemplate.contentBlocks as any)?.pdfUrl ? (
+                  {hasPdf ? (
                     <>
                       <FileText size={12} className="text-primary" />
                       Sjabloon-PDF wordt als bijlage gebruikt
@@ -306,7 +370,8 @@ export default function NewQuotePage() {
                     <span>Geen PDF in sjabloon — er wordt een gegenereerde PDF gebruikt</span>
                   )}
                 </div>
-              )}
+                );
+              })()}
             </>
           )}
         </CardContent>
@@ -444,7 +509,11 @@ export default function NewQuotePage() {
 
             <TemplatePreview
               pdfUrl={(selectedTemplate?.contentBlocks as any)?.pdfUrl || null}
+              pdfBackgroundUrl={(selectedTemplate?.contentBlocks as any)?.pdfBackgroundUrl || null}
+              editorPdfUrl={(selectedTemplate?.contentBlocks as any)?.editorPdfUrl || null}
               blocks={resolvedBlocks}
+              lineItems={effectiveLineItems}
+              totals={fin}
             />
 
             {selectedTemplate?.termsAndConditions && (

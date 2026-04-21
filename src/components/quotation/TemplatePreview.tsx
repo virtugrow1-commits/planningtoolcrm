@@ -1,24 +1,46 @@
 import { useEffect, useRef, useState } from 'react';
 import PdfPageRenderer, { usePdfPageCount } from '@/components/template-editor/PdfPageRenderer';
 import type { TemplateBlock, TextBlock, ImageBlock, ProductListBlock, TableBlock, DetailsBlock } from '@/types/templateBlocks';
+import type { LineItem } from '@/types/quotation';
 
 interface TemplatePreviewProps {
+  /** Preferred PDF URL — falls back to pdfBackgroundUrl/editorPdfUrl if empty */
   pdfUrl?: string | null;
+  pdfBackgroundUrl?: string | null;
+  editorPdfUrl?: string | null;
   blocks: TemplateBlock[];
+  /** Optional product line items to render at the end (so the user always sees products) */
+  lineItems?: LineItem[];
+  totals?: { subtotal: number; vatAmount: number; discountAmount: number; total: number };
 }
 
+const fmtEUR = (n: number) =>
+  new Intl.NumberFormat('nl-NL', { style: 'currency', currency: 'EUR' }).format(n || 0);
+
 /**
- * Read-only preview that renders the template PDF background with blocks
- * positioned exactly as in the editor (using x/y/w/h per pageIndex).
- * Used in the "Voorbeeld" dialog so users see the document like the client will.
+ * Read-only A4 preview that renders the template PDF background with blocks
+ * positioned exactly as in the editor, and appends a product table at the end
+ * so the user always sees how the document will look for the client.
  */
-export default function TemplatePreview({ pdfUrl, blocks }: TemplatePreviewProps) {
+export default function TemplatePreview({
+  pdfUrl,
+  pdfBackgroundUrl,
+  editorPdfUrl,
+  blocks,
+  lineItems = [],
+  totals,
+}: TemplatePreviewProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [containerWidth, setContainerWidth] = useState(0);
   const [pageDimensions, setPageDimensions] = useState<Record<number, { width: number; height: number }>>({});
 
-  const hasPdf = !!pdfUrl;
-  const pdfPageCount = usePdfPageCount(pdfUrl || null);
+  // Resolve effective PDF URL — templates may store under different field names
+  const finalPdfUrl = pdfUrl || pdfBackgroundUrl || editorPdfUrl || null;
+  const hasPdf = !!finalPdfUrl;
+  const pdfPageCount = usePdfPageCount(finalPdfUrl);
+
+  // Detect whether the template has its own product-list block
+  const hasProductListBlock = blocks.some((b) => b.type === 'product-list');
 
   // Compute the highest pageIndex used by any block
   const maxBlockPage = blocks.reduce((m, b) => Math.max(m, b.pageIndex ?? 0), 0);
@@ -39,13 +61,16 @@ export default function TemplatePreview({ pdfUrl, blocks }: TemplatePreviewProps
   const blocksForPage = (pageIdx: number) =>
     blocks.filter((b) => (b.pageIndex ?? 0) === pageIdx);
 
-  if (!hasPdf && blocks.length === 0) {
+  if (!hasPdf && blocks.length === 0 && lineItems.length === 0) {
     return (
       <div className="text-center text-sm text-muted-foreground py-12">
         Dit sjabloon heeft nog geen inhoud.
       </div>
     );
   }
+
+  // A4 ratio fallback when PDF dimensions aren't yet known (210 × 297 mm)
+  const A4_RATIO = 297 / 210;
 
   return (
     <div ref={containerRef} className="w-full max-w-[800px] mx-auto space-y-6">
@@ -54,19 +79,21 @@ export default function TemplatePreview({ pdfUrl, blocks }: TemplatePreviewProps
         const dims = pageDimensions[pageIdx];
         const pageHeight = dims && containerWidth
           ? (dims.height / dims.width) * containerWidth
-          : (hasPdf ? 1122 : 842);
+          : containerWidth
+            ? containerWidth * A4_RATIO
+            : 1122;
 
         return (
           <div
             key={pageIdx}
-            className="relative bg-background shadow-sm rounded-lg border overflow-hidden"
+            className="relative bg-white shadow-lg rounded-sm border border-border/40 overflow-hidden"
             style={{ height: pageHeight }}
           >
             {/* PDF Background */}
             {hasPdf && containerWidth > 0 && (
               <div className="absolute inset-0 z-0 pointer-events-none">
                 <PdfPageRenderer
-                  pdfUrl={pdfUrl!}
+                  pdfUrl={finalPdfUrl!}
                   pageNumber={pageIdx + 1}
                   width={containerWidth}
                   onDimensionsReady={(d) =>
@@ -93,25 +120,37 @@ export default function TemplatePreview({ pdfUrl, blocks }: TemplatePreviewProps
                     minHeight: block.h ?? 60,
                   }}
                 >
-                  <PreviewBlock block={block} />
+                  <PreviewBlock block={block} lineItems={lineItems} />
                 </div>
               ))}
             </div>
           </div>
         );
       })}
+
+      {/* Always-visible product table page if template has no product-list block */}
+      {!hasProductListBlock && lineItems.length > 0 && (
+        <div className="bg-white shadow-lg rounded-sm border border-border/40 p-8 space-y-4">
+          <h3 className="text-lg font-semibold text-foreground border-b pb-2">
+            Producten &amp; diensten
+          </h3>
+          <ProductTable items={lineItems} totals={totals} />
+        </div>
+      )}
     </div>
   );
 }
 
-function PreviewBlock({ block }: { block: TemplateBlock }) {
+function PreviewBlock({ block, lineItems }: { block: TemplateBlock; lineItems: LineItem[] }) {
   switch (block.type) {
     case 'text':
       return <TextPreview block={block} />;
     case 'image':
       return <ImagePreview block={block} />;
     case 'product-list':
-      return <ProductListPreview block={block} />;
+      // If template has a product-list block AND user added line items, render the actual items.
+      // Otherwise fall back to the template's own placeholder items.
+      return <ProductListPreview block={block} lineItems={lineItems} />;
     case 'table':
       return <TablePreview block={block} />;
     case 'details':
@@ -182,9 +221,19 @@ function ImagePreview({ block }: { block: ImageBlock }) {
   );
 }
 
-function ProductListPreview({ block }: { block: ProductListBlock }) {
-  const fmt = (n: number) =>
-    new Intl.NumberFormat('nl-NL', { style: 'currency', currency: 'EUR' }).format(n);
+function ProductListPreview({ block, lineItems }: { block: ProductListBlock; lineItems: LineItem[] }) {
+  // Prefer real line items (mapped from quote) when present; else show template's items
+  const rows = lineItems.length > 0
+    ? lineItems.map((it) => ({
+        id: it.id,
+        name: it.itemName,
+        description: it.description || '',
+        quantity: it.quantity,
+        unitPrice: it.unitPrice,
+        vatRate: it.vatRate,
+      }))
+    : block.items;
+
   return (
     <table className="w-full border-collapse text-sm">
       {block.showHeaders && (
@@ -198,7 +247,7 @@ function ProductListPreview({ block }: { block: ProductListBlock }) {
         </thead>
       )}
       <tbody>
-        {block.items.map((it) => (
+        {rows.map((it) => (
           <tr key={it.id}>
             <td className="border border-border p-1.5">
               <div>{it.name}</div>
@@ -207,9 +256,9 @@ function ProductListPreview({ block }: { block: ProductListBlock }) {
               )}
             </td>
             <td className="border border-border p-1.5">{it.quantity}</td>
-            <td className="border border-border p-1.5">{fmt(it.unitPrice)}</td>
+            <td className="border border-border p-1.5">{fmtEUR(it.unitPrice)}</td>
             <td className="border border-border p-1.5 text-right">
-              {fmt(it.quantity * it.unitPrice)}
+              {fmtEUR(it.quantity * it.unitPrice)}
             </td>
           </tr>
         ))}
@@ -254,6 +303,74 @@ function DetailsPreview({ block }: { block: DetailsBlock }) {
           <span className="text-foreground">{f.mergeTag}</span>
         </div>
       ))}
+    </div>
+  );
+}
+
+/** Standalone product table used for the always-appended product page */
+function ProductTable({
+  items,
+  totals,
+}: {
+  items: LineItem[];
+  totals?: { subtotal: number; vatAmount: number; discountAmount: number; total: number };
+}) {
+  return (
+    <div className="space-y-3">
+      <table className="w-full border-collapse text-sm">
+        <thead>
+          <tr className="bg-muted/40">
+            <th className="border border-border p-2 text-left text-xs font-semibold">Omschrijving</th>
+            <th className="border border-border p-2 text-left text-xs font-semibold w-16">Aantal</th>
+            <th className="border border-border p-2 text-right text-xs font-semibold w-24">Stukprijs</th>
+            <th className="border border-border p-2 text-right text-xs font-semibold w-16">BTW</th>
+            <th className="border border-border p-2 text-right text-xs font-semibold w-28">Totaal</th>
+          </tr>
+        </thead>
+        <tbody>
+          {items.map((it) => (
+            <tr key={it.id}>
+              <td className="border border-border p-2">
+                <div className="font-medium">{it.itemName}</div>
+                {it.description && (
+                  <div className="text-xs text-muted-foreground mt-0.5">{it.description}</div>
+                )}
+              </td>
+              <td className="border border-border p-2">{it.quantity}</td>
+              <td className="border border-border p-2 text-right">{fmtEUR(it.unitPrice)}</td>
+              <td className="border border-border p-2 text-right">{it.vatRate}%</td>
+              <td className="border border-border p-2 text-right font-medium">
+                {fmtEUR(it.lineTotal || it.quantity * it.unitPrice)}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+
+      {totals && (
+        <div className="flex justify-end">
+          <div className="w-full max-w-xs space-y-1 text-sm">
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Subtotaal</span>
+              <span className="text-foreground">{fmtEUR(totals.subtotal)}</span>
+            </div>
+            {totals.discountAmount > 0 && (
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Korting</span>
+                <span className="text-foreground">- {fmtEUR(totals.discountAmount)}</span>
+              </div>
+            )}
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">BTW</span>
+              <span className="text-foreground">{fmtEUR(totals.vatAmount)}</span>
+            </div>
+            <div className="flex justify-between border-t pt-1.5 mt-1.5 font-semibold text-base">
+              <span className="text-foreground">Totaal incl. BTW</span>
+              <span className="text-primary">{fmtEUR(totals.total)}</span>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
