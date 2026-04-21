@@ -38,7 +38,9 @@ export default function ContactSelector({ value, onChange, filterCompanyId }: Co
               {selected.company && <span className="text-xs text-muted-foreground">({selected.company})</span>}
             </span>
           ) : (
-            <span className="text-muted-foreground">Selecteer contactpersoon...</span>
+            <span className="text-muted-foreground">
+              {filterCompanyId ? 'Selecteer contactpersoon van dit bedrijf...' : 'Selecteer contactpersoon...'}
+            </span>
           )}
           <ChevronsUpDown size={14} className="text-muted-foreground" />
         </Button>
@@ -47,7 +49,9 @@ export default function ContactSelector({ value, onChange, filterCompanyId }: Co
         <Command>
           <CommandInput placeholder="Zoek contactpersoon..." />
           <CommandList>
-            <CommandEmpty>Geen resultaten.</CommandEmpty>
+            <CommandEmpty>
+              {filterCompanyId ? 'Geen contactpersonen voor dit bedrijf.' : 'Geen resultaten.'}
+            </CommandEmpty>
             <CommandGroup>
               {contacts.slice(0, 50).map((c) => (
                 <CommandItem
