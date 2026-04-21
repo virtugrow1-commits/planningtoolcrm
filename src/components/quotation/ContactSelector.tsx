@@ -9,11 +9,18 @@ import { useContactsContext } from '@/contexts/ContactsContext';
 interface ContactSelectorProps {
   value?: string;
   onChange: (contactId: string, contactName: string, companyId?: string, companyName?: string, email?: string) => void;
+  /** When set, only contacts linked to this company are shown. */
+  filterCompanyId?: string;
 }
 
-export default function ContactSelector({ value, onChange }: ContactSelectorProps) {
+export default function ContactSelector({ value, onChange, filterCompanyId }: ContactSelectorProps) {
   const [open, setOpen] = useState(false);
   const { contacts } = useContactsContext();
+
+  const filteredContacts = useMemo(() => {
+    if (!filterCompanyId) return contacts;
+    return contacts.filter((c) => c.companyId === filterCompanyId);
+  }, [contacts, filterCompanyId]);
 
   const selected = useMemo(
     () => contacts.find((c) => c.id === value),
