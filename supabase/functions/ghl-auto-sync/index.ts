@@ -273,12 +273,13 @@ Deno.serve(async (req) => {
 // === CALENDAR SYNC ===
 async function syncCalendar(supabase: any, ghlHeaders: any, locationId: string, userId: string, results: any) {
   try {
-    const calRes = await fetch(`${GHL_API_BASE}/calendars/?locationId=${locationId}`, { headers: ghlHeaders });
+    // showAll=true ensures we also pull events from inactive calendars
+    const calRes = await fetch(`${GHL_API_BASE}/calendars/?locationId=${locationId}&showAll=true`, { headers: ghlHeaders });
     if (!calRes.ok) { console.error('Calendar list error:', calRes.status); return; }
 
     const calData = await calRes.json();
     const calendars = calData.calendars || [];
-    console.log(`Found ${calendars.length} calendars`);
+    console.log(`Found ${calendars.length} calendars (incl. inactive)`);
 
     const { data: roomMappings } = await supabase
       .from('room_settings')
