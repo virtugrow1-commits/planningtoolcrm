@@ -171,6 +171,70 @@ Deno.serve(async (req) => {
           maxWidth: Number(fld.width) || pw - x - 20,
         });
       }
+
+      // ─── Append a product overview page after the template pages ───
+      // This guarantees the products always show up in the email attachment,
+      // even when the template's PDF doesn't include a product table.
+      if (items && items.length > 0) {
+        let page = pdf.addPage([595, 842]);
+        const { width, height } = page.getSize();
+        const margin = 50;
+        let y = height - margin;
+
+        // Header band
+        page.drawRectangle({ x: 0, y: height - 70, width, height: 70, color: BRAND_BROWN });
+        page.drawText('Producten & diensten', {
+          x: margin, y: height - 45, size: 18, font: fontBold, color: rgb(1, 1, 1),
+        });
+        page.drawText(quote.display_number || '', {
+          x: width - margin - 100, y: height - 45, size: 12, font, color: BRAND_GOLD,
+        });
+        y = height - 100;
+
+        // Table header
+        page.drawRectangle({ x: margin, y: y - 4, width: width - 2 * margin, height: 22, color: BRAND_GOLD });
+        page.drawText('Omschrijving', { x: margin + 8, y: y + 4, size: 10, font: fontBold, color: TEXT });
+        page.drawText('Aantal', { x: width - margin - 200, y: y + 4, size: 10, font: fontBold, color: TEXT });
+        page.drawText('Prijs', { x: width - margin - 140, y: y + 4, size: 10, font: fontBold, color: TEXT });
+        page.drawText('BTW', { x: width - margin - 80, y: y + 4, size: 10, font: fontBold, color: TEXT });
+        page.drawText('Totaal', { x: width - margin - 50, y: y + 4, size: 10, font: fontBold, color: TEXT });
+        y -= 26;
+
+        for (const li of items) {
+          if (y < 140) { page = pdf.addPage([595, 842]); y = height - margin; }
+          page.drawText(String(li.item_name || '').slice(0, 50), { x: margin + 8, y, size: 10, font, color: TEXT });
+          page.drawText(String(li.quantity), { x: width - margin - 200, y, size: 10, font, color: TEXT });
+          page.drawText(fmtEUR(Number(li.unit_price)), { x: width - margin - 140, y, size: 10, font, color: TEXT });
+          page.drawText(`${li.vat_rate}%`, { x: width - margin - 80, y, size: 10, font, color: TEXT });
+          page.drawText(fmtEUR(Number(li.line_total)), { x: width - margin - 50, y, size: 10, font, color: TEXT });
+          y -= 16;
+          if (li.description) {
+            const dLines = wrapText(String(li.description), font, 9, width - 2 * margin - 16);
+            for (const dl of dLines.slice(0, 3)) {
+              page.drawText(dl, { x: margin + 16, y, size: 9, font, color: MUTED });
+              y -= 12;
+            }
+          }
+        }
+        y -= 14;
+
+        if (y < 140) { page = pdf.addPage([595, 842]); y = height - margin; }
+        const tx = width - margin - 200;
+        page.drawText('Subtotaal', { x: tx, y, size: 10, font, color: TEXT });
+        page.drawText(fmtEUR(Number(quote.subtotal)), { x: width - margin - 70, y, size: 10, font, color: TEXT });
+        y -= 14;
+        if (Number(quote.discount_amount) > 0) {
+          page.drawText('Korting', { x: tx, y, size: 10, font, color: TEXT });
+          page.drawText(`- ${fmtEUR(Number(quote.discount_amount))}`, { x: width - margin - 70, y, size: 10, font, color: TEXT });
+          y -= 14;
+        }
+        page.drawText('BTW', { x: tx, y, size: 10, font, color: TEXT });
+        page.drawText(fmtEUR(Number(quote.vat_amount)), { x: width - margin - 70, y, size: 10, font, color: TEXT });
+        y -= 18;
+        page.drawLine({ start: { x: tx, y: y + 6 }, end: { x: width - margin, y: y + 6 }, color: BRAND_BROWN, thickness: 1 });
+        page.drawText('Totaal', { x: tx, y, size: 12, font: fontBold, color: BRAND_BROWN });
+        page.drawText(fmtEUR(Number(quote.total)), { x: width - margin - 70, y, size: 12, font: fontBold, color: BRAND_BROWN });
+      }
     } else {
       // ─── Fallback: generate clean branded PDF from scratch ───
       let page = pdf.addPage([595, 842]);
