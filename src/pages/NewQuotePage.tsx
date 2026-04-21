@@ -183,10 +183,13 @@ export default function NewQuotePage() {
       toast({ title: 'Selecteer een sjabloon', variant: 'destructive' });
       return null;
     }
-    if (!contactName.trim()) {
-      toast({ title: 'Contactpersoon ontbreekt', variant: 'destructive' });
+    // At least one of: contact OR company is required
+    if (!contactName.trim() && !companyName.trim()) {
+      toast({ title: 'Kies een bedrijf of contactpersoon', variant: 'destructive' });
       return null;
     }
+    // Fallback contactName to companyName when only company is chosen
+    const effectiveContactName = contactName.trim() || companyName.trim();
     const tplCb = selectedTemplate.contentBlocks as any;
     // Templates may store the PDF under different field names depending on
     // which editor uploaded it. Use any of them as a fallback.
