@@ -50,6 +50,7 @@ export default function PublicQuotePage() {
   const [resolvedBlocks, setResolvedBlocks] = useState<any[]>([]);
   const [lineItems, setLineItems] = useState<LineItem[]>([]);
   const [signature, setSignature] = useState<string>('');
+  const [sigPadOpen, setSigPadOpen] = useState(false);
 
   useEffect(() => {
     if (!token) return;
