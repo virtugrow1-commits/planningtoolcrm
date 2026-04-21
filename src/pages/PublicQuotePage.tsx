@@ -7,8 +7,11 @@ import { supabase } from '@/integrations/supabase/client';
 import { format } from 'date-fns';
 import { nl } from 'date-fns/locale';
 import DocumentViewer from '@/components/quotation/DocumentViewer';
+import TemplatePreview from '@/components/quotation/TemplatePreview';
+import SignaturePad from '@/components/pdf-editor/SignaturePad';
 import { resolveBlocksMergeTags } from '@/lib/mergeTags';
 import type { MergeTagData } from '@/lib/mergeTags';
+import type { LineItem } from '@/types/quotation';
 
 interface PublicQuote {
   id: string;
