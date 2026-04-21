@@ -9,11 +9,18 @@ import { useContactsContext } from '@/contexts/ContactsContext';
 interface ContactSelectorProps {
   value?: string;
   onChange: (contactId: string, contactName: string, companyId?: string, companyName?: string, email?: string) => void;
+  /** When set, only contacts linked to this company are shown. */
+  filterCompanyId?: string;
 }
 
-export default function ContactSelector({ value, onChange }: ContactSelectorProps) {
+export default function ContactSelector({ value, onChange, filterCompanyId }: ContactSelectorProps) {
   const [open, setOpen] = useState(false);
   const { contacts } = useContactsContext();
+
+  const filteredContacts = useMemo(() => {
+    if (!filterCompanyId) return contacts;
+    return contacts.filter((c) => c.companyId === filterCompanyId);
+  }, [contacts, filterCompanyId]);
 
   const selected = useMemo(
     () => contacts.find((c) => c.id === value),
@@ -31,7 +38,9 @@ export default function ContactSelector({ value, onChange }: ContactSelectorProp
               {selected.company && <span className="text-xs text-muted-foreground">({selected.company})</span>}
             </span>
           ) : (
-            <span className="text-muted-foreground">Selecteer contactpersoon...</span>
+            <span className="text-muted-foreground">
+              {filterCompanyId ? 'Selecteer contactpersoon van dit bedrijf...' : 'Selecteer contactpersoon...'}
+            </span>
           )}
           <ChevronsUpDown size={14} className="text-muted-foreground" />
         </Button>
@@ -40,9 +49,11 @@ export default function ContactSelector({ value, onChange }: ContactSelectorProp
         <Command>
           <CommandInput placeholder="Zoek contactpersoon..." />
           <CommandList>
-            <CommandEmpty>Geen resultaten.</CommandEmpty>
+            <CommandEmpty>
+              {filterCompanyId ? 'Geen contactpersonen voor dit bedrijf.' : 'Geen resultaten.'}
+            </CommandEmpty>
             <CommandGroup>
-              {contacts.slice(0, 50).map((c) => (
+              {filteredContacts.slice(0, 100).map((c) => (
                 <CommandItem
                   key={c.id}
                   value={`${c.firstName} ${c.lastName} ${c.company || ''} ${c.email}`}
