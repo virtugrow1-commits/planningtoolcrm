@@ -251,8 +251,22 @@ export default function PublicQuotePage() {
           </Card>
         )}
 
-        {/* Block-based document */}
-        {resolvedBlocks.length > 0 ? (
+        {/* Block-based document — render with PDF background like the editor preview */}
+        {resolvedBlocks.length > 0 && quote.pdf_url ? (
+          <div className="bg-white rounded-md border border-border/40 p-4 sm:p-6">
+            <TemplatePreview
+              pdfUrl={quote.pdf_url}
+              blocks={resolvedBlocks as any}
+              lineItems={lineItems}
+              totals={{
+                subtotal: quote.subtotal,
+                vatAmount: quote.vat_amount,
+                discountAmount: quote.discount_amount,
+                total: quote.total,
+              }}
+            />
+          </div>
+        ) : resolvedBlocks.length > 0 ? (
           <DocumentViewer
             blocks={resolvedBlocks}
             onSignatureCapture={
@@ -269,6 +283,29 @@ export default function PublicQuotePage() {
             checkboxValues={checkboxValues}
           />
         ) : null}
+
+        {/* Signature section — when using PDF preview, capture signature here */}
+        {!responded && quote.pdf_url && resolvedBlocks.some((b: any) => b.type === 'signature') && (
+          <Card>
+            <CardContent className="pt-6 space-y-3">
+              <h3 className="text-sm font-semibold text-foreground">Uw handtekening</h3>
+              <p className="text-xs text-muted-foreground">
+                Plaats hieronder uw handtekening om akkoord te geven.
+              </p>
+              <SignaturePad
+                value={signature}
+                onChange={(data) => {
+                  setSignature(data);
+                  const sigIds: Record<string, string> = {};
+                  resolvedBlocks.forEach((b: any) => {
+                    if (b.type === 'signature') sigIds[b.id] = data;
+                  });
+                  setSignatureValues((p) => ({ ...p, ...sigIds }));
+                }}
+              />
+            </CardContent>
+          </Card>
+        )}
 
         {/* Terms (legacy / template-level) */}
         {quote.terms_and_conditions && (
