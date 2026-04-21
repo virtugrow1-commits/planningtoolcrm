@@ -303,22 +303,34 @@ async function syncCalendar(supabase: any, ghlHeaders: any, locationId: string, 
     // Fetch calendars sequentially to respect GHL rate limits
     const allEvents: any[] = [];
     for (const cal of calendars) {
-      try {
-        await delay(300);
-        const eventsUrl = `${GHL_API_BASE}/calendars/events?locationId=${locationId}&calendarId=${cal.id}&startTime=${startDate.getTime()}&endTime=${endDate.getTime()}`;
-        const eventsRes = await fetch(eventsUrl, { headers: ghlHeaders });
-        if (eventsRes.ok) {
-          const eventsData = await eventsRes.json();
-          const events = eventsData.events || [];
-          console.log(`Calendar "${cal.name}": ${events.length} events`);
-          allEvents.push(...events.map((e: any) => ({ ...e, calendarName: cal.name, calendarId: cal.id })));
-        } else if (eventsRes.status === 429) {
-          console.warn(`Calendar "${cal.name}" rate limited, waiting 5s...`);
-          await delay(5000);
-        } else {
-          console.error(`Calendar "${cal.name}" error: ${eventsRes.status}`);
+      let attempt = 0;
+      const maxAttempts = 3;
+      while (attempt < maxAttempts) {
+        try {
+          await delay(300);
+          const eventsUrl = `${GHL_API_BASE}/calendars/events?locationId=${locationId}&calendarId=${cal.id}&startTime=${startDate.getTime()}&endTime=${endDate.getTime()}`;
+          const eventsRes = await fetch(eventsUrl, { headers: ghlHeaders });
+          if (eventsRes.ok) {
+            const eventsData = await eventsRes.json();
+            const events = eventsData.events || [];
+            console.log(`Calendar "${cal.name}"${cal.isActive === false ? ' [inactive]' : ''}: ${events.length} events`);
+            allEvents.push(...events.map((e: any) => ({ ...e, calendarName: cal.name, calendarId: cal.id })));
+            break;
+          } else if (eventsRes.status === 429 || eventsRes.status >= 500) {
+            attempt++;
+            const wait = 1000 * Math.pow(2, attempt); // 2s, 4s, 8s
+            console.warn(`Calendar "${cal.name}" ${eventsRes.status}, retry ${attempt}/${maxAttempts} after ${wait}ms`);
+            await delay(wait);
+          } else {
+            console.error(`Calendar "${cal.name}" error: ${eventsRes.status}`);
+            break;
+          }
+        } catch (e) {
+          attempt++;
+          console.error(`Calendar "${cal.name}" fetch error (attempt ${attempt}):`, e);
+          if (attempt < maxAttempts) await delay(1000 * attempt);
         }
-      } catch (e) { console.error(`Calendar "${cal.name}" fetch error:`, e); }
+      }
     }
     console.log(`Total events from GHL: ${allEvents.length}`);
 
