@@ -1604,6 +1604,11 @@ Deno.serve(async (req) => {
 
         if (syncSuccess) {
           return new Response(JSON.stringify({ success: true }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+        } else if (calendarInactive) {
+          // Benign skip — calendar is disabled in GHL. Local save proceeds, no retry queued.
+          return new Response(JSON.stringify({ success: true, skipped: 'calendar_inactive' }), {
+            status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
         } else {
           return new Response(JSON.stringify({ success: false, error: 'Both appointment and block-slots creation failed' }), {
             status: 502, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
