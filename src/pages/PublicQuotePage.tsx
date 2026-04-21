@@ -114,6 +114,7 @@ export default function PublicQuotePage() {
           discountPercent: Number(li.discount_percent || 0),
           vatRate: Number(li.vat_rate),
           lineTotal: Number(li.line_total),
+          sortOrder: Number(li.sort_order || 0),
         })));
       }
 
