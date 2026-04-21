@@ -7,8 +7,11 @@ import { supabase } from '@/integrations/supabase/client';
 import { format } from 'date-fns';
 import { nl } from 'date-fns/locale';
 import DocumentViewer from '@/components/quotation/DocumentViewer';
+import TemplatePreview from '@/components/quotation/TemplatePreview';
+import SignaturePad from '@/components/pdf-editor/SignaturePad';
 import { resolveBlocksMergeTags } from '@/lib/mergeTags';
 import type { MergeTagData } from '@/lib/mergeTags';
+import type { LineItem } from '@/types/quotation';
 
 interface PublicQuote {
   id: string;
@@ -45,6 +48,9 @@ export default function PublicQuotePage() {
   const [signatureValues, setSignatureValues] = useState<Record<string, string>>({});
   const [checkboxValues, setCheckboxValues] = useState<Record<string, boolean>>({});
   const [resolvedBlocks, setResolvedBlocks] = useState<any[]>([]);
+  const [lineItems, setLineItems] = useState<LineItem[]>([]);
+  const [signature, setSignature] = useState<string>('');
+  const [sigPadOpen, setSigPadOpen] = useState(false);
 
   useEffect(() => {
     if (!token) return;
@@ -91,6 +97,26 @@ export default function PublicQuotePage() {
           },
         };
         setResolvedBlocks(resolveBlocksMergeTags(rawBlocks, mergeData));
+      }
+
+      // Fetch line items so the product table appears in the preview
+      const { data: items } = await supabase
+        .from('quote_line_items')
+        .select('*')
+        .eq('quote_id', q.id)
+        .order('sort_order');
+      if (items) {
+        setLineItems(items.map((li: any) => ({
+          id: li.id,
+          itemName: li.item_name,
+          description: li.description || '',
+          quantity: Number(li.quantity),
+          unitPrice: Number(li.unit_price),
+          discountPercent: Number(li.discount_percent || 0),
+          vatRate: Number(li.vat_rate),
+          lineTotal: Number(li.line_total),
+          sortOrder: Number(li.sort_order || 0),
+        })));
       }
 
       setLoading(false);
@@ -226,8 +252,22 @@ export default function PublicQuotePage() {
           </Card>
         )}
 
-        {/* Block-based document */}
-        {resolvedBlocks.length > 0 ? (
+        {/* Block-based document — render with PDF background like the editor preview */}
+        {resolvedBlocks.length > 0 && quote.pdf_url ? (
+          <div className="bg-white rounded-md border border-border/40 p-4 sm:p-6">
+            <TemplatePreview
+              pdfUrl={quote.pdf_url}
+              blocks={resolvedBlocks as any}
+              lineItems={lineItems}
+              totals={{
+                subtotal: quote.subtotal,
+                vatAmount: quote.vat_amount,
+                discountAmount: quote.discount_amount,
+                total: quote.total,
+              }}
+            />
+          </div>
+        ) : resolvedBlocks.length > 0 ? (
           <DocumentViewer
             blocks={resolvedBlocks}
             onSignatureCapture={
@@ -244,6 +284,43 @@ export default function PublicQuotePage() {
             checkboxValues={checkboxValues}
           />
         ) : null}
+
+        {/* Signature section — when using PDF preview, capture signature here */}
+        {!responded && quote.pdf_url && resolvedBlocks.some((b: any) => b.type === 'signature') && (
+          <Card>
+            <CardContent className="pt-6 space-y-3">
+              <h3 className="text-sm font-semibold text-foreground">Uw handtekening</h3>
+              <p className="text-xs text-muted-foreground">
+                Plaats hieronder uw handtekening om akkoord te geven.
+              </p>
+              {signature ? (
+                <div className="border rounded p-2 bg-muted/30">
+                  <img src={signature} alt="Handtekening" className="max-h-24" />
+                  <Button size="sm" variant="ghost" onClick={() => { setSignature(''); setSignatureValues({}); }}>
+                    Opnieuw
+                  </Button>
+                </div>
+              ) : (
+                <Button size="sm" variant="outline" onClick={() => setSigPadOpen(true)}>
+                  Handtekening plaatsen
+                </Button>
+              )}
+              <SignaturePad
+                open={sigPadOpen}
+                onClose={() => setSigPadOpen(false)}
+                onSave={(data) => {
+                  setSignature(data);
+                  const sigIds: Record<string, string> = {};
+                  resolvedBlocks.forEach((b: any) => {
+                    if (b.type === 'signature') sigIds[b.id] = data;
+                  });
+                  setSignatureValues((p) => ({ ...p, ...sigIds }));
+                  setSigPadOpen(false);
+                }}
+              />
+            </CardContent>
+          </Card>
+        )}
 
         {/* Terms (legacy / template-level) */}
         {quote.terms_and_conditions && (

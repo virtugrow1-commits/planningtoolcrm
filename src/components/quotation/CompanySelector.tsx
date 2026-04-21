@@ -1,17 +1,11 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import { Check, ChevronsUpDown, Building2, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
-
-interface CompanyOption {
-  id: string;
-  name: string;
-  email: string | null;
-  city: string | null;
-}
+import { useCompaniesContext } from '@/contexts/CompaniesContext';
 
 interface CompanySelectorProps {
   value?: string;
@@ -20,14 +14,7 @@ interface CompanySelectorProps {
 
 export default function CompanySelector({ value, onChange }: CompanySelectorProps) {
   const [open, setOpen] = useState(false);
-  const [companies, setCompanies] = useState<CompanyOption[]>([]);
-
-  useEffect(() => {
-    supabase.from('companies')
-      .select('id, name, email, city')
-      .order('name')
-      .then(({ data }) => setCompanies((data as any) || []));
-  }, []);
+  const { companies } = useCompaniesContext();
 
   const selected = useMemo(
     () => companies.find((c) => c.id === value),
@@ -57,7 +44,7 @@ export default function CompanySelector({ value, onChange }: CompanySelectorProp
             <CommandList>
               <CommandEmpty>Geen resultaten.</CommandEmpty>
               <CommandGroup>
-                {companies.slice(0, 100).map((c) => (
+                {companies.map((c) => (
                   <CommandItem
                     key={c.id}
                     value={`${c.name} ${c.email || ''} ${c.city || ''}`}
