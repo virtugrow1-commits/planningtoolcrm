@@ -53,7 +53,7 @@ export default function ContactSelector({ value, onChange, filterCompanyId }: Co
               {filterCompanyId ? 'Geen contactpersonen voor dit bedrijf.' : 'Geen resultaten.'}
             </CommandEmpty>
             <CommandGroup>
-              {contacts.slice(0, 50).map((c) => (
+              {filteredContacts.slice(0, 100).map((c) => (
                 <CommandItem
                   key={c.id}
                   value={`${c.firstName} ${c.lastName} ${c.company || ''} ${c.email}`}
