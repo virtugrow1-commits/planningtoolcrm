@@ -383,7 +383,7 @@ async function syncCalendar(supabase: any, ghlHeaders: any, locationId: string, 
         const contactName = evt.contact?.name || evt.title || evt.calendarName || 'GHL Afspraak';
         const title = evt.title || evt.name || evt.calendarName || 'GHL Afspraak';
         const evtStatus = (evt.status === 'confirmed' || evt.appointmentStatus === 'confirmed') ? 'confirmed' : 'option';
-        const roomName = calIdToRoom[evt.calendarId] || evt.calendarName || 'Ontmoeten Aan de Donge';
+        const roomName = calIdToRoom[evt.calendarId] || evt.calendarName || 'Onbekende ruimte';
 
         const existing = bookingByGhlId.get(evt.id);
         if (existing) {
