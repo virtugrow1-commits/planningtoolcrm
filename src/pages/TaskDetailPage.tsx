@@ -46,7 +46,9 @@ export default function TaskDetailPage() {
   const [followTitle, setFollowTitle] = useState('');
   const [followPriority, setFollowPriority] = useState<Task['priority']>('normal');
   const [followDueDate, setFollowDueDate] = useState<Date | undefined>();
+  const [followAssignedTo, setFollowAssignedTo] = useState<string | undefined>();
   const [followAdding, setFollowAdding] = useState(false);
+  const [followAttempted, setFollowAttempted] = useState(false);
 
   const contact = useMemo(() => task?.contactId ? contacts.find(c => c.id === task.contactId) : null, [task, contacts]);
   const company = useMemo(() => task?.companyId ? companies.find(c => c.id === task.companyId) : null, [task, companies]);
@@ -103,6 +105,8 @@ export default function TaskDetailPage() {
       setFollowTitle('');
       setFollowPriority('normal');
       setFollowDueDate(undefined);
+      setFollowAssignedTo(task.assignedTo);
+      setFollowAttempted(false);
       setShowFollowUp(true);
     }
     toast({ title: newStatus === 'completed' ? 'Taak afgerond' : 'Taak heropend' });
@@ -115,16 +119,16 @@ export default function TaskDetailPage() {
   };
 
   const handleFollowUp = async () => {
-    if (!followTitle.trim()) return;
+    setFollowAttempted(true);
+    if (!followTitle.trim() || !followDueDate) return;
     setFollowAdding(true);
-    const dueDate = followDueDate
-      ? `${followDueDate.getFullYear()}-${String(followDueDate.getMonth() + 1).padStart(2, '0')}-${String(followDueDate.getDate()).padStart(2, '0')}`
-      : undefined;
+    const dueDate = `${followDueDate.getFullYear()}-${String(followDueDate.getMonth() + 1).padStart(2, '0')}-${String(followDueDate.getDate()).padStart(2, '0')}`;
     await addTask({
       title: followTitle.trim(),
       status: 'open',
       priority: followPriority,
       dueDate,
+      assignedTo: followAssignedTo,
       contactId: task.contactId,
       companyId: task.companyId,
       inquiryId: task.inquiryId,
@@ -343,6 +347,8 @@ export default function TaskDetailPage() {
             setFollowTitle('');
             setFollowPriority('normal');
             setFollowDueDate(undefined);
+            setFollowAssignedTo(task.assignedTo);
+            setFollowAttempted(false);
             setShowFollowUp(true);
           }}>
             <p className="text-xs text-muted-foreground">Maak een vervolgtaak aan met dezelfde koppelingen.</p>
@@ -376,11 +382,27 @@ export default function TaskDetailPage() {
                   ))}
                 </SelectContent>
               </Select>
+              <div className="w-[170px]">
+                <TeamMemberSelect
+                  value={followAssignedTo}
+                  onValueChange={setFollowAssignedTo}
+                  placeholder="Verantwoordelijke"
+                  className="h-8 text-xs"
+                />
+              </div>
               <Popover>
                 <PopoverTrigger asChild>
-                  <Button variant="outline" size="sm" className={cn('h-8 text-xs gap-1.5', !followDueDate && 'text-muted-foreground')}>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className={cn(
+                      'h-8 text-xs gap-1.5',
+                      !followDueDate && 'text-muted-foreground',
+                      followAttempted && !followDueDate && 'border-destructive ring-1 ring-destructive'
+                    )}
+                  >
                     <CalendarIcon size={12} />
-                    {followDueDate ? format(followDueDate, 'd MMM yyyy', { locale: nl }) : 'Datum'}
+                    {followDueDate ? format(followDueDate, 'd MMM yyyy', { locale: nl }) : 'Datum *'}
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent className="w-auto p-0" align="start">
@@ -388,10 +410,13 @@ export default function TaskDetailPage() {
                 </PopoverContent>
               </Popover>
             </div>
+            {followAttempted && !followDueDate && (
+              <p className="text-xs text-destructive">Datum is verplicht voor een vervolgtaak.</p>
+            )}
           </div>
           <DialogFooter className="gap-2 sm:gap-0">
             <Button variant="ghost" size="sm" onClick={() => setShowFollowUp(false)}>Sluiten</Button>
-            <Button size="sm" onClick={handleFollowUp} disabled={followAdding || !followTitle.trim()}>Aanmaken</Button>
+            <Button size="sm" onClick={handleFollowUp} disabled={followAdding || !followTitle.trim() || !followDueDate}>Aanmaken</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

@@ -386,6 +386,30 @@ export default function SettingsPage() {
                 <Button size="sm" disabled={syncing} onClick={() => handleSync('full-sync')}>
                   <RefreshCw size={14} className={`mr-1.5 ${syncing ? 'animate-spin' : ''}`} /> Volledige Sync
                 </Button>
+                <Button
+                  variant="default"
+                  size="sm"
+                  disabled={syncing}
+                  onClick={async () => {
+                    setSyncing(true);
+                    try {
+                      const { data, error } = await supabase.functions.invoke('ghl-auto-sync', {
+                        body: { trigger: 'manual', scope: 'full' },
+                      });
+                      if (error) throw error;
+                      toast({
+                        title: '✅ Kalender-sync gestart',
+                        description: 'De achtergrond-sync verwerkt alle kalenders (incl. inactieve). Ververs over ~30s.',
+                      });
+                    } catch (e: any) {
+                      toast({ title: 'Sync mislukt', description: e.message, variant: 'destructive' });
+                    } finally {
+                      setSyncing(false);
+                    }
+                  }}
+                >
+                  <RefreshCw size={14} className={`mr-1.5 ${syncing ? 'animate-spin' : ''}`} /> Synchroniseer kalender nu
+                </Button>
               </div>
               <div className="flex items-center gap-2 text-xs text-muted-foreground">
                 <span className="relative flex h-2.5 w-2.5">

@@ -344,6 +344,11 @@ export default function DayGridView({
                                 {formatTime(b.startHour, b.startMinute || 0)}–{formatTime(b.endHour, b.endMinute || 0)}
                               </div>
                             )}
+                            {height >= 44 && (b.roomSetup || b.guestCount) && (
+                              <div className="text-[8px] opacity-60 truncate">
+                                {[b.roomSetup, b.guestCount ? `${b.guestCount} gasten` : null].filter(Boolean).join(' · ')}
+                              </div>
+                            )}
                           </div>
                         </div>
                       </div>

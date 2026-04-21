@@ -97,9 +97,12 @@ export default function WeekView({ currentDate, bookings, onDayClick, onBookingC
                             : 'bg-warning/20 text-warning-foreground border-l-2 border-warning'
                         )}
                         onClick={(e) => { e.stopPropagation(); onBookingClick(b); }}
-                        title={`${b.title} (${getRoomDisplayName(b.roomName)})`}
+                        title={`${b.title} (${getRoomDisplayName(b.roomName)})${b.roomSetup ? ` · ${b.roomSetup}` : ''}${b.guestCount ? ` · ${b.guestCount} gasten` : ''}`}
                       >
-                        {b.title}
+                        <div className="truncate">{b.title}</div>
+                        {b.roomSetup && (
+                          <div className="text-[8px] opacity-70 truncate">{b.roomSetup}{b.guestCount ? ` · ${b.guestCount}` : ''}</div>
+                        )}
                       </div>
                     ))}
                   </td>

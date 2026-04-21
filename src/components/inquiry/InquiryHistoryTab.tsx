@@ -57,7 +57,11 @@ export default function InquiryHistoryTab({ inquiry, contactBookings, companyBoo
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
-                  <span className="text-muted-foreground">{b.roomName}</span>
+                  <span className="text-muted-foreground">
+                    {b.roomName}
+                    {b.roomSetup && <span className="ml-1">· {b.roomSetup}</span>}
+                    {b.guestCount ? <span className="ml-1">· {b.guestCount} gasten</span> : null}
+                  </span>
                   <Badge variant="secondary" className={cn('text-[10px]', b.date < todayStr ? 'bg-muted text-muted-foreground' : b.status === 'confirmed' ? 'bg-success/10 text-success' : 'bg-warning/10 text-warning')}>
                     {b.date < todayStr ? 'Afgelopen' : b.status === 'confirmed' ? 'Bevestigd' : 'Optie'}
                   </Badge>
@@ -91,7 +95,11 @@ export default function InquiryHistoryTab({ inquiry, contactBookings, companyBoo
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
-                  <span className="text-muted-foreground">{b.roomName}</span>
+                  <span className="text-muted-foreground">
+                    {b.roomName}
+                    {b.roomSetup && <span className="ml-1">· {b.roomSetup}</span>}
+                    {b.guestCount ? <span className="ml-1">· {b.guestCount} gasten</span> : null}
+                  </span>
                   <Badge variant="secondary" className={cn('text-[10px]', b.date < todayStr ? 'bg-muted text-muted-foreground' : b.status === 'confirmed' ? 'bg-success/10 text-success' : 'bg-warning/10 text-warning')}>
                     {b.date < todayStr ? 'Afgelopen' : b.status === 'confirmed' ? 'Bevestigd' : 'Optie'}
                   </Badge>

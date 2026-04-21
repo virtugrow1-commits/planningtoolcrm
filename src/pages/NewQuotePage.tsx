@@ -183,10 +183,13 @@ export default function NewQuotePage() {
       toast({ title: 'Selecteer een sjabloon', variant: 'destructive' });
       return null;
     }
-    if (!contactName.trim()) {
-      toast({ title: 'Contactpersoon ontbreekt', variant: 'destructive' });
+    // At least one of: contact OR company is required
+    if (!contactName.trim() && !companyName.trim()) {
+      toast({ title: 'Kies een bedrijf of contactpersoon', variant: 'destructive' });
       return null;
     }
+    // Fallback contactName to companyName when only company is chosen
+    const effectiveContactName = contactName.trim() || companyName.trim();
     const tplCb = selectedTemplate.contentBlocks as any;
     // Templates may store the PDF under different field names depending on
     // which editor uploaded it. Use any of them as a fallback.
@@ -198,7 +201,7 @@ export default function NewQuotePage() {
         templateId: selectedTemplate.id,
         contactId: contactId || undefined,
         companyId: companyId || undefined,
-        contactName,
+        contactName: effectiveContactName,
         companyName: companyName || undefined,
         clientEmail: clientEmail || undefined,
         clientAddress: clientAddress || undefined,
@@ -221,8 +224,8 @@ export default function NewQuotePage() {
 
   /** Generate the exact PDF the client will receive and open it in a new tab. */
   const handleDownloadPreview = async () => {
-    if (!selectedTemplate || !contactName.trim()) {
-      toast({ title: 'Vul eerst klantnaam en sjabloon in', variant: 'destructive' });
+    if (!selectedTemplate || (!contactName.trim() && !companyName.trim())) {
+      toast({ title: 'Vul eerst een bedrijf of contactpersoon en sjabloon in', variant: 'destructive' });
       return;
     }
     setDownloadingPreview(true);
