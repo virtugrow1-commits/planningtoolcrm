@@ -61,6 +61,7 @@ interface NewReservationDialogProps {
   initialRoom?: RoomName;
   initialDate?: string;
   prefill?: ReservationPrefill;
+  initialStatus?: 'confirmed' | 'option';
 }
 
 const ROOM_SETUPS = [
@@ -82,7 +83,7 @@ const emptyContactForm: NewContactForm = { firstName: '', lastName: '', email: '
 
 export default function NewReservationDialog({
   open, onOpenChange, onSubmit, contacts, contactsLoading, companies = [], conflictAlert, getRoomDisplayName,
-  initialStartHour, initialRoom, initialDate, prefill
+  initialStartHour, initialRoom, initialDate, prefill, initialStatus = 'confirmed',
 }: NewReservationDialogProps) {
   const { user } = useAuth();
   const { toast } = useToast();
@@ -98,7 +99,7 @@ export default function NewReservationDialog({
     endHour: (initialStartHour ?? 9) + 3,
     endMinute: 0,
     title: '',
-    status: 'confirmed',
+    status: initialStatus,
     repeatType: 'eenmalig',
     repeatCount: 1,
     specificDates: [],
@@ -153,7 +154,7 @@ export default function NewReservationDialog({
         endHour: eH,
         endMinute: eM,
         title: prefill?.title || '',
-        status: 'confirmed',
+        status: initialStatus,
         repeatType: 'eenmalig',
         repeatCount: 1,
         specificDates: [],
