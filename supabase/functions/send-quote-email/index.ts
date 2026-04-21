@@ -55,7 +55,7 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Generate PDF (call our own function)
+    // Generate PDF (call our own function) — only returns pdfUrl now
     const pdfRes = await fetch(`${SUPABASE_URL}/functions/v1/generate-quote-pdf`, {
       method: 'POST',
       headers: {
@@ -70,7 +70,21 @@ Deno.serve(async (req) => {
         status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
-    const { pdfBase64, filename } = await pdfRes.json();
+    const { pdfUrl, filename } = await pdfRes.json();
+
+    // Download the PDF from storage and base64-encode it for the email attachment
+    let pdfBase64 = '';
+    if (pdfUrl) {
+      const pdfDownload = await fetch(pdfUrl);
+      if (pdfDownload.ok) {
+        const buf = new Uint8Array(await pdfDownload.arrayBuffer());
+        let bin = '';
+        for (let i = 0; i < buf.length; i += 0x8000) {
+          bin += String.fromCharCode.apply(null, Array.from(buf.subarray(i, i + 0x8000)));
+        }
+        pdfBase64 = btoa(bin);
+      }
+    }
 
     // Build public link
     const origin = req.headers.get('origin') || 'https://planningtoolcrm.lovable.app';
