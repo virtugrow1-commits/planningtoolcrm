@@ -187,6 +187,9 @@ export default function NewQuotePage() {
       return null;
     }
     const tplCb = selectedTemplate.contentBlocks as any;
+    // Templates may store the PDF under different field names depending on
+    // which editor uploaded it. Use any of them as a fallback.
+    const templatePdfUrl = tplCb?.pdfUrl || tplCb?.pdfBackgroundUrl || tplCb?.editorPdfUrl || undefined;
 
     return await createQuote(
       {
@@ -202,7 +205,7 @@ export default function NewQuotePage() {
         validUntil: validUntil || undefined,
         contentBlocks: resolvedBlocks,
         // Carry over the template's PDF + overlay so the email attachment uses it
-        pdfUrl: tplCb?.pdfUrl || undefined,
+        pdfUrl: templatePdfUrl,
         overlayFields: tplCb?.overlayFields || [],
         subtotal: fin.subtotal,
         vatAmount: fin.vatAmount,
@@ -211,6 +214,33 @@ export default function NewQuotePage() {
       },
       effectiveLineItems
     );
+  };
+
+  const [downloadingPreview, setDownloadingPreview] = useState(false);
+
+  /** Generate the exact PDF the client will receive and open it in a new tab. */
+  const handleDownloadPreview = async () => {
+    if (!selectedTemplate || !contactName.trim()) {
+      toast({ title: 'Vul eerst klantnaam en sjabloon in', variant: 'destructive' });
+      return;
+    }
+    setDownloadingPreview(true);
+    try {
+      const q = await persistQuote();
+      if (!q) return;
+      const { data, error } = await supabase.functions.invoke('generate-quote-pdf', {
+        body: { quoteId: q.id },
+      });
+      if (error) throw error;
+      const url = (data as any)?.pdfUrl;
+      if (url) window.open(url, '_blank');
+      toast({ title: 'Voorbeeld gegenereerd', description: 'De offerte is opgeslagen als concept.' });
+      navigate(`/quotes/${q.id}`);
+    } catch (e: any) {
+      toast({ title: 'Fout bij genereren voorbeeld', description: e.message, variant: 'destructive' });
+    } finally {
+      setDownloadingPreview(false);
+    }
   };
 
   const handleSaveDraft = async () => {
