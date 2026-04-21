@@ -263,7 +263,7 @@ export default function QuoteDetailPage() {
             </Button>
           )}
 
-          <QuotePreviewDialog quote={quote} contentBlocks={contentBlocks} />
+          <QuotePreviewDialog quote={quote} contentBlocks={contentBlocks} lineItems={lineItems} />
 
           <Button variant="outline" size="sm" onClick={handleDuplicate} className="gap-1.5">
             <Copy size={14} /> Dupliceer
