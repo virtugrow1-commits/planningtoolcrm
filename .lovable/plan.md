@@ -2,88 +2,64 @@
 
 ## Doel
 
-Vijf afzonderlijke verbeteringen om de app betrouwbaarder te maken voor dagelijks gebruik:
+Twee verbeteringen aan de offerte-flow:
 
-1. **Bedrijven los kunnen koppelen** aan documenten/offertes (zonder verplicht een contactpersoon te kiezen).
-2. **Kalender-synchronisatie** verbeteren zodat ontbrekende reserveringen (zoals Praktijksteun en Reanimatiecursus) wel zichtbaar worden in de app.
-3. **Vervolgtaak-dialoog**: keuzeveld "Verantwoordelijke" toevoegen (Sjors / Iris).
-4. **Datum verplicht** maken bij vervolgtaken (en bij standaard taak-aanmaken).
-5. **Zaalopstelling** consistent tonen in alle reserveringsweergaven (lijst, detail, kaart op kalender).
+1. **PDF-achtergrond uit het sjabloon** moet zichtbaar zijn in álle weergaven (voorbeeld in de app, klantportaal én e-mailbijlage). Nu zie je in het voorbeeld alleen de tekstblokken op een witte pagina.
+2. **Bedrijven en contactpersonen selectors** tonen niet de volledige CRM-lijst — er zit een verborgen limiet van 100 op de dropdown waardoor de meeste opties ontbreken.
 
 ---
 
-## 1. Bedrijven selecteren bij offertes/documenten
+## 1. PDF-achtergrond overal zichtbaar
 
-**Probleem:** In `NewQuotePage` is de `CompanySelector` al aanwezig, maar `ContactSelector` resette eerder de keuze. We zorgen dat:
-- Een offerte opgeslagen kan worden met **alleen een bedrijf** (zonder contact).
-- Het bedrijfsveld blijft staan ook als geen contact wordt gekozen.
+### Huidige situatie
+| Plek | PDF-achtergrond zichtbaar? |
+|---|---|
+| Sjabloon-editor | ✅ ja |
+| Nieuwe offerte preview (`NewQuotePage`) | ✅ ja (gebruikt `TemplatePreview`) |
+| Offerte-detail preview-dialog (`QuotePreviewDialog`) | ✅ ja |
+| **Klantportaal (`/quote/view/:token`)** | ❌ **nee** — gebruikt `DocumentViewer` zonder PDF |
+| **E-mailbijlage (PDF)** | ⚠️ deels — werkt alleen als `quote.pdf_url` is gevuld |
 
-**Bestanden:**
-- `src/pages/NewQuotePage.tsx` — validatie aanpassen: minimaal één van (bedrijf | contact) verplicht in plaats van contact verplicht.
-- `src/hooks/useQuotes.ts` / `src/types/quotation.ts` — `contactId` als optioneel behandelen.
-- `src/pages/QuoteDetailPage.tsx` — fallback weergave: als geen contact, toon enkel bedrijfsnaam in de header en op de PDF.
-- Merge tags: `{{contact.name}}` valt terug op bedrijfsnaam wanneer leeg.
+### Aanpassingen
 
----
+**A. Klantportaal — `src/pages/PublicQuotePage.tsx`**
+- `DocumentViewer` vervangen door `TemplatePreview` zodat de klant exact dezelfde PDF-layout met overlay-blokken ziet als in de interne preview.
+- De velden `pdf_url`, `content_blocks` en (indien aanwezig) `lineItems` doorgeven aan `TemplatePreview`.
+- Handtekening- en checkbox-interactie blijft bovenop de preview werken via een aparte sectie onder het document (huidige logica behouden).
 
-## 2. Kalender-synchronisatie betrouwbaarder
+**B. PDF-bijlage — `src/pages/NewQuotePage.tsx`**
+- In `persistQuote()` is `pdfUrl: templatePdfUrl` al doorgegeven, maar als `tplCb?.pdfUrl` leeg is wordt `undefined` gestuurd. We hebben een fallback nodig die ook kijkt naar `pdfBackgroundUrl` en `editorPdfUrl`. Deze fallback bestaat al in regel 196, dus dit werkt — **maar** we voegen een extra check toe: als de sjabloon wél een PDF heeft maar de offerte hem nog niet, vullen we hem alsnog in tijdens de PDF-generatie.
 
-**Diagnose:** De edge function `ghl-auto-sync` haalt events per kalender op (regel 304), maar:
-- Kalenders met `isActive: false` worden volledig overgeslagen — afspraken in inactieve kalenders verschijnen niet.
-- Het tijdvenster is `startDate = nu` — historische events van gisteren worden gemist bij een eerste sync na een tijdje.
-- Er is geen retry bij timeouts/429.
+**C. PDF-generatie — `supabase/functions/generate-quote-pdf/index.ts`**
+- Reeds correct: als `quote.pdf_url` leeg is, fetcht hij de template via `quote.template_id` en gebruikt `tpl.content_blocks.pdfUrl`. We voegen dezelfde fallback voor `pdfBackgroundUrl` / `editorPdfUrl` toe.
 
-**Aanpassingen `supabase/functions/ghl-auto-sync/index.ts`:**
-- Pull-window verruimen: `startDate.setDate(now.getDate() - 14)` → laatste 14 dagen worden meegenomen.
-- Inactieve kalenders **wel pullen** (alleen pushen blokkeren).
-- Per kalender een retry met backoff bij 429/5xx.
-- Forceer dat `evt.calendarId` zonder mapping toch een booking aanmaakt onder `evt.calendarName` als ruimtenaam (huidige code doet dit, maar valt soms op fallback "Ontmoeten Aan de Donge" — vervangen door `calendarName`).
-
-**Handmatige sync-knop:** voeg in `SettingsPage` een knop "Synchroniseer kalender nu" toe die de edge function direct aanroept en het resultaat toont (aantal opgehaalde events).
+**D. E-mail verzending — `supabase/functions/send-quote-email/index.ts`**
+- Werkt al correct: roept `generate-quote-pdf` aan en hangt de PDF als bijlage. Geen wijziging nodig (DNS-instellingen gebeuren later, nu blijft `contact@ontmoetenaandedonge.nl` als afzender).
 
 ---
 
-## 3. Vervolgtaak-dialoog: keuzeveld "Verantwoordelijke"
+## 2. Volledige bedrijven/contacten lijst
 
-**Bestand:** `src/pages/TaskDetailPage.tsx` (regel 353-397)
+### Diagnose
+Beide selectors snijden de lijst af op 100 items:
+- `src/components/quotation/CompanySelector.tsx` regel 60: `companies.slice(0, 100)`
+- `src/components/quotation/ContactSelector.tsx` regel 56: `filteredContacts.slice(0, 100)`
 
-- Nieuw state-veld `followAssignedTo`.
-- Voeg `<TeamMemberSelect />` toe naast prioriteit en datum.
-- Default-waarde = `task.assignedTo` (zelfde verantwoordelijke als de oorspronkelijke taak).
-- In `handleFollowUp` (regel 117): `assignedTo: followAssignedTo` meegeven aan `addTask`.
+Daardoor zie je alleen de eerste 100 bedrijven/contacten. Bij honderden CRM-records ontbreekt de rest volledig.
 
-**Layout in dialog:**
-```text
-[ Taakomschrijving ........................................ ]
-[ Prioriteit ▾ ] [ Verantwoordelijke ▾ ] [ 📅 Datum * ]
-                                       Sluiten   Aanmaken
-```
+Bovendien gebruikt `CompanySelector` een eigen Supabase-query zonder paginering, wat bij >1000 bedrijven óók tegen de Supabase 1000-row limit aanloopt.
 
----
+### Aanpassingen
 
-## 4. Datum verplicht maken
+**A. `src/components/quotation/CompanySelector.tsx`**
+- Verwijder `slice(0, 100)` — render alle resultaten (Command-component is virtueel geoptimaliseerd).
+- Vervang de directe Supabase-query door de `CompaniesContext` (die al paginerend álle bedrijven laadt, net als `ContactsContext` voor contacten).
 
-**Bestand:** `src/pages/TaskDetailPage.tsx`
+**B. `src/components/quotation/ContactSelector.tsx`**
+- Verwijder `slice(0, 100)` — `useContactsContext()` levert al de volledige gepagineerde lijst.
 
-- Knop "Aanmaken" `disabled` wanneer `!followTitle.trim() || !followDueDate`.
-- Datumknop krijgt een rode rand wanneer leeg na een aanmaakpoging.
-- Label "Datum *" met asterisk om verplichting visueel aan te geven.
-
-**Consistentie:** ook `InquiryTasksTab.tsx` en de quick-add op de Tasks-pagina krijgen dezelfde verplichting (datum-veld toevoegen indien nog niet aanwezig).
-
----
-
-## 5. Zaalopstelling tonen in alle weergaven
-
-**Status:** Het veld `roomSetup` wordt al opgeslagen en is zichtbaar in `BookingDetailDialog` en `BookingDetailPage`, maar **niet** in:
-- De reserveringen-lijst (`ReserveringenPage`).
-- De compacte kalenderkaart (Day/Week/Month views).
-- De voorbereidings-checklist.
-
-**Aanpassingen:**
-- `src/pages/ReserveringenPage.tsx` — kolom "Opstelling" toevoegen aan de tabel.
-- `src/components/calendar/DayGridView.tsx` & `WeekView.tsx` & `MonthView.tsx` — als `roomSetup` aanwezig is, tonen als kleine regel onder de titel (bijv. `"U-vorm · 24 gasten"`).
-- `src/pages/InquiryDetailPage.tsx` — bij linked bookings de opstelling tonen.
+**C. `src/contexts/CompaniesContext.tsx`** (controleren — naar verwachting al aanwezig)
+- Indien nog niet: gepagineerd ophalen zoals in `ContactsContext` (1000 per batch). Zo niet, dan deze context gebruiken in `CompanySelector`.
 
 ---
 
@@ -91,16 +67,13 @@ Vijf afzonderlijke verbeteringen om de app betrouwbaarder te maken voor dagelijk
 
 | Bestand | Wijziging |
 |---|---|
-| `src/pages/NewQuotePage.tsx` | Bedrijf-only flow toestaan, validatie aanpassen |
-| `src/hooks/useQuotes.ts` | `contact_id` nullable bij insert/update |
-| `src/pages/QuoteDetailPage.tsx` | Fallback-weergave header zonder contact |
-| `supabase/functions/ghl-auto-sync/index.ts` | 14d pull-window, inactive kalenders pullen, retry backoff |
-| `src/pages/SettingsPage.tsx` | Knop "Synchroniseer kalender nu" |
-| `src/pages/TaskDetailPage.tsx` | Verantwoordelijke-veld + datum verplicht in vervolgtaak |
-| `src/components/inquiry/InquiryTasksTab.tsx` | Datum verplicht maken bij quick-add |
-| `src/pages/ReserveringenPage.tsx` | Kolom "Opstelling" |
-| `src/components/calendar/DayGridView.tsx`, `WeekView.tsx`, `MonthView.tsx` | Zaalopstelling tonen op booking-kaart |
-| `src/pages/InquiryDetailPage.tsx` | Opstelling bij gekoppelde reserveringen tonen |
+| `src/pages/PublicQuotePage.tsx` | `DocumentViewer` → `TemplatePreview` met `pdfUrl` en `overlayFields` |
+| `supabase/functions/generate-quote-pdf/index.ts` | Fallback `pdfBackgroundUrl`/`editorPdfUrl` bij template-lookup |
+| `src/components/quotation/CompanySelector.tsx` | `useCompaniesContext()` gebruiken, `slice(0, 100)` weg |
+| `src/components/quotation/ContactSelector.tsx` | `slice(0, 100)` verwijderen |
+| `src/contexts/CompaniesContext.tsx` | Paginering toevoegen indien nodig |
 
-Geen database-migraties nodig — alle velden bestaan al in `bookings.room_setup` en `quotes.contact_id` (al nullable). Geen nieuwe dependencies.
+**Geen wijzigingen** aan database schema, e-mail-infrastructuur of DNS — die volgen later.
+
+**E-mail nu**: blijft via de huidige Lovable Email setup met `contact@ontmoetenaandedonge.nl` als afzender; PDF-bijlage werkt zodra de PDF-fallbacks zijn geïmplementeerd.
 
