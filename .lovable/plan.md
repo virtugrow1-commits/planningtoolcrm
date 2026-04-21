@@ -1,53 +1,83 @@
 
 
-## Plan: Documenten beter, voorbeeld werkend, contactgegevens automatisch
+## Doel
 
-### Wat er nu mis gaat
+Twee verbeteringen voor snellere boekingen vanuit aanvragen:
 
-1. **Adres wordt niet ingevuld** bij contact-selectie als het contact geen gekoppeld bedrijf heeft, of als het bedrijf nog niet in de cache zit.
-2. **Witte voorbeeldpagina**: het sjabloon slaat de PDF-achtergrond op onder de naam `pdfBackgroundUrl` / `editorPdfUrl`, maar de voorbeeld-component zoekt naar `pdfUrl`. Daardoor blijft het wit.
-3. **Producten staan niet in het document**: de regelitems uit de offerte worden alleen getoond in een aparte kaart, maar **niet** in het PDF-voorbeeld of als duidelijk product-overzicht in het document.
-4. **Onduidelijke voorbeeldweergave**: huidige preview toont alleen losse blokken op een witte achtergrond — niet hoe de klant het echt ziet.
+1. **Directe "Maak optie"-knop** op de aanvraagpagina — één klik om een optie aan te maken zonder opnieuw bedrijf/contact/datum in te voeren.
+2. **Contactpersonen filteren op bedrijf** in alle nieuwe-dialoogvensters (Aanvraag, Reservering) — zodra een bedrijf is gekozen, worden alleen contacten van dat bedrijf getoond.
 
-### Wat er gaat veranderen
+---
 
-**1. Voorbeeld werkt direct met PDF-achtergrond**
-- `TemplatePreview` accepteert nu zowel `pdfUrl`, `pdfBackgroundUrl` als `editorPdfUrl` (terugvallen op wat aanwezig is).
-- `NewQuotePage` geeft alle drie de mogelijke velden mee.
-- Effect: zodra een sjabloon met PDF gekozen wordt, zie je in het voorbeeld direct de echte achtergrond.
+## 1. "Maak optie" knop op aanvraag
 
-**2. Producten verschijnen op het document**
-- In de voorbeeldmodal wordt onder de PDF-pagina's een nette **Productentabel** gerenderd met:
-  - Omschrijving (+ subomschrijving)
-  - Aantal · Stukprijs · BTW · Regeltotaal
-  - Subtotaal, BTW, Totaal incl. BTW
-- Dezelfde tabel wordt door de PDF-generator (edge function) op een nieuwe pagina toegevoegd aan de bijlage, ná de sjabloon-pagina's. Zo komen de producten **altijd** in de e-mailbijlage terecht — ook als het sjabloon zelf geen `product-list`-blok bevat.
-- Als het sjabloon wél een `product-list`-blok heeft, wordt die met de gekozen producten gevuld in plaats van extra pagina toe te voegen.
+**Locatie:** `src/components/inquiry/InquiryDetailsTab.tsx` — naast de bestaande "Stadium wijzigen" knop in de actiebalk.
 
-**3. Adres + bedrijfsgegevens automatisch invullen**
-- Bij het kiezen van een contactpersoon wordt het bedrijf direct opgehaald (ook als het nog niet in de lokale cache zit) met:
-  - Adres (straat, postcode, plaats, land)
-  - E-mail van het contact
-  - Bedrijfsnaam, KvK, BTW (voor merge-tags in het sjabloon)
-- Als het contact geen gekoppeld bedrijf heeft, wordt netjes alleen de naam + e-mail ingevuld en blijven de andere velden leeg-bewerkbaar.
+**Gedrag:** Opent `NewReservationDialog` (zoals nu met `onConvert`), maar vooringevuld met:
+- `status: 'option'` (i.p.v. default `confirmed`)
+- Alle prefill die al aanwezig is: titel, contact, bedrijf, datum, ruimte, gastenaantal, tijden
+- Dialoogtitel dynamisch: "Nieuwe Optie" wanneer status=option, "Nieuwe Reservering" anders
 
-**4. Duidelijker voorbeeld-layout (zoals klant het ziet)**
-- Voorbeeldmodal krijgt een A4-pagina-look (witte pagina, schaduw, juiste verhouding) met:
-  - Sjabloon-PDF als achtergrond per pagina
-  - Klantgegevens-kaart bovenaan ("Voor: …, Bedrijf: …, E-mail: …, Geldig tot: …")
-  - Productentabel met totalen
-  - Algemene voorwaarden onderaan
-- Knop "Download voorbeeld-PDF" zodat je exact dezelfde PDF ziet die de klant via e-mail ontvangt (genereert via bestaande `generate-quote-pdf` zonder verzending).
+**Wijzigingen:**
+- `InquiryDetailsTab.tsx`: extra prop `onCreateOption` + tweede knop met kalender-icoon "Maak optie" naast "Stadium wijzigen".
+- `InquiryDetailPage.tsx`: nieuwe state `optionMode` die wordt meegegeven aan `NewReservationDialog`. Na submit wordt de inquiry status naar `option` gezet (reeds bestaande logica dekt dit via `resForm.status === 'confirmed' ? 'reserved' : 'option'`).
+- `NewReservationDialog.tsx`:
+  - Nieuwe prop `initialStatus?: 'confirmed' | 'option'` (default `confirmed`).
+  - Prefill gebruikt deze waarde voor `form.status`.
+  - DialogTitle gebruikt `{initialStatus === 'option' ? 'Nieuwe Optie' : 'Nieuwe Reservering'}`.
+  - Als prefill compleet is (contact + datum + tijd + ruimte) wordt gestart met dichte opmaak — geen extra wijziging nodig, bestaande prefill logica blijft werken.
 
-### Bestanden
+---
 
-- **Aangepast**: `src/components/quotation/TemplatePreview.tsx` — accepteer alle PDF-veldnamen, voeg productentabel + klantkaart toe, A4-styling.
-- **Aangepast**: `src/pages/NewQuotePage.tsx` — fix contact→bedrijf→adres ophalen (ook als bedrijf niet in cache), geef juiste pdfUrl door, voeg "Download voorbeeld" knop toe.
-- **Aangepast**: `supabase/functions/generate-quote-pdf/index.ts` — voeg productentabel-pagina toe na sjabloon-pagina's, vul `product-list`-blokken indien aanwezig met de offerte-regelitems.
-- **Aangepast**: `src/components/quotation/ContactSelector.tsx` — geef ook adres-velden door indien beschikbaar.
+## 2. Contactpersonen filteren op bedrijf
 
-### Beperkingen
+**Locaties:**
+- `src/components/calendar/NewReservationDialog.tsx`
+- `src/components/inquiry/NewInquiryDialog.tsx`
 
-- De PDF-bijlage wordt opnieuw gegenereerd op moment van versturen, dus het voorbeeld komt 1-op-1 overeen met de bijlage.
-- Productentabel wordt op een extra pagina geplaatst tenzij het sjabloon expliciet een `product-list`-blok heeft (dan wordt die gevuld).
+**Logica (beide dialogs):**
+
+```text
+contactOptions = companyId
+  ? alleContacten.filter(c => c.companyId === companyId)
+  : alleContacten
+```
+
+- Als er **geen** bedrijf is geselecteerd → volledige lijst (huidig gedrag).
+- Zodra bedrijf wordt gekozen → lijst wordt direct beperkt tot contacten van dat bedrijf.
+- Als het huidige `form.contactId` **niet** bij het nieuwe bedrijf hoort → contact automatisch resetten.
+- Placeholder tekst wordt contextueel: *"Selecteer contact van {bedrijfsnaam}..."* wanneer gefilterd.
+- Kleine hint-tekst onder combobox wanneer filter actief: *"Toont alleen contacten van {bedrijf}. Wis bedrijf om alle contacten te zien."*
+
+**Edge case:** Als gebruiker eerst contact kiest en daarna bedrijf wijzigt naar één waar dit contact niet bij hoort → contact leegmaken en een subtiele toast/info tonen.
+
+---
+
+## Technische details
+
+**Bestanden te wijzigen:**
+
+| Bestand | Wijziging |
+|---|---|
+| `src/components/inquiry/InquiryDetailsTab.tsx` | Nieuwe prop `onCreateOption`, tweede knop toevoegen |
+| `src/pages/InquiryDetailPage.tsx` | State `reservationStatus`, prop doorgeven aan `NewReservationDialog` |
+| `src/components/calendar/NewReservationDialog.tsx` | Prop `initialStatus`, dynamische titel, contact-filter op companyId, auto-reset contact bij companywissel |
+| `src/components/inquiry/NewInquiryDialog.tsx` | Contact-filter op companyId, auto-reset contact bij companywissel |
+
+**Data-stroom Maak optie:**
+
+```text
+Aanvraag (alle data aanwezig)
+   │
+   ▼  klik "Maak optie"
+NewReservationDialog met prefill + initialStatus='option'
+   │
+   ▼  gebruiker bevestigt tijden/ruimte
+addBooking({ status: 'option', ... })
+   │
+   ▼
+inquiry.status → 'option'
+```
+
+Geen database- of RLS-wijzigingen nodig. Geen nieuwe dependencies.
 
