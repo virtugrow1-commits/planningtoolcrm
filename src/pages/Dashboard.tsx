@@ -336,7 +336,7 @@ export default function Dashboard() {
         </p>
       </div>
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
         <KpiCard
           title={t('dashboard.openTasks')} value={String(openTaskCount)} icon={<CheckSquare size={20} />}
           subtitle={`${tasks.filter((t) => t.status === 'open').length} ${t('dashboard.open')} · ${tasks.filter((t) => t.status === 'completed').length} ${t('dashboard.completed')}`}
@@ -351,6 +351,16 @@ export default function Dashboard() {
           title={t('dashboard.bookingsToday')} value={String(todayBookings.length)} icon={<CalendarCheck size={20} />}
           subtitle={`${todayBookings.filter((b) => b.status === 'confirmed').length} ${t('dashboard.confirmed')} · ${todayBookings.filter((b) => b.status === 'option').length} ${t('dashboard.inOption')}`}
           onClick={() => setKpiDialog({ open: true, type: 'bookings' })}
+        />
+        <KpiCard
+          title="Openstaande offertes" value={String(openQuotes.length)} icon={<FileText size={20} />}
+          subtitle={`${quotes.filter((q) => q.status === 'sent' || q.status === 'viewed').length} verzonden · ${quotes.filter((q) => q.status === 'draft').length} concept`}
+          onClick={() => navigate('/quotes')}
+        />
+        <KpiCard
+          title="Openstaande facturen" value={String(openInvoices.length)} icon={<Receipt size={20} />}
+          subtitle={`${invoices.filter((i) => i.status === 'overdue').length} verlopen · ${fmtMoney(openInvoices.reduce((s, i) => s + (i.total || 0), 0))}`}
+          onClick={() => navigate('/quotes')}
         />
       </div>
 
