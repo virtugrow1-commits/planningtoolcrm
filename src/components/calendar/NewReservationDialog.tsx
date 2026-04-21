@@ -442,10 +442,15 @@ export default function NewReservationDialog({
                     options={contactOptions}
                     value={form.contactId}
                     onSelect={handleSelectContact}
-                    placeholder="Selecteer klant..."
+                    placeholder={selectedCompany ? `Selecteer contact van ${selectedCompany.name}...` : 'Selecteer klant...'}
                     searchPlaceholder="Zoek contact..."
                     popoverWidth="w-[340px]"
                   />
+                )}
+                {selectedCompany && !selectedContact && (
+                  <p className="text-[11px] text-muted-foreground">
+                    Toont alleen contacten van <span className="font-medium">{selectedCompany.name}</span>. Wis bedrijf om alle contacten te zien.
+                  </p>
                 )}
                 {!selectedContact && (
                   <button
