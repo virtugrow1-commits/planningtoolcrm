@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { CalendarIcon, Users, Euro, User, Building2, FileText, MapPin, Trash2, RefreshCw, ArrowRight, UserCheck, Clock, MessageCircle } from 'lucide-react';
+import { CalendarIcon, Users, Euro, User, Building2, FileText, MapPin, Trash2, RefreshCw, ArrowRight, UserCheck, Clock, MessageCircle, CalendarPlus } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
@@ -49,13 +49,14 @@ interface Props {
   onDelete: () => void;
   onStartEdit: () => void;
   onConvert: () => void;
+  onCreateOption: () => void;
   onStatusChange: () => void;
   refetch: () => Promise<void>;
 }
 
 /* InfoRow is now imported from @/components/detail/DetailPageComponents */
 
-export default function InquiryDetailsTab({ inquiry, editing, form, setForm, contact, company, onSave, onCancel, onDelete, onStartEdit, onConvert, onStatusChange, refetch }: Props) {
+export default function InquiryDetailsTab({ inquiry, editing, form, setForm, contact, company, onSave, onCancel, onDelete, onStartEdit, onConvert, onCreateOption, onStatusChange, refetch }: Props) {
   const navigate = useNavigate();
   const { toast } = useToast();
   const { t, language } = useLanguage();
@@ -190,6 +191,9 @@ export default function InquiryDetailsTab({ inquiry, editing, form, setForm, con
                   <ArrowRight size={14} className="mr-1" /> Stadium wijzigen
                 </Button>
               </div>
+              <Button variant="secondary" size="sm" className="w-full" onClick={onCreateOption}>
+                <CalendarPlus size={14} className="mr-1" /> Maak optie
+              </Button>
             </div>
           )}
         </div>

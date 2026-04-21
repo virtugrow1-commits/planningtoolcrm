@@ -61,6 +61,7 @@ interface NewReservationDialogProps {
   initialRoom?: RoomName;
   initialDate?: string;
   prefill?: ReservationPrefill;
+  initialStatus?: 'confirmed' | 'option';
 }
 
 const ROOM_SETUPS = [
@@ -82,7 +83,7 @@ const emptyContactForm: NewContactForm = { firstName: '', lastName: '', email: '
 
 export default function NewReservationDialog({
   open, onOpenChange, onSubmit, contacts, contactsLoading, companies = [], conflictAlert, getRoomDisplayName,
-  initialStartHour, initialRoom, initialDate, prefill
+  initialStartHour, initialRoom, initialDate, prefill, initialStatus = 'confirmed',
 }: NewReservationDialogProps) {
   const { user } = useAuth();
   const { toast } = useToast();
@@ -98,7 +99,7 @@ export default function NewReservationDialog({
     endHour: (initialStartHour ?? 9) + 3,
     endMinute: 0,
     title: '',
-    status: 'confirmed',
+    status: initialStatus,
     repeatType: 'eenmalig',
     repeatCount: 1,
     specificDates: [],
@@ -153,7 +154,7 @@ export default function NewReservationDialog({
         endHour: eH,
         endMinute: eM,
         title: prefill?.title || '',
-        status: 'confirmed',
+        status: initialStatus,
         repeatType: 'eenmalig',
         repeatCount: 1,
         specificDates: [],
@@ -169,15 +170,32 @@ export default function NewReservationDialog({
     setLastOpen(open);
   }, [open]);
 
+  const filteredContacts = useMemo(() =>
+    form.companyId ? contacts.filter(c => c.companyId === form.companyId) : contacts,
+    [contacts, form.companyId]
+  );
+
   const contactOptions = useMemo<ComboboxOption[]>(() =>
-    contacts.map(c => ({
+    filteredContacts.map(c => ({
       id: c.id,
       label: [c.firstName, c.lastName].filter(n => n && n !== '—').join(' ') || c.email || 'Onbekend',
       secondary: [c.company, c.email].filter(Boolean).join(' · ') || undefined,
       searchText: `${c.firstName} ${c.lastName} ${c.email || ''} ${c.company || ''}`,
     })),
-    [contacts]
+    [filteredContacts]
   );
+
+  const selectedCompany = form.companyId ? companies.find(co => co.id === form.companyId) : null;
+
+  // Auto-reset contact when company changes and current contact doesn't belong
+  useEffect(() => {
+    if (!form.companyId || !form.contactId) return;
+    const selected = contacts.find(c => c.id === form.contactId);
+    if (selected && selected.companyId && selected.companyId !== form.companyId) {
+      setForm((prev) => ({ ...prev, contactId: '', contactName: '' }));
+      toast({ title: 'Contact gewist', description: 'Contact hoort niet bij het gekozen bedrijf.' });
+    }
+  }, [form.companyId]);
 
   const companyOptions = useMemo<ComboboxOption[]>(() =>
     companies.map(co => ({
@@ -319,7 +337,7 @@ export default function NewReservationDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Nieuwe Reservering</DialogTitle>
+          <DialogTitle>{form.status === 'option' ? 'Nieuwe Optie' : 'Nieuwe Reservering'}</DialogTitle>
         </DialogHeader>
 
         {conflictAlert && (
@@ -424,10 +442,15 @@ export default function NewReservationDialog({
                     options={contactOptions}
                     value={form.contactId}
                     onSelect={handleSelectContact}
-                    placeholder="Selecteer klant..."
+                    placeholder={selectedCompany ? `Selecteer contact van ${selectedCompany.name}...` : 'Selecteer klant...'}
                     searchPlaceholder="Zoek contact..."
                     popoverWidth="w-[340px]"
                   />
+                )}
+                {selectedCompany && !selectedContact && (
+                  <p className="text-[11px] text-muted-foreground">
+                    Toont alleen contacten van <span className="font-medium">{selectedCompany.name}</span>. Wis bedrijf om alle contacten te zien.
+                  </p>
                 )}
                 {!selectedContact && (
                   <button

@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
@@ -86,14 +86,31 @@ export default function NewInquiryDialog({ open, onOpenChange, contacts, compani
     return opts;
   }, [companies]);
 
+  const filteredContacts = useMemo(() =>
+    form.companyId ? contacts.filter(c => c.companyId === form.companyId) : contacts,
+    [contacts, form.companyId]
+  );
+
   const contactOptions = useMemo((): ComboboxOption[] => {
-    return contacts.map(c => ({
+    return filteredContacts.map(c => ({
       id: c.id,
       label: [c.firstName, c.lastName].filter(n => n && n !== '—').join(' ') || c.email || 'Onbekend',
       secondary: c.company || c.email || undefined,
       searchText: `${c.firstName} ${c.lastName} ${c.email || ''} ${c.company || ''} ${c.phone || ''}`,
     }));
-  }, [contacts]);
+  }, [filteredContacts]);
+
+  const selectedCompany = form.companyId ? companies.find(co => co.id === form.companyId) : null;
+
+  // Auto-reset contact when company changes and current contact doesn't belong
+  useEffect(() => {
+    if (!form.companyId || !form.contactId) return;
+    const selected = contacts.find(c => c.id === form.contactId);
+    if (selected && selected.companyId && selected.companyId !== form.companyId) {
+      setForm((prev) => ({ ...prev, contactId: '', contactName: '' }));
+      toast({ title: 'Contact gewist', description: 'Contact hoort niet bij het gekozen bedrijf.' });
+    }
+  }, [form.companyId]);
 
   const resetForm = () => {
     setForm({
@@ -339,10 +356,15 @@ export default function NewInquiryDialog({ open, onOpenChange, contacts, compani
                     }
                     setForm(updates);
                   }}
-                  placeholder="Selecteer contactpersoon..."
+                  placeholder={selectedCompany ? `Selecteer contact van ${selectedCompany.name}...` : 'Selecteer contactpersoon...'}
                   searchPlaceholder="Zoek contactpersoon..."
                   popoverWidth="w-[380px]"
                 />
+                {selectedCompany && (
+                  <p className="text-[11px] text-muted-foreground">
+                    Toont alleen contacten van <span className="font-medium">{selectedCompany.name}</span>. Wis bedrijf om alle contacten te zien.
+                  </p>
+                )}
                 <button
                   type="button"
                   onClick={() => { setCreatingContact(true); setForm({ ...form, contactId: '', contactName: '' }); }}

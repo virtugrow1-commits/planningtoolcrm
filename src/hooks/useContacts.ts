@@ -8,6 +8,7 @@ export interface ContactOption {
   lastName: string;
   email: string | null;
   company: string | null;
+  companyId: string | null;
 }
 
 export function useContacts() {
@@ -20,7 +21,7 @@ export function useContacts() {
     // Fetch all contacts (not filtered by user_id) so all org contacts are searchable
     const { data } = await supabase
       .from('contacts')
-      .select('id, first_name, last_name, email, company')
+      .select('id, first_name, last_name, email, company, company_id')
       .order('first_name');
 
     if (data) {
@@ -30,6 +31,7 @@ export function useContacts() {
         lastName: c.last_name,
         email: c.email,
         company: c.company,
+        companyId: (c as any).company_id ?? null,
       })));
     }
     setLoading(false);

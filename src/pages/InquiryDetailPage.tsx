@@ -47,6 +47,7 @@ export default function InquiryDetailPage() {
   const [editing, setEditing] = useState(false);
   const [form, setForm] = useState<Inquiry | null>(null);
   const [showReservationDialog, setShowReservationDialog] = useState(false);
+  const [reservationStatus, setReservationStatus] = useState<'confirmed' | 'option'>('confirmed');
   const [showStatusDialog, setShowStatusDialog] = useState(false);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [reportText, setReportText] = useState('');
@@ -198,7 +199,8 @@ export default function InquiryDetailPage() {
         onCancel={cancelEdit}
         onDelete={() => setDeleteConfirmOpen(true)}
         onStartEdit={startEdit}
-        onConvert={() => setShowReservationDialog(true)}
+        onConvert={() => { setReservationStatus('confirmed'); setShowReservationDialog(true); }}
+        onCreateOption={() => { setReservationStatus('option'); setShowReservationDialog(true); }}
         onStatusChange={() => setShowStatusDialog(true)}
         refetch={refetch}
       />
@@ -359,10 +361,12 @@ export default function InquiryDetailPage() {
         conflictAlert={null}
         getRoomDisplayName={getDisplayName}
         initialStartHour={inquiry.preferredStartTime ? parseInt(inquiry.preferredStartTime.split(':')[0]) : undefined}
+        initialStatus={reservationStatus}
         prefill={{
           title: inquiry.eventType,
           contactName: inquiry.contactName,
           contactId: inquiry.contactId,
+          companyId: inquiry.companyId || company?.id,
           date: inquiry.preferredDate || '',
           roomName: inquiry.roomPreference || '',
           guestCount: inquiry.guestCount,
