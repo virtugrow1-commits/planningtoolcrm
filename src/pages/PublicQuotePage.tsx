@@ -292,15 +292,29 @@ export default function PublicQuotePage() {
               <p className="text-xs text-muted-foreground">
                 Plaats hieronder uw handtekening om akkoord te geven.
               </p>
+              {signature ? (
+                <div className="border rounded p-2 bg-muted/30">
+                  <img src={signature} alt="Handtekening" className="max-h-24" />
+                  <Button size="sm" variant="ghost" onClick={() => { setSignature(''); setSignatureValues({}); }}>
+                    Opnieuw
+                  </Button>
+                </div>
+              ) : (
+                <Button size="sm" variant="outline" onClick={() => setSigPadOpen(true)}>
+                  Handtekening plaatsen
+                </Button>
+              )}
               <SignaturePad
-                value={signature}
-                onChange={(data) => {
+                open={sigPadOpen}
+                onClose={() => setSigPadOpen(false)}
+                onSave={(data) => {
                   setSignature(data);
                   const sigIds: Record<string, string> = {};
                   resolvedBlocks.forEach((b: any) => {
                     if (b.type === 'signature') sigIds[b.id] = data;
                   });
                   setSignatureValues((p) => ({ ...p, ...sigIds }));
+                  setSigPadOpen(false);
                 }}
               />
             </CardContent>
