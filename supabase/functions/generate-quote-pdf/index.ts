@@ -111,7 +111,9 @@ Deno.serve(async (req) => {
       const { data: tpl } = await supabase
         .from('quote_templates').select('content_blocks').eq('id', quote.template_id).single();
       const cb = tpl?.content_blocks as any;
-      templatePdfUrl = cb?.pdfUrl || null;
+      // Templates may store the PDF under different field names depending on
+      // when they were created (pdfUrl, pdfBackgroundUrl, editorPdfUrl).
+      templatePdfUrl = cb?.pdfUrl || cb?.pdfBackgroundUrl || cb?.editorPdfUrl || null;
       if (overlayFields.length === 0) overlayFields = cb?.overlayFields || [];
     }
 
