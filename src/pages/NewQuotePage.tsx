@@ -201,7 +201,7 @@ export default function NewQuotePage() {
         templateId: selectedTemplate.id,
         contactId: contactId || undefined,
         companyId: companyId || undefined,
-        contactName,
+        contactName: effectiveContactName,
         companyName: companyName || undefined,
         clientEmail: clientEmail || undefined,
         clientAddress: clientAddress || undefined,
@@ -224,8 +224,8 @@ export default function NewQuotePage() {
 
   /** Generate the exact PDF the client will receive and open it in a new tab. */
   const handleDownloadPreview = async () => {
-    if (!selectedTemplate || !contactName.trim()) {
-      toast({ title: 'Vul eerst klantnaam en sjabloon in', variant: 'destructive' });
+    if (!selectedTemplate || (!contactName.trim() && !companyName.trim())) {
+      toast({ title: 'Vul eerst een bedrijf of contactpersoon en sjabloon in', variant: 'destructive' });
       return;
     }
     setDownloadingPreview(true);
