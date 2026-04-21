@@ -366,6 +366,7 @@ export default function InquiryDetailPage() {
           title: inquiry.eventType,
           contactName: inquiry.contactName,
           contactId: inquiry.contactId,
+          companyId: inquiry.companyId || company?.id,
           date: inquiry.preferredDate || '',
           roomName: inquiry.roomPreference || '',
           guestCount: inquiry.guestCount,
