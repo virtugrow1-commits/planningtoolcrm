@@ -2,8 +2,6 @@ import {
   CheckSquare,
   Plus,
   Trash2,
-  AlertTriangle,
-  Flag,
   Search,
   Check,
   CalendarIcon,
