@@ -1,10 +1,10 @@
 import { useSyncQueue } from '@/hooks/useSyncQueue';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { RefreshCw, Trash2, RotateCcw, CheckCircle2, AlertCircle, Clock, Loader2 } from 'lucide-react';
+import { RefreshCw, Trash2, RotateCcw, CheckCircle2, AlertCircle, Clock, Loader2, CalendarCheck2 } from 'lucide-react';
 import { format } from 'date-fns';
 import { nl } from 'date-fns/locale';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { toast } from 'sonner';
 
 const statusConfig: Record<string, { label: string; variant: 'default' | 'destructive' | 'secondary' | 'outline' }> = {
