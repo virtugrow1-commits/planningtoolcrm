@@ -273,11 +273,16 @@ Deno.serve(async (req) => {
 });
 
 // === CALENDAR SYNC ===
-async function syncCalendar(supabase: any, ghlHeaders: any, locationId: string, userId: string, results: any) {
+async function syncCalendar(supabase: any, ghlHeaders: any, locationId: string, userId: string, results: any, isFullSync: boolean = true) {
   try {
     // showAll=true ensures we also pull events from inactive calendars
     const calRes = await fetch(`${GHL_API_BASE}/calendars/?locationId=${locationId}&showAll=true`, { headers: ghlHeaders });
-    if (!calRes.ok) { console.error('Calendar list error:', calRes.status); return; }
+    if (!calRes.ok) {
+      const body = await calRes.text().catch(() => '');
+      console.error('Calendar list error:', calRes.status, body);
+      await logSystemSync(supabase, userId, 'calendar-list-error', { status: calRes.status, body: body.slice(0, 500) }, 'error');
+      return;
+    }
 
     const calData = await calRes.json();
     const calendars = calData.calendars || [];
@@ -298,12 +303,16 @@ async function syncCalendar(supabase: any, ghlHeaders: any, locationId: string, 
       }
     }
 
+    // Light sync = laatste 30d / +90d. Full sync = 180d / +365d.
     const now = new Date();
-    const startDate = new Date(now); startDate.setDate(startDate.getDate() - 365);
-    const endDate = new Date(now); endDate.setDate(endDate.getDate() + 365);
+    const startDate = new Date(now);
+    startDate.setDate(startDate.getDate() - (isFullSync ? 180 : 30));
+    const endDate = new Date(now);
+    endDate.setDate(endDate.getDate() + (isFullSync ? 365 : 90));
 
     // Fetch calendars sequentially to respect GHL rate limits
     const allEvents: any[] = [];
+    const eventsPerCalendar: Record<string, number> = {};
     for (const cal of calendars) {
       let attempt = 0;
       const maxAttempts = 3;
@@ -316,6 +325,7 @@ async function syncCalendar(supabase: any, ghlHeaders: any, locationId: string, 
             const eventsData = await eventsRes.json();
             const events = eventsData.events || [];
             console.log(`Calendar "${cal.name}"${cal.isActive === false ? ' [inactive]' : ''}: ${events.length} events`);
+            eventsPerCalendar[cal.name || cal.id] = events.length;
             allEvents.push(...events.map((e: any) => ({ ...e, calendarName: cal.name, calendarId: cal.id })));
             break;
           } else if (eventsRes.status === 429 || eventsRes.status >= 500) {
@@ -324,7 +334,14 @@ async function syncCalendar(supabase: any, ghlHeaders: any, locationId: string, 
             console.warn(`Calendar "${cal.name}" ${eventsRes.status}, retry ${attempt}/${maxAttempts} after ${wait}ms`);
             await delay(wait);
           } else {
-            console.error(`Calendar "${cal.name}" error: ${eventsRes.status}`);
+            const errBody = await eventsRes.text().catch(() => '');
+            console.error(`Calendar "${cal.name}" error: ${eventsRes.status} ${errBody.slice(0, 200)}`);
+            await logSystemSync(supabase, userId, 'calendar-events-error', {
+              calendar: cal.name,
+              calendarId: cal.id,
+              status: eventsRes.status,
+              body: errBody.slice(0, 500),
+            }, 'error');
             break;
           }
         } catch (e) {
@@ -335,6 +352,7 @@ async function syncCalendar(supabase: any, ghlHeaders: any, locationId: string, 
       }
     }
     console.log(`Total events from GHL: ${allEvents.length}`);
+    results.events_per_calendar = eventsPerCalendar;
 
     // Load recently deleted GHL event IDs from sync_log to prevent re-import
     const deletedSince = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(); // last 24h
