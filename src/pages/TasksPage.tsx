@@ -130,8 +130,6 @@ export default function TasksPage() {
     }
     result = [...result].sort((a, b) => {
       switch (sortKey) {
-        case 'priority':
-          return PRIORITY_RANK[a.priority] - PRIORITY_RANK[b.priority];
         case 'createdAt':
           return (b.createdAt || '').localeCompare(a.createdAt || '');
         case 'title':
@@ -145,7 +143,7 @@ export default function TasksPage() {
       }
     });
     return result;
-  }, [tasks, statusFilter, priorityFilter, userFilter, search, sortKey]);
+  }, [tasks, statusFilter, userFilter, search, sortKey]);
 
   const counts = useMemo(() => ({
     open: tasks.filter(tk => tk.status === 'open').length,
