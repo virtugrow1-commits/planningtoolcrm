@@ -178,11 +178,15 @@ export default function TasksPage() {
       toast({ title: t('tasks.giveTitleError'), variant: 'destructive' });
       return;
     }
+    if (!form.assignedTo) {
+      toast({ title: language === 'en' ? 'Choose a responsible person' : 'Kies een verantwoordelijke', variant: 'destructive' });
+      return;
+    }
     await addTask({
       title: form.title,
       description: form.description || undefined,
-      status: form.status,
-      priority: form.priority,
+      status: 'open',
+      priority: 'normal',
       dueDate: form.dueDate || undefined,
       companyId: form.companyId || undefined,
       contactId: form.contactId || undefined,
