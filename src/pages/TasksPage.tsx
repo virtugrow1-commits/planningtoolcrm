@@ -377,8 +377,9 @@ export default function TasksPage() {
 
               return (
                 <div key={task.id} className="flex items-center gap-3 px-5 py-3 hover:bg-muted/20 transition-colors group">
-                  <Checkbox checked={selected.has(task.id)} onCheckedChange={() => toggleSelect(task.id)} />
-                  {priorityIcon(task.priority)}
+                  <div onClick={e => e.stopPropagation()}>
+                    <Checkbox checked={selected.has(task.id)} onCheckedChange={() => toggleSelect(task.id)} />
+                  </div>
                   <div className="flex-1 min-w-0">
                     <div className="cursor-pointer" onClick={() => navigate(`/tasks/${task.id}`)}>
                       <p className={`text-sm font-medium truncate ${task.status === 'completed' ? 'line-through text-muted-foreground' : 'text-card-foreground'}`}>
