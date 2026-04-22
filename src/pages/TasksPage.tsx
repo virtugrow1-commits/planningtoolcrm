@@ -2,8 +2,6 @@ import {
   CheckSquare,
   Plus,
   Trash2,
-  AlertTriangle,
-  Flag,
   Search,
   Check,
   CalendarIcon,
@@ -26,7 +24,7 @@ import { Calendar } from '@/components/ui/calendar';
 import CrmCombobox, { ComboboxOption } from '@/components/CrmCombobox';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
-import { Task, TASK_STATUSES, TASK_PRIORITIES } from '@/types/task';
+import { Task, TASK_STATUSES } from '@/types/task';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
 import { nl } from 'date-fns/locale';
@@ -46,7 +44,7 @@ export default function TasksPage() {
 
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'open' | 'completed'>('open');
-  const [priorityFilter, setPriorityFilter] = useState<string>('__all__');
+  const [priorityFilter] = useState<string>('__all__');
   const [userFilter, setUserFilter] = useState<string>('__all__');
   const [sortKey, setSortKey] = useState<SortKey>('dueDate');
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -124,8 +122,7 @@ export default function TasksPage() {
     if (statusFilter !== 'all') result = result.filter(tk => tk.status === statusFilter);
     if (priorityFilter !== '__all__') result = result.filter(tk => tk.priority === priorityFilter);
     if (userFilter !== '__all__') {
-      if (userFilter === '__none__') result = result.filter(tk => !tk.assignedTo);
-      else result = result.filter(tk => tk.assignedTo === userFilter);
+      result = result.filter(tk => tk.assignedTo === userFilter);
     }
     if (search.trim()) {
       const q = search.toLowerCase();
@@ -181,11 +178,15 @@ export default function TasksPage() {
       toast({ title: t('tasks.giveTitleError'), variant: 'destructive' });
       return;
     }
+    if (!form.assignedTo) {
+      toast({ title: language === 'en' ? 'Choose a responsible person' : 'Kies een verantwoordelijke', variant: 'destructive' });
+      return;
+    }
     await addTask({
       title: form.title,
       description: form.description || undefined,
-      status: form.status,
-      priority: form.priority,
+      status: 'open',
+      priority: 'normal',
       dueDate: form.dueDate || undefined,
       companyId: form.companyId || undefined,
       contactId: form.contactId || undefined,
@@ -238,13 +239,6 @@ export default function TasksPage() {
     await updateTask({ ...task, status: newStatus });
   };
 
-  const priorityIcon = (p: Task['priority']) => {
-    const cls = TASK_PRIORITIES.find(x => x.value === p)?.color || '';
-    if (p === 'urgent') return <AlertTriangle size={14} className={cls} />;
-    if (p === 'high') return <Flag size={14} className={cls} />;
-    return null;
-  };
-
   if (loading) {
     return (
       <div className="flex min-h-[50vh] items-center justify-center">
@@ -294,21 +288,12 @@ export default function TasksPage() {
           </SelectContent>
         </Select>
 
-        <Select value={priorityFilter} onValueChange={setPriorityFilter}>
-          <SelectTrigger className="h-9 w-36 text-xs"><SelectValue placeholder={t('common.priority')} /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="__all__">{language === 'en' ? 'All priorities' : 'Alle prioriteiten'}</SelectItem>
-            {TASK_PRIORITIES.map(p => <SelectItem key={p.value} value={p.value}>{p.label}</SelectItem>)}
-          </SelectContent>
-        </Select>
-
         <Select value={userFilter} onValueChange={setUserFilter}>
           <SelectTrigger className="h-9 w-44 text-xs"><SelectValue /></SelectTrigger>
           <SelectContent>
             <SelectItem value="__all__">{t('dashboard.allUsers')}</SelectItem>
             <SelectItem value="Sjors Jochems">Sjors Jochems</SelectItem>
             <SelectItem value="Iris Machielse">Iris Machielse</SelectItem>
-            <SelectItem value="__none__">{language === 'en' ? 'Unassigned' : 'Niet toegewezen'}</SelectItem>
           </SelectContent>
         </Select>
 
@@ -392,8 +377,9 @@ export default function TasksPage() {
 
               return (
                 <div key={task.id} className="flex items-center gap-3 px-5 py-3 hover:bg-muted/20 transition-colors group">
-                  <Checkbox checked={selected.has(task.id)} onCheckedChange={() => toggleSelect(task.id)} />
-                  {priorityIcon(task.priority)}
+                  <div onClick={e => e.stopPropagation()}>
+                    <Checkbox checked={selected.has(task.id)} onCheckedChange={() => toggleSelect(task.id)} />
+                  </div>
                   <div className="flex-1 min-w-0">
                     <div className="cursor-pointer" onClick={() => navigate(`/tasks/${task.id}`)}>
                       <p className={`text-sm font-medium truncate ${task.status === 'completed' ? 'line-through text-muted-foreground' : 'text-card-foreground'}`}>
@@ -486,26 +472,6 @@ export default function TasksPage() {
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div className="grid gap-1.5">
-                <Label>{t('common.status')}</Label>
-                <Select value={form.status} onValueChange={v => setForm({ ...form, status: v as Task['status'] })}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    {TASK_STATUSES.map(s => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="grid gap-1.5">
-                <Label>{t('common.priority')}</Label>
-                <Select value={form.priority} onValueChange={v => setForm({ ...form, priority: v as Task['priority'] })}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    {TASK_PRIORITIES.map(p => <SelectItem key={p.value} value={p.value}>{p.label}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="grid gap-1.5">
                 <Label>{t('crm.company')}</Label>
                 <CrmCombobox
                   options={companyOptions}
@@ -538,11 +504,12 @@ export default function TasksPage() {
                 <Input type="date" value={form.dueDate} onChange={e => setForm({ ...form, dueDate: e.target.value })} />
               </div>
               <div className="grid gap-1.5">
-                <Label>{t('tasks.assignedTo')}</Label>
-                <Select value={form.assignedTo || '__none__'} onValueChange={v => setForm({ ...form, assignedTo: v === '__none__' ? '' : v })}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
+                <Label>{t('tasks.assignedTo')} *</Label>
+                <Select value={form.assignedTo} onValueChange={v => setForm({ ...form, assignedTo: v })}>
+                  <SelectTrigger>
+                    <SelectValue placeholder={language === 'en' ? 'Choose...' : 'Kies...'} />
+                  </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="__none__">{language === 'en' ? 'Nobody' : 'Niemand'}</SelectItem>
                     <SelectItem value="Sjors Jochems">Sjors Jochems</SelectItem>
                     <SelectItem value="Iris Machielse">Iris Machielse</SelectItem>
                   </SelectContent>
@@ -552,7 +519,7 @@ export default function TasksPage() {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setNewOpen(false)}>{t('common.cancel')}</Button>
-            <Button onClick={handleSave}>{t('toast.created')}</Button>
+            <Button onClick={handleSave} disabled={!form.title.trim() || !form.assignedTo}>{t('toast.created')}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
