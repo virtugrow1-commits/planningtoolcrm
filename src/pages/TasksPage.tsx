@@ -29,9 +29,7 @@ import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
 import { nl } from 'date-fns/locale';
 
-type SortKey = 'dueDate' | 'priority' | 'createdAt' | 'title';
-
-const PRIORITY_RANK: Record<Task['priority'], number> = { urgent: 0, high: 1, normal: 2, low: 3 };
+type SortKey = 'dueDate' | 'createdAt' | 'title';
 
 export default function TasksPage() {
   const { tasks, loading, addTask, updateTask, deleteTask, deleteTasks } = useTasksContext();
@@ -44,7 +42,6 @@ export default function TasksPage() {
 
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'open' | 'completed'>('open');
-  const [priorityFilter] = useState<string>('__all__');
   const [userFilter, setUserFilter] = useState<string>('__all__');
   const [sortKey, setSortKey] = useState<SortKey>('dueDate');
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -120,7 +117,6 @@ export default function TasksPage() {
   const filteredTasks = useMemo(() => {
     let result = tasks;
     if (statusFilter !== 'all') result = result.filter(tk => tk.status === statusFilter);
-    if (priorityFilter !== '__all__') result = result.filter(tk => tk.priority === priorityFilter);
     if (userFilter !== '__all__') {
       result = result.filter(tk => tk.assignedTo === userFilter);
     }
@@ -134,8 +130,6 @@ export default function TasksPage() {
     }
     result = [...result].sort((a, b) => {
       switch (sortKey) {
-        case 'priority':
-          return PRIORITY_RANK[a.priority] - PRIORITY_RANK[b.priority];
         case 'createdAt':
           return (b.createdAt || '').localeCompare(a.createdAt || '');
         case 'title':
@@ -149,7 +143,7 @@ export default function TasksPage() {
       }
     });
     return result;
-  }, [tasks, statusFilter, priorityFilter, userFilter, search, sortKey]);
+  }, [tasks, statusFilter, userFilter, search, sortKey]);
 
   const counts = useMemo(() => ({
     open: tasks.filter(tk => tk.status === 'open').length,
@@ -301,7 +295,6 @@ export default function TasksPage() {
           <SelectTrigger className="h-9 w-44 text-xs"><SelectValue /></SelectTrigger>
           <SelectContent>
             <SelectItem value="dueDate">{language === 'en' ? 'Sort: Due date' : 'Sorteer: Vervaldatum'}</SelectItem>
-            <SelectItem value="priority">{language === 'en' ? 'Sort: Priority' : 'Sorteer: Prioriteit'}</SelectItem>
             <SelectItem value="createdAt">{language === 'en' ? 'Sort: Created' : 'Sorteer: Aangemaakt'}</SelectItem>
             <SelectItem value="title">{language === 'en' ? 'Sort: Title' : 'Sorteer: Titel'}</SelectItem>
           </SelectContent>

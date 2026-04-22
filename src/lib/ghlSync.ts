@@ -24,9 +24,28 @@ export async function pushToGHL(
       body: { action, ...data },
     });
     if (error) {
+      const msg = error?.message || 'Edge function error';
+      if (isCalendarInactive(msg)) {
+        console.info(`[VGW Sync] ${action} skipped: calendar inactive`);
+        if (options?.entityType && options?.entityId) {
+          logSyncResult(options.entityType, options.entityId, action, { info: 'calendar_inactive' }, 'success').catch(() => {});
+        }
+        return null;
+      }
       console.warn(`[VGW Sync] ${action} failed:`, error);
-      await handleSyncFailure(action, data, options, error?.message || 'Edge function error');
+      await handleSyncFailure(action, data, options, msg);
       return null;
+    }
+    // Detect inactive-calendar response wrapped in a 200
+    if (result && typeof result === 'object' && (result.error || result.status === 'inactive')) {
+      const text = JSON.stringify(result);
+      if (isCalendarInactive(text)) {
+        console.info(`[VGW Sync] ${action} skipped: calendar inactive (response)`);
+        if (options?.entityType && options?.entityId) {
+          logSyncResult(options.entityType, options.entityId, action, { info: 'calendar_inactive' }, 'success').catch(() => {});
+        }
+        return null;
+      }
     }
     // Log success if entity tracking provided
     if (options?.entityType && options?.entityId) {
@@ -34,10 +53,25 @@ export async function pushToGHL(
     }
     return result;
   } catch (err: any) {
+    const msg = err?.message || 'Unknown error';
+    if (isCalendarInactive(msg)) {
+      console.info(`[VGW Sync] ${action} skipped: calendar inactive`);
+      return null;
+    }
     console.warn(`[VGW Sync] ${action} failed:`, err);
-    await handleSyncFailure(action, data, options, err?.message || 'Unknown error');
+    await handleSyncFailure(action, data, options, msg);
     return null;
   }
+}
+
+/** Detect "calendar inactive" patterns from various GHL/edge error messages */
+function isCalendarInactive(text: string): boolean {
+  if (!text) return false;
+  const t = text.toLowerCase();
+  return t.includes('kalender is inactief')
+      || t.includes('calendar is inactive')
+      || t.includes('calendar_inactive')
+      || t.includes('calendar inactive');
 }
 
 /** Queue failed sync for automatic retry */

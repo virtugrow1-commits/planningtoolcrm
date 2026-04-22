@@ -222,9 +222,11 @@ Deno.serve(async (req) => {
       await syncOpportunities(supabase, ghlHeaders, GHL_LOCATION_ID, userId, results, lookups);
       await delay(200);
 
+      // Calendar sync runs in BOTH light and full mode (only the pull window differs)
+      await syncCalendar(supabase, ghlHeaders, GHL_LOCATION_ID, userId, results, shouldRunFullSync);
+      await delay(200);
+
       if (shouldRunFullSync) {
-        await syncCalendar(supabase, ghlHeaders, GHL_LOCATION_ID, userId, results);
-        await delay(200);
         await syncTasks(supabase, ghlHeaders, GHL_LOCATION_ID, userId, results, lookups);
         await delay(200);
         await syncConversations(supabase, ghlHeaders, GHL_LOCATION_ID, userId, results, lookups);
@@ -271,11 +273,16 @@ Deno.serve(async (req) => {
 });
 
 // === CALENDAR SYNC ===
-async function syncCalendar(supabase: any, ghlHeaders: any, locationId: string, userId: string, results: any) {
+async function syncCalendar(supabase: any, ghlHeaders: any, locationId: string, userId: string, results: any, isFullSync: boolean = true) {
   try {
     // showAll=true ensures we also pull events from inactive calendars
     const calRes = await fetch(`${GHL_API_BASE}/calendars/?locationId=${locationId}&showAll=true`, { headers: ghlHeaders });
-    if (!calRes.ok) { console.error('Calendar list error:', calRes.status); return; }
+    if (!calRes.ok) {
+      const body = await calRes.text().catch(() => '');
+      console.error('Calendar list error:', calRes.status, body);
+      await logSystemSync(supabase, userId, 'calendar-list-error', { status: calRes.status, body: body.slice(0, 500) }, 'error');
+      return;
+    }
 
     const calData = await calRes.json();
     const calendars = calData.calendars || [];
@@ -296,12 +303,16 @@ async function syncCalendar(supabase: any, ghlHeaders: any, locationId: string, 
       }
     }
 
+    // Light sync = laatste 30d / +90d. Full sync = 180d / +365d.
     const now = new Date();
-    const startDate = new Date(now); startDate.setDate(startDate.getDate() - 365);
-    const endDate = new Date(now); endDate.setDate(endDate.getDate() + 365);
+    const startDate = new Date(now);
+    startDate.setDate(startDate.getDate() - (isFullSync ? 180 : 30));
+    const endDate = new Date(now);
+    endDate.setDate(endDate.getDate() + (isFullSync ? 365 : 90));
 
     // Fetch calendars sequentially to respect GHL rate limits
     const allEvents: any[] = [];
+    const eventsPerCalendar: Record<string, number> = {};
     for (const cal of calendars) {
       let attempt = 0;
       const maxAttempts = 3;
@@ -314,6 +325,7 @@ async function syncCalendar(supabase: any, ghlHeaders: any, locationId: string, 
             const eventsData = await eventsRes.json();
             const events = eventsData.events || [];
             console.log(`Calendar "${cal.name}"${cal.isActive === false ? ' [inactive]' : ''}: ${events.length} events`);
+            eventsPerCalendar[cal.name || cal.id] = events.length;
             allEvents.push(...events.map((e: any) => ({ ...e, calendarName: cal.name, calendarId: cal.id })));
             break;
           } else if (eventsRes.status === 429 || eventsRes.status >= 500) {
@@ -322,7 +334,14 @@ async function syncCalendar(supabase: any, ghlHeaders: any, locationId: string, 
             console.warn(`Calendar "${cal.name}" ${eventsRes.status}, retry ${attempt}/${maxAttempts} after ${wait}ms`);
             await delay(wait);
           } else {
-            console.error(`Calendar "${cal.name}" error: ${eventsRes.status}`);
+            const errBody = await eventsRes.text().catch(() => '');
+            console.error(`Calendar "${cal.name}" error: ${eventsRes.status} ${errBody.slice(0, 200)}`);
+            await logSystemSync(supabase, userId, 'calendar-events-error', {
+              calendar: cal.name,
+              calendarId: cal.id,
+              status: eventsRes.status,
+              body: errBody.slice(0, 500),
+            }, 'error');
             break;
           }
         } catch (e) {
@@ -333,6 +352,7 @@ async function syncCalendar(supabase: any, ghlHeaders: any, locationId: string, 
       }
     }
     console.log(`Total events from GHL: ${allEvents.length}`);
+    results.events_per_calendar = eventsPerCalendar;
 
     // Load recently deleted GHL event IDs from sync_log to prevent re-import
     const deletedSince = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(); // last 24h
@@ -354,8 +374,12 @@ async function syncCalendar(supabase: any, ghlHeaders: any, locationId: string, 
     // Pre-load all existing bookings with ghl_event_id for timestamp comparison
     const existingBookings = await fetchAll(supabase, 'bookings', 'id, ghl_event_id, updated_at, room_name, date, start_hour, start_minute, end_hour, end_minute, title, contact_name, status, notes, guest_count, room_setup, requirements, preparation_status, assigned_to', {});
     const bookingByGhlId = new Map<string, any>();
+    const bookingByDateRoomTime = new Map<string, any>();
+    const dupKey = (date: string, startHour: number, room: string, contactName: string) =>
+      `${date}|${startHour}|${norm(room)}|${norm(contactName)}`;
     for (const b of existingBookings) {
       if (b.ghl_event_id) bookingByGhlId.set(b.ghl_event_id, b);
+      bookingByDateRoomTime.set(dupKey(b.date, b.start_hour, b.room_name, b.contact_name), b);
     }
 
     // Process events individually with timestamp comparison
@@ -411,6 +435,13 @@ async function syncCalendar(supabase: any, ghlHeaders: any, locationId: string, 
             results.bookings_pulled++;
           }
         } else {
+          // Fallback: same date+start_hour+room+contact already exists → backfill ghl_event_id instead of inserting duplicate
+          const fallback = bookingByDateRoomTime.get(dupKey(dateStr, startHour, roomName, contactName));
+          if (fallback) {
+            await supabase.from('bookings').update({ ghl_event_id: evt.id }).eq('id', fallback.id);
+            console.log(`Booking ${fallback.id}: linked to GHL event ${evt.id} (duplicate fallback)`);
+            continue;
+          }
           // New booking from GHL → insert
           newBookingRows.push({
             user_id: userId,

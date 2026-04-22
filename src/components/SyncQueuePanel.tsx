@@ -1,10 +1,10 @@
 import { useSyncQueue } from '@/hooks/useSyncQueue';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { RefreshCw, Trash2, RotateCcw, CheckCircle2, AlertCircle, Clock, Loader2 } from 'lucide-react';
+import { RefreshCw, Trash2, RotateCcw, CheckCircle2, AlertCircle, Clock, Loader2, CalendarCheck2 } from 'lucide-react';
 import { format } from 'date-fns';
 import { nl } from 'date-fns/locale';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { toast } from 'sonner';
 
 const statusConfig: Record<string, { label: string; variant: 'default' | 'destructive' | 'secondary' | 'outline' }> = {
@@ -21,6 +21,17 @@ export default function SyncQueuePanel() {
 
   const failedCount = queue.filter(q => q.status === 'failed').length;
   const pendingCount = queue.filter(q => q.status === 'pending' || q.status === 'retrying').length;
+
+  // Find the most recent completed sync run with events_per_calendar info
+  const lastPullStats = useMemo(() => {
+    for (const log of logs) {
+      const epc = (log.details as any)?.results?.events_per_calendar || (log.details as any)?.events_per_calendar;
+      if (epc && typeof epc === 'object') {
+        return { when: log.created_at, perCalendar: epc as Record<string, number> };
+      }
+    }
+    return null;
+  }, [logs]);
 
   const handleRefresh = async () => {
     setRefreshing(true);
@@ -70,6 +81,29 @@ export default function SyncQueuePanel() {
           )}
         </div>
       </div>
+
+      {/* Last calendar pull stats */}
+      {lastPullStats && (
+        <div className="rounded-lg border p-4 bg-muted/30">
+          <div className="flex items-center gap-2 mb-3">
+            <CalendarCheck2 size={16} className="text-primary" />
+            <h4 className="text-sm font-semibold">Laatste agenda-sync per ruimte</h4>
+            <span className="text-xs text-muted-foreground">
+              ({format(new Date(lastPullStats.when), 'dd MMM HH:mm', { locale: nl })})
+            </span>
+          </div>
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
+            {Object.entries(lastPullStats.perCalendar)
+              .sort(([, a], [, b]) => b - a)
+              .map(([name, count]) => (
+                <div key={name} className="flex items-center justify-between text-xs px-2 py-1.5 rounded bg-background border">
+                  <span className="truncate" title={name}>{name}</span>
+                  <Badge variant={count > 0 ? 'default' : 'secondary'} className="ml-2 shrink-0">{count}</Badge>
+                </div>
+              ))}
+          </div>
+        </div>
+      )}
 
       {/* Queue items */}
       {loading ? (
