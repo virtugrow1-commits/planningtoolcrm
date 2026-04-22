@@ -2,64 +2,48 @@
 
 ## Doel
 
-Twee verbeteringen aan de offerte-flow:
-
-1. **PDF-achtergrond uit het sjabloon** moet zichtbaar zijn in álle weergaven (voorbeeld in de app, klantportaal én e-mailbijlage). Nu zie je in het voorbeeld alleen de tekstblokken op een witte pagina.
-2. **Bedrijven en contactpersonen selectors** tonen niet de volledige CRM-lijst — er zit een verborgen limiet van 100 op de dropdown waardoor de meeste opties ontbreken.
+Zes verbeteringen aan de Takenpagina (`src/pages/TasksPage.tsx`) en gerelateerde detailweergaven om het takenbeheer voorspelbaarder en strikter te maken.
 
 ---
 
-## 1. PDF-achtergrond overal zichtbaar
+## Wijzigingen
 
-### Huidige situatie
-| Plek | PDF-achtergrond zichtbaar? |
-|---|---|
-| Sjabloon-editor | ✅ ja |
-| Nieuwe offerte preview (`NewQuotePage`) | ✅ ja (gebruikt `TemplatePreview`) |
-| Offerte-detail preview-dialog (`QuotePreviewDialog`) | ✅ ja |
-| **Klantportaal (`/quote/view/:token`)** | ❌ **nee** — gebruikt `DocumentViewer` zonder PDF |
-| **E-mailbijlage (PDF)** | ⚠️ deels — werkt alleen als `quote.pdf_url` is gevuld |
+### 1. Bulk-selectie van taken werkt niet
+**Diagnose:** De checkbox bovenaan ("Alles selecteren") werkt, maar de individuele rij-checkboxes worden niet zichtbaar bijgewerkt omdat `<Checkbox onCheckedChange>` géén event meekrijgt en het klikken op de rij ergens anders ook navigeert. We zorgen dat:
+- De checkbox-klik niet bubblet naar de rij (`onClick={e => e.stopPropagation()}` toevoegen op de Checkbox-wrapper).
+- `selected` state wordt gerespecteerd bij re-render.
 
-### Aanpassingen
+### 2. Verwijder optie "Niet toegewezen" uit filter
+**Bestand:** `src/pages/TasksPage.tsx` regel 311
+- `<SelectItem value="__none__">Niet toegewezen</SelectItem>` verwijderen uit de filter-dropdown.
+- Logica voor `userFilter === '__none__'` (regel 127) verwijderen.
+- Filter toont alleen: "Alle gebruikers", "Sjors Jochems", "Iris Machielse".
 
-**A. Klantportaal — `src/pages/PublicQuotePage.tsx`**
-- `DocumentViewer` vervangen door `TemplatePreview` zodat de klant exact dezelfde PDF-layout met overlay-blokken ziet als in de interne preview.
-- De velden `pdf_url`, `content_blocks` en (indien aanwezig) `lineItems` doorgeven aan `TemplatePreview`.
-- Handtekening- en checkbox-interactie blijft bovenop de preview werken via een aparte sectie onder het document (huidige logica behouden).
+### 3. "Verantwoordelijke" verplicht maken bij nieuwe taak
+**Bestand:** `src/pages/TasksPage.tsx` (formulier regel 540-550)
+- Verwijder `__none__` / "Niemand"-optie.
+- Default-waarde leeg laten met placeholder "Kies verantwoordelijke *".
+- In `handleSave` (regel 179): blokkeer opslaan als `!form.assignedTo`, toon toast "Kies een verantwoordelijke".
+- Label krijgt asterisk: `Verantwoordelijke *`.
+- Knop "Opslaan" `disabled` zolang titel of verantwoordelijke leeg is.
 
-**B. PDF-bijlage — `src/pages/NewQuotePage.tsx`**
-- In `persistQuote()` is `pdfUrl: templatePdfUrl` al doorgegeven, maar als `tplCb?.pdfUrl` leeg is wordt `undefined` gestuurd. We hebben een fallback nodig die ook kijkt naar `pdfBackgroundUrl` en `editorPdfUrl`. Deze fallback bestaat al in regel 196, dus dit werkt — **maar** we voegen een extra check toe: als de sjabloon wél een PDF heeft maar de offerte hem nog niet, vullen we hem alsnog in tijdens de PDF-generatie.
+### 4. Filter "Verantwoordelijke" blijft hangen op één gebruiker
+**Diagnose:** De `Select`-component houdt zijn waarde, maar omdat `userFilter` als string-state wordt gebruikt zonder reset, lijkt het na de eerste keuze "vast te zitten" — vermoedelijk doordat het `value`-prop ontbreekt op de trigger placeholder. Fix:
+- Voeg expliciete `placeholder` toe en zorg dat `<SelectValue>` gebruik maakt van `value={userFilter}` reactief.
+- Reset selectie naar `__all__` werkt al via die optie. Extra: voeg key `key={userFilter}` toe aan `SelectContent` om re-mount af te dwingen indien nodig.
+- Verifieer dat dezelfde fix nodig is voor `priorityFilter` en `statusFilter` — niet noodzakelijk volgens code, maar gelijk patroon aanhouden.
 
-**C. PDF-generatie — `supabase/functions/generate-quote-pdf/index.ts`**
-- Reeds correct: als `quote.pdf_url` leeg is, fetcht hij de template via `quote.template_id` en gebruikt `tpl.content_blocks.pdfUrl`. We voegen dezelfde fallback voor `pdfBackgroundUrl` / `editorPdfUrl` toe.
+### 5. Knop "Prioriteit" verwijderen
+**Twee plekken:**
+- **Filterbalk** (regel 297-303): hele `<Select>` voor prioriteit weghalen. Sorteer-optie "Sorteer: Prioriteit" mag blijven (handig voor lijst-volgorde).
+- **Nieuwe-taak-formulier** (regel 487-506): de prioriteit-`<Select>` weghalen; de grid wordt dan een enkele kolom voor "Status" — ook die wordt verwijderd (zie punt 6), dus de hele `grid grid-cols-2` met Status+Prioriteit verdwijnt.
+- **Lijst-rij** (regel 396): `priorityIcon(task.priority)` weghalen zodat geen vlaggetjes meer verschijnen.
+- **Sortering**: standaard `dueDate` blijft. De interne `priority`-veldwaarde blijft op `'normal'` voor alle nieuwe taken (geen DB-migratie nodig).
 
-**D. E-mail verzending — `supabase/functions/send-quote-email/index.ts`**
-- Werkt al correct: roept `generate-quote-pdf` aan en hangt de PDF als bijlage. Geen wijziging nodig (DNS-instellingen gebeuren later, nu blijft `contact@ontmoetenaandedonge.nl` als afzender).
-
----
-
-## 2. Volledige bedrijven/contacten lijst
-
-### Diagnose
-Beide selectors snijden de lijst af op 100 items:
-- `src/components/quotation/CompanySelector.tsx` regel 60: `companies.slice(0, 100)`
-- `src/components/quotation/ContactSelector.tsx` regel 56: `filteredContacts.slice(0, 100)`
-
-Daardoor zie je alleen de eerste 100 bedrijven/contacten. Bij honderden CRM-records ontbreekt de rest volledig.
-
-Bovendien gebruikt `CompanySelector` een eigen Supabase-query zonder paginering, wat bij >1000 bedrijven óók tegen de Supabase 1000-row limit aanloopt.
-
-### Aanpassingen
-
-**A. `src/components/quotation/CompanySelector.tsx`**
-- Verwijder `slice(0, 100)` — render alle resultaten (Command-component is virtueel geoptimaliseerd).
-- Vervang de directe Supabase-query door de `CompaniesContext` (die al paginerend álle bedrijven laadt, net als `ContactsContext` voor contacten).
-
-**B. `src/components/quotation/ContactSelector.tsx`**
-- Verwijder `slice(0, 100)` — `useContactsContext()` levert al de volledige gepagineerde lijst.
-
-**C. `src/contexts/CompaniesContext.tsx`** (controleren — naar verwachting al aanwezig)
-- Indien nog niet: gepagineerd ophalen zoals in `ContactsContext` (1000 per batch). Zo niet, dan deze context gebruiken in `CompanySelector`.
+### 6. Status-veld verwijderen bij nieuwe taak
+- **Formulier**: status-`<Select>` weghalen (regel 488-496).
+- **`handleSave`**: hardcoded `status: 'open'` meegeven aan `addTask`.
+- Status blijft wel zichtbaar/wijzigbaar in de lijst en op de detailpagina (om af te handelen).
 
 ---
 
@@ -67,13 +51,12 @@ Bovendien gebruikt `CompanySelector` een eigen Supabase-query zonder paginering,
 
 | Bestand | Wijziging |
 |---|---|
-| `src/pages/PublicQuotePage.tsx` | `DocumentViewer` → `TemplatePreview` met `pdfUrl` en `overlayFields` |
-| `supabase/functions/generate-quote-pdf/index.ts` | Fallback `pdfBackgroundUrl`/`editorPdfUrl` bij template-lookup |
-| `src/components/quotation/CompanySelector.tsx` | `useCompaniesContext()` gebruiken, `slice(0, 100)` weg |
-| `src/components/quotation/ContactSelector.tsx` | `slice(0, 100)` verwijderen |
-| `src/contexts/CompaniesContext.tsx` | Paginering toevoegen indien nodig |
+| `src/pages/TasksPage.tsx` | Filter "Niet toegewezen" weg, prioriteit-filter weg, prioriteit-icon weg, formulier zonder status/prioriteit, verantwoordelijke verplicht, checkbox stopPropagation, default `priority: 'normal'` & `status: 'open'` |
 
-**Geen wijzigingen** aan database schema, e-mail-infrastructuur of DNS — die volgen later.
+**Geen** wijzigingen nodig aan:
+- `src/types/task.ts` — `priority` blijft bestaan (wordt elders nog gebruikt voor sortering en detailpagina).
+- `src/contexts/TasksContext.tsx` — geen wijziging.
+- DB-schema — kolommen blijven bestaan voor compatibiliteit met bestaande data en GHL-sync.
 
-**E-mail nu**: blijft via de huidige Lovable Email setup met `contact@ontmoetenaandedonge.nl` als afzender; PDF-bijlage werkt zodra de PDF-fallbacks zijn geïmplementeerd.
+**Niet aangepast** in dit plan (kan later): de prioriteit/status weergave op `TaskDetailPage.tsx` — de gebruiker vroeg specifiek om deze velden weg te halen bij **nieuwe taken**, niet bij bestaande. Bestaande taken behouden hun prioriteit-info zichtbaar.
 
