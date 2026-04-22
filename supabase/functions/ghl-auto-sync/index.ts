@@ -222,9 +222,11 @@ Deno.serve(async (req) => {
       await syncOpportunities(supabase, ghlHeaders, GHL_LOCATION_ID, userId, results, lookups);
       await delay(200);
 
+      // Calendar sync runs in BOTH light and full mode (only the pull window differs)
+      await syncCalendar(supabase, ghlHeaders, GHL_LOCATION_ID, userId, results, shouldRunFullSync);
+      await delay(200);
+
       if (shouldRunFullSync) {
-        await syncCalendar(supabase, ghlHeaders, GHL_LOCATION_ID, userId, results);
-        await delay(200);
         await syncTasks(supabase, ghlHeaders, GHL_LOCATION_ID, userId, results, lookups);
         await delay(200);
         await syncConversations(supabase, ghlHeaders, GHL_LOCATION_ID, userId, results, lookups);
