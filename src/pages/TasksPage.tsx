@@ -239,13 +239,6 @@ export default function TasksPage() {
     await updateTask({ ...task, status: newStatus });
   };
 
-  const priorityIcon = (p: Task['priority']) => {
-    const cls = TASK_PRIORITIES.find(x => x.value === p)?.color || '';
-    if (p === 'urgent') return <AlertTriangle size={14} className={cls} />;
-    if (p === 'high') return <Flag size={14} className={cls} />;
-    return null;
-  };
-
   if (loading) {
     return (
       <div className="flex min-h-[50vh] items-center justify-center">
