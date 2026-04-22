@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import LegacyImport from '@/components/LegacyImport';
+import LegacyTaskImport from '@/components/LegacyTaskImport';
 import MasterImport from '@/components/MasterImport';
 import OudCrmImport from '@/components/OudCrmImport';
 import SyncQueuePanel from '@/components/SyncQueuePanel';
@@ -299,6 +300,7 @@ export default function SettingsPage() {
           <TabsTrigger value="legacy" className="gap-2"><Database size={14} /> Legacy Import</TabsTrigger>
           <TabsTrigger value="master" className="gap-2"><Database size={14} /> Master Import</TabsTrigger>
           <TabsTrigger value="oud-crm" className="gap-2"><Database size={14} /> Oud CRM</TabsTrigger>
+          <TabsTrigger value="legacy-tasks" className="gap-2"><Database size={14} /> Taken Import</TabsTrigger>
           <TabsTrigger value="eboekhouden" className="gap-2"><BookOpen size={14} /> e-Boekhouden</TabsTrigger>
         </TabsList>
 
@@ -592,6 +594,10 @@ export default function SettingsPage() {
 
         <TabsContent value="oud-crm">
           <OudCrmImport />
+        </TabsContent>
+
+        <TabsContent value="legacy-tasks">
+          <LegacyTaskImport />
         </TabsContent>
 
         <TabsContent value="eboekhouden">

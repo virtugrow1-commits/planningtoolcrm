@@ -1209,6 +1209,7 @@ export type Database = {
           ghl_task_id: string | null
           id: string
           inquiry_id: string | null
+          legacy_task_id: number | null
           priority: string
           status: string
           title: string
@@ -1227,6 +1228,7 @@ export type Database = {
           ghl_task_id?: string | null
           id?: string
           inquiry_id?: string | null
+          legacy_task_id?: number | null
           priority?: string
           status?: string
           title: string
@@ -1245,6 +1247,7 @@ export type Database = {
           ghl_task_id?: string | null
           id?: string
           inquiry_id?: string | null
+          legacy_task_id?: number | null
           priority?: string
           status?: string
           title?: string
