@@ -288,21 +288,12 @@ export default function TasksPage() {
           </SelectContent>
         </Select>
 
-        <Select value={priorityFilter} onValueChange={setPriorityFilter}>
-          <SelectTrigger className="h-9 w-36 text-xs"><SelectValue placeholder={t('common.priority')} /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="__all__">{language === 'en' ? 'All priorities' : 'Alle prioriteiten'}</SelectItem>
-            {TASK_PRIORITIES.map(p => <SelectItem key={p.value} value={p.value}>{p.label}</SelectItem>)}
-          </SelectContent>
-        </Select>
-
         <Select value={userFilter} onValueChange={setUserFilter}>
           <SelectTrigger className="h-9 w-44 text-xs"><SelectValue /></SelectTrigger>
           <SelectContent>
             <SelectItem value="__all__">{t('dashboard.allUsers')}</SelectItem>
             <SelectItem value="Sjors Jochems">Sjors Jochems</SelectItem>
             <SelectItem value="Iris Machielse">Iris Machielse</SelectItem>
-            <SelectItem value="__none__">{language === 'en' ? 'Unassigned' : 'Niet toegewezen'}</SelectItem>
           </SelectContent>
         </Select>
 
