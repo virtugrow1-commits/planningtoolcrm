@@ -374,8 +374,12 @@ async function syncCalendar(supabase: any, ghlHeaders: any, locationId: string, 
     // Pre-load all existing bookings with ghl_event_id for timestamp comparison
     const existingBookings = await fetchAll(supabase, 'bookings', 'id, ghl_event_id, updated_at, room_name, date, start_hour, start_minute, end_hour, end_minute, title, contact_name, status, notes, guest_count, room_setup, requirements, preparation_status, assigned_to', {});
     const bookingByGhlId = new Map<string, any>();
+    const bookingByDateRoomTime = new Map<string, any>();
+    const dupKey = (date: string, startHour: number, room: string, contactName: string) =>
+      `${date}|${startHour}|${norm(room)}|${norm(contactName)}`;
     for (const b of existingBookings) {
       if (b.ghl_event_id) bookingByGhlId.set(b.ghl_event_id, b);
+      bookingByDateRoomTime.set(dupKey(b.date, b.start_hour, b.room_name, b.contact_name), b);
     }
 
     // Process events individually with timestamp comparison
