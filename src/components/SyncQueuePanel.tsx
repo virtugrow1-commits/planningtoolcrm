@@ -82,6 +82,29 @@ export default function SyncQueuePanel() {
         </div>
       </div>
 
+      {/* Last calendar pull stats */}
+      {lastPullStats && (
+        <div className="rounded-lg border p-4 bg-muted/30">
+          <div className="flex items-center gap-2 mb-3">
+            <CalendarCheck2 size={16} className="text-primary" />
+            <h4 className="text-sm font-semibold">Laatste agenda-sync per ruimte</h4>
+            <span className="text-xs text-muted-foreground">
+              ({format(new Date(lastPullStats.when), 'dd MMM HH:mm', { locale: nl })})
+            </span>
+          </div>
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
+            {Object.entries(lastPullStats.perCalendar)
+              .sort(([, a], [, b]) => b - a)
+              .map(([name, count]) => (
+                <div key={name} className="flex items-center justify-between text-xs px-2 py-1.5 rounded bg-background border">
+                  <span className="truncate" title={name}>{name}</span>
+                  <Badge variant={count > 0 ? 'default' : 'secondary'} className="ml-2 shrink-0">{count}</Badge>
+                </div>
+              ))}
+          </div>
+        </div>
+      )}
+
       {/* Queue items */}
       {loading ? (
         <div className="flex items-center gap-2 text-sm text-muted-foreground py-4">
