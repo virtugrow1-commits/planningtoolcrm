@@ -122,8 +122,7 @@ export default function TasksPage() {
     if (statusFilter !== 'all') result = result.filter(tk => tk.status === statusFilter);
     if (priorityFilter !== '__all__') result = result.filter(tk => tk.priority === priorityFilter);
     if (userFilter !== '__all__') {
-      if (userFilter === '__none__') result = result.filter(tk => !tk.assignedTo);
-      else result = result.filter(tk => tk.assignedTo === userFilter);
+      result = result.filter(tk => tk.assignedTo === userFilter);
     }
     if (search.trim()) {
       const q = search.toLowerCase();
