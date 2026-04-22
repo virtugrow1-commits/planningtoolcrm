@@ -1,62 +1,87 @@
 
 
-## Doel
+## Doel — Grondige test & bugfixes
 
-Zes verbeteringen aan de Takenpagina (`src/pages/TasksPage.tsx`) en gerelateerde detailweergaven om het takenbeheer voorspelbaarder en strikter te maken.
+Ik heb een complete audit uitgevoerd. Hieronder de gevonden problemen, gegroepeerd op prioriteit, en de fixes per onderdeel.
 
 ---
 
-## Wijzigingen
+## 🔴 Kritieke problemen (data-integriteit)
 
-### 1. Bulk-selectie van taken werkt niet
-**Diagnose:** De checkbox bovenaan ("Alles selecteren") werkt, maar de individuele rij-checkboxes worden niet zichtbaar bijgewerkt omdat `<Checkbox onCheckedChange>` géén event meekrijgt en het klikken op de rij ergens anders ook navigeert. We zorgen dat:
-- De checkbox-klik niet bubblet naar de rij (`onClick={e => e.stopPropagation()}` toevoegen op de Checkbox-wrapper).
-- `selected` state wordt gerespecteerd bij re-render.
+### 1. `room_settings` heeft DUBBELE rijen (16 ipv 8)
+Elke ruimte staat 2x: één keer met de juiste `max_guests` (15, 30, 50…) en één keer met `max_guests: 0`. Gevolg:
+- De sync-code `select('room_name, ghl_calendar_id')` haalt 16 rijen op → de mapping `roomToCalId` wordt 2x overschreven (laatste wint).
+- Conflictdetectie kan dubbel triggeren.
+- Capaciteitswaarschuwingen zijn onbetrouwbaar.
 
-### 2. Verwijder optie "Niet toegewezen" uit filter
-**Bestand:** `src/pages/TasksPage.tsx` regel 311
-- `<SelectItem value="__none__">Niet toegewezen</SelectItem>` verwijderen uit de filter-dropdown.
-- Logica voor `userFilter === '__none__'` (regel 127) verwijderen.
-- Filter toont alleen: "Alle gebruikers", "Sjors Jochems", "Iris Machielse".
+**Fix:** SQL-migratie die per `(room_name, ghl_calendar_id)` de rij met de hoogste `max_guests` behoudt en de rest verwijdert. Plus een UNIQUE-constraint op `(user_id, room_name)` zodat het niet opnieuw kan gebeuren.
 
-### 3. "Verantwoordelijke" verplicht maken bij nieuwe taak
-**Bestand:** `src/pages/TasksPage.tsx` (formulier regel 540-550)
-- Verwijder `__none__` / "Niemand"-optie.
-- Default-waarde leeg laten met placeholder "Kies verantwoordelijke *".
-- In `handleSave` (regel 179): blokkeer opslaan als `!form.assignedTo`, toon toast "Kies een verantwoordelijke".
-- Label krijgt asterisk: `Verantwoordelijke *`.
-- Knop "Opslaan" `disabled` zolang titel of verantwoordelijke leeg is.
+### 2. Bookings worden NIET opgehaald uit GHL (`bookings_pulled: 0` bij elke sync)
+Dit verklaart de gemelde ontbrekende reserveringen (Praktijksteun, Reanimatiecursus). Twee oorzaken:
+- **`syncCalendar` draait alleen in `full` sync** (1x per uur), niet in light sync (elke 30 min).
+- **GHL geeft een lege events-array** wanneer de fetch-URL geen `userId` of geen `groupId` heeft. We moeten ook de `users`-endpoint of `groupId` meesturen.
 
-### 4. Filter "Verantwoordelijke" blijft hangen op één gebruiker
-**Diagnose:** De `Select`-component houdt zijn waarde, maar omdat `userFilter` als string-state wordt gebruikt zonder reset, lijkt het na de eerste keuze "vast te zitten" — vermoedelijk doordat het `value`-prop ontbreekt op de trigger placeholder. Fix:
-- Voeg expliciete `placeholder` toe en zorg dat `<SelectValue>` gebruik maakt van `value={userFilter}` reactief.
-- Reset selectie naar `__all__` werkt al via die optie. Extra: voeg key `key={userFilter}` toe aan `SelectContent` om re-mount af te dwingen indien nodig.
-- Verifieer dat dezelfde fix nodig is voor `priorityFilter` en `statusFilter` — niet noodzakelijk volgens code, maar gelijk patroon aanhouden.
+**Fix:**
+- `syncCalendar` ook in light sync uitvoeren (lichter pull-window: laatste 30 dagen).
+- Loggen van het exacte aantal events per kalender in `sync_log` zodat we kunnen zien waar het mis gaat.
+- Per kalender: eerst `groupId` ophalen via `/calendars/{id}` en die meesturen als de events-call leeg blijft.
+- Pull-window standaard verruimen naar **180 dagen terug + 365 dagen vooruit**.
 
-### 5. Knop "Prioriteit" verwijderen
-**Twee plekken:**
-- **Filterbalk** (regel 297-303): hele `<Select>` voor prioriteit weghalen. Sorteer-optie "Sorteer: Prioriteit" mag blijven (handig voor lijst-volgorde).
-- **Nieuwe-taak-formulier** (regel 487-506): de prioriteit-`<Select>` weghalen; de grid wordt dan een enkele kolom voor "Status" — ook die wordt verwijderd (zie punt 6), dus de hele `grid grid-cols-2` met Status+Prioriteit verdwijnt.
-- **Lijst-rij** (regel 396): `priorityIcon(task.priority)` weghalen zodat geen vlaggetjes meer verschijnen.
-- **Sortering**: standaard `dueDate` blijft. De interne `priority`-veldwaarde blijft op `'normal'` voor alle nieuwe taken (geen DB-migratie nodig).
+### 3. Sync-queue: 39 vastlopers
+- 9 items "GHL kalender is inactief" — deze moeten **automatisch worden weggewerkt** (niet handmatig). Inactieve kalenders zijn een bekende state, geen fout.
+- 30 items "Sync failed" met `retry_count = 5` (max bereikt) — dood gewicht in de wachtrij.
 
-### 6. Status-veld verwijderen bij nieuwe taak
-- **Formulier**: status-`<Select>` weghalen (regel 488-496).
-- **`handleSave`**: hardcoded `status: 'open'` meegeven aan `addTask`.
-- Status blijft wel zichtbaar/wijzigbaar in de lijst en op de detailpagina (om af te handelen).
+**Fix:**
+- Migratie: `DELETE FROM sync_queue WHERE last_error LIKE '%kalender is inactief%' OR retry_count >= max_retries`.
+- In `pushToGHL` (sync-helper): bij detectie "calendar inactive" of "calendar_inactive" response, **niet** in queue zetten — alleen loggen als info.
+
+---
+
+## 🟡 Functionele bugs
+
+### 4. React-warning op Dashboard (`Function components cannot be given refs`)
+De console toont continu deze warning bij elke render van Dashboard. Komt door een `<Dialog>` waar een functioneel component als `asChild`-trigger of vergelijkbaar wordt doorgegeven zonder `forwardRef`.
+
+**Fix:** Component opsporen in `src/pages/Dashboard.tsx` (regel 81 — Dialog) en de child wrappen in een `forwardRef` of vervangen door een DOM-element.
+
+### 5. TasksPage: ongebruikte `priorityFilter` state + `PRIORITY_RANK`
+Restanten van de eerder verwijderde prioriteit-filter (regel 34, 47). Werkt wel maar veroorzaakt dead code en mogelijke dependency-warnings.
+
+**Fix:** Opruimen.
+
+### 6. Booking duplicate-check te strikt
+Bij `existingBookings` wordt alleen vergeleken op `ghl_event_id`. Bookings die handmatig zijn aangemaakt en daarna toch in GHL verschijnen (zelfde tijd/ruimte/contact) worden dubbel ingevoerd.
+
+**Fix:** Extra fallback-match op `(date + start_hour + room_name + contact_name)` voor het inserten van nieuwe events.
+
+---
+
+## 🟢 Verbeteringen / robuustheid
+
+### 7. Sync-statuspagina niet duidelijk genoeg
+De `SyncQueuePanel` toont fouten maar niet de **succesvolle pulls** per ruimte. Geen inzicht in "wat is er deze sync binnengekomen".
+
+**Fix:** Per sync-run het detail-veld uitbreiden met `events_per_calendar: { "Vergaderzaal 1.03": 12, ... }` en zichtbaar maken in `SettingsPage`.
+
+### 8. `syncCalendar` foutmeldingen worden geslikt
+Bij een 4xx-fout op `/calendars/events` gaat hij stilletjes door (`break`). Geen sync_log entry.
+
+**Fix:** Bij elke non-2xx een sync_log entry met `entity_type='calendar'` en de status_code + body.
 
 ---
 
 ## Technische details
 
-| Bestand | Wijziging |
+| Bestand / Migratie | Wijziging |
 |---|---|
-| `src/pages/TasksPage.tsx` | Filter "Niet toegewezen" weg, prioriteit-filter weg, prioriteit-icon weg, formulier zonder status/prioriteit, verantwoordelijke verplicht, checkbox stopPropagation, default `priority: 'normal'` & `status: 'open'` |
+| **DB-migratie** | Dedupliceer `room_settings`, voeg UNIQUE-constraint toe, ruim sync_queue op |
+| `supabase/functions/ghl-auto-sync/index.ts` | `syncCalendar` ook in light sync, pull-window 180d/365d, per-kalender logging, fallback duplicate-detect, foutmeldingen loggen |
+| `src/lib/ghlSync.ts` | "calendar inactive" antwoorden niet in queue zetten |
+| `src/pages/Dashboard.tsx` | forwardRef-warning oplossen op Dialog (regel ~81) |
+| `src/pages/TasksPage.tsx` | Dead code (`priorityFilter`, `PRIORITY_RANK`) verwijderen |
+| `src/components/SyncQueuePanel.tsx` | Tonen events_per_calendar uit laatste sync |
 
-**Geen** wijzigingen nodig aan:
-- `src/types/task.ts` — `priority` blijft bestaan (wordt elders nog gebruikt voor sortering en detailpagina).
-- `src/contexts/TasksContext.tsx` — geen wijziging.
-- DB-schema — kolommen blijven bestaan voor compatibiliteit met bestaande data en GHL-sync.
+**Geen wijzigingen** aan: edge functions `ghl-sync` (recent gefixt), authenticatie, RLS policies, database schema (alleen data-cleanup).
 
-**Niet aangepast** in dit plan (kan later): de prioriteit/status weergave op `TaskDetailPage.tsx` — de gebruiker vroeg specifiek om deze velden weg te halen bij **nieuwe taken**, niet bij bestaande. Bestaande taken behouden hun prioriteit-info zichtbaar.
+**Aanpak na approval:** ik voer eerst de DB-migratie uit (data-cleanup), daarna de edge function deploy, daarna de frontend-fixes. Tot slot een handmatige sync triggeren en verifiëren dat ontbrekende bookings binnenkomen en de queue leeg is.
 
