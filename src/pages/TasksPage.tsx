@@ -44,7 +44,7 @@ export default function TasksPage() {
 
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'open' | 'completed'>('open');
-  const [priorityFilter, setPriorityFilter] = useState<string>('__all__');
+  const [priorityFilter] = useState<string>('__all__');
   const [userFilter, setUserFilter] = useState<string>('__all__');
   const [sortKey, setSortKey] = useState<SortKey>('dueDate');
   const [selected, setSelected] = useState<Set<string>>(new Set());
