@@ -435,6 +435,13 @@ async function syncCalendar(supabase: any, ghlHeaders: any, locationId: string, 
             results.bookings_pulled++;
           }
         } else {
+          // Fallback: same date+start_hour+room+contact already exists → backfill ghl_event_id instead of inserting duplicate
+          const fallback = bookingByDateRoomTime.get(dupKey(dateStr, startHour, roomName, contactName));
+          if (fallback) {
+            await supabase.from('bookings').update({ ghl_event_id: evt.id }).eq('id', fallback.id);
+            console.log(`Booking ${fallback.id}: linked to GHL event ${evt.id} (duplicate fallback)`);
+            continue;
+          }
           // New booking from GHL → insert
           newBookingRows.push({
             user_id: userId,
