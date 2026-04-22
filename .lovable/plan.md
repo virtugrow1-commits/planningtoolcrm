@@ -1,87 +1,80 @@
 
 
-## Doel — Grondige test & bugfixes
+## Doel
 
-Ik heb een complete audit uitgevoerd. Hieronder de gevonden problemen, gegroepeerd op prioriteit, en de fixes per onderdeel.
-
----
-
-## 🔴 Kritieke problemen (data-integriteit)
-
-### 1. `room_settings` heeft DUBBELE rijen (16 ipv 8)
-Elke ruimte staat 2x: één keer met de juiste `max_guests` (15, 30, 50…) en één keer met `max_guests: 0`. Gevolg:
-- De sync-code `select('room_name, ghl_calendar_id')` haalt 16 rijen op → de mapping `roomToCalId` wordt 2x overschreven (laatste wint).
-- Conflictdetectie kan dubbel triggeren.
-- Capaciteitswaarschuwingen zijn onbetrouwbaar.
-
-**Fix:** SQL-migratie die per `(room_name, ghl_calendar_id)` de rij met de hoogste `max_guests` behoudt en de rest verwijdert. Plus een UNIQUE-constraint op `(user_id, room_name)` zodat het niet opnieuw kan gebeuren.
-
-### 2. Bookings worden NIET opgehaald uit GHL (`bookings_pulled: 0` bij elke sync)
-Dit verklaart de gemelde ontbrekende reserveringen (Praktijksteun, Reanimatiecursus). Twee oorzaken:
-- **`syncCalendar` draait alleen in `full` sync** (1x per uur), niet in light sync (elke 30 min).
-- **GHL geeft een lege events-array** wanneer de fetch-URL geen `userId` of geen `groupId` heeft. We moeten ook de `users`-endpoint of `groupId` meesturen.
-
-**Fix:**
-- `syncCalendar` ook in light sync uitvoeren (lichter pull-window: laatste 30 dagen).
-- Loggen van het exacte aantal events per kalender in `sync_log` zodat we kunnen zien waar het mis gaat.
-- Per kalender: eerst `groupId` ophalen via `/calendars/{id}` en die meesturen als de events-call leeg blijft.
-- Pull-window standaard verruimen naar **180 dagen terug + 365 dagen vooruit**.
-
-### 3. Sync-queue: 39 vastlopers
-- 9 items "GHL kalender is inactief" — deze moeten **automatisch worden weggewerkt** (niet handmatig). Inactieve kalenders zijn een bekende state, geen fout.
-- 30 items "Sync failed" met `retry_count = 5` (max bereikt) — dood gewicht in de wachtrij.
-
-**Fix:**
-- Migratie: `DELETE FROM sync_queue WHERE last_error LIKE '%kalender is inactief%' OR retry_count >= max_retries`.
-- In `pushToGHL` (sync-helper): bij detectie "calendar inactive" of "calendar_inactive" response, **niet** in queue zetten — alleen loggen als info.
+De ~2200 ontbrekende taken uit `tasks-3.csv` toevoegen aan het CRM, gekoppeld aan de juiste contactpersonen, zonder duplicaten.
 
 ---
 
-## 🟡 Functionele bugs
+## Aanpak
 
-### 4. React-warning op Dashboard (`Function components cannot be given refs`)
-De console toont continu deze warning bij elke render van Dashboard. Komt door een `<Dialog>` waar een functioneel component als `asChild`-trigger of vergelijkbaar wordt doorgegeven zonder `forwardRef`.
+### 1. Nieuwe DB-kolom: `legacy_task_id`
+- Voeg kolom `legacy_task_id INTEGER UNIQUE NULL` toe aan `tasks` tabel.
+- Doel: voorkomt duplicaten bij nu en bij toekomstige re-imports — als de legacy ID al bestaat, wordt de rij overgeslagen.
 
-**Fix:** Component opsporen in `src/pages/Dashboard.tsx` (regel 81 — Dialog) en de child wrappen in een `forwardRef` of vervangen door een DOM-element.
+### 2. Nieuwe import-component: `LegacyTaskImport`
+Toegevoegd aan **Instellingen → Beheer**, naast de bestaande `LegacyImport`-knop.
 
-### 5. TasksPage: ongebruikte `priorityFilter` state + `PRIORITY_RANK`
-Restanten van de eerder verwijderde prioriteit-filter (regel 34, 47). Werkt wel maar veroorzaakt dead code en mogelijke dependency-warnings.
+**Vereiste uploads (5 bestanden):**
+| Bestand | Doel |
+|---|---|
+| `tasks-3.csv` | De taken zelf |
+| `contacts_1.csv` | Mapping legacy `contact_id` → naam |
+| `contact_data_1.csv` | EAV-data (voornaam, achternaam, e-mail) |
+| `customers_2.csv` | Mapping legacy `customer_id` → bedrijf/particulier |
+| `customer_data_1.csv` | EAV-data (bedrijfsnaam, e-mail) |
 
-**Fix:** Opruimen.
+### 3. Verwerkingslogica
 
-### 6. Booking duplicate-check te strikt
-Bij `existingBookings` wordt alleen vergeleken op `ghl_event_id`. Bookings die handmatig zijn aangemaakt en daarna toch in GHL verschijnen (zelfde tijd/ruimte/contact) worden dubbel ingevoerd.
+**Stap A — Bouw legacy → CRM mappings**
+- Reconstrueer voor elke legacy `contact_id` de volledige naam + e-mail (uit contact_data_1.csv).
+- Reconstrueer voor elke legacy `customer_id` de naam (bedrijf óf particulier).
+- Match deze namen/e-mails tegen de huidige `contacts`-tabel (al gepagineerd ophalen, alle 1000+ rijen).
+- Match-volgorde: e-mail (exact) → volledige naam (case-insensitive) → voornaam+achternaam losse delen.
+- Bouw `legacyContactId → crmContactUuid` map en `legacyCustomerId → crmCompanyUuid` map.
 
-**Fix:** Extra fallback-match op `(date + start_hour + room_name + contact_name)` voor het inserten van nieuwe events.
+**Stap B — Import de taken**
+Voor elke rij in `tasks-3.csv`:
+- **Skip** als `legacy_task_id` al bestaat in de DB.
+- **Map velden:**
+  - `title` ← CSV `titel`
+  - `description` ← CSV `notitie`
+  - `due_date` ← CSV `datum` (YYYY-MM-DD format, al correct)
+  - `status` ← `'completed'` als CSV status=`1`, anders `'open'`
+  - `completed_at` ← `started_at` (indien aanwezig en status=1) of `now()` als status=1 zonder timestamp
+  - `priority` ← `'normal'` (CSV heeft geen prioriteit)
+  - `assigned_to` ← `'Iris Machielse'` (account_id=4) of `'Sjors Jochems'` (account_id=6)
+  - `contact_id` ← uit mapping op CSV `contact_id`
+  - `company_id` ← uit mapping op CSV `customer_id`
+  - `legacy_task_id` ← CSV `id`
 
----
+**Stap C — Insert in batches van 100**
+- Voortgangsbalk per 100 rijen.
+- Foutregels worden gelogd maar blokkeren de rest niet.
 
-## 🟢 Verbeteringen / robuustheid
-
-### 7. Sync-statuspagina niet duidelijk genoeg
-De `SyncQueuePanel` toont fouten maar niet de **succesvolle pulls** per ruimte. Geen inzicht in "wat is er deze sync binnengekomen".
-
-**Fix:** Per sync-run het detail-veld uitbreiden met `events_per_calendar: { "Vergaderzaal 1.03": 12, ... }` en zichtbaar maken in `SettingsPage`.
-
-### 8. `syncCalendar` foutmeldingen worden geslikt
-Bij een 4xx-fout op `/calendars/events` gaat hij stilletjes door (`break`). Geen sync_log entry.
-
-**Fix:** Bij elke non-2xx een sync_log entry met `entity_type='calendar'` en de status_code + body.
+### 4. Resultaten-rapport
+Na voltooiing toont het component:
+- Totaal verwerkt
+- Nieuw aangemaakt
+- Overgeslagen (duplicaat)
+- Aantal gekoppeld aan contact
+- Aantal gekoppeld aan bedrijf
+- Aantal zonder koppeling (handmatig op te lossen)
 
 ---
 
 ## Technische details
 
-| Bestand / Migratie | Wijziging |
+| Bestand / migratie | Wijziging |
 |---|---|
-| **DB-migratie** | Dedupliceer `room_settings`, voeg UNIQUE-constraint toe, ruim sync_queue op |
-| `supabase/functions/ghl-auto-sync/index.ts` | `syncCalendar` ook in light sync, pull-window 180d/365d, per-kalender logging, fallback duplicate-detect, foutmeldingen loggen |
-| `src/lib/ghlSync.ts` | "calendar inactive" antwoorden niet in queue zetten |
-| `src/pages/Dashboard.tsx` | forwardRef-warning oplossen op Dialog (regel ~81) |
-| `src/pages/TasksPage.tsx` | Dead code (`priorityFilter`, `PRIORITY_RANK`) verwijderen |
-| `src/components/SyncQueuePanel.tsx` | Tonen events_per_calendar uit laatste sync |
+| **DB-migratie** | `ALTER TABLE tasks ADD COLUMN legacy_task_id INTEGER`; partial UNIQUE index op `(user_id, legacy_task_id) WHERE legacy_task_id IS NOT NULL` |
+| `src/components/LegacyTaskImport.tsx` | **Nieuw**. Upload-UI + import-engine, hergebruikt `parseSemicolonCSV` patroon uit bestaande `LegacyImport` |
+| `src/pages/SettingsPage.tsx` | Nieuwe sectie "Taken importeren uit legacy CRM" toegevoegd onder bestaande Legacy Import |
 
-**Geen wijzigingen** aan: edge functions `ghl-sync` (recent gefixt), authenticatie, RLS policies, database schema (alleen data-cleanup).
+**Geen** wijzigingen aan: GHL-sync (geïmporteerde taken zijn lokaal-only, krijgen geen `ghl_task_id`), `tasks` types, andere imports. Bestaande taken blijven volledig intact.
 
-**Aanpak na approval:** ik voer eerst de DB-migratie uit (data-cleanup), daarna de edge function deploy, daarna de frontend-fixes. Tot slot een handmatige sync triggeren en verifiëren dat ontbrekende bookings binnenkomen en de queue leeg is.
+**Belangrijke garanties:**
+- Geen wijziging aan bestaande taken — alleen INSERT.
+- Geen GHL-push tijdens bulk import (zou rate-limit raken). Als je later wil sync'en kan dat handmatig per taak.
+- Taken zonder match krijgen nog steeds een rij (titel + notitie + datum) zodat geen historie verloren gaat — je kunt ze later via de UI aan een contact hangen.
 
