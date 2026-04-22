@@ -295,7 +295,6 @@ export default function TasksPage() {
           <SelectTrigger className="h-9 w-44 text-xs"><SelectValue /></SelectTrigger>
           <SelectContent>
             <SelectItem value="dueDate">{language === 'en' ? 'Sort: Due date' : 'Sorteer: Vervaldatum'}</SelectItem>
-            <SelectItem value="priority">{language === 'en' ? 'Sort: Priority' : 'Sorteer: Prioriteit'}</SelectItem>
             <SelectItem value="createdAt">{language === 'en' ? 'Sort: Created' : 'Sorteer: Aangemaakt'}</SelectItem>
             <SelectItem value="title">{language === 'en' ? 'Sort: Title' : 'Sorteer: Titel'}</SelectItem>
           </SelectContent>
