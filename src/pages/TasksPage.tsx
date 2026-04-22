@@ -519,7 +519,7 @@ export default function TasksPage() {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setNewOpen(false)}>{t('common.cancel')}</Button>
-            <Button onClick={handleSave}>{t('toast.created')}</Button>
+            <Button onClick={handleSave} disabled={!form.title.trim() || !form.assignedTo}>{t('toast.created')}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
