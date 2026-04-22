@@ -22,6 +22,17 @@ export default function SyncQueuePanel() {
   const failedCount = queue.filter(q => q.status === 'failed').length;
   const pendingCount = queue.filter(q => q.status === 'pending' || q.status === 'retrying').length;
 
+  // Find the most recent completed sync run with events_per_calendar info
+  const lastPullStats = useMemo(() => {
+    for (const log of logs) {
+      const epc = (log.details as any)?.results?.events_per_calendar || (log.details as any)?.events_per_calendar;
+      if (epc && typeof epc === 'object') {
+        return { when: log.created_at, perCalendar: epc as Record<string, number> };
+      }
+    }
+    return null;
+  }, [logs]);
+
   const handleRefresh = async () => {
     setRefreshing(true);
     try {
