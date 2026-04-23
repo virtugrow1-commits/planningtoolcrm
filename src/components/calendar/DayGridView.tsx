@@ -1,7 +1,20 @@
 import { useState, useCallback, useRef, useMemo, DragEvent, MouseEvent } from 'react';
 import { Booking, ROOMS, RoomName } from '@/types/crm';
 import { cn } from '@/lib/utils';
-import { GripVertical, Plus } from 'lucide-react';
+import { GripVertical, Plus, User, Clock } from 'lucide-react';
+import { useCompaniesContext } from '@/contexts/CompaniesContext';
+
+function formatDuration(startH: number, startM: number, endH: number, endM: number): string {
+  let startMin = startH * 60 + startM;
+  let endMin = endH * 60 + endM;
+  if (endMin <= startMin) endMin += 24 * 60; // overnight
+  const total = endMin - startMin;
+  const h = Math.floor(total / 60);
+  const m = total % 60;
+  if (h === 0) return `${m}m`;
+  if (m === 0) return `${h}u`;
+  return `${h}u ${m}m`;
+}
 
 // Compute column layout for overlapping options within a room
 function computeColumns(roomBookings: Booking[]): Map<string, { col: number; totalCols: number }> {
@@ -121,6 +134,13 @@ export default function DayGridView({
   getMaxGuests,
   isRoomEnabled,
 }: DayGridViewProps) {
+  const { companies } = useCompaniesContext();
+  const companyMap = useMemo(() => {
+    const m = new Map<string, string>();
+    companies.forEach((c) => m.set(c.id, c.name));
+    return m;
+  }, [companies]);
+
   const visibleRooms = useMemo(() => ROOMS.filter((r) => !isRoomEnabled || isRoomEnabled(r)), [isRoomEnabled]);
   const todayBookings = useMemo(() => bookings.filter((b) => b.date === dateStr), [bookings, dateStr]);
 
@@ -310,14 +330,22 @@ export default function DayGridView({
                     const widthPct = 100 / layout.totalCols;
                     const leftPct = layout.col * widthPct;
 
+                    const companyName = b.companyId ? companyMap.get(b.companyId) : undefined;
+                    const isConfirmed = b.status === 'confirmed';
+                    const showCompany = height >= 28 && !!companyName;
+                    const showContact = height >= 28 && !!b.contactName && (height >= 56 || !showCompany);
+                    const showCompanyAndContact = height >= 56 && !!companyName && !!b.contactName;
+                    const showTime = height >= 40;
+                    const showSetup = height >= 70 && (b.roomSetup || (b.guestCount && b.guestCount > 0));
+
                     return (
                       <div
                         key={b.id}
                         className={cn(
-                          'absolute rounded-md px-1.5 py-0.5 cursor-grab active:cursor-grabbing transition-opacity overflow-hidden z-10 shadow-sm',
-                          b.status === 'confirmed'
-                            ? 'bg-success/30 border-l-[3px] border-success text-foreground'
-                            : 'bg-warning/30 border-l-[3px] border-warning text-foreground',
+                          'group absolute rounded-md cursor-grab active:cursor-grabbing transition-all overflow-hidden z-10 shadow-sm hover:shadow-md',
+                          isConfirmed
+                            ? 'bg-success/20 border-l-4 border-success text-foreground'
+                            : 'bg-warning/20 border-l-4 border-warning text-foreground',
                           isDragged && 'opacity-25'
                         )}
                         style={{
@@ -333,20 +361,53 @@ export default function DayGridView({
                             onBookingClick(b);
                           }
                         }}
+                        title={`${b.title}${companyName ? ` — ${companyName}` : ''}${b.contactName ? ` (${b.contactName})` : ''}`}
                       >
-                        <div className="flex items-start gap-1 h-full">
-                          <GripVertical size={10} className="mt-0.5 shrink-0 opacity-40" />
+                        <div className="flex items-start gap-1 h-full px-2 py-1">
+                          <GripVertical size={10} className="mt-0.5 shrink-0 opacity-0 group-hover:opacity-40 transition-opacity" />
                           <div className="min-w-0 flex-1 overflow-hidden">
-                            <div className="text-[10px] font-semibold leading-tight truncate">{b.title}</div>
-                            {height >= 24 && <div className="text-[8px] opacity-70 truncate">{b.contactName}</div>}
-                            {height >= 32 && (
-                              <div className="text-[8px] opacity-60">
-                                {formatTime(b.startHour, b.startMinute || 0)}–{formatTime(b.endHour, b.endMinute || 0)}
+                            <div className="flex items-center gap-1">
+                              <span
+                                className={cn(
+                                  'shrink-0 w-1.5 h-1.5 rounded-full',
+                                  isConfirmed ? 'bg-success' : 'bg-warning'
+                                )}
+                              />
+                              <div className="text-[11px] font-bold leading-tight truncate">{b.title}</div>
+                            </div>
+                            {showCompanyAndContact ? (
+                              <>
+                                <div className="text-[10px] font-semibold text-primary leading-tight truncate mt-0.5">
+                                  {companyName}
+                                </div>
+                                <div className="flex items-center gap-1 text-[10px] opacity-80 leading-tight truncate">
+                                  <User size={9} className="shrink-0 opacity-60" />
+                                  <span className="truncate">{b.contactName}</span>
+                                </div>
+                              </>
+                            ) : showCompany ? (
+                              <div className="text-[10px] font-semibold text-primary leading-tight truncate mt-0.5">
+                                {companyName}
+                              </div>
+                            ) : showContact ? (
+                              <div className="flex items-center gap-1 text-[10px] opacity-80 leading-tight truncate mt-0.5">
+                                <User size={9} className="shrink-0 opacity-60" />
+                                <span className="truncate">{b.contactName}</span>
+                              </div>
+                            ) : null}
+                            {showTime && (
+                              <div className="flex items-center gap-1 text-[9px] opacity-70 leading-tight mt-0.5">
+                                <Clock size={8} className="shrink-0" />
+                                <span className="truncate">
+                                  {formatTime(b.startHour, b.startMinute || 0)}–{formatTime(b.endHour, b.endMinute || 0)}
+                                  {' · '}
+                                  {formatDuration(b.startHour, b.startMinute || 0, b.endHour, b.endMinute || 0)}
+                                </span>
                               </div>
                             )}
-                            {height >= 44 && (b.roomSetup || b.guestCount) && (
-                              <div className="text-[8px] opacity-60 truncate">
-                                {[b.roomSetup, b.guestCount ? `${b.guestCount} gasten` : null].filter(Boolean).join(' · ')}
+                            {showSetup && (
+                              <div className="text-[9px] opacity-60 truncate leading-tight mt-0.5">
+                                {[b.roomSetup, b.guestCount && b.guestCount > 0 ? `${b.guestCount} gasten` : null].filter(Boolean).join(' · ')}
                               </div>
                             )}
                           </div>
