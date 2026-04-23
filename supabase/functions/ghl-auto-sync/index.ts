@@ -1070,91 +1070,31 @@ async function syncContacts(supabase: any, ghlHeaders: any, locationId: string, 
       }
     }
 
-    // 5. Orphan cleanup — remove CRM contacts whose ghl_contact_id no longer exists in GHL
-    // ONLY run if we successfully fetched at least 1 page of contacts from GHL
-    if (seenGhlContactIds.size === 0) {
-      console.log('Skipping orphan cleanup: no contacts fetched from GHL (likely rate limited)');
-    } else {
+    // 5. SAFEGUARD: orphan cleanup is DISABLED.
+    // Auto-sync mag NOOIT contacten automatisch verwijderen, ook niet als GHL ze tijdelijk niet teruggeeft.
+    // GHL kan rate-limit geven, paginatie kan falen, of een contact kan tijdelijk uit een lijst vallen.
+    // Verwijderen mag alleen via een expliciete gebruikersactie (deleteContact in de UI).
+    // We loggen verdachte gevallen wel, zodat ze handmatig nagekeken kunnen worden.
+    if (seenGhlContactIds.size > 0) {
       const linkedNotSeen = lookups.existingContacts.filter((c: any) =>
         c.ghl_contact_id && !seenGhlContactIds.has(c.ghl_contact_id)
       );
-
-      let contactsDeleted = 0;
-      console.log(`Contact orphan candidates: ${linkedNotSeen.length} (seen: ${seenGhlContactIds.size}, total linked: ${lookups.existingContacts.filter((c: any) => c.ghl_contact_id).length})`);
-
-      // If we fetched ALL pages successfully (contactHasMore was false), we can trust the set
-      // and delete without individual verification — much faster for bulk cleanup
-      const allPagesFetched = !contactHasMore;
-      
-      if (allPagesFetched && linkedNotSeen.length > 0) {
-        console.log(`All GHL pages fetched — bulk deleting ${linkedNotSeen.length} orphaned contacts without individual verification`);
-        
-        // Process in batches of 100
-        const BATCH = 100;
-        for (let i = 0; i < linkedNotSeen.length; i += BATCH) {
-          const batch = linkedNotSeen.slice(i, i + BATCH);
-          const ids = batch.map((c: any) => c.id);
-          
-          // Log deletions
-          const logRows = batch.map((c: any) => ({
+      if (linkedNotSeen.length > 0) {
+        console.log(`[Safeguard] ${linkedNotSeen.length} CRM-contacten niet gezien in GHL — NIET verwijderd (handmatige controle vereist).`);
+        try {
+          await supabase.from('sync_log').insert({
             user_id: userId,
-            action: 'delete_contact',
+            action: 'orphan_contacts_detected',
             entity_type: 'contact',
-            entity_id: c.id,
-            details: { ghl_contact_id: c.ghl_contact_id, name: `${c.first_name} ${c.last_name}`, source: 'bulk_orphan_cleanup' },
+            entity_id: null,
+            details: {
+              count: linkedNotSeen.length,
+              note: 'Auto-delete is uitgeschakeld. Handmatige controle vereist.',
+              sample: linkedNotSeen.slice(0, 10).map((c: any) => ({ id: c.id, name: `${c.first_name} ${c.last_name}`, ghl_contact_id: c.ghl_contact_id })),
+            },
             status: 'success',
-          }));
-          await supabase.from('sync_log').insert(logRows);
-          
-          // Also clean up related records first
-          await supabase.from('contact_activities').delete().in('contact_id', ids);
-          await supabase.from('contact_companies').delete().in('contact_id', ids);
-          
-          const { error: delErr, count } = await supabase.from('contacts').delete().in('id', ids);
-          if (!delErr) {
-            contactsDeleted += batch.length;
-            console.log(`Bulk deleted batch ${Math.floor(i/BATCH)+1}: ${batch.length} contacts`);
-          } else {
-            console.error(`Bulk delete error:`, delErr.message);
-          }
-        }
-      } else if (linkedNotSeen.length > 0) {
-        // Partial fetch — verify individually (slower, limited)
-        const MAX_CONTACT_ORPHAN_CHECKS = 100;
-        for (const contact of linkedNotSeen.slice(0, MAX_CONTACT_ORPHAN_CHECKS)) {
-          await delay(300);
-          const verifyRes = await fetch(`${GHL_API_BASE}/contacts/${contact.ghl_contact_id}`, { headers: ghlHeaders });
-          if (verifyRes.status === 404 || verifyRes.status === 422 || verifyRes.status === 400) {
-            await supabase.from('sync_log').insert({
-              user_id: userId,
-              action: 'delete_contact',
-              entity_type: 'contact',
-              entity_id: contact.id,
-              details: { ghl_contact_id: contact.ghl_contact_id, name: `${contact.first_name} ${contact.last_name}`, source: 'orphan_cleanup' },
-              status: 'success',
-            });
-            // Clean up related records
-            await supabase.from('contact_activities').delete().eq('contact_id', contact.id);
-            await supabase.from('contact_companies').delete().eq('contact_id', contact.id);
-            
-            const { error: delErr } = await supabase.from('contacts').delete().eq('id', contact.id);
-            if (!delErr) {
-              console.log(`Deleted orphaned contact ${contact.id} (${contact.first_name} ${contact.last_name})`);
-              contactsDeleted++;
-            }
-          } else {
-            await verifyRes.text();
-          }
-          if (verifyRes.status === 429) {
-            console.log('Rate limited during orphan check, stopping');
-            break;
-          }
-        }
-      }
-
-      if (contactsDeleted > 0) {
-        results.contacts_deleted = contactsDeleted;
-        console.log(`Cleaned up ${contactsDeleted} orphaned contacts`);
+          });
+        } catch (_) { /* intentional */ }
       }
     }
   } catch (e) { console.error('Contact sync error:', e); }
