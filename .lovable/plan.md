@@ -2,79 +2,64 @@
 
 ## Doel
 
-De ~2200 ontbrekende taken uit `tasks-3.csv` toevoegen aan het CRM, gekoppeld aan de juiste contactpersonen, zonder duplicaten.
+De boekingskaart in de dagweergave (DayGridView) overzichtelijker en duidelijker maken, met de **bedrijfsnaam** zichtbaar en betere typografie/hiërarchie.
 
 ---
 
-## Aanpak
+## Wijzigingen
 
-### 1. Nieuwe DB-kolom: `legacy_task_id`
-- Voeg kolom `legacy_task_id INTEGER UNIQUE NULL` toe aan `tasks` tabel.
-- Doel: voorkomt duplicaten bij nu en bij toekomstige re-imports — als de legacy ID al bestaat, wordt de rij overgeslagen.
+### Card-inhoud (nieuwe hiërarchie)
 
-### 2. Nieuwe import-component: `LegacyTaskImport`
-Toegevoegd aan **Instellingen → Beheer**, naast de bestaande `LegacyImport`-knop.
+```text
+┌─────────────────────────────────┐
+│ ● Zakelijk overleg              │ ← titel, vetgedrukt
+│   Acme B.V.                     │ ← bedrijfsnaam (NIEUW), accent kleur
+│   Yvonne D'helft                │ ← contactpersoon
+│   08:00 – 12:00 · 4u            │ ← tijd + duur
+│   U-vorm · 12 gasten            │ ← opstelling + gasten (alleen indien >0)
+└─────────────────────────────────┘
+```
 
-**Vereiste uploads (5 bestanden):**
-| Bestand | Doel |
-|---|---|
-| `tasks-3.csv` | De taken zelf |
-| `contacts_1.csv` | Mapping legacy `contact_id` → naam |
-| `contact_data_1.csv` | EAV-data (voornaam, achternaam, e-mail) |
-| `customers_2.csv` | Mapping legacy `customer_id` → bedrijf/particulier |
-| `customer_data_1.csv` | EAV-data (bedrijfsnaam, e-mail) |
+### Concrete verbeteringen
 
-### 3. Verwerkingslogica
+1. **Bedrijfsnaam toevoegen** — opgehaald via `booking.companyId` → `companies.find()` uit `useCompaniesContext()`. Wordt onder de titel getoond in de primaire accentkleur (warm bruin) zodat het visueel opvalt.
 
-**Stap A — Bouw legacy → CRM mappings**
-- Reconstrueer voor elke legacy `contact_id` de volledige naam + e-mail (uit contact_data_1.csv).
-- Reconstrueer voor elke legacy `customer_id` de naam (bedrijf óf particulier).
-- Match deze namen/e-mails tegen de huidige `contacts`-tabel (al gepagineerd ophalen, alle 1000+ rijen).
-- Match-volgorde: e-mail (exact) → volledige naam (case-insensitive) → voornaam+achternaam losse delen.
-- Bouw `legacyContactId → crmContactUuid` map en `legacyCustomerId → crmCompanyUuid` map.
+2. **"0 gasten" probleem oplossen** — alleen tonen als `guestCount > 0`. Geen lege "0" meer.
 
-**Stap B — Import de taken**
-Voor elke rij in `tasks-3.csv`:
-- **Skip** als `legacy_task_id` al bestaat in de DB.
-- **Map velden:**
-  - `title` ← CSV `titel`
-  - `description` ← CSV `notitie`
-  - `due_date` ← CSV `datum` (YYYY-MM-DD format, al correct)
-  - `status` ← `'completed'` als CSV status=`1`, anders `'open'`
-  - `completed_at` ← `started_at` (indien aanwezig en status=1) of `now()` als status=1 zonder timestamp
-  - `priority` ← `'normal'` (CSV heeft geen prioriteit)
-  - `assigned_to` ← `'Iris Machielse'` (account_id=4) of `'Sjors Jochems'` (account_id=6)
-  - `contact_id` ← uit mapping op CSV `contact_id`
-  - `company_id` ← uit mapping op CSV `customer_id`
-  - `legacy_task_id` ← CSV `id`
+3. **Betere typografie**:
+   - Titel: `text-[11px] font-bold` (was 10px semibold)
+   - Bedrijfsnaam: `text-[10px] font-semibold text-primary`
+   - Contact: `text-[10px]` met `User`-icoontje (4px)
+   - Tijd: `text-[9px]` met `Clock`-icoontje, inclusief duur ("4u" of "1u 30m")
+   - Opstelling/gasten: `text-[9px]` met scheidingsteken `·`
 
-**Stap C — Insert in batches van 100**
-- Voortgangsbalk per 100 rijen.
-- Foutregels worden gelogd maar blokkeren de rest niet.
+4. **Visuele structuur**:
+   - Linker kleurbalk wordt iets dikker (4px ipv 3px) en krijgt `rounded-l-md`
+   - Status-stip (●) toegevoegd vóór de titel: groen voor bevestigd, geel voor optie
+   - Iets meer padding (`px-2 py-1` ipv `px-1.5 py-0.5`)
+   - Subtiele `hover:shadow-md` voor klikbaarheid-feedback
 
-### 4. Resultaten-rapport
-Na voltooiing toont het component:
-- Totaal verwerkt
-- Nieuw aangemaakt
-- Overgeslagen (duplicaat)
-- Aantal gekoppeld aan contact
-- Aantal gekoppeld aan bedrijf
-- Aantal zonder koppeling (handmatig op te lossen)
+5. **Adaptieve weergave op basis van hoogte** (verbeterde drempels):
+   - Altijd: titel + status-stip
+   - ≥ 28px: + bedrijfsnaam óf contactpersoon (afhankelijk van wat aanwezig is — bedrijf heeft voorrang als beide kort)
+   - ≥ 40px: + tijd met duur
+   - ≥ 56px: + zowel bedrijf als contact getoond
+   - ≥ 70px: + opstelling/gasten
+
+6. **GripVertical-icoon** verkleind en alleen zichtbaar bij hover (minder visuele ruis).
 
 ---
 
 ## Technische details
 
-| Bestand / migratie | Wijziging |
+| Bestand | Wijziging |
 |---|---|
-| **DB-migratie** | `ALTER TABLE tasks ADD COLUMN legacy_task_id INTEGER`; partial UNIQUE index op `(user_id, legacy_task_id) WHERE legacy_task_id IS NOT NULL` |
-| `src/components/LegacyTaskImport.tsx` | **Nieuw**. Upload-UI + import-engine, hergebruikt `parseSemicolonCSV` patroon uit bestaande `LegacyImport` |
-| `src/pages/SettingsPage.tsx` | Nieuwe sectie "Taken importeren uit legacy CRM" toegevoegd onder bestaande Legacy Import |
+| `src/components/calendar/DayGridView.tsx` | • `useCompaniesContext` importeren<br>• Companies map opbouwen voor O(1) lookup<br>• Card-render herstructureren met nieuwe hiërarchie<br>• `formatDuration(start, end)` helper toevoegen<br>• Status-stip + iconen (User, Clock van lucide-react)<br>• Drempelwaarden voor adaptieve weergave bijwerken<br>• `guestCount > 0` check |
 
-**Geen** wijzigingen aan: GHL-sync (geïmporteerde taken zijn lokaal-only, krijgen geen `ghl_task_id`), `tasks` types, andere imports. Bestaande taken blijven volledig intact.
+**Geen** wijzigingen aan: type-definities (`Booking` heeft al `companyId`), data-fetching, week/maand views (alleen dagweergave is te klein/onleesbaar nu), drag-and-drop logica.
 
-**Belangrijke garanties:**
-- Geen wijziging aan bestaande taken — alleen INSERT.
-- Geen GHL-push tijdens bulk import (zou rate-limit raken). Als je later wil sync'en kan dat handmatig per taak.
-- Taken zonder match krijgen nog steeds een rij (titel + notitie + datum) zodat geen historie verloren gaat — je kunt ze later via de UI aan een contact hangen.
+**Edge cases:**
+- Geen `companyId`: bedrijfsregel wordt overgeslagen (geen lege regel).
+- Lange bedrijfsnaam: `truncate` met tooltip (`title`-attribuut) zodat volledige naam zichtbaar bij hover.
+- Korte boekingen (15–30 min): alleen titel + status-stip, geen overflow.
 
