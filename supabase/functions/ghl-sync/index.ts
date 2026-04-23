@@ -619,6 +619,13 @@ Deno.serve(async (req) => {
           }
         }
 
+        // Mark contact as fully synced
+        await supabase.from('contacts').update({
+          pending_outbound_sync: false,
+          last_synced_at: new Date().toISOString(),
+          last_sync_error: null,
+        }).eq('id', contact.id);
+
         await logSyncOperation(supabase, authUser.id, 'push-contact', 'contact', { contactId: contact.id, ghlId: contact.ghl_contact_id });
         return new Response(JSON.stringify({ success: true }), { headers: corsHeaders });
       } catch (err) {
@@ -690,6 +697,13 @@ Deno.serve(async (req) => {
             return new Response(JSON.stringify({ error: errText }), { status: res.status, headers: corsHeaders });
           }
         }
+
+        // Mark company as fully synced
+        await supabase.from('companies').update({
+          pending_outbound_sync: false,
+          last_synced_at: new Date().toISOString(),
+          last_sync_error: null,
+        }).eq('id', company.id);
 
         await logSyncOperation(supabase, authUser.id, 'push-company', 'company', { companyId: company.id, ghlId: company.ghl_company_id });
         return new Response(JSON.stringify({ success: true }), { headers: corsHeaders });
