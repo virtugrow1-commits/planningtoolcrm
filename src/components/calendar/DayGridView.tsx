@@ -1,7 +1,20 @@
 import { useState, useCallback, useRef, useMemo, DragEvent, MouseEvent } from 'react';
 import { Booking, ROOMS, RoomName } from '@/types/crm';
 import { cn } from '@/lib/utils';
-import { GripVertical, Plus } from 'lucide-react';
+import { GripVertical, Plus, User, Clock } from 'lucide-react';
+import { useCompaniesContext } from '@/contexts/CompaniesContext';
+
+function formatDuration(startH: number, startM: number, endH: number, endM: number): string {
+  let startMin = startH * 60 + startM;
+  let endMin = endH * 60 + endM;
+  if (endMin <= startMin) endMin += 24 * 60; // overnight
+  const total = endMin - startMin;
+  const h = Math.floor(total / 60);
+  const m = total % 60;
+  if (h === 0) return `${m}m`;
+  if (m === 0) return `${h}u`;
+  return `${h}u ${m}m`;
+}
 
 // Compute column layout for overlapping options within a room
 function computeColumns(roomBookings: Booking[]): Map<string, { col: number; totalCols: number }> {
