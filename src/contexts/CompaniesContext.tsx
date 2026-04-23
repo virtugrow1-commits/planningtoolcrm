@@ -26,11 +26,13 @@ export interface Company {
   createdAt: string;
 }
 
+import type { SyncOutcome } from '@/lib/ghlSync';
+
 interface CompaniesContextType {
   companies: Company[];
   loading: boolean;
-  addCompany: (company: Omit<Company, 'id' | 'createdAt'>) => Promise<void>;
-  updateCompany: (company: Company) => Promise<void>;
+  addCompany: (company: Omit<Company, 'id' | 'createdAt'>) => Promise<SyncOutcome | null>;
+  updateCompany: (company: Company) => Promise<SyncOutcome>;
   deleteCompany: (id: string) => Promise<void>;
   refetch: () => Promise<void>;
 }
@@ -106,8 +108,8 @@ export function CompaniesProvider({ children }: { children: ReactNode }) {
     return () => { supabase.removeChannel(channel); };
   }, [user, fetchCompanies]);
 
-  const addCompany = useCallback(async (company: Omit<Company, 'id' | 'createdAt'>) => {
-    if (!user) return;
+  const addCompany = useCallback(async (company: Omit<Company, 'id' | 'createdAt'>): Promise<SyncOutcome | null> => {
+    if (!user) return null;
     const { data, error } = await (supabase as any).from('companies').insert({
       user_id: user.id,
       name: capitalizeWords(company.name),
@@ -124,25 +126,32 @@ export function CompaniesProvider({ children }: { children: ReactNode }) {
       customer_number: company.customerNumber || null,
       crm_group: company.crmGroup || null,
       btw_number: company.btwNumber || null,
+      pending_outbound_sync: true,
+      last_local_edit_at: new Date().toISOString(),
     }).select().single();
     if (error) {
       toast({ title: 'Fout bij aanmaken bedrijf', description: error.message, variant: 'destructive' });
+      return null;
     }
     if (data) {
-      await pushToGHL('push-company', { company: data }, {
+      const result = await pushToGHL('push-company', { company: data }, {
         entityType: 'company', entityId: data.id, actionType: 'create',
       });
+      return result.outcome;
     }
+    return null;
   }, [user, toast]);
 
-  const updateCompany = useCallback(async (company: Company) => {
+  const updateCompany = useCallback(async (company: Company): Promise<SyncOutcome> => {
     const normalizedName = capitalizeWords(company.name);
     const updatedCompany = { ...company, name: normalizedName };
 
     // Optimistic update: instantly reflect changes in UI
     setCompanies((prev) => prev.map((c) => c.id === company.id ? updatedCompany : c));
 
-    // Update local DB
+    const nowIso = new Date().toISOString();
+
+    // Update local DB AND mark as pending so background sync can't overwrite
     const { error } = await (supabase as any).from('companies').update({
       name: normalizedName,
       email: company.email || null,
@@ -158,17 +167,20 @@ export function CompaniesProvider({ children }: { children: ReactNode }) {
       customer_number: company.customerNumber || null,
       crm_group: company.crmGroup || null,
       btw_number: company.btwNumber || null,
+      pending_outbound_sync: true,
+      last_local_edit_at: nowIso,
+      last_sync_error: null,
     }).eq('id', company.id);
 
     if (error) {
       // Rollback optimistic update on failure
       setCompanies((prev) => prev.map((c) => c.id === company.id ? company : c));
       toast({ title: 'Fout bij bijwerken bedrijf', description: error.message, variant: 'destructive' });
-      return;
+      return 'error';
     }
 
-    // GHL push fire-and-forget (do not block the UI)
-    pushToGHL('push-company', { company: {
+    // Await the GHL push so the caller can show an honest result.
+    const result = await pushToGHL('push-company', { company: {
       id: company.id,
       name: normalizedName,
       email: company.email || null,
@@ -181,7 +193,8 @@ export function CompaniesProvider({ children }: { children: ReactNode }) {
       ghl_company_id: company.ghlCompanyId || null,
     }}, {
       entityType: 'company', entityId: company.id, actionType: 'update',
-    }).catch(() => {});
+    });
+    return result.outcome;
   }, [toast]);
 
   const deleteCompany = useCallback(async (id: string) => {
