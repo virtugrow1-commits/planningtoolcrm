@@ -135,10 +135,18 @@ export default function CompanyDetailPage() {
       toast({ title: 'Bedrijfsnaam is verplicht', variant: 'destructive' });
       return;
     }
-    await updateCompany(form);
+    const outcome = await updateCompany(form);
     setEditing(false);
     setForm(null);
-    toast({ title: 'Bedrijf bijgewerkt' });
+    if (outcome === 'success' || outcome === 'inactive') {
+      toast({ title: 'Bedrijf bijgewerkt', description: 'Wijziging gesynchroniseerd met VirtuGrow.' });
+    } else if (outcome === 'queued') {
+      toast({ title: 'Bedrijf lokaal opgeslagen', description: 'VirtuGrow is tijdelijk niet bereikbaar — wijziging staat in de wachtrij en wordt automatisch opnieuw verstuurd.' });
+    } else if (outcome === 'error') {
+      toast({ title: 'Opslaan mislukt', description: 'De wijziging kon niet worden opgeslagen.', variant: 'destructive' });
+    } else {
+      toast({ title: 'Bedrijf bijgewerkt' });
+    }
   };
 
   const handleLinkContact = async (contactId: string) => {

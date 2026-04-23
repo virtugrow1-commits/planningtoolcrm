@@ -6,11 +6,13 @@ import { Contact } from '@/types/crm';
 import { useToast } from '@/hooks/use-toast';
 import { capitalizeWords } from '@/lib/utils';
 
+import type { SyncOutcome } from '@/lib/ghlSync';
+
 interface ContactsContextType {
   contacts: Contact[];
   loading: boolean;
-  addContact: (contact: Omit<Contact, 'id' | 'createdAt'>) => Promise<void>;
-  updateContact: (contact: Contact) => Promise<void>;
+  addContact: (contact: Omit<Contact, 'id' | 'createdAt'>) => Promise<SyncOutcome | null>;
+  updateContact: (contact: Contact) => Promise<SyncOutcome>;
   deleteContact: (id: string) => Promise<void>;
   refetch: () => Promise<void>;
 }
@@ -93,8 +95,8 @@ export function ContactsProvider({ children }: { children: ReactNode }) {
     return () => { supabase.removeChannel(channel); };
   }, [user, fetchContacts]);
 
-  const addContact = useCallback(async (contact: Omit<Contact, 'id' | 'createdAt'>) => {
-    if (!user) return;
+  const addContact = useCallback(async (contact: Omit<Contact, 'id' | 'createdAt'>): Promise<SyncOutcome | null> => {
+    if (!user) return null;
     // Check for existing contact by name + email to prevent duplicates
     const { data: existing } = await supabase
       .from('contacts')
@@ -108,10 +110,11 @@ export function ContactsProvider({ children }: { children: ReactNode }) {
     if (existing) {
       // Contact already exists — inform user instead of silently ignoring
       toast({ title: 'Contact bestaat al', description: `${capitalizeWords(contact.firstName)} ${capitalizeWords(contact.lastName)} staat al in het systeem.`, variant: 'destructive' });
-      return;
+      return null;
     }
 
-    const { data, error } = await supabase.from('contacts').insert({
+    // Mark new contact as pending outbound sync until GHL confirms
+    const { data, error } = await (supabase as any).from('contacts').insert({
       user_id: user.id,
       first_name: capitalizeWords(contact.firstName),
       last_name: capitalizeWords(contact.lastName),
@@ -130,24 +133,30 @@ export function ContactsProvider({ children }: { children: ReactNode }) {
       postcode: contact.postcode || null,
       city: contact.city || null,
       country: contact.country || 'NL',
-    } as any).select().single();
+      pending_outbound_sync: true,
+      last_local_edit_at: new Date().toISOString(),
+    }).select().single();
     if (error) {
       toast({ title: 'Fout bij aanmaken contact', description: error.message, variant: 'destructive' });
-      return;
+      return null;
     }
     if (data) {
-      await pushToGHL('push-contact', { contact: data }, {
+      const result = await pushToGHL('push-contact', { contact: data }, {
         entityType: 'contact', entityId: data.id, actionType: 'create',
       });
+      return result.outcome;
     }
+    return null;
   }, [user, toast]);
 
-  const updateContact = useCallback(async (contact: Contact) => {
+  const updateContact = useCallback(async (contact: Contact): Promise<SyncOutcome> => {
     // Optimistic update: instantly reflect changes in UI
     setContacts(prev => prev.map(c => c.id === contact.id ? contact : c));
 
-    // Update local DB first (fast)
-    const { error } = await supabase.from('contacts').update({
+    const nowIso = new Date().toISOString();
+
+    // Update local DB first AND mark as pending so background sync can't overwrite
+    const { error } = await (supabase as any).from('contacts').update({
       first_name: capitalizeWords(contact.firstName),
       last_name: capitalizeWords(contact.lastName),
       email: contact.email || null,
@@ -166,15 +175,18 @@ export function ContactsProvider({ children }: { children: ReactNode }) {
       postcode: contact.postcode || null,
       city: contact.city || null,
       country: contact.country || 'NL',
-    } as any).eq('id', contact.id);
+      pending_outbound_sync: true,
+      last_local_edit_at: nowIso,
+      last_sync_error: null,
+    }).eq('id', contact.id);
     if (error) {
       toast({ title: 'Fout bij bijwerken contact', description: error.message, variant: 'destructive' });
       fetchContacts(); // Rollback
-      return;
+      return 'error';
     }
 
-    // Fire-and-forget: push to GHL without blocking UI
-    pushToGHL('push-contact', { contact: {
+    // Await the GHL push so the caller can show an honest result.
+    const result = await pushToGHL('push-contact', { contact: {
       id: contact.id,
       first_name: capitalizeWords(contact.firstName),
       last_name: capitalizeWords(contact.lastName),
@@ -184,7 +196,8 @@ export function ContactsProvider({ children }: { children: ReactNode }) {
       ghl_contact_id: contact.ghlContactId || null,
     }}, {
       entityType: 'contact', entityId: contact.id, actionType: 'update',
-    }).catch(() => {});
+    });
+    return result.outcome;
   }, [toast, fetchContacts]);
 
   const deleteContact = useCallback(async (id: string) => {

@@ -113,10 +113,18 @@ export default function ContactDetailPage() {
     } else {
       companyId = undefined;
     }
-    await updateContact({ ...form, companyId });
+    const outcome = await updateContact({ ...form, companyId });
     setEditing(false);
     setForm(null);
-    toast({ title: 'Contact bijgewerkt' });
+    if (outcome === 'success' || outcome === 'inactive') {
+      toast({ title: 'Contact bijgewerkt', description: 'Wijziging gesynchroniseerd met VirtuGrow.' });
+    } else if (outcome === 'queued') {
+      toast({ title: 'Contact lokaal opgeslagen', description: 'VirtuGrow is tijdelijk niet bereikbaar — wijziging staat in de wachtrij en wordt automatisch opnieuw verstuurd.' });
+    } else if (outcome === 'error') {
+      toast({ title: 'Opslaan mislukt', description: 'De wijziging kon niet worden opgeslagen.', variant: 'destructive' });
+    } else {
+      toast({ title: 'Contact bijgewerkt' });
+    }
   };
 
   const handleDelete = async () => {

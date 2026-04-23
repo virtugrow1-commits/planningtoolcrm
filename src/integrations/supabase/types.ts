@@ -124,8 +124,12 @@ export type Database = {
           ghl_company_id: string | null
           id: string
           kvk: string | null
+          last_local_edit_at: string | null
+          last_sync_error: string | null
+          last_synced_at: string | null
           name: string
           notes: string | null
+          pending_outbound_sync: boolean
           phone: string | null
           postcode: string | null
           updated_at: string
@@ -145,8 +149,12 @@ export type Database = {
           ghl_company_id?: string | null
           id?: string
           kvk?: string | null
+          last_local_edit_at?: string | null
+          last_sync_error?: string | null
+          last_synced_at?: string | null
           name: string
           notes?: string | null
+          pending_outbound_sync?: boolean
           phone?: string | null
           postcode?: string | null
           updated_at?: string
@@ -166,8 +174,12 @@ export type Database = {
           ghl_company_id?: string | null
           id?: string
           kvk?: string | null
+          last_local_edit_at?: string | null
+          last_sync_error?: string | null
+          last_synced_at?: string | null
           name?: string
           notes?: string | null
+          pending_outbound_sync?: boolean
           phone?: string | null
           postcode?: string | null
           updated_at?: string
@@ -277,8 +289,12 @@ export type Database = {
           ghl_contact_id: string | null
           id: string
           job_title: string | null
+          last_local_edit_at: string | null
           last_name: string
+          last_sync_error: string | null
+          last_synced_at: string | null
           notes: string | null
+          pending_outbound_sync: boolean
           phone: string | null
           postcode: string | null
           status: string
@@ -302,8 +318,12 @@ export type Database = {
           ghl_contact_id?: string | null
           id?: string
           job_title?: string | null
+          last_local_edit_at?: string | null
           last_name: string
+          last_sync_error?: string | null
+          last_synced_at?: string | null
           notes?: string | null
+          pending_outbound_sync?: boolean
           phone?: string | null
           postcode?: string | null
           status?: string
@@ -327,8 +347,12 @@ export type Database = {
           ghl_contact_id?: string | null
           id?: string
           job_title?: string | null
+          last_local_edit_at?: string | null
           last_name?: string
+          last_sync_error?: string | null
+          last_synced_at?: string | null
           notes?: string | null
+          pending_outbound_sync?: boolean
           phone?: string | null
           postcode?: string | null
           status?: string
