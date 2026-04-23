@@ -134,6 +134,13 @@ export default function DayGridView({
   getMaxGuests,
   isRoomEnabled,
 }: DayGridViewProps) {
+  const { companies } = useCompaniesContext();
+  const companyMap = useMemo(() => {
+    const m = new Map<string, string>();
+    companies.forEach((c) => m.set(c.id, c.name));
+    return m;
+  }, [companies]);
+
   const visibleRooms = useMemo(() => ROOMS.filter((r) => !isRoomEnabled || isRoomEnabled(r)), [isRoomEnabled]);
   const todayBookings = useMemo(() => bookings.filter((b) => b.date === dateStr), [bookings, dateStr]);
 
