@@ -901,6 +901,13 @@ async function syncContacts(supabase: any, ghlHeaders: any, locationId: string, 
       const existing = lookups.contactByGhlId.get(ghlContact.id);
 
       if (existing) {
+        // SAFEGUARD 1: never overwrite a record that has unsynced local edits
+        if (existing.pending_outbound_sync === true) {
+          console.log(`[Inbound] Skipping contact ${existing.id}: pending outbound sync (local edit not yet pushed)`);
+          results.contacts++;
+          continue;
+        }
+
         // Timestamp-based conflict resolution: only overwrite CRM if GHL is newer
         const crmDiffers = norm(existing.first_name) !== norm(firstName) ||
                            norm(existing.last_name) !== norm(lastName) ||
@@ -933,18 +940,18 @@ async function syncContacts(supabase: any, ghlHeaders: any, locationId: string, 
               await pushRes.text();
             }
           } else {
-            // GHL wins → GHL has a more recent change, update CRM
-            const updatePayload: any = {
-              first_name: firstName,
-              last_name: lastName,
-              email: ghlEmail,
-              phone: ghlPhone,
-            };
-            if (ghlCompanyName) {
-              updatePayload.company = ghlCompanyName;
+            // GHL wins → only fill fields where GHL has a real value (NEVER blank out CRM data)
+            const updatePayload: any = {};
+            if (firstName && firstName.trim()) updatePayload.first_name = firstName;
+            if (lastName && lastName.trim()) updatePayload.last_name = lastName;
+            if (ghlEmail && ghlEmail.trim()) updatePayload.email = ghlEmail;
+            if (ghlPhone && ghlPhone.trim()) updatePayload.phone = ghlPhone;
+            if (ghlCompanyName && ghlCompanyName.trim()) updatePayload.company = ghlCompanyName;
+
+            if (Object.keys(updatePayload).length > 0) {
+              await supabase.from('contacts').update(updatePayload).eq('id', existing.id);
+              console.log(`GHL -> CRM contact ${existing.id}: enriched ${Object.keys(updatePayload).length} field(s) (GHL newer)`);
             }
-            await supabase.from('contacts').update(updatePayload).eq('id', existing.id);
-            console.log(`GHL -> CRM contact ${existing.id}: GHL is newer (GHL: ${ghlUpdatedAt}, CRM: ${existing.updated_at})`);
           }
         }
       } else {
@@ -1189,6 +1196,13 @@ async function syncCompanies(supabase: any, ghlHeaders: any, locationId: string,
       const existing = lookups.companyByGhlId.get(ghlCompany.id);
 
       if (existing) {
+        // SAFEGUARD 1: never overwrite a record that has unsynced local edits
+        if (existing.pending_outbound_sync === true) {
+          console.log(`[Inbound] Skipping company ${existing.id}: pending outbound sync (local edit not yet pushed)`);
+          results.companies_synced++;
+          continue;
+        }
+
         // Timestamp-based conflict resolution: if CRM was updated recently (within 24h), skip GHL overwrite
         const crmUpdated = existing.updated_at ? new Date(existing.updated_at).getTime() : 0;
         const recentlyEditedLocally = (Date.now() - crmUpdated) < 24 * 60 * 60 * 1000;
@@ -1197,18 +1211,18 @@ async function syncCompanies(supabase: any, ghlHeaders: any, locationId: string,
           // CRM has recent local edits — don't overwrite, push CRM → GHL instead
           console.log(`Company "${existing.name}" was recently edited locally, skipping GHL overwrite`);
         } else {
-          const crmDiffers = norm(existing.name) !== norm(ghlName) ||
-                             norm(existing.email) !== norm(ghlEmail) ||
-                             norm(existing.phone) !== norm(ghlPhone) ||
-                             norm(existing.website) !== norm(ghlWebsite) ||
-                             norm(existing.address) !== norm(ghlAddress) ||
-                             norm(existing.city) !== norm(ghlCity);
+          // SAFEGUARD 2: only enrich fields where GHL has a real value (NEVER blank out CRM data)
+          const updatePayload: any = {};
+          if (ghlName && ghlName.trim() && norm(existing.name) !== norm(ghlName)) updatePayload.name = ghlName;
+          if (ghlEmail && ghlEmail.trim() && norm(existing.email) !== norm(ghlEmail)) updatePayload.email = ghlEmail;
+          if (ghlPhone && ghlPhone.trim() && norm(existing.phone) !== norm(ghlPhone)) updatePayload.phone = ghlPhone;
+          if (ghlWebsite && ghlWebsite.trim() && norm(existing.website) !== norm(ghlWebsite)) updatePayload.website = ghlWebsite;
+          if (ghlAddress && ghlAddress.trim() && norm(existing.address) !== norm(ghlAddress)) updatePayload.address = ghlAddress;
+          if (ghlCity && ghlCity.trim() && norm(existing.city) !== norm(ghlCity)) updatePayload.city = ghlCity;
 
-          if (crmDiffers) {
-            await supabase.from('companies').update({
-              name: ghlName, email: ghlEmail, phone: ghlPhone,
-              website: ghlWebsite, address: ghlAddress, city: ghlCity,
-            }).eq('id', existing.id);
+          if (Object.keys(updatePayload).length > 0) {
+            await supabase.from('companies').update(updatePayload).eq('id', existing.id);
+            console.log(`GHL -> CRM company ${existing.id}: enriched ${Object.keys(updatePayload).length} field(s)`);
           }
         }
       } else {
