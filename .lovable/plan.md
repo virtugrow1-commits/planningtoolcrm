@@ -1,65 +1,133 @@
 
-
 ## Doel
 
-De boekingskaart in de dagweergave (DayGridView) overzichtelijker en duidelijker maken, met de **bedrijfsnaam** zichtbaar en betere typografie/hiërarchie.
+Zorgen dat wijzigingen aan **bedrijven** en **contactpersonen** direct naar VirtuGrow (GHL) gaan, lokaal bewaard blijven, en **nooit meer stilletjes verdwijnen** door de achtergrondsync.
+
+## Waarschijnlijke oorzaak in de huidige code
+
+Er zitten nu drie risicopunten in de sync-flow:
+
+1. **Detailpagina’s tonen “opgeslagen” voordat de GHL-sync echt bevestigd is**  
+   `updateContact` en `updateCompany` slaan lokaal op en doen daarna een fire-and-forget push.
+
+2. **Inkomende auto-sync kan velden later weer leegmaken**  
+   In `ghl-auto-sync` worden contact- en bedrijfsvelden vanuit GHL teruggeschreven, ook als GHL voor bepaalde velden `null`/lege waarden terugstuurt.
+
+3. **Destructieve orphan-cleanup verwijdert contacten automatisch**  
+   In `ghl-auto-sync` zit expliciete contact-verwijderlogica voor records die “niet gezien” worden in GHL. Dat is te gevaarlijk voor productie en past bij het gemelde gedrag dat data “na een tijd” verdwijnt.
 
 ---
 
-## Wijzigingen
+## Aanpak
 
-### Card-inhoud (nieuwe hiërarchie)
+### 1. Maak handmatige CRM-bewerkingen leidend totdat sync bevestigd is
+Ik voeg een duurzame beschermlaag toe voor **contacts** en **companies**:
 
-```text
-┌─────────────────────────────────┐
-│ ● Zakelijk overleg              │ ← titel, vetgedrukt
-│   Acme B.V.                     │ ← bedrijfsnaam (NIEUW), accent kleur
-│   Yvonne D'helft                │ ← contactpersoon
-│   08:00 – 12:00 · 4u            │ ← tijd + duur
-│   U-vorm · 12 gasten            │ ← opstelling + gasten (alleen indien >0)
-└─────────────────────────────────┘
-```
+- nieuwe sync-status velden op beide tabellen, bijvoorbeeld:
+  - `pending_outbound_sync`
+  - `last_local_edit_at`
+  - `last_sync_error`
+  - `last_synced_at`
 
-### Concrete verbeteringen
+Gedrag:
+- zodra iemand een contact/bedrijf bewerkt, wordt het record lokaal opgeslagen met `pending_outbound_sync = true`
+- daarna loopt de push naar GHL **meteen**
+- bij succes: `pending_outbound_sync = false`, `last_synced_at = now()`
+- bij fout: record blijft lokaal behouden, fout wordt opgeslagen, en de retry-queue neemt het over
 
-1. **Bedrijfsnaam toevoegen** — opgehaald via `booking.companyId` → `companies.find()` uit `useCompaniesContext()`. Wordt onder de titel getoond in de primaire accentkleur (warm bruin) zodat het visueel opvalt.
+Hiermee kan de achtergrondsync later **niet meer zomaar over een handmatige CRM-wijziging heen schrijven**.
 
-2. **"0 gasten" probleem oplossen** — alleen tonen als `guestCount > 0`. Geen lege "0" meer.
+### 2. Maak de bewaarflow synchroon en eerlijk in de UI
+Voor `ContactsContext` en `CompaniesContext` wijzig ik de update-flow:
 
-3. **Betere typografie**:
-   - Titel: `text-[11px] font-bold` (was 10px semibold)
-   - Bedrijfsnaam: `text-[10px] font-semibold text-primary`
-   - Contact: `text-[10px]` met `User`-icoontje (4px)
-   - Tijd: `text-[9px]` met `Clock`-icoontje, inclusief duur ("4u" of "1u 30m")
-   - Opstelling/gasten: `text-[9px]` met scheidingsteken `·`
+- niet langer “save + losse background push”
+- maar:
+  1. lokaal opslaan
+  2. directe GHL push starten
+  3. uitkomst expliciet teruggeven:
+     - `gesynchroniseerd`
+     - `in wachtrij voor retry`
+     - `mislukt maar lokaal veilig opgeslagen`
 
-4. **Visuele structuur**:
-   - Linker kleurbalk wordt iets dikker (4px ipv 3px) en krijgt `rounded-l-md`
-   - Status-stip (●) toegevoegd vóór de titel: groen voor bevestigd, geel voor optie
-   - Iets meer padding (`px-2 py-1` ipv `px-1.5 py-0.5`)
-   - Subtiele `hover:shadow-md` voor klikbaarheid-feedback
+Ook de toasts op `ContactDetailPage` en `CompanyDetailPage` worden hierop aangepast, zodat gebruikers nooit meer een vals gevoel krijgen dat alles al klaar is terwijl de externe sync nog mislukt is.
 
-5. **Adaptieve weergave op basis van hoogte** (verbeterde drempels):
-   - Altijd: titel + status-stip
-   - ≥ 28px: + bedrijfsnaam óf contactpersoon (afhankelijk van wat aanwezig is — bedrijf heeft voorrang als beide kort)
-   - ≥ 40px: + tijd met duur
-   - ≥ 56px: + zowel bedrijf als contact getoond
-   - ≥ 70px: + opstelling/gasten
+### 3. Stop alle destructieve auto-verwijdering van contacten
+De huidige orphan-cleanup in `ghl-auto-sync` voor contacten haal ik uit de automatische flow.
 
-6. **GripVertical-icoon** verkleind en alleen zichtbaar bij hover (minder visuele ruis).
+Nieuwe regel:
+- **auto-sync mag contacten of bedrijven niet automatisch verwijderen** puur omdat GHL ze tijdelijk niet terugstuurt
+- hoogstens loggen/markeren als “verdacht” voor handmatige controle
+- verwijderen mag alleen nog via een expliciete verwijderactie
+
+Dit is de belangrijkste safeguard tegen “gegevens verdwijnen na verloop van tijd”.
+
+### 4. Maak inkomende GHL-pulls niet-destructief
+Ik pas de inbound sync in `ghl-auto-sync` aan zodat:
+
+- lege/null GHL-waarden **geen bestaande CRM-data meer wissen**
+- alleen velden met echte inhoud teruggeschreven worden
+- handmatig bewerkte records met `pending_outbound_sync = true` niet overschreven mogen worden
+- voor bedrijven hetzelfde geldt als voor contacten, zodat adres/e-mail/website/plaats niet later verdwijnen
+
+Kort:
+- GHL mag verrijken
+- GHL mag niet leegtrekken
+- GHL mag niet over niet-bevestigde lokale edits heen schrijven
+
+### 5. Versterk de retry- en logginglaag
+Ik maak de sync-uitkomst beter traceerbaar:
+
+- `pushToGHL` geeft een rijkere status terug dan alleen `null`
+- queue-replays werken de sync-status van het originele record ook bij
+- `sync_log` krijgt duidelijkere details per contact/bedrijf-update
+- in de instellingen/syncweergave wordt zichtbaar welke records nog wachten op retry
+
+Zo is meteen zichtbaar of iets:
+- direct gelukt is
+- veilig in de wachtrij staat
+- aandacht nodig heeft
+
+### 6. Volledige audit van bestaande probleemgevallen
+Na de codefix neem ik een eenmalige herstelstap mee:
+
+- sync-log nalopen op eerdere automatische contact-verwijderingen
+- bestaande queue/items met contact- en company-updates opnieuw beoordelen
+- waar mogelijk verkeerde deletes of ontbrekende GHL-koppelingen herstellen
+- een handmatige full sync draaien om de nieuwe logica te verifiëren zonder data te wissen
 
 ---
 
-## Technische details
+## Bestanden / onderdelen
 
 | Bestand | Wijziging |
 |---|---|
-| `src/components/calendar/DayGridView.tsx` | • `useCompaniesContext` importeren<br>• Companies map opbouwen voor O(1) lookup<br>• Card-render herstructureren met nieuwe hiërarchie<br>• `formatDuration(start, end)` helper toevoegen<br>• Status-stip + iconen (User, Clock van lucide-react)<br>• Drempelwaarden voor adaptieve weergave bijwerken<br>• `guestCount > 0` check |
+| `src/contexts/ContactsContext.tsx` | Save-flow van contacten ombouwen naar directe, statusbewuste sync |
+| `src/contexts/CompaniesContext.tsx` | Save-flow van bedrijven idem |
+| `src/lib/ghlSync.ts` | Returntype uitbreiden met sync-resultaat (`success/queued/error`) en betere queue-status |
+| `src/pages/ContactDetailPage.tsx` | Success/error messaging aanpassen op echte sync-uitkomst |
+| `src/pages/CompanyDetailPage.tsx` | Success/error messaging aanpassen op echte sync-uitkomst |
+| `supabase/functions/ghl-sync/index.ts` | Na succesvolle push ook sync-status op contact/bedrijf bijwerken |
+| `supabase/functions/ghl-auto-sync/index.ts` | Destructieve orphan-cleanup verwijderen, inbound sync niet-destructief maken, lokale pending edits beschermen |
+| DB migratie | Nieuwe sync-status kolommen op `contacts` en `companies` |
 
-**Geen** wijzigingen aan: type-definities (`Booking` heeft al `companyId`), data-fetching, week/maand views (alleen dagweergave is te klein/onleesbaar nu), drag-and-drop logica.
+---
 
-**Edge cases:**
-- Geen `companyId`: bedrijfsregel wordt overgeslagen (geen lege regel).
-- Lange bedrijfsnaam: `truncate` met tooltip (`title`-attribuut) zodat volledige naam zichtbaar bij hover.
-- Korte boekingen (15–30 min): alleen titel + status-stip, geen overflow.
+## Technische regels die ik ga afdwingen
 
+1. Een handmatige CRM-edit is leidend totdat de outbound sync bevestigd is.  
+2. Auto-sync mag **nooit** een contact of bedrijf automatisch verwijderen.  
+3. Lege GHL-velden mogen bestaande CRM-velden niet overschrijven.  
+4. Een mislukte GHL-sync mag lokale data niet blokkeren of verliezen.  
+5. De UI mag alleen “gesynchroniseerd” tonen als dat ook echt zo is.
+
+---
+
+## Verwacht resultaat
+
+Na deze fix:
+
+- wijzigingen aan contacten en bedrijven gaan **direct** richting GHL
+- als GHL tijdelijk faalt, blijft de wijziging **veilig lokaal staan**
+- de retry-queue pakt de sync opnieuw op
+- achtergrondsync kan de gegevens niet meer later laten verdwijnen
+- gebruikers zien duidelijk of iets echt gesynchroniseerd is of nog in de wachtrij staat
