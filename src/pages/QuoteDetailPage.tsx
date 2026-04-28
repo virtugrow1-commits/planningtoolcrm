@@ -506,6 +506,7 @@ export default function QuoteDetailPage() {
         quote={quote}
         onSent={loadQuote}
       />
+      </div>
     </div>
   );
 }
