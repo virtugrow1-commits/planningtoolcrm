@@ -235,24 +235,33 @@ export default function QuoteDetailPage() {
   }
 
   return (
-    <div className="p-4 md:p-6 max-w-5xl mx-auto space-y-6">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center gap-3">
-        <Button variant="ghost" size="icon" onClick={handleBackClick}>
-          <ArrowLeft size={18} />
-        </Button>
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-3 flex-wrap">
-            <h1 className="text-xl font-bold text-foreground">{quote.displayNumber}</h1>
-            <QuoteStatusBadge status={quote.status} />
-            {isExpired && quote.status !== 'accepted' && quote.status !== 'declined' && (
-              <span className="text-xs text-amber-600 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full">
-                Verlopen
-              </span>
-            )}
+    <div className="pb-10 max-w-5xl mx-auto">
+      {/* Sticky header */}
+      <div className="sticky top-0 z-20 bg-background/85 backdrop-blur-md border-b border-border/60">
+        <div className="px-4 md:px-6 py-3 flex flex-col sm:flex-row sm:items-center gap-3">
+          <Button variant="ghost" size="icon" onClick={handleBackClick} className="shrink-0">
+            <ArrowLeft size={18} />
+          </Button>
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2.5 flex-wrap">
+              <h1 className="text-lg md:text-xl font-bold text-foreground tracking-tight">
+                {quote.displayNumber}
+              </h1>
+              <QuoteStatusBadge status={quote.status} />
+              {isExpired && quote.status !== 'accepted' && quote.status !== 'declined' && (
+                <span className="inline-flex items-center gap-1 text-[11px] font-medium text-warning-foreground bg-warning/15 border border-warning/30 px-2 py-0.5 rounded-full">
+                  <AlertTriangle size={10} /> Verlopen
+                </span>
+              )}
+              {editing && hasUnsaved.current && (
+                <span className="inline-flex items-center gap-1.5 text-[11px] font-medium text-accent-foreground">
+                  <span className="h-1.5 w-1.5 rounded-full bg-accent animate-pulse" />
+                  Niet-opgeslagen wijzigingen
+                </span>
+              )}
+            </div>
+            <p className="text-xs text-muted-foreground truncate mt-0.5">{quote.title}</p>
           </div>
-          <p className="text-sm text-muted-foreground truncate">{quote.title}</p>
-        </div>
 
         {/* Action buttons */}
         <div className="flex items-center gap-2 flex-wrap">
