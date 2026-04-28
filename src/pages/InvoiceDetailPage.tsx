@@ -253,11 +253,11 @@ export default function InvoiceDetailPage() {
           {(invoice.status === 'sent' || invoice.status === 'overdue' || isOverdue) && (
             <>
               {isOverdue && invoice.status === 'sent' && (
-                <Button variant="outline" size="sm" onClick={handleMarkOverdue} className="gap-1.5 text-amber-600 border-amber-300">
+                <Button variant="outline" size="sm" onClick={handleMarkOverdue} className="gap-1.5 text-warning border-warning/40">
                   Markeer verlopen
                 </Button>
               )}
-              <Button size="sm" onClick={handleMarkPaid} className="gap-1.5 bg-green-600 hover:bg-green-700">
+              <Button size="sm" onClick={handleMarkPaid} className="gap-1.5 bg-success hover:bg-success/90 text-success-foreground">
                 <CheckCircle size={14} /> Betaald
               </Button>
             </>
