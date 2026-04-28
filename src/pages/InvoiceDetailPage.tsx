@@ -388,6 +388,7 @@ export default function InvoiceDetailPage() {
           { label: 'Betaald', value: invoice.paidAt ? formatDate(invoice.paidAt) : undefined },
         ]}
       />
+      </div>
     </div>
   );
 }
