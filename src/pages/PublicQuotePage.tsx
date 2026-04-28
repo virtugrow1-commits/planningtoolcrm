@@ -182,7 +182,7 @@ export default function PublicQuotePage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-muted/30 flex items-center justify-center">
+      <div className="min-h-screen bg-gradient-to-b from-secondary/40 to-background flex items-center justify-center">
         <div className="animate-pulse text-muted-foreground">Document laden...</div>
       </div>
     );
@@ -190,8 +190,8 @@ export default function PublicQuotePage() {
 
   if (error || !quote) {
     return (
-      <div className="min-h-screen bg-muted/30 flex items-center justify-center">
-        <Card className="max-w-md">
+      <div className="min-h-screen bg-gradient-to-b from-secondary/40 to-background flex items-center justify-center px-4">
+        <Card className="max-w-md card-shadow">
           <CardContent className="pt-6 text-center">
             <FileText size={48} className="mx-auto text-muted-foreground mb-4" />
             <p className="text-foreground font-medium">{error}</p>
@@ -204,26 +204,38 @@ export default function PublicQuotePage() {
   const isExpired = quote.valid_until && new Date(quote.valid_until) < new Date();
 
   return (
-    <div className="min-h-screen bg-muted/30">
-      {/* Header bar */}
-      <div className="bg-background border-b sticky top-0 z-10">
-        <div className="max-w-4xl mx-auto px-4 py-3 flex items-center justify-between">
-          <div>
-            <h1 className="text-lg font-bold text-foreground">{quote.title}</h1>
-            <p className="text-sm text-muted-foreground">
-              {quote.display_number} · Voor {quote.contact_name}
-              {quote.company_name ? ` · ${quote.company_name}` : ''}
-            </p>
+    <div className="min-h-screen bg-gradient-to-b from-secondary/40 via-background to-background pb-32">
+      {/* Warm hero */}
+      <div className="sidebar-gradient text-primary-foreground">
+        <div className="max-w-4xl mx-auto px-4 py-8 sm:py-10">
+          <div className="flex items-start justify-between gap-4 flex-wrap">
+            <div className="min-w-0">
+              <p className="text-xs font-medium uppercase tracking-[0.2em] text-primary-foreground/70">
+                {quote.display_number}
+              </p>
+              <h1 className="text-2xl sm:text-3xl font-bold mt-2 leading-tight">{quote.title}</h1>
+              <p className="text-sm text-primary-foreground/85 mt-2">
+                Voor <span className="font-semibold">{quote.contact_name}</span>
+                {quote.company_name ? <> · {quote.company_name}</> : null}
+              </p>
+            </div>
+            {responded && (
+              <div
+                className={`px-3 py-1.5 rounded-full text-xs font-semibold flex items-center gap-1.5 ${
+                  responded === 'accepted'
+                    ? 'bg-success text-success-foreground'
+                    : 'bg-destructive text-destructive-foreground'
+                }`}
+              >
+                {responded === 'accepted' ? <Check size={12} /> : <X size={12} />}
+                {responded === 'accepted' ? 'Akkoord gegeven' : 'Niet akkoord'}
+              </div>
+            )}
           </div>
-          {responded && (
-            <div
-              className={`px-3 py-1 rounded-full text-sm font-medium ${
-                responded === 'accepted'
-                  ? 'bg-green-100 text-green-800'
-                  : 'bg-red-100 text-red-800'
-              }`}
-            >
-              {responded === 'accepted' ? 'Akkoord gegeven' : 'Niet akkoord'}
+          {quote.valid_until && (
+            <div className="mt-5 inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-primary-foreground/10 border border-primary-foreground/20 text-xs">
+              <span className="text-primary-foreground/80">Geldig tot</span>
+              <span className="font-semibold">{format(new Date(quote.valid_until), 'dd MMMM yyyy', { locale: nl })}</span>
             </div>
           )}
         </div>
