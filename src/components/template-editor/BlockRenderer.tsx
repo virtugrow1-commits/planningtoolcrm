@@ -182,6 +182,17 @@ function TextBlockEditor({ block, selected, onUpdate, customFonts = [], onCustom
             className="w-7 h-7 rounded border cursor-pointer"
           />
           <div className="w-px h-5 bg-border mx-1" />
+          <button
+            title="Opsommingstekens"
+            className="h-7 w-7 flex items-center justify-center rounded text-sm hover:bg-accent"
+            onMouseDown={(e) => { e.preventDefault(); ref.current?.focus(); document.execCommand('insertUnorderedList'); if (ref.current) onUpdate({ content: ref.current.innerHTML }); }}
+          >•</button>
+          <button
+            title="Genummerde lijst"
+            className="h-7 w-7 flex items-center justify-center rounded text-xs hover:bg-accent"
+            onMouseDown={(e) => { e.preventDefault(); ref.current?.focus(); document.execCommand('insertOrderedList'); if (ref.current) onUpdate({ content: ref.current.innerHTML }); }}
+          >1.</button>
+          <div className="w-px h-5 bg-border mx-1" />
           <MergeTagPicker onInsert={insertMergeTag} />
         </div>
       )}
@@ -189,7 +200,7 @@ function TextBlockEditor({ block, selected, onUpdate, customFonts = [], onCustom
         ref={ref}
         contentEditable
         suppressContentEditableWarning
-        className="outline-none min-h-[1.5em] whitespace-pre-wrap"
+        className="outline-none min-h-[1.5em] whitespace-pre-wrap [&_ul]:list-disc [&_ul]:pl-6 [&_ol]:list-decimal [&_ol]:pl-6 [&_li]:my-0.5"
         style={{
           fontSize: block.fontSize,
           fontFamily: block.fontFamily || 'Inter',
