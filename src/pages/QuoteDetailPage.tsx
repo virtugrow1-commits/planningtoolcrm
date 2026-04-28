@@ -328,10 +328,10 @@ export default function QuoteDetailPage() {
       <div className="px-4 md:px-6 pt-6 space-y-6">
       {/* Expired warning */}
       {isExpired && quote.status === 'sent' && (
-        <Card className="border-amber-200 bg-amber-50">
+        <Card className="border-warning/30 bg-warning/10">
           <CardContent className="pt-4 pb-4 flex items-center gap-3">
-            <AlertTriangle size={16} className="text-amber-600 shrink-0" />
-            <p className="text-sm text-amber-800">
+            <AlertTriangle size={16} className="text-warning shrink-0" />
+            <p className="text-sm text-warning-foreground">
               Deze offerte is verlopen op {formatDate(quote.validUntil!, false)}.
               Bewerk de geldigheidsdatum en stuur opnieuw.
             </p>
