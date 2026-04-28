@@ -348,14 +348,14 @@ export default function PublicQuotePage() {
 
         {/* Accept / Decline section */}
         {!responded && !isExpired && (
-          <Card>
+          <Card className="card-shadow border-border/70">
             <CardContent className="pt-6 space-y-4">
               <h3 className="text-base font-semibold text-foreground">Uw akkoord</h3>
               <p className="text-sm text-muted-foreground">
                 Door akkoord te gaan bevestigt u de inhoud van dit document en gaat u akkoord met de bijbehorende voorwaarden.
               </p>
 
-              <div className="flex items-start gap-3 p-4 rounded-lg border bg-muted/30">
+              <div className="flex items-start gap-3 p-4 rounded-xl border border-border bg-secondary/40">
                 <input
                   type="checkbox"
                   id="agree"
@@ -369,13 +369,13 @@ export default function PublicQuotePage() {
               </div>
 
               {!hasRequiredSignatures() && (
-                <div className="flex items-center gap-2">
-                  <p className="text-xs text-amber-600">
+                <div className="flex items-center gap-2 p-3 rounded-lg bg-warning/10 border border-warning/30">
+                  <p className="text-xs text-warning-foreground">
                     Zet uw handtekening in het document hierboven om verder te gaan.
                   </p>
                   <button
                     type="button"
-                    className="text-xs text-primary underline shrink-0"
+                    className="text-xs text-primary underline shrink-0 ml-auto"
                     onClick={() => {
                       const el = document.querySelector('[data-block-type="signature"]');
                       el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -385,39 +385,21 @@ export default function PublicQuotePage() {
                   </button>
                 </div>
               )}
-
-              <div className="flex gap-3 pt-2">
-                <Button
-                  onClick={handleAccept}
-                  disabled={!canAccept || submitting}
-                  className="gap-1.5 flex-1 sm:flex-none"
-                >
-                  <Check size={16} /> {submitting ? 'Verwerken...' : 'Akkoord'}
-                </Button>
-                <Button
-                  variant="outline"
-                  onClick={handleDecline}
-                  disabled={submitting}
-                  className="gap-1.5 flex-1 sm:flex-none text-destructive border-destructive/30 hover:bg-destructive/10"
-                >
-                  <X size={16} /> Niet akkoord
-                </Button>
-              </div>
             </CardContent>
           </Card>
         )}
 
         {/* Response confirmation */}
         {responded && (
-          <Card>
-            <CardContent className="pt-6 text-center">
+          <Card className="card-shadow border-border/70">
+            <CardContent className="pt-8 pb-8 text-center">
               {responded === 'accepted' ? (
                 <>
-                  <div className="w-12 h-12 rounded-full bg-green-100 flex items-center justify-center mx-auto mb-3">
-                    <Check size={24} className="text-green-600" />
+                  <div className="w-16 h-16 rounded-full bg-success/15 flex items-center justify-center mx-auto mb-4">
+                    <Check size={28} className="text-success" />
                   </div>
-                  <h3 className="text-lg font-semibold text-foreground">Bedankt voor uw akkoord!</h3>
-                  <p className="text-sm text-muted-foreground mt-1">
+                  <h3 className="text-xl font-bold text-foreground">Bedankt voor uw akkoord!</h3>
+                  <p className="text-sm text-muted-foreground mt-2 max-w-md mx-auto">
                     Uw bevestiging is ontvangen op{' '}
                     {format(new Date(), "dd MMMM yyyy 'om' HH:mm", { locale: nl })}.
                     U ontvangt binnenkort een factuur.
@@ -425,11 +407,11 @@ export default function PublicQuotePage() {
                 </>
               ) : (
                 <>
-                  <div className="w-12 h-12 rounded-full bg-red-100 flex items-center justify-center mx-auto mb-3">
-                    <X size={24} className="text-red-600" />
+                  <div className="w-16 h-16 rounded-full bg-destructive/10 flex items-center justify-center mx-auto mb-4">
+                    <X size={28} className="text-destructive" />
                   </div>
-                  <h3 className="text-lg font-semibold text-foreground">U heeft niet akkoord gegeven</h3>
-                  <p className="text-sm text-muted-foreground mt-1">
+                  <h3 className="text-xl font-bold text-foreground">U heeft niet akkoord gegeven</h3>
+                  <p className="text-sm text-muted-foreground mt-2 max-w-md mx-auto">
                     Neem contact op als u vragen heeft of wijzigingen wilt bespreken.
                   </p>
                 </>
@@ -439,7 +421,7 @@ export default function PublicQuotePage() {
         )}
 
         {/* Footer */}
-        <div className="text-center text-xs text-muted-foreground pb-8">
+        <div className="text-center text-xs text-muted-foreground pt-4">
           {quote.valid_until && (
             <p>
               Dit document is geldig tot{' '}
@@ -448,6 +430,35 @@ export default function PublicQuotePage() {
           )}
         </div>
       </div>
+
+      {/* Sticky action bar */}
+      {!responded && !isExpired && (
+        <div className="fixed bottom-0 inset-x-0 z-30 bg-background/95 backdrop-blur-md border-t border-border shadow-[0_-4px_20px_-4px_rgba(0,0,0,0.08)]">
+          <div className="max-w-4xl mx-auto px-4 py-3 flex items-center justify-between gap-3">
+            <p className="text-xs text-muted-foreground hidden sm:block">
+              {agreed ? 'Klaar om te bevestigen' : 'Vink akkoord aan om verder te gaan'}
+            </p>
+            <div className="flex gap-2 flex-1 sm:flex-none sm:ml-auto">
+              <Button
+                variant="outline"
+                onClick={handleDecline}
+                disabled={submitting}
+                className="gap-1.5 flex-1 sm:flex-none text-destructive border-destructive/30 hover:bg-destructive/10"
+              >
+                <X size={16} /> Niet akkoord
+              </Button>
+              <Button
+                onClick={handleAccept}
+                disabled={!canAccept || submitting}
+                size="lg"
+                className="gap-1.5 flex-1 sm:flex-none shadow-md"
+              >
+                <Check size={16} /> {submitting ? 'Verwerken...' : 'Offerte accepteren'}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
