@@ -267,7 +267,7 @@ export default function QuoteDetailPage() {
         <div className="flex items-center gap-2 flex-wrap">
           {quote.publicToken && (
             <Button variant="outline" size="sm" onClick={copyPublicLink} className="gap-1.5">
-              {linkCopied ? <Check size={14} className="text-green-600" /> : <Copy size={14} />}
+              {linkCopied ? <Check size={14} className="text-success" /> : <Copy size={14} />}
               {linkCopied ? 'Gekopieerd!' : 'Kopieer link'}
             </Button>
           )}
