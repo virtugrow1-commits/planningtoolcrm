@@ -322,8 +322,10 @@ export default function QuoteDetailPage() {
 
           {canEdit && <DeleteConfirmDialog title="Offerte verwijderen?" onConfirm={handleDelete} />}
         </div>
+        </div>
       </div>
 
+      <div className="px-4 md:px-6 pt-6 space-y-6">
       {/* Expired warning */}
       {isExpired && quote.status === 'sent' && (
         <Card className="border-amber-200 bg-amber-50">
