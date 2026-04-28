@@ -244,10 +244,10 @@ export default function PublicQuotePage() {
       <div className="max-w-4xl mx-auto px-4 py-6 space-y-6">
         {/* Expired warning */}
         {isExpired && !responded && (
-          <Card className="border-amber-200 bg-amber-50">
+          <Card className="border-warning/40 bg-warning/10">
             <CardContent className="pt-4 flex items-center gap-3">
-              <AlertCircle size={18} className="text-amber-600 shrink-0" />
-              <p className="text-sm text-amber-800">
+              <AlertCircle size={18} className="text-warning shrink-0" />
+              <p className="text-sm text-warning-foreground">
                 Dit document is verlopen op {format(new Date(quote.valid_until!), 'dd MMMM yyyy', { locale: nl })}.
                 Neem contact op voor een nieuwe versie.
               </p>
