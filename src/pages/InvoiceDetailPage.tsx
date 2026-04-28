@@ -215,7 +215,7 @@ export default function InvoiceDetailPage() {
         <div className="flex items-center gap-2 flex-wrap">
           {/* e-Boekhouden */}
           {invoice.eboekhoudenMutationId ? (
-            <span className="text-xs text-green-600 flex items-center gap-1 px-2 py-1 bg-green-50 border border-green-200 rounded">
+            <span className="text-xs text-success flex items-center gap-1 px-2 py-1 bg-success/10 border border-success/25 rounded">
               <BookOpen size={12} /> e-Boekhouden ✓
             </span>
           ) : (
