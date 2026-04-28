@@ -265,14 +265,16 @@ export default function InvoiceDetailPage() {
 
           {isDraft && <DeleteConfirmDialog title="Factuur verwijderen?" onConfirm={handleDelete} />}
         </div>
+        </div>
       </div>
 
+      <div className="px-4 md:px-6 pt-6 space-y-6">
       {/* Overdue warning */}
       {(invoice.status === 'overdue' || isOverdue) && (
-        <Card className="border-red-200 bg-red-50">
+        <Card className="border-destructive/30 bg-destructive/10">
           <CardContent className="pt-4 pb-4 flex items-center gap-3">
-            <AlertTriangle size={16} className="text-red-600 shrink-0" />
-            <p className="text-sm text-red-800">
+            <AlertTriangle size={16} className="text-destructive shrink-0" />
+            <p className="text-sm text-destructive">
               Deze factuur is verlopen op {invoice.dueDate ? format(new Date(invoice.dueDate), 'dd MMMM yyyy', { locale: nl }) : '—'}.
               {daysOverdue > 0 && ` (${daysOverdue} dag${daysOverdue !== 1 ? 'en' : ''} geleden)`}
             </p>
