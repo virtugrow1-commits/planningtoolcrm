@@ -185,30 +185,37 @@ export default function InvoiceDetailPage() {
   }
 
   return (
-    <div className="p-4 md:p-6 max-w-5xl mx-auto space-y-6">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center gap-3">
-        <Button variant="ghost" size="icon" onClick={handleBackClick}>
-          <ArrowLeft size={18} />
-        </Button>
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-3 flex-wrap">
-            <h1 className="text-xl font-bold text-foreground">{invoice.displayNumber}</h1>
-            <QuoteStatusBadge status={isOverdue ? 'overdue' : invoice.status} />
-            {isOverdue && daysOverdue > 0 && (
-              <span className="text-xs text-red-600 bg-red-50 border border-red-200 px-2 py-0.5 rounded-full flex items-center gap-1">
-                <Clock size={10} /> {daysOverdue} dag{daysOverdue !== 1 ? 'en' : ''} te laat
-              </span>
-            )}
+    <div className="pb-10 max-w-5xl mx-auto">
+      {/* Sticky header */}
+      <div className="sticky top-0 z-20 bg-background/85 backdrop-blur-md border-b border-border/60">
+        <div className="px-4 md:px-6 py-3 flex flex-col sm:flex-row sm:items-center gap-3">
+          <Button variant="ghost" size="icon" onClick={handleBackClick} className="shrink-0">
+            <ArrowLeft size={18} />
+          </Button>
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2.5 flex-wrap">
+              <h1 className="text-lg md:text-xl font-bold text-foreground tracking-tight">{invoice.displayNumber}</h1>
+              <QuoteStatusBadge status={isOverdue ? 'overdue' : invoice.status} />
+              {isOverdue && daysOverdue > 0 && (
+                <span className="inline-flex items-center gap-1 text-[11px] font-medium text-destructive bg-destructive/10 border border-destructive/25 px-2 py-0.5 rounded-full">
+                  <Clock size={10} /> {daysOverdue} dag{daysOverdue !== 1 ? 'en' : ''} te laat
+                </span>
+              )}
+              {editing && hasUnsaved.current && (
+                <span className="inline-flex items-center gap-1.5 text-[11px] font-medium text-accent-foreground">
+                  <span className="h-1.5 w-1.5 rounded-full bg-accent animate-pulse" />
+                  Niet-opgeslagen wijzigingen
+                </span>
+              )}
+            </div>
+            <p className="text-xs text-muted-foreground truncate mt-0.5">{invoice.title}</p>
           </div>
-          <p className="text-sm text-muted-foreground truncate">{invoice.title}</p>
-        </div>
 
         {/* Actions */}
         <div className="flex items-center gap-2 flex-wrap">
           {/* e-Boekhouden */}
           {invoice.eboekhoudenMutationId ? (
-            <span className="text-xs text-green-600 flex items-center gap-1 px-2 py-1 bg-green-50 border border-green-200 rounded">
+            <span className="text-xs text-success flex items-center gap-1 px-2 py-1 bg-success/10 border border-success/25 rounded">
               <BookOpen size={12} /> e-Boekhouden ✓
             </span>
           ) : (
@@ -246,11 +253,11 @@ export default function InvoiceDetailPage() {
           {(invoice.status === 'sent' || invoice.status === 'overdue' || isOverdue) && (
             <>
               {isOverdue && invoice.status === 'sent' && (
-                <Button variant="outline" size="sm" onClick={handleMarkOverdue} className="gap-1.5 text-amber-600 border-amber-300">
+                <Button variant="outline" size="sm" onClick={handleMarkOverdue} className="gap-1.5 text-warning border-warning/40">
                   Markeer verlopen
                 </Button>
               )}
-              <Button size="sm" onClick={handleMarkPaid} className="gap-1.5 bg-green-600 hover:bg-green-700">
+              <Button size="sm" onClick={handleMarkPaid} className="gap-1.5 bg-success hover:bg-success/90 text-success-foreground">
                 <CheckCircle size={14} /> Betaald
               </Button>
             </>
@@ -258,14 +265,16 @@ export default function InvoiceDetailPage() {
 
           {isDraft && <DeleteConfirmDialog title="Factuur verwijderen?" onConfirm={handleDelete} />}
         </div>
+        </div>
       </div>
 
+      <div className="px-4 md:px-6 pt-6 space-y-6">
       {/* Overdue warning */}
       {(invoice.status === 'overdue' || isOverdue) && (
-        <Card className="border-red-200 bg-red-50">
+        <Card className="border-destructive/30 bg-destructive/10">
           <CardContent className="pt-4 pb-4 flex items-center gap-3">
-            <AlertTriangle size={16} className="text-red-600 shrink-0" />
-            <p className="text-sm text-red-800">
+            <AlertTriangle size={16} className="text-destructive shrink-0" />
+            <p className="text-sm text-destructive">
               Deze factuur is verlopen op {invoice.dueDate ? format(new Date(invoice.dueDate), 'dd MMMM yyyy', { locale: nl }) : '—'}.
               {daysOverdue > 0 && ` (${daysOverdue} dag${daysOverdue !== 1 ? 'en' : ''} geleden)`}
             </p>
@@ -379,6 +388,7 @@ export default function InvoiceDetailPage() {
           { label: 'Betaald', value: invoice.paidAt ? formatDate(invoice.paidAt) : undefined },
         ]}
       />
+      </div>
     </div>
   );
 }
