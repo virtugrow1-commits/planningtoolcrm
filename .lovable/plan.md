@@ -1,133 +1,89 @@
-
 ## Doel
 
-Zorgen dat wijzigingen aan **bedrijven** en **contactpersonen** direct naar VirtuGrow (GHL) gaan, lokaal bewaard blijven, en **nooit meer stilletjes verdwijnen** door de achtergrondsync.
+De documenten- en contractenomgeving krijgt een warme, verfijnde uitstraling (in lijn met VirtuGrow: bruin #9e523a + goud #e4bb7a) en wordt prettiger in gebruik — zonder de bestaande logica (sync, statussen, OFF-/FAC-nummers, GHL-koppeling) te raken.
 
-## Waarschijnlijke oorzaak in de huidige code
+## 1. Documenten-overzicht (`/quotes`)
 
-Er zitten nu drie risicopunten in de sync-flow:
+**Header & KPI's**
+- Rustiger header met subtiele goud-accent onder de titel.
+- KPI-kaarten krijgen een lichte gradient (warm beige → wit), grotere cijfers, kleinere labels, en een gekleurd icoon-vlak in merkkleur i.p.v. grijs.
+- Extra micro-info onder elk KPI (bijv. "+3 deze week" / "2 verlopen binnenkort").
 
-1. **Detailpagina’s tonen “opgeslagen” voordat de GHL-sync echt bevestigd is**  
-   `updateContact` en `updateCompany` slaan lokaal op en doen daarna een fire-and-forget push.
+**Zoek & filters**
+- Zoekbalk verbreden, met sneltoets-hint (`⌘K`).
+- Status-pills krijgen een actieve staat in merkkleur met goud-rand, en tonen een klein bolletje in de statuskleur.
+- Filterbalk wordt sticky bij scrollen.
 
-2. **Inkomende auto-sync kan velden later weer leegmaken**  
-   In `ghl-auto-sync` worden contact- en bedrijfsvelden vanuit GHL teruggeschreven, ook als GHL voor bepaalde velden `null`/lege waarden terugstuurt.
+**Tabel**
+- Hoogteritme verbeteren (12px rijen → rustiger), zebra-striping uit, hover in warm-beige.
+- Documentnummer in monospaced kleur-accent, titel daarnaast in normale weight.
+- Klant- en bedrijfsnaam samen in één cel met klein bedrijfslogo-bolletje (initialen).
+- Bedragkolom rechts uitgelijnd, tabular-nums, met valuta-symbool subtiel grijs.
+- Statuskolom met badge + datum eronder (bv. "Verzonden · 12 apr").
+- "Verzonden / Bekeken / Getekend"-kolommen samenvoegen tot één compacte tijdlijn-cel (3 stipjes met datums in tooltip) → veel minder visuele ruis.
+- Per rij een actie-menu (⋯) met: Openen, Kopieer link, Dupliceer, Verwijderen.
+- Lege staat krijgt een vriendelijke illustratie + duidelijke "Nieuwe offerte"-CTA.
 
-3. **Destructieve orphan-cleanup verwijdert contacten automatisch**  
-   In `ghl-auto-sync` zit expliciete contact-verwijderlogica voor records die “niet gezien” worden in GHL. Dat is te gevaarlijk voor productie en past bij het gemelde gedrag dat data “na een tijd” verdwijnt.
+**Sjablonen-tab**
+- Kaartjes worden grotere "documentkaarten" met:
+  - Mini-preview van de eerste pagina (als er content_blocks/PDF-achtergrond is) of een goud accent-balk bovenaan.
+  - Naam + omschrijving + datum + "Standaard"-badge in goud.
+  - Hover toont actieknoppen (Openen, Dupliceer, Verwijder).
+- Lege staat met grote CTA en suggesties ("Begin met een blank sjabloon" / "Importeer PDF").
 
----
+## 2. Offerte- & factuurdetail (`/quotes/:id`, `/invoices/:id`)
 
-## Aanpak
+**Sticky actiebalk**
+- Header met terugknop, documentnummer, status en titel wordt sticky bij scrollen.
+- Acties (Bewerken / Opslaan / Verstuur naar klant / Maak factuur / Verwijder) groeperen in een rustige rij; primaire actie altijd in merkkleur, secundair als outline.
+- "Bewerken" en "Opslaan" wisselen op dezelfde plek (geen dubbele knop tegelijk).
+- "Niet-opgeslagen wijzigingen"-indicator met goud bolletje naast de titel.
 
-### 1. Maak handmatige CRM-bewerkingen leidend totdat sync bevestigd is
-Ik voeg een duurzame beschermlaag toe voor **contacts** en **companies**:
+**Layout**
+- Twee-koloms layout op desktop: links het document (klantkaart, intro, regels, voorwaarden), rechts een rustige zijbalk met:
+  - Status & tijdlijn (verzonden → bekeken → geaccepteerd) als verticale stappen.
+  - Totaalkaart (subtotaal, korting, btw, totaal) met merkkleur-accent.
+  - Snelle acties (kopieer publieke link, download PDF, dupliceer).
+- Mobiel: zijbalk klapt naar onderen.
 
-- nieuwe sync-status velden op beide tabellen, bijvoorbeeld:
-  - `pending_outbound_sync`
-  - `last_local_edit_at`
-  - `last_sync_error`
-  - `last_synced_at`
+**Lees-/bewerkmodus**
+- In leesmodus: documentachtige typografie (serif heading voor titel, ruime regelafstand), warme papier-achtige achtergrond voor het document-blok.
+- In bewerkmodus: duidelijke "Je bewerkt"-banner bovenaan met Opslaan/Annuleren.
+- Verlopen-waarschuwing krijgt zachte amber-stijl (al aanwezig, iets verfijnen).
 
-Gedrag:
-- zodra iemand een contact/bedrijf bewerkt, wordt het record lokaal opgeslagen met `pending_outbound_sync = true`
-- daarna loopt de push naar GHL **meteen**
-- bij succes: `pending_outbound_sync = false`, `last_synced_at = now()`
-- bij fout: record blijft lokaal behouden, fout wordt opgeslagen, en de retry-queue neemt het over
+**Klantkaart**
+- Avatar-bolletje met initialen, naam + bedrijf, e-mail/adres met iconen, klik door naar contact/bedrijf.
 
-Hiermee kan de achtergrondsync later **niet meer zomaar over een handmatige CRM-wijziging heen schrijven**.
+## 3. Klantportaal (publieke offertepagina, `/quote/view/:token`)
 
-### 2. Maak de bewaarflow synchroon en eerlijk in de UI
-Voor `ContactsContext` en `CompaniesContext` wijzig ik de update-flow:
+- Warme hero bovenaan met VirtuGrow-merkkleur, bedrijfslogo en "Offerte voor [Klant]".
+- Documentnummer + geldig-tot in subtiele balk eronder.
+- Document-content in een centrale "papier"-kaart met zachte schaduw en serif-koppen.
+- Sticky actiebalk onderaan met grote primaire knop "Offerte accepteren" (merkkleur) en secundaire "Vragen stellen" (mailto).
+- Na accepteren: vriendelijke bevestigingsstaat met checkmark en vervolgstappen.
+- Mobiel-eerst: knoppen full-width onderaan.
 
-- niet langer “save + losse background push”
-- maar:
-  1. lokaal opslaan
-  2. directe GHL push starten
-  3. uitkomst expliciet teruggeven:
-     - `gesynchroniseerd`
-     - `in wachtrij voor retry`
-     - `mislukt maar lokaal veilig opgeslagen`
+## 4. Algemene UI-verfijningen (alleen binnen documenten-omgeving)
 
-Ook de toasts op `ContactDetailPage` en `CompanyDetailPage` worden hierop aangepast, zodat gebruikers nooit meer een vals gevoel krijgen dat alles al klaar is terwijl de externe sync nog mislukt is.
+- Consistente afgeronde hoeken (rounded-xl), zachte schaduwen (`card-shadow`), subtiele borders.
+- Statuskleuren consistent doortrekken: concept = neutraal, verzonden = info-blauw, bekeken = goud, geaccepteerd/betaald = succes-groen, afgewezen/verlopen = warm rood/amber.
+- Skeleton loaders al aanwezig — uitbreiden naar detailpagina's voor rustigere laadervaring.
+- Toasts compacter en altijd in merk-tinten.
 
-### 3. Stop alle destructieve auto-verwijdering van contacten
-De huidige orphan-cleanup in `ghl-auto-sync` voor contacten haal ik uit de automatische flow.
+## Wat ik NIET aanraak
 
-Nieuwe regel:
-- **auto-sync mag contacten of bedrijven niet automatisch verwijderen** puur omdat GHL ze tijdelijk niet terugstuurt
-- hoogstens loggen/markeren als “verdacht” voor handmatige controle
-- verwijderen mag alleen nog via een expliciete verwijderactie
+- Geen wijzigingen aan sync-logica, GHL-koppeling, OFF-/FAC-nummering, btw-berekening, edge functions, of database-schema.
+- Geen wijzigingen aan de template-editor zelf (alleen het kaartje in het overzicht).
+- Bestaande Nederlandse terminologie blijft.
 
-Dit is de belangrijkste safeguard tegen “gegevens verdwijnen na verloop van tijd”.
+## Bestanden die ik ga aanpassen
 
-### 4. Maak inkomende GHL-pulls niet-destructief
-Ik pas de inbound sync in `ghl-auto-sync` aan zodat:
+- `src/pages/QuotesPage.tsx` — header, KPI's, filters, sjablonen-grid.
+- `src/components/documents/UnifiedDocumentTable.tsx` — tabel-vormgeving, samengevoegde tijdlijn-cel, actie-menu.
+- `src/pages/QuoteDetailPage.tsx` + `src/pages/InvoiceDetailPage.tsx` — sticky header, two-column layout, lees/bewerk-stijl.
+- `src/pages/PublicQuotePage.tsx` — klantportaal hero + sticky CTA.
+- Eventueel kleine helper-componenten voor: `DocumentTimelineCell`, `DocumentSidebar`, `DocumentRowActions`.
 
-- lege/null GHL-waarden **geen bestaande CRM-data meer wissen**
-- alleen velden met echte inhoud teruggeschreven worden
-- handmatig bewerkte records met `pending_outbound_sync = true` niet overschreven mogen worden
-- voor bedrijven hetzelfde geldt als voor contacten, zodat adres/e-mail/website/plaats niet later verdwijnen
+## Resultaat
 
-Kort:
-- GHL mag verrijken
-- GHL mag niet leegtrekken
-- GHL mag niet over niet-bevestigde lokale edits heen schrijven
-
-### 5. Versterk de retry- en logginglaag
-Ik maak de sync-uitkomst beter traceerbaar:
-
-- `pushToGHL` geeft een rijkere status terug dan alleen `null`
-- queue-replays werken de sync-status van het originele record ook bij
-- `sync_log` krijgt duidelijkere details per contact/bedrijf-update
-- in de instellingen/syncweergave wordt zichtbaar welke records nog wachten op retry
-
-Zo is meteen zichtbaar of iets:
-- direct gelukt is
-- veilig in de wachtrij staat
-- aandacht nodig heeft
-
-### 6. Volledige audit van bestaande probleemgevallen
-Na de codefix neem ik een eenmalige herstelstap mee:
-
-- sync-log nalopen op eerdere automatische contact-verwijderingen
-- bestaande queue/items met contact- en company-updates opnieuw beoordelen
-- waar mogelijk verkeerde deletes of ontbrekende GHL-koppelingen herstellen
-- een handmatige full sync draaien om de nieuwe logica te verifiëren zonder data te wissen
-
----
-
-## Bestanden / onderdelen
-
-| Bestand | Wijziging |
-|---|---|
-| `src/contexts/ContactsContext.tsx` | Save-flow van contacten ombouwen naar directe, statusbewuste sync |
-| `src/contexts/CompaniesContext.tsx` | Save-flow van bedrijven idem |
-| `src/lib/ghlSync.ts` | Returntype uitbreiden met sync-resultaat (`success/queued/error`) en betere queue-status |
-| `src/pages/ContactDetailPage.tsx` | Success/error messaging aanpassen op echte sync-uitkomst |
-| `src/pages/CompanyDetailPage.tsx` | Success/error messaging aanpassen op echte sync-uitkomst |
-| `supabase/functions/ghl-sync/index.ts` | Na succesvolle push ook sync-status op contact/bedrijf bijwerken |
-| `supabase/functions/ghl-auto-sync/index.ts` | Destructieve orphan-cleanup verwijderen, inbound sync niet-destructief maken, lokale pending edits beschermen |
-| DB migratie | Nieuwe sync-status kolommen op `contacts` en `companies` |
-
----
-
-## Technische regels die ik ga afdwingen
-
-1. Een handmatige CRM-edit is leidend totdat de outbound sync bevestigd is.  
-2. Auto-sync mag **nooit** een contact of bedrijf automatisch verwijderen.  
-3. Lege GHL-velden mogen bestaande CRM-velden niet overschrijven.  
-4. Een mislukte GHL-sync mag lokale data niet blokkeren of verliezen.  
-5. De UI mag alleen “gesynchroniseerd” tonen als dat ook echt zo is.
-
----
-
-## Verwacht resultaat
-
-Na deze fix:
-
-- wijzigingen aan contacten en bedrijven gaan **direct** richting GHL
-- als GHL tijdelijk faalt, blijft de wijziging **veilig lokaal staan**
-- de retry-queue pakt de sync opnieuw op
-- achtergrondsync kan de gegevens niet meer later laten verdwijnen
-- gebruikers zien duidelijk of iets echt gesynchroniseerd is of nog in de wachtrij staat
+Een documenten- en contractenomgeving die rustiger oogt, sneller te scannen is, duidelijker maakt wat je kunt doen, en bij de klant een professionele, warme indruk achterlaat — volledig in de VirtuGrow-stijl.
