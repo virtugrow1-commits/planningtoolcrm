@@ -1263,6 +1263,143 @@ Deno.serve(async (req) => {
       });
     }
 
+    // =================== push-call-log (Gespreksverslag → GHL Note) ===================
+    if (action === 'push-call-log') {
+      const { activity_id } = body;
+      if (!activity_id) {
+        return new Response(JSON.stringify({ ok: false, error: 'activity_id required' }), {
+          status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      const { data: activity, error: actErr } = await supabase
+        .from('contact_activities')
+        .select('id, contact_id, body, subject, created_at, related_task_id, ghl_note_id')
+        .eq('id', activity_id)
+        .single();
+
+      if (actErr || !activity) {
+        return new Response(JSON.stringify({ ok: false, error: 'activity not found' }), {
+          status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      if (!activity.contact_id) {
+        await logSyncOperation(supabase, authUser.id, 'push-call-log', 'activity', { activityId: activity.id, note: 'no_contact' });
+        return new Response(JSON.stringify({ ok: true, skipped: true, reason: 'no_contact' }), {
+          status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      const { data: contact } = await supabase
+        .from('contacts')
+        .select('ghl_contact_id')
+        .eq('id', activity.contact_id)
+        .single();
+
+      const ghlContactId = contact?.ghl_contact_id;
+      if (!ghlContactId) {
+        await logSyncOperation(supabase, authUser.id, 'push-call-log', 'activity', { activityId: activity.id, note: 'no_ghl_contact' });
+        return new Response(JSON.stringify({ ok: true, skipped: true, reason: 'no_ghl_contact' }), {
+          status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      // Optional: pull task title for context in the note body
+      let taskTitle: string | null = null;
+      if (activity.related_task_id) {
+        const { data: t } = await supabase
+          .from('tasks')
+          .select('title')
+          .eq('id', activity.related_task_id)
+          .single();
+        taskTitle = t?.title || null;
+      }
+
+      const dateStr = new Date(activity.created_at).toLocaleString('nl-NL', {
+        timeZone: 'Europe/Amsterdam', dateStyle: 'short', timeStyle: 'short',
+      });
+      const noteBody = `📞 Gespreksverslag — ${dateStr}\n\n${activity.body || ''}` +
+        (taskTitle ? `\n\n— Gekoppeld aan taak: ${taskTitle}` : '');
+
+      try {
+        let res: Response;
+        if (activity.ghl_note_id) {
+          res = await ghlFetch(`${GHL_API_BASE}/contacts/${ghlContactId}/notes/${activity.ghl_note_id}`, {
+            method: 'PUT',
+            headers: ghlHeaders,
+            body: JSON.stringify({ body: noteBody }),
+          });
+        } else {
+          res = await ghlFetch(`${GHL_API_BASE}/contacts/${ghlContactId}/notes`, {
+            method: 'POST',
+            headers: ghlHeaders,
+            body: JSON.stringify({ body: noteBody }),
+          });
+        }
+
+        if (!res.ok) {
+          const errText = await res.text();
+          // Ignore benign errors per project conventions
+          if (errText.includes('Contact not found') || res.status === 404) {
+            await logSyncOperation(supabase, authUser.id, 'push-call-log', 'activity', { activityId: activity.id, note: 'ghl_contact_missing' });
+            return new Response(JSON.stringify({ ok: true, skipped: true, reason: 'ghl_contact_missing' }), {
+              status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+            });
+          }
+          await logSyncOperation(supabase, authUser.id, 'push-call-log', 'activity', { error: errText, activityId: activity.id }, 'error');
+          return new Response(JSON.stringify({ ok: false, error: errText }), {
+            status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
+        }
+
+        const created = await res.json();
+        const noteId = created?.note?.id || created?.id || activity.ghl_note_id;
+        if (noteId && noteId !== activity.ghl_note_id) {
+          await supabase.from('contact_activities').update({ ghl_note_id: noteId }).eq('id', activity.id);
+        }
+
+        await logSyncOperation(supabase, authUser.id, 'push-call-log', 'activity', { activityId: activity.id, ghlNoteId: noteId });
+        return new Response(JSON.stringify({ ok: true, ghl_note_id: noteId }), {
+          status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      } catch (err) {
+        console.error('Error pushing call log:', err);
+        await logSyncOperation(supabase, authUser.id, 'push-call-log', 'activity', { error: String(err), activityId: activity.id }, 'error');
+        return new Response(JSON.stringify({ ok: false, error: String(err) }), {
+          status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+    }
+
+    // =================== delete-call-log ===================
+    if (action === 'delete-call-log') {
+      const { ghl_note_id, ghl_contact_id } = body;
+      if (!ghl_note_id || !ghl_contact_id) {
+        return new Response(JSON.stringify({ ok: true, skipped: true }), {
+          status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+      try {
+        const res = await ghlFetch(`${GHL_API_BASE}/contacts/${ghl_contact_id}/notes/${ghl_note_id}`, {
+          method: 'DELETE',
+          headers: ghlHeaders,
+        });
+        if (!res.ok && res.status !== 404) {
+          const errText = await res.text();
+          await logSyncOperation(supabase, authUser.id, 'delete-call-log', 'activity', { error: errText, ghlNoteId: ghl_note_id }, 'error');
+        } else {
+          await res.text();
+          await logSyncOperation(supabase, authUser.id, 'delete-call-log', 'activity', { ghlNoteId: ghl_note_id });
+        }
+      } catch (err) {
+        await logSyncOperation(supabase, authUser.id, 'delete-call-log', 'activity', { error: String(err) }, 'error');
+      }
+      return new Response(JSON.stringify({ ok: true }), {
+        status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
     // =================== sync-notes ===================
     if (action === 'sync-notes') {
       console.log(`[Notes Sync] Starting notes/conversations sync for organization`);
