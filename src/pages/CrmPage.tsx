@@ -21,6 +21,7 @@ import { useLanguage } from '@/contexts/LanguageContext';
 import { cn } from '@/lib/utils';
 import { exportToCSV } from '@/lib/csvExport';
 import { SortableHeader, useSortState } from '@/components/SortableHeader';
+import PostCompanyContactFlow from '@/components/company/PostCompanyContactFlow';
 
 const STATUS_LABELS: Record<string, string> = {
   lead: 'Lead',
