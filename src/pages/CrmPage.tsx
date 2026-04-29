@@ -154,10 +154,14 @@ export default function CrmPage() {
       toast({ title: 'Vul een bedrijfsnaam in', variant: 'destructive' });
       return;
     }
-    await addCompany(newCompany);
+    const result = await addCompany(newCompany);
     setNewCompanyOpen(false);
+    const createdName = newCompany.name;
     setNewCompany({ name: '', email: '', phone: '', website: '', address: '', city: '', postcode: '', kvk: '', notes: '' });
     toast({ title: 'Bedrijf aangemaakt' });
+    if (result.companyId) {
+      setPostCreateCompany({ id: result.companyId, name: createdName });
+    }
   };
 
   // Companies tab filtering
