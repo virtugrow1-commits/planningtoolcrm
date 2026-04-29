@@ -12,6 +12,7 @@ import BulkActionBar from '@/components/BulkActionBar';
 import { useToast } from '@/hooks/use-toast';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useCompaniesContext, Company } from '@/contexts/CompaniesContext';
+import PostCompanyContactFlow from '@/components/company/PostCompanyContactFlow';
 import { cn } from '@/lib/utils';
 
 const PAGE_SIZES = [20, 50, 100] as const;
@@ -28,6 +29,7 @@ export default function CompaniesPage() {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
+  const [postCreateCompany, setPostCreateCompany] = useState<{ id: string; name: string } | null>(null);
   const { toast } = useToast();
 
   const handleSearch = (v: string) => { setSearch(v); setPage(1); };
@@ -80,11 +82,15 @@ export default function CompaniesPage() {
     if (editing) {
       await updateCompany({ ...editing, ...form });
       toast({ title: 'Bedrijf bijgewerkt' });
+      setDialogOpen(false);
     } else {
-      await addCompany(form);
+      const result = await addCompany(form);
       toast({ title: 'Bedrijf aangemaakt' });
+      setDialogOpen(false);
+      if (result.companyId) {
+        setPostCreateCompany({ id: result.companyId, name: form.name });
+      }
     }
-    setDialogOpen(false);
   };
 
   const confirmDelete = (id: string) => {
@@ -216,6 +222,11 @@ export default function CompaniesPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <PostCompanyContactFlow
+        company={postCreateCompany}
+        onClose={() => setPostCreateCompany(null)}
+      />
     </div>
   );
 }

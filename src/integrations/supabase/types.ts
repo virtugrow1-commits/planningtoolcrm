@@ -194,6 +194,7 @@ export type Database = {
           contact_id: string
           created_at: string
           id: string
+          related_task_id: string | null
           subject: string | null
           type: string
           updated_at: string
@@ -204,6 +205,7 @@ export type Database = {
           contact_id: string
           created_at?: string
           id?: string
+          related_task_id?: string | null
           subject?: string | null
           type?: string
           updated_at?: string
@@ -214,6 +216,7 @@ export type Database = {
           contact_id?: string
           created_at?: string
           id?: string
+          related_task_id?: string | null
           subject?: string | null
           type?: string
           updated_at?: string

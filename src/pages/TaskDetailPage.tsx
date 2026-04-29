@@ -5,6 +5,8 @@ import { useContactsContext } from '@/contexts/ContactsContext';
 import { useCompaniesContext } from '@/contexts/CompaniesContext';
 import { useInquiriesContext } from '@/contexts/InquiriesContext';
 import { useBookings } from '@/contexts/BookingsContext';
+import { useAuth } from '@/contexts/AuthContext';
+import { supabase } from '@/integrations/supabase/client';
 import { Task, TASK_STATUSES, TASK_PRIORITIES } from '@/types/task';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
@@ -19,11 +21,12 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { InfoRow, SectionCard } from '@/components/detail/DetailPageComponents';
 import TeamMemberSelect from '@/components/TeamMemberSelect';
 import CrmCombobox from '@/components/CrmCombobox';
-import { ArrowLeft, ChevronRight, Pencil, Check, X, CalendarIcon, User, Building2, FileText, Bookmark, CheckCircle2, Plus, Trash2 } from 'lucide-react';
+import { ArrowLeft, ChevronRight, Pencil, Check, X, CalendarIcon, User, Building2, FileText, Bookmark, CheckCircle2, Plus, Trash2, Phone, MessageSquareText } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
 import { nl } from 'date-fns/locale';
 import { Skeleton } from '@/components/ui/skeleton';
+import { useTaskCallLogs, useContactActivities } from '@/hooks/useContactActivities';
 
 export default function TaskDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -34,6 +37,7 @@ export default function TaskDetailPage() {
   const { inquiries } = useInquiriesContext();
   const { bookings } = useBookings();
   const { toast } = useToast();
+  const { user } = useAuth();
 
   const task = tasks.find(t => t.id === id);
   const [editing, setEditing] = useState(false);
@@ -49,6 +53,12 @@ export default function TaskDetailPage() {
   const [followAssignedTo, setFollowAssignedTo] = useState<string | undefined>();
   const [followAdding, setFollowAdding] = useState(false);
   const [followAttempted, setFollowAttempted] = useState(false);
+
+  // Gespreksverslag (call log) state
+  const [callLogText, setCallLogText] = useState('');
+  const [callLogDate, setCallLogDate] = useState<Date | undefined>(new Date());
+  const [savingCallLog, setSavingCallLog] = useState(false);
+  const { logs: taskCallLogs, refetch: refetchCallLogs } = useTaskCallLogs(id);
 
   const contact = useMemo(() => task?.contactId ? contacts.find(c => c.id === task.contactId) : null, [task, contacts]);
   const company = useMemo(() => task?.companyId ? companies.find(c => c.id === task.companyId) : null, [task, companies]);
@@ -137,6 +147,45 @@ export default function TaskDetailPage() {
     setFollowAdding(false);
     setShowFollowUp(false);
     toast({ title: 'Vervolgtaak aangemaakt' });
+  };
+
+  const handleSaveCallLog = async () => {
+    if (!callLogText.trim()) return;
+    if (!task.contactId) {
+      toast({ title: 'Koppel eerst een contactpersoon aan deze taak.', variant: 'destructive' });
+      return;
+    }
+    if (!user) return;
+    setSavingCallLog(true);
+    const payload: any = {
+      user_id: user.id,
+      contact_id: task.contactId,
+      type: 'call',
+      subject: 'Gespreksverslag',
+      body: callLogText.trim(),
+      related_task_id: task.id,
+    };
+    if (callLogDate) payload.created_at = callLogDate.toISOString();
+    const { error } = await supabase.from('contact_activities').insert(payload);
+    setSavingCallLog(false);
+    if (error) {
+      toast({ title: 'Fout bij opslaan gespreksverslag', description: error.message, variant: 'destructive' });
+      return;
+    }
+    setCallLogText('');
+    setCallLogDate(new Date());
+    toast({ title: 'Gespreksverslag toegevoegd aan gesprekken' });
+    refetchCallLogs();
+  };
+
+  const handleDeleteCallLog = async (logId: string) => {
+    const { error } = await supabase.from('contact_activities').delete().eq('id', logId);
+    if (error) {
+      toast({ title: 'Fout bij verwijderen', description: error.message, variant: 'destructive' });
+      return;
+    }
+    toast({ title: 'Verslag verwijderd' });
+    refetchCallLogs();
   };
 
   const isOverdue = task.dueDate && task.status !== 'completed' && task.dueDate < new Date().toISOString().split('T')[0];
@@ -287,8 +336,92 @@ export default function TaskDetailPage() {
           </div>
         </div>
 
-        {/* RIGHT — Linked entities */}
-        <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-4">
+        {/* RIGHT — Gespreksverslag + Linked entities */}
+        <div className="flex-1 space-y-4">
+          {/* Gespreksverslag */}
+          <div className="rounded-xl bg-card p-5 card-shadow space-y-4">
+            <div className="flex items-center gap-2">
+              <Phone size={16} className="text-primary" />
+              <h3 className="text-base font-bold text-foreground">Gespreksverslag</h3>
+              <span className="text-xs text-muted-foreground">— wordt opgeslagen onder Gesprekken</span>
+            </div>
+
+            {!task.contactId ? (
+              <div className="rounded-lg border border-dashed border-border/60 bg-muted/30 p-4 text-sm text-muted-foreground">
+                Koppel eerst een contactpersoon aan deze taak om een gespreksverslag te bewaren.
+              </div>
+            ) : (
+              <div className="space-y-3">
+                <Textarea
+                  placeholder="Typ hier het verslag van het (telefoon)gesprek..."
+                  value={callLogText}
+                  onChange={(e) => setCallLogText(e.target.value)}
+                  rows={5}
+                  className="resize-y"
+                />
+                <div className="flex flex-wrap items-center gap-2">
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button variant="outline" size="sm" className="h-8 text-xs gap-1.5">
+                        <CalendarIcon size={12} />
+                        {callLogDate ? format(callLogDate, 'd MMM yyyy', { locale: nl }) : 'Datum'}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <Calendar mode="single" selected={callLogDate} onSelect={setCallLogDate} initialFocus className="p-3 pointer-events-auto" />
+                    </PopoverContent>
+                  </Popover>
+                  <div className="flex-1" />
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => { setCallLogText(''); setCallLogDate(new Date()); }}
+                    disabled={savingCallLog || (!callLogText && !!callLogDate)}
+                  >
+                    Annuleren
+                  </Button>
+                  <Button
+                    size="sm"
+                    onClick={handleSaveCallLog}
+                    disabled={savingCallLog || !callLogText.trim()}
+                  >
+                    <MessageSquareText size={14} className="mr-1" />
+                    {savingCallLog ? 'Opslaan...' : 'Opslaan in Gesprekken'}
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            {/* Previous logs for this task */}
+            {taskCallLogs.length > 0 && (
+              <div className="border-t border-border/60 pt-3 space-y-2">
+                <p className="text-xs font-semibold text-muted-foreground">Eerdere verslagen bij deze taak</p>
+                <div className="space-y-2 max-h-[260px] overflow-y-auto pr-1">
+                  {taskCallLogs.map((log) => (
+                    <div key={log.id} className="group flex gap-3 text-sm rounded-lg border border-border/50 p-3 hover:bg-muted/30 transition-colors">
+                      <Phone size={14} className="text-primary mt-0.5 shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-[11px] text-muted-foreground">
+                          {format(new Date(log.createdAt), 'd MMM yyyy HH:mm', { locale: nl })}
+                        </p>
+                        {log.body && <p className="text-sm text-foreground whitespace-pre-wrap mt-0.5">{log.body}</p>}
+                      </div>
+                      <button
+                        onClick={() => handleDeleteCallLog(log.id)}
+                        className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-destructive transition-all shrink-0"
+                        title="Verwijderen"
+                      >
+                        <Trash2 size={12} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Linked entities grid */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {/* Linked contact */}
           {contact && (
             <SectionCard title="Contactpersoon">
@@ -353,6 +486,7 @@ export default function TaskDetailPage() {
           }}>
             <p className="text-xs text-muted-foreground">Maak een vervolgtaak aan met dezelfde koppelingen.</p>
           </SectionCard>
+          </div>
         </div>
       </div>
 

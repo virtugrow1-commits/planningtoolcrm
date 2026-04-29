@@ -28,10 +28,15 @@ export interface Company {
 
 import type { SyncOutcome } from '@/lib/ghlSync';
 
+export interface AddCompanyResult {
+  outcome: SyncOutcome | null;
+  companyId: string | null;
+}
+
 interface CompaniesContextType {
   companies: Company[];
   loading: boolean;
-  addCompany: (company: Omit<Company, 'id' | 'createdAt'>) => Promise<SyncOutcome | null>;
+  addCompany: (company: Omit<Company, 'id' | 'createdAt'>) => Promise<AddCompanyResult>;
   updateCompany: (company: Company) => Promise<SyncOutcome>;
   deleteCompany: (id: string) => Promise<void>;
   refetch: () => Promise<void>;
@@ -108,8 +113,8 @@ export function CompaniesProvider({ children }: { children: ReactNode }) {
     return () => { supabase.removeChannel(channel); };
   }, [user, fetchCompanies]);
 
-  const addCompany = useCallback(async (company: Omit<Company, 'id' | 'createdAt'>): Promise<SyncOutcome | null> => {
-    if (!user) return null;
+  const addCompany = useCallback(async (company: Omit<Company, 'id' | 'createdAt'>): Promise<AddCompanyResult> => {
+    if (!user) return { outcome: null, companyId: null };
     const { data, error } = await (supabase as any).from('companies').insert({
       user_id: user.id,
       name: capitalizeWords(company.name),
@@ -131,15 +136,15 @@ export function CompaniesProvider({ children }: { children: ReactNode }) {
     }).select().single();
     if (error) {
       toast({ title: 'Fout bij aanmaken bedrijf', description: error.message, variant: 'destructive' });
-      return null;
+      return { outcome: null, companyId: null };
     }
     if (data) {
       const result = await pushToGHL('push-company', { company: data }, {
         entityType: 'company', entityId: data.id, actionType: 'create',
       });
-      return result.outcome;
+      return { outcome: result.outcome, companyId: data.id };
     }
-    return null;
+    return { outcome: null, companyId: null };
   }, [user, toast]);
 
   const updateCompany = useCallback(async (company: Company): Promise<SyncOutcome> => {
