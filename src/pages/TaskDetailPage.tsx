@@ -149,6 +149,45 @@ export default function TaskDetailPage() {
     toast({ title: 'Vervolgtaak aangemaakt' });
   };
 
+  const handleSaveCallLog = async () => {
+    if (!callLogText.trim()) return;
+    if (!task.contactId) {
+      toast({ title: 'Koppel eerst een contactpersoon aan deze taak.', variant: 'destructive' });
+      return;
+    }
+    if (!user) return;
+    setSavingCallLog(true);
+    const payload: any = {
+      user_id: user.id,
+      contact_id: task.contactId,
+      type: 'call',
+      subject: 'Gespreksverslag',
+      body: callLogText.trim(),
+      related_task_id: task.id,
+    };
+    if (callLogDate) payload.created_at = callLogDate.toISOString();
+    const { error } = await supabase.from('contact_activities').insert(payload);
+    setSavingCallLog(false);
+    if (error) {
+      toast({ title: 'Fout bij opslaan gespreksverslag', description: error.message, variant: 'destructive' });
+      return;
+    }
+    setCallLogText('');
+    setCallLogDate(new Date());
+    toast({ title: 'Gespreksverslag toegevoegd aan gesprekken' });
+    refetchCallLogs();
+  };
+
+  const handleDeleteCallLog = async (logId: string) => {
+    const { error } = await supabase.from('contact_activities').delete().eq('id', logId);
+    if (error) {
+      toast({ title: 'Fout bij verwijderen', description: error.message, variant: 'destructive' });
+      return;
+    }
+    toast({ title: 'Verslag verwijderd' });
+    refetchCallLogs();
+  };
+
   const isOverdue = task.dueDate && task.status !== 'completed' && task.dueDate < new Date().toISOString().split('T')[0];
 
   return (
