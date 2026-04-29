@@ -28,10 +28,15 @@ export interface Company {
 
 import type { SyncOutcome } from '@/lib/ghlSync';
 
+export interface AddCompanyResult {
+  outcome: SyncOutcome | null;
+  companyId: string | null;
+}
+
 interface CompaniesContextType {
   companies: Company[];
   loading: boolean;
-  addCompany: (company: Omit<Company, 'id' | 'createdAt'>) => Promise<SyncOutcome | null>;
+  addCompany: (company: Omit<Company, 'id' | 'createdAt'>) => Promise<AddCompanyResult>;
   updateCompany: (company: Company) => Promise<SyncOutcome>;
   deleteCompany: (id: string) => Promise<void>;
   refetch: () => Promise<void>;
