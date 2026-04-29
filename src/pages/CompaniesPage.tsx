@@ -222,6 +222,11 @@ export default function CompaniesPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <PostCompanyContactFlow
+        company={postCreateCompany}
+        onClose={() => setPostCreateCompany(null)}
+      />
     </div>
   );
 }
