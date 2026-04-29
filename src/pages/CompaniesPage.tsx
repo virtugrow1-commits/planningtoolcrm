@@ -82,11 +82,15 @@ export default function CompaniesPage() {
     if (editing) {
       await updateCompany({ ...editing, ...form });
       toast({ title: 'Bedrijf bijgewerkt' });
+      setDialogOpen(false);
     } else {
-      await addCompany(form);
+      const result = await addCompany(form);
       toast({ title: 'Bedrijf aangemaakt' });
+      setDialogOpen(false);
+      if (result.companyId) {
+        setPostCreateCompany({ id: result.companyId, name: form.name });
+      }
     }
-    setDialogOpen(false);
   };
 
   const confirmDelete = (id: string) => {
