@@ -52,6 +52,7 @@ export default function CrmPage() {
   const [bulkEditOpen, setBulkEditOpen] = useState(false);
   const [bulkEditStatus, setBulkEditStatus] = useState('');
   const [bulkEditConfirmOpen, setBulkEditConfirmOpen] = useState(false);
+  const [postCreateCompany, setPostCreateCompany] = useState<{ id: string; name: string } | null>(null);
   const navigate = useNavigate();
   const { toast } = useToast();
 
