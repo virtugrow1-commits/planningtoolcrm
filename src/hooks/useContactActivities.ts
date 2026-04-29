@@ -102,10 +102,10 @@ export function useTaskCallLogs(taskId: string | undefined) {
       setLoading(false);
       return;
     }
-    const { data, error } = await supabase
+    const { data, error } = await (supabase as any)
       .from('contact_activities')
       .select('*')
-      .eq('related_task_id' as any, taskId)
+      .eq('related_task_id', taskId)
       .order('created_at', { ascending: false });
     if (error) {
       toast({ title: 'Fout bij laden gespreksverslagen', description: error.message, variant: 'destructive' });
