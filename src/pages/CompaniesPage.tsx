@@ -29,6 +29,7 @@ export default function CompaniesPage() {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
+  const [postCreateCompany, setPostCreateCompany] = useState<{ id: string; name: string } | null>(null);
   const { toast } = useToast();
 
   const handleSearch = (v: string) => { setSearch(v); setPage(1); };
