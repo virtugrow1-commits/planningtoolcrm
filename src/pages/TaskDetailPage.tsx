@@ -5,6 +5,8 @@ import { useContactsContext } from '@/contexts/ContactsContext';
 import { useCompaniesContext } from '@/contexts/CompaniesContext';
 import { useInquiriesContext } from '@/contexts/InquiriesContext';
 import { useBookings } from '@/contexts/BookingsContext';
+import { useAuth } from '@/contexts/AuthContext';
+import { supabase } from '@/integrations/supabase/client';
 import { Task, TASK_STATUSES, TASK_PRIORITIES } from '@/types/task';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
