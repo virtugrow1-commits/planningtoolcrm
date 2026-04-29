@@ -56,7 +56,6 @@ export default function TaskDetailPage() {
   const [callLogDate, setCallLogDate] = useState<Date | undefined>(new Date());
   const [savingCallLog, setSavingCallLog] = useState(false);
   const { logs: taskCallLogs, refetch: refetchCallLogs } = useTaskCallLogs(id);
-  const { addActivity, deleteActivity } = useContactActivities(undefined); // contactId set per save below
 
   const contact = useMemo(() => task?.contactId ? contacts.find(c => c.id === task.contactId) : null, [task, contacts]);
   const company = useMemo(() => task?.companyId ? companies.find(c => c.id === task.companyId) : null, [task, companies]);
