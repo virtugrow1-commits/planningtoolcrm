@@ -12,6 +12,7 @@ import BulkActionBar from '@/components/BulkActionBar';
 import { useToast } from '@/hooks/use-toast';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useCompaniesContext, Company } from '@/contexts/CompaniesContext';
+import PostCompanyContactFlow from '@/components/company/PostCompanyContactFlow';
 import { cn } from '@/lib/utils';
 
 const PAGE_SIZES = [20, 50, 100] as const;
