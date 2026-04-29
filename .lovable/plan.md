@@ -1,89 +1,125 @@
-## Doel
 
-De documenten- en contractenomgeving krijgt een warme, verfijnde uitstraling (in lijn met VirtuGrow: bruin #9e523a + goud #e4bb7a) en wordt prettiger in gebruik — zonder de bestaande logica (sync, statussen, OFF-/FAC-nummers, GHL-koppeling) te raken.
+# Plan: Bedrijf-flow uitbreiden + Gespreksverslag op taken
 
-## 1. Documenten-overzicht (`/quotes`)
+Twee onafhankelijke verbeteringen.
 
-**Header & KPI's**
-- Rustiger header met subtiele goud-accent onder de titel.
-- KPI-kaarten krijgen een lichte gradient (warm beige → wit), grotere cijfers, kleinere labels, en een gekleurd icoon-vlak in merkkleur i.p.v. grijs.
-- Extra micro-info onder elk KPI (bijv. "+3 deze week" / "2 verlopen binnenkort").
+---
 
-**Zoek & filters**
-- Zoekbalk verbreden, met sneltoets-hint (`⌘K`).
-- Status-pills krijgen een actieve staat in merkkleur met goud-rand, en tonen een klein bolletje in de statuskleur.
-- Filterbalk wordt sticky bij scrollen.
+## 1. Na 'Nieuw Bedrijf' → contactpersoon-flow
 
-**Tabel**
-- Hoogteritme verbeteren (12px rijen → rustiger), zebra-striping uit, hover in warm-beige.
-- Documentnummer in monospaced kleur-accent, titel daarnaast in normale weight.
-- Klant- en bedrijfsnaam samen in één cel met klein bedrijfslogo-bolletje (initialen).
-- Bedragkolom rechts uitgelijnd, tabular-nums, met valuta-symbool subtiel grijs.
-- Statuskolom met badge + datum eronder (bv. "Verzonden · 12 apr").
-- "Verzonden / Bekeken / Getekend"-kolommen samenvoegen tot één compacte tijdlijn-cel (3 stipjes met datums in tooltip) → veel minder visuele ruis.
-- Per rij een actie-menu (⋯) met: Openen, Kopieer link, Dupliceer, Verwijderen.
-- Lege staat krijgt een vriendelijke illustratie + duidelijke "Nieuwe offerte"-CTA.
+Op dit moment: na opslaan van een nieuw bedrijf op `CompaniesPage` sluit het dialog en verschijn je weer op de bedrijvenlijst. Je moet zelf het bedrijf opzoeken om een contact toe te voegen.
 
-**Sjablonen-tab**
-- Kaartjes worden grotere "documentkaarten" met:
-  - Mini-preview van de eerste pagina (als er content_blocks/PDF-achtergrond is) of een goud accent-balk bovenaan.
-  - Naam + omschrijving + datum + "Standaard"-badge in goud.
-  - Hover toont actieknoppen (Openen, Dupliceer, Verwijder).
-- Lege staat met grote CTA en suggesties ("Begin met een blank sjabloon" / "Importeer PDF").
+**Nieuwe flow (alleen bij aanmaken, niet bij bewerken):**
 
-## 2. Offerte- & factuurdetail (`/quotes/:id`, `/invoices/:id`)
+```text
+[Nieuw Bedrijf opslaan]
+        ↓
+"Bedrijf 'X' aangemaakt. Contactpersoon toevoegen?"
+   [Nee, sluiten]    [Ja, contact toevoegen]
+        ↓                    ↓
+   bedrijfsoverzicht    [Contact-formulier: voornaam, achternaam, email, telefoon, functie]
+                              ↓ Opslaan
+                       Contact aangemaakt en gekoppeld aan bedrijf
+                              ↓
+                       "Nog een contactpersoon toevoegen?"
+                          [Nee, klaar]   [Ja, nog één]
+                                              ↓
+                                         (formulier opnieuw, leeg)
+```
 
-**Sticky actiebalk**
-- Header met terugknop, documentnummer, status en titel wordt sticky bij scrollen.
-- Acties (Bewerken / Opslaan / Verstuur naar klant / Maak factuur / Verwijder) groeperen in een rustige rij; primaire actie altijd in merkkleur, secundair als outline.
-- "Bewerken" en "Opslaan" wisselen op dezelfde plek (geen dubbele knop tegelijk).
-- "Niet-opgeslagen wijzigingen"-indicator met goud bolletje naast de titel.
+- Werkt ook vanaf `CrmPage` "Nieuw Bedrijf"-dialoog (zelfde gedrag).
+- Bij **bewerken** van een bestaand bedrijf verandert er niets.
+- 'Nee, klaar' biedt optioneel een knop **'Naar bedrijfspagina'** zodat je direct naar `/companies/:id` kunt.
 
-**Layout**
-- Twee-koloms layout op desktop: links het document (klantkaart, intro, regels, voorwaarden), rechts een rustige zijbalk met:
-  - Status & tijdlijn (verzonden → bekeken → geaccepteerd) als verticale stappen.
-  - Totaalkaart (subtotaal, korting, btw, totaal) met merkkleur-accent.
-  - Snelle acties (kopieer publieke link, download PDF, dupliceer).
-- Mobiel: zijbalk klapt naar onderen.
+### Implementatie
+- `src/pages/CompaniesPage.tsx`:
+  - `addCompany` retourneert nu het nieuwe bedrijf-id nodig — kort kijken of `addCompany` in `CompaniesContext` de id teruggeeft (nu retourneert hij `SyncOutcome`). We laten hem aanvullend de aangemaakte company-row teruggeven (lichte refactor: `{ outcome, company }`), of we lezen de net-aangemaakte company op via name+createdAt fallback. **Voorkeur: signature uitbreiden** zodat we direct het id hebben.
+  - Nieuwe state: `postCreateCompanyId`, `addContactOpen`, `addAnotherOpen`, `contactForm`.
+  - Nieuwe `Dialog`s:
+    1. AlertDialog "Contactpersoon toevoegen?" (ja/nee) — verschijnt na succesvolle create.
+    2. Contact-formulier dialog (voornaam*, achternaam*, email, telefoon, functie).
+    3. AlertDialog "Nog een contactpersoon toevoegen?" — na opslaan contact.
+  - Gebruikt `useContactsContext().addContact` met `companyId: postCreateCompanyId` en `company: <bedrijfsnaam>`.
+- `src/pages/CrmPage.tsx`: zelfde drie dialogen hergebruiken na de "Nieuw Bedrijf"-flow daar (kleine variant, dezelfde componenten/hooks).
+- `src/contexts/CompaniesContext.tsx`: `addCompany` retour uitbreiden naar `{ outcome: SyncOutcome | null; companyId: string | null }` (backwards-compatible: bestaande callers gebruiken alleen `outcome`).
 
-**Lees-/bewerkmodus**
-- In leesmodus: documentachtige typografie (serif heading voor titel, ruime regelafstand), warme papier-achtige achtergrond voor het document-blok.
-- In bewerkmodus: duidelijke "Je bewerkt"-banner bovenaan met Opslaan/Annuleren.
-- Verlopen-waarschuwing krijgt zachte amber-stijl (al aanwezig, iets verfijnen).
+---
 
-**Klantkaart**
-- Avatar-bolletje met initialen, naam + bedrijf, e-mail/adres met iconen, klik door naar contact/bedrijf.
+## 2. 'Gespreksverslag' veld op taken → opgeslagen onder Gesprekken
 
-## 3. Klantportaal (publieke offertepagina, `/quote/view/:token`)
+### Probleem
+Verslagen worden nu in 'Omschrijving' getypt en raken zo verspreid. We willen ze als losse activiteit ('call'/gespreksverslag) bij de contactpersoon zien staan, met datum en koppeling naar de taak.
 
-- Warme hero bovenaan met VirtuGrow-merkkleur, bedrijfslogo en "Offerte voor [Klant]".
-- Documentnummer + geldig-tot in subtiele balk eronder.
-- Document-content in een centrale "papier"-kaart met zachte schaduw en serif-koppen.
-- Sticky actiebalk onderaan met grote primaire knop "Offerte accepteren" (merkkleur) en secundaire "Vragen stellen" (mailto).
-- Na accepteren: vriendelijke bevestigingsstaat met checkmark en vervolgstappen.
-- Mobiel-eerst: knoppen full-width onderaan.
+### UX (op `TaskDetailPage`, in zowel lees- als bewerkmodus)
 
-## 4. Algemene UI-verfijningen (alleen binnen documenten-omgeving)
+Onder het bestaande veld **Omschrijving** komt een nieuw veld:
 
-- Consistente afgeronde hoeken (rounded-xl), zachte schaduwen (`card-shadow`), subtiele borders.
-- Statuskleuren consistent doortrekken: concept = neutraal, verzonden = info-blauw, bekeken = goud, geaccepteerd/betaald = succes-groen, afgewezen/verlopen = warm rood/amber.
-- Skeleton loaders al aanwezig — uitbreiden naar detailpagina's voor rustigere laadervaring.
-- Toasts compacter en altijd in merk-tinten.
+```text
+┌─ Gespreksverslag ─────────────────────────────┐
+│ [Textarea, leeg bij openen]                   │
+│                                               │
+│ Datum: [vandaag, kalender-popover]            │
+│              [Annuleren] [Opslaan in Gesprekken]
+└───────────────────────────────────────────────┘
 
-## Wat ik NIET aanraak
+Onder dat blok: lijst eerdere verslagen voor deze taak
+  • 28 apr 2026 — "Klant wil ander tijdslot..."  [verwijderen]
+  • 22 apr 2026 — "..."
+```
 
-- Geen wijzigingen aan sync-logica, GHL-koppeling, OFF-/FAC-nummering, btw-berekening, edge functions, of database-schema.
-- Geen wijzigingen aan de template-editor zelf (alleen het kaartje in het overzicht).
-- Bestaande Nederlandse terminologie blijft.
+Belangrijk:
+- Het is een **aparte actie** ("Opslaan in Gesprekken"), niet onderdeel van het taak-formulier zelf. Zo blijft `Omschrijving` bewust dingen ánders.
+- Opslaan vereist een gekoppeld contactpersoon op de taak (`task.contactId`). Anders tonen we een hint: *"Koppel eerst een contactpersoon aan deze taak om een gespreksverslag te bewaren."*
+- Na opslaan: textarea leeg, toast "Gespreksverslag toegevoegd aan gesprekken", lijst ververst.
+- De lijst toont **alleen** verslagen die aan deze taak gekoppeld zijn (filter op `related_task_id`).
 
-## Bestanden die ik ga aanpassen
+### Waar verschijnt het verder?
+- Op de **contactpersoon-detailpagina** (`ContactDetailPage` / `ActivityTimeline`) verschijnen deze regels al automatisch via bestaande `contact_activities` realtime — extra label "Gespreksverslag" (i.p.v. generieke "Notitie") wanneer `type='call'` met subject `Gespreksverslag`.
+- Op de **bedrijf-tijdlijn** (`CompanyActivityTimeline`) verschijnt het ook automatisch (aggregeert al via gekoppelde contacten).
 
-- `src/pages/QuotesPage.tsx` — header, KPI's, filters, sjablonen-grid.
-- `src/components/documents/UnifiedDocumentTable.tsx` — tabel-vormgeving, samengevoegde tijdlijn-cel, actie-menu.
-- `src/pages/QuoteDetailPage.tsx` + `src/pages/InvoiceDetailPage.tsx` — sticky header, two-column layout, lees/bewerk-stijl.
-- `src/pages/PublicQuotePage.tsx` — klantportaal hero + sticky CTA.
-- Eventueel kleine helper-componenten voor: `DocumentTimelineCell`, `DocumentSidebar`, `DocumentRowActions`.
+### Datamodel
+We hergebruiken bestaande `contact_activities`-tabel. Eén kleine schema-toevoeging om naar de taak te kunnen verwijzen:
 
-## Resultaat
+```sql
+alter table public.contact_activities
+  add column if not exists related_task_id uuid;
 
-Een documenten- en contractenomgeving die rustiger oogt, sneller te scannen is, duidelijker maakt wat je kunt doen, en bij de klant een professionele, warme indruk achterlaat — volledig in de VirtuGrow-stijl.
+create index if not exists idx_contact_activities_related_task_id
+  on public.contact_activities(related_task_id);
+```
+
+- `type` = `'call'`
+- `subject` = `'Gespreksverslag'`
+- `body` = vrije tekst van het verslag
+- `related_task_id` = `task.id`
+- `created_at` = automatisch (datum); kalender-veld in UI overschrijft dit alleen als gebruiker handmatig een andere datum kiest (anders `now()`).
+
+Geen wijziging aan `tasks`-tabel nodig — verslagen leven los, zodat de taak ze niet "bezit" en ze beschikbaar blijven als de taak ooit wordt gearchiveerd.
+
+### Implementatie
+- **Migratie** (1 kolom + index, zoals hierboven).
+- `src/hooks/useContactActivities.ts`:
+  - `addActivity` accepteert optioneel `relatedTaskId` en `createdAt`.
+  - Nieuwe selector/filter: `useTaskCallLogs(taskId)` (eenvoudige hook of `select` met `eq('related_task_id', taskId)`), of het laden inline in `TaskDetailPage`.
+- `src/pages/TaskDetailPage.tsx`:
+  - Nieuwe sectie **"Gespreksverslag"** onder Taakgegevens (in zowel lees- als bewerkmodus zichtbaar).
+  - State: `callLogText`, `callLogDate`, `savingCallLog`, lijst `taskCallLogs`.
+  - Knop **"Opslaan in Gesprekken"** → roept `addActivity({ type: 'call', subject: 'Gespreksverslag', body: callLogText, relatedTaskId: task.id, createdAt: callLogDate })` met `contactId = task.contactId`.
+  - Lijst verslagen voor deze taak eronder (datum + tekst, knop verwijderen).
+- `src/components/contact/ActivityTimeline.tsx`: kleine cosmetische check zodat regels met `subject='Gespreksverslag'` als zodanig getoond worden (icoon telefoon, badge "Gespreksverslag").
+
+---
+
+## Out of scope
+- Geen wijzigingen aan GHL-sync (gespreksverslagen blijven lokaal, net als bestaande notes).
+- Geen migratie van bestaande tekst uit `tasks.description` — dit is een verbetering vooruit, oude gegevens blijven staan waar ze staan.
+- Geen wijziging aan bewerk-flow van bestaande bedrijven (alleen bij **nieuw aanmaken**).
+
+## Bestanden die wijzigen
+- `src/pages/CompaniesPage.tsx` (nieuwe dialogen na create)
+- `src/pages/CrmPage.tsx` (zelfde dialogen na "Nieuw Bedrijf")
+- `src/contexts/CompaniesContext.tsx` (addCompany retour uitbreiden)
+- `src/pages/TaskDetailPage.tsx` (gespreksverslag-sectie)
+- `src/hooks/useContactActivities.ts` (relatedTaskId support)
+- `src/components/contact/ActivityTimeline.tsx` (label/icoon voor 'Gespreksverslag')
+- DB-migratie: `contact_activities.related_task_id`
