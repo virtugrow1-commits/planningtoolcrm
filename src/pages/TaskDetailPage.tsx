@@ -486,6 +486,7 @@ export default function TaskDetailPage() {
           }}>
             <p className="text-xs text-muted-foreground">Maak een vervolgtaak aan met dezelfde koppelingen.</p>
           </SectionCard>
+          </div>
         </div>
       </div>
 
