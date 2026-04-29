@@ -193,6 +193,7 @@ export type Database = {
           body: string | null
           contact_id: string
           created_at: string
+          ghl_note_id: string | null
           id: string
           related_task_id: string | null
           subject: string | null
@@ -204,6 +205,7 @@ export type Database = {
           body?: string | null
           contact_id: string
           created_at?: string
+          ghl_note_id?: string | null
           id?: string
           related_task_id?: string | null
           subject?: string | null
@@ -215,6 +217,7 @@ export type Database = {
           body?: string | null
           contact_id?: string
           created_at?: string
+          ghl_note_id?: string | null
           id?: string
           related_task_id?: string | null
           subject?: string | null
