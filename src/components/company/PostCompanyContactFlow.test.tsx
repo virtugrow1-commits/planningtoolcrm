@@ -26,6 +26,18 @@ const renderFlow = (company: { id: string; name: string } | null, onClose = vi.f
     </MemoryRouter>
   );
 
+/**
+ * The form labels in PostCompanyContactFlow aren't associated via htmlFor,
+ * so we locate inputs by walking from the visible <label> text to its sibling input.
+ */
+const inputForLabel = (labelText: RegExp): HTMLInputElement => {
+  const label = screen.getAllByText(labelText).find((el) => el.tagName === 'LABEL');
+  if (!label) throw new Error(`Label not found: ${labelText}`);
+  const input = label.parentElement?.querySelector('input');
+  if (!input) throw new Error(`Input not found for label: ${labelText}`);
+  return input as HTMLInputElement;
+};
+
 describe('PostCompanyContactFlow', () => {
   beforeEach(() => {
     addContactMock.mockReset().mockResolvedValue(undefined);
@@ -59,16 +71,14 @@ describe('PostCompanyContactFlow', () => {
     const onClose = vi.fn();
     renderFlow({ id: 'c1', name: 'Acme BV' }, onClose);
 
-    // Step 1 → Ja
     await userEvent.click(screen.getByRole('button', { name: /Ja, contact toevoegen/i }));
+    await screen.findByText('Contactpersoon toevoegen');
 
-    // Step 2 — form fields
-    const voornaam = await screen.findByLabelText(/Voornaam/i);
-    await userEvent.type(voornaam, 'Jan');
-    await userEvent.type(screen.getByLabelText(/Achternaam/i), 'Jansen');
-    await userEvent.type(screen.getByLabelText(/Functie/i), 'CEO');
-    await userEvent.type(screen.getByLabelText(/Email/i), 'jan@acme.nl');
-    await userEvent.type(screen.getByLabelText(/Telefoon/i), '0612345678');
+    await userEvent.type(inputForLabel(/^Voornaam/i), 'Jan');
+    await userEvent.type(inputForLabel(/^Achternaam/i), 'Jansen');
+    await userEvent.type(inputForLabel(/^Functie$/i), 'CEO');
+    await userEvent.type(inputForLabel(/^Email$/i), 'jan@acme.nl');
+    await userEvent.type(inputForLabel(/^Telefoon$/i), '0612345678');
 
     await userEvent.click(screen.getByRole('button', { name: /^Opslaan$/i }));
 
@@ -84,7 +94,6 @@ describe('PostCompanyContactFlow', () => {
       status: 'lead',
     }));
 
-    // Step 3 → "Nog een contactpersoon toevoegen?"
     expect(await screen.findByText('Nog een contactpersoon toevoegen?')).toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: /Nee, klaar/i }));
     expect(onClose).toHaveBeenCalled();
@@ -94,7 +103,7 @@ describe('PostCompanyContactFlow', () => {
   it('validates required first/last name and does not call addContact', async () => {
     renderFlow({ id: 'c1', name: 'Acme BV' });
     await userEvent.click(screen.getByRole('button', { name: /Ja, contact toevoegen/i }));
-    await screen.findByLabelText(/Voornaam/i);
+    await screen.findByText('Contactpersoon toevoegen');
     await userEvent.click(screen.getByRole('button', { name: /^Opslaan$/i }));
     expect(addContactMock).not.toHaveBeenCalled();
     expect(toastMock).toHaveBeenCalledWith(expect.objectContaining({ variant: 'destructive' }));
@@ -103,25 +112,26 @@ describe('PostCompanyContactFlow', () => {
   it('"Ja, nog één" reopens the form with empty fields', async () => {
     renderFlow({ id: 'c1', name: 'Acme BV' });
     await userEvent.click(screen.getByRole('button', { name: /Ja, contact toevoegen/i }));
-    await userEvent.type(await screen.findByLabelText(/Voornaam/i), 'Jan');
-    await userEvent.type(screen.getByLabelText(/Achternaam/i), 'Jansen');
+    await screen.findByText('Contactpersoon toevoegen');
+    await userEvent.type(inputForLabel(/^Voornaam/i), 'Jan');
+    await userEvent.type(inputForLabel(/^Achternaam/i), 'Jansen');
     await userEvent.click(screen.getByRole('button', { name: /^Opslaan$/i }));
 
     await screen.findByText('Nog een contactpersoon toevoegen?');
     await userEvent.click(screen.getByRole('button', { name: /Ja, nog één/i }));
 
-    const voornaam = await screen.findByLabelText(/Voornaam/i) as HTMLInputElement;
-    const achternaam = screen.getByLabelText(/Achternaam/i) as HTMLInputElement;
-    expect(voornaam.value).toBe('');
-    expect(achternaam.value).toBe('');
+    await screen.findByText('Contactpersoon toevoegen');
+    expect(inputForLabel(/^Voornaam/i).value).toBe('');
+    expect(inputForLabel(/^Achternaam/i).value).toBe('');
   });
 
   it('"Naar bedrijfspagina" navigates to the company detail page', async () => {
     const onClose = vi.fn();
     renderFlow({ id: 'c1', name: 'Acme BV' }, onClose);
     await userEvent.click(screen.getByRole('button', { name: /Ja, contact toevoegen/i }));
-    await userEvent.type(await screen.findByLabelText(/Voornaam/i), 'Jan');
-    await userEvent.type(screen.getByLabelText(/Achternaam/i), 'Jansen');
+    await screen.findByText('Contactpersoon toevoegen');
+    await userEvent.type(inputForLabel(/^Voornaam/i), 'Jan');
+    await userEvent.type(inputForLabel(/^Achternaam/i), 'Jansen');
     await userEvent.click(screen.getByRole('button', { name: /^Opslaan$/i }));
 
     await screen.findByText('Nog een contactpersoon toevoegen?');
