@@ -49,8 +49,12 @@ export default function ActivityTimeline({ contactId }: Props) {
       ) : (
         <div className="space-y-3 max-h-[400px] overflow-y-auto pr-1">
           {activities.map((a) => {
-            const cfg = typeConfig[a.type] || typeConfig.note;
+            const isCallLog = a.type === 'call' && a.subject === 'Gespreksverslag';
+            const cfg = isCallLog
+              ? { label: 'Gespreksverslag', icon: Phone, color: 'text-primary' }
+              : (typeConfig[a.type] || typeConfig.note);
             const Icon = cfg.icon;
+            const displayLabel = isCallLog ? 'Gespreksverslag' : (a.subject || cfg.label);
             return (
               <div key={a.id} className="group flex gap-3 text-sm">
                 <div className={`mt-0.5 shrink-0 ${cfg.color}`}>
@@ -59,7 +63,7 @@ export default function ActivityTimeline({ contactId }: Props) {
                 <div className="flex-1 min-w-0">
                   <div className="flex items-start justify-between gap-2">
                     <div>
-                      <span className="font-medium text-foreground">{a.subject || cfg.label}</span>
+                      <span className="font-medium text-foreground">{displayLabel}</span>
                       <span className="text-[10px] text-muted-foreground ml-2">
                         {format(new Date(a.createdAt), 'd MMM yyyy HH:mm', { locale: nl })}
                       </span>
