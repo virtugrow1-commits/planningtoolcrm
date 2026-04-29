@@ -166,7 +166,11 @@ export default function TaskDetailPage() {
       related_task_id: task.id,
     };
     if (callLogDate) payload.created_at = callLogDate.toISOString();
-    const { error } = await supabase.from('contact_activities').insert(payload);
+    const { data: inserted, error } = await supabase
+      .from('contact_activities')
+      .insert(payload)
+      .select('id')
+      .single();
     setSavingCallLog(false);
     if (error) {
       toast({ title: 'Fout bij opslaan gespreksverslag', description: error.message, variant: 'destructive' });
@@ -174,11 +178,45 @@ export default function TaskDetailPage() {
     }
     setCallLogText('');
     setCallLogDate(new Date());
-    toast({ title: 'Gespreksverslag toegevoegd aan gesprekken' });
+    toast({ title: 'Gespreksverslag opgeslagen', description: 'Wordt gesynchroniseerd met GoHighLevel…' });
     refetchCallLogs();
+
+    // Fire-and-forget push to GHL as a contact note
+    if (inserted?.id) {
+      supabase.functions
+        .invoke('ghl-sync', { body: { action: 'push-call-log', activity_id: inserted.id } })
+        .then(({ data, error: invokeErr }) => {
+          if (invokeErr) {
+            console.warn('[GHL] push-call-log invoke error:', invokeErr);
+            return;
+          }
+          if (data?.ok && data?.ghl_note_id) {
+            console.log('[GHL] Gespreksverslag gesynchroniseerd:', data.ghl_note_id);
+          } else if (data?.skipped) {
+            console.log('[GHL] push-call-log overgeslagen:', data.reason);
+          }
+        });
+    }
   };
 
   const handleDeleteCallLog = async (logId: string) => {
+    // Look up the GHL note id + contact's GHL id before deleting locally
+    const { data: existing } = await supabase
+      .from('contact_activities')
+      .select('ghl_note_id, contact_id')
+      .eq('id', logId)
+      .single();
+
+    let ghlContactId: string | null = null;
+    if (existing?.ghl_note_id && existing?.contact_id) {
+      const { data: contact } = await supabase
+        .from('contacts')
+        .select('ghl_contact_id')
+        .eq('id', existing.contact_id)
+        .single();
+      ghlContactId = contact?.ghl_contact_id || null;
+    }
+
     const { error } = await supabase.from('contact_activities').delete().eq('id', logId);
     if (error) {
       toast({ title: 'Fout bij verwijderen', description: error.message, variant: 'destructive' });
@@ -186,6 +224,15 @@ export default function TaskDetailPage() {
     }
     toast({ title: 'Verslag verwijderd' });
     refetchCallLogs();
+
+    // Fire-and-forget delete on GHL side
+    if (existing?.ghl_note_id && ghlContactId) {
+      supabase.functions.invoke('ghl-sync', {
+        body: { action: 'delete-call-log', ghl_note_id: existing.ghl_note_id, ghl_contact_id: ghlContactId },
+      }).then(({ error: invokeErr }) => {
+        if (invokeErr) console.warn('[GHL] delete-call-log invoke error:', invokeErr);
+      });
+    }
   };
 
   const isOverdue = task.dueDate && task.status !== 'completed' && task.dueDate < new Date().toISOString().split('T')[0];
