@@ -37,6 +37,7 @@ export default function TaskDetailPage() {
   const { inquiries } = useInquiriesContext();
   const { bookings } = useBookings();
   const { toast } = useToast();
+  const { user } = useAuth();
 
   const task = tasks.find(t => t.id === id);
   const [editing, setEditing] = useState(false);
