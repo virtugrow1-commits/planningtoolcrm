@@ -513,6 +513,11 @@ export default function CrmPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <PostCompanyContactFlow
+        company={postCreateCompany}
+        onClose={() => setPostCreateCompany(null)}
+      />
     </div>
   );
 }
