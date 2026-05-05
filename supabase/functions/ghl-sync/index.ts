@@ -1599,21 +1599,31 @@ Deno.serve(async (req) => {
 
       const calEventHeaders = { ...ghlHeaders, 'Version': '2021-04-15' };
 
+      // Options should NOT trigger GHL workflows that move opportunity stages.
+      // We push them as 'confirmed' to GHL (so the workflow doesn't fire on "new appointment"),
+      // and prefix the title/notes so it's still visually identifiable in GHL.
+      const isOption = booking.status === 'option';
+      const titleForGhl = isOption ? `[OPTIE] ${booking.title || 'Reservering'}` : (booking.title || 'Reservering');
+      const notesForGhl = isOption
+        ? `[OPTIE — geen workflow update]${booking.notes ? `\n\n${booking.notes}` : ''}`
+        : (booking.notes || null);
+
       // Appointments payload - ignoreFreeSlotValidation bypasses service calendar slot checks
       const eventPayload: Record<string, any> = {
         calendarId: roomSetting.ghl_calendar_id,
         locationId: GHL_LOCATION_ID,
         contactId: ghlContactId,
-        title: booking.title || 'Reservering',
+        title: titleForGhl,
         startTime: startISOwTZ,
         endTime: endISOwTZ,
-        appointmentStatus: booking.status === 'confirmed' ? 'confirmed' : 'new',
+        appointmentStatus: 'confirmed',
         ignoreDateRange: true,
         ignoreValidation: true,
         ignoreFreeSlotValidation: true,
         selectedTimezone: 'Europe/Amsterdam',
       };
-      if (booking.notes) eventPayload.notes = booking.notes;
+      if (notesForGhl) eventPayload.notes = notesForGhl;
+
 
       console.log(`[Push Booking] Calendar: ${roomSetting.ghl_calendar_id}, Contact: ${ghlContactId}, Room: ${booking.room_name}`);
 
@@ -1635,13 +1645,13 @@ Deno.serve(async (req) => {
           calendarId: roomSetting.ghl_calendar_id,
           locationId: GHL_LOCATION_ID,
           contactId: ghlContactId,
-          title: booking.title || 'Reservering',
+          title: titleForGhl,
           startTime: startISOwTZ,
           endTime: endISOwTZ,
-          appointmentStatus: booking.status === 'confirmed' ? 'confirmed' : 'new',
+          appointmentStatus: 'confirmed',
           selectedTimezone: 'Europe/Amsterdam',
         };
-        if (booking.notes) evtPayload.notes = booking.notes;
+        if (notesForGhl) evtPayload.notes = notesForGhl;
         // Try v2 calendar events endpoint
         const evtRes = await ghlFetch(`${GHL_API_BASE}/calendars/events`, {
           method: 'POST', headers: { ...ghlHeaders, 'Version': '2021-07-28' }, body: JSON.stringify(evtPayload),
@@ -1655,7 +1665,7 @@ Deno.serve(async (req) => {
         const evtErr = await evtRes.text();
         console.error(`[Push Booking] /calendars/events also failed: [${evtRes.status}] ${evtErr}`);
         // Last resort: try block-slots
-        const blockPayload = { calendarId: roomSetting.ghl_calendar_id, locationId: GHL_LOCATION_ID, title: booking.title || 'Reservering', startTime: startISOwTZ, endTime: endISOwTZ };
+        const blockPayload = { calendarId: roomSetting.ghl_calendar_id, locationId: GHL_LOCATION_ID, title: titleForGhl, startTime: startISOwTZ, endTime: endISOwTZ };
         const blockRes = await ghlFetch(`${GHL_API_BASE}/calendars/events/block-slots`, { method: 'POST', headers: calEventHeaders, body: JSON.stringify(blockPayload) });
         if (blockRes.ok) {
           const blockData = await blockRes.json();

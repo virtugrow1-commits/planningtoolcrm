@@ -76,6 +76,7 @@ export function ContactsProvider({ children }: { children: ReactNode }) {
       postcode: (c as any).postcode || undefined,
       city: (c as any).city || undefined,
       country: (c as any).country || undefined,
+      birthDate: (c as any).birth_date || undefined,
     })));
     setLoading(false);
   }, [user, toast]);
@@ -133,6 +134,7 @@ export function ContactsProvider({ children }: { children: ReactNode }) {
       postcode: contact.postcode || null,
       city: contact.city || null,
       country: contact.country || 'NL',
+      birth_date: contact.birthDate || null,
       pending_outbound_sync: true,
       last_local_edit_at: new Date().toISOString(),
     }).select().single();
@@ -175,6 +177,7 @@ export function ContactsProvider({ children }: { children: ReactNode }) {
       postcode: contact.postcode || null,
       city: contact.city || null,
       country: contact.country || 'NL',
+      birth_date: contact.birthDate || null,
       pending_outbound_sync: true,
       last_local_edit_at: nowIso,
       last_sync_error: null,

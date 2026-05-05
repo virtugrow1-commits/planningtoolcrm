@@ -26,6 +26,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import CrmCombobox from '@/components/CrmCombobox';
+import { DMU_OPTIONS, FUNCTION_GROUP_OPTIONS } from '@/lib/contactOptions';
 
 export default function ContactDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -207,9 +208,30 @@ export default function ContactDetailPage() {
             <InfoField icon={<Mail size={14} />} label="Email" value={current.email} editing={editing} type="email" onChange={(v) => setForm({ ...form!, email: v })} />
             <InfoField icon={<Phone size={14} />} label="Telefoon" value={current.phone} editing={editing} onChange={(v) => setForm({ ...form!, phone: v })} />
             <InfoField icon={<User size={14} />} label="Afdelingsnaam" value={current.department || ''} editing={editing} onChange={(v) => setForm({ ...form!, department: v || undefined })} />
-            <InfoField icon={<User size={14} />} label="DMU" value={current.dmu || ''} editing={editing} onChange={(v) => setForm({ ...form!, dmu: v || undefined })} />
-            <InfoField icon={<User size={14} />} label="Functiegroep" value={current.functionGroup || ''} editing={editing} onChange={(v) => setForm({ ...form!, functionGroup: v || undefined })} />
+            <div>
+              <p className="text-xs font-semibold text-muted-foreground mb-0.5 flex items-center gap-1.5"><User size={14} /> DMU</p>
+              {editing ? (
+                <Select value={form?.dmu || ''} onValueChange={(v) => setForm({ ...form!, dmu: v || undefined })}>
+                  <SelectTrigger className="h-8 text-sm"><SelectValue placeholder="Kies DMU..." /></SelectTrigger>
+                  <SelectContent>
+                    {DMU_OPTIONS.map((o) => <SelectItem key={o} value={o}>{o}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              ) : <p className="text-sm text-foreground">{current.dmu || '—'}</p>}
+            </div>
+            <div>
+              <p className="text-xs font-semibold text-muted-foreground mb-0.5 flex items-center gap-1.5"><User size={14} /> Functiegroep</p>
+              {editing ? (
+                <Select value={form?.functionGroup || ''} onValueChange={(v) => setForm({ ...form!, functionGroup: v || undefined })}>
+                  <SelectTrigger className="h-8 text-sm"><SelectValue placeholder="Kies functiegroep..." /></SelectTrigger>
+                  <SelectContent>
+                    {FUNCTION_GROUP_OPTIONS.map((o) => <SelectItem key={o} value={o}>{o}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              ) : <p className="text-sm text-foreground">{current.functionGroup || '—'}</p>}
+            </div>
             <InfoField icon={<User size={14} />} label="Functie" value={current.jobTitle || ''} editing={editing} onChange={(v) => setForm({ ...form!, jobTitle: v || undefined })} />
+            <InfoField icon={<Calendar size={14} />} label="Geboortedatum" value={current.birthDate || ''} editing={editing} type="date" onChange={(v) => setForm({ ...form!, birthDate: v || undefined })} />
             <CompanyField
               current={current}
               editing={editing}

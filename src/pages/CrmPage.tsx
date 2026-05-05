@@ -22,6 +22,9 @@ import { cn } from '@/lib/utils';
 import { exportToCSV } from '@/lib/csvExport';
 import { SortableHeader, useSortState } from '@/components/SortableHeader';
 import PostCompanyContactFlow from '@/components/company/PostCompanyContactFlow';
+import { Calendar } from '@/components/ui/calendar';
+import { CalendarIcon } from 'lucide-react';
+import { DMU_OPTIONS, FUNCTION_GROUP_OPTIONS } from '@/lib/contactOptions';
 
 const STATUS_LABELS: Record<string, string> = {
   lead: 'Lead',
@@ -435,11 +438,50 @@ export default function CrmPage() {
             <div className="grid gap-1.5"><Label>Bedrijf</Label><Input value={newContact.company || ''} onChange={(e) => setNewContact({ ...newContact, company: e.target.value || undefined })} /></div>
             <div className="grid grid-cols-2 gap-3">
               <div className="grid gap-1.5"><Label>Afdelingsnaam</Label><Input value={newContact.department || ''} onChange={(e) => setNewContact({ ...newContact, department: e.target.value || undefined })} /></div>
-              <div className="grid gap-1.5"><Label>DMU</Label><Input value={newContact.dmu || ''} onChange={(e) => setNewContact({ ...newContact, dmu: e.target.value || undefined })} /></div>
+              <div className="grid gap-1.5">
+                <Label>DMU</Label>
+                <Select value={newContact.dmu || ''} onValueChange={(v) => setNewContact({ ...newContact, dmu: v || undefined })}>
+                  <SelectTrigger><SelectValue placeholder="Kies DMU..." /></SelectTrigger>
+                  <SelectContent>
+                    {DMU_OPTIONS.map((o) => <SelectItem key={o} value={o}>{o}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
             <div className="grid grid-cols-2 gap-3">
-              <div className="grid gap-1.5"><Label>Functiegroep</Label><Input value={newContact.functionGroup || ''} onChange={(e) => setNewContact({ ...newContact, functionGroup: e.target.value || undefined })} /></div>
+              <div className="grid gap-1.5">
+                <Label>Functiegroep</Label>
+                <Select value={newContact.functionGroup || ''} onValueChange={(v) => setNewContact({ ...newContact, functionGroup: v || undefined })}>
+                  <SelectTrigger><SelectValue placeholder="Kies functiegroep..." /></SelectTrigger>
+                  <SelectContent>
+                    {FUNCTION_GROUP_OPTIONS.map((o) => <SelectItem key={o} value={o}>{o}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
               <div className="grid gap-1.5"><Label>Functie</Label><Input value={newContact.jobTitle || ''} onChange={(e) => setNewContact({ ...newContact, jobTitle: e.target.value || undefined })} /></div>
+            </div>
+            <div className="grid gap-1.5">
+              <Label>Geboortedatum</Label>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" type="button" className={cn('w-full justify-start text-left font-normal', !newContact.birthDate && 'text-muted-foreground')}>
+                    <CalendarIcon className="mr-2 h-4 w-4" />
+                    {newContact.birthDate ? newContact.birthDate : <span>Kies geboortedatum</span>}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <Calendar
+                    mode="single"
+                    selected={newContact.birthDate ? new Date(newContact.birthDate) : undefined}
+                    onSelect={(d) => setNewContact({ ...newContact, birthDate: d ? d.toISOString().slice(0,10) : undefined })}
+                    captionLayout="dropdown-buttons"
+                    fromYear={1930}
+                    toYear={new Date().getFullYear()}
+                    initialFocus
+                    className={cn('p-3 pointer-events-auto')}
+                  />
+                </PopoverContent>
+              </Popover>
             </div>
           </div>
           <DialogFooter>
