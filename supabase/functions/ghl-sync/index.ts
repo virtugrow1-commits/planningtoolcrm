@@ -1645,7 +1645,7 @@ Deno.serve(async (req) => {
           calendarId: roomSetting.ghl_calendar_id,
           locationId: GHL_LOCATION_ID,
           contactId: ghlContactId,
-          title: booking.title || 'Reservering',
+          title: titleForGhl,
           startTime: startISOwTZ,
           endTime: endISOwTZ,
           appointmentStatus: 'confirmed',
@@ -1665,7 +1665,7 @@ Deno.serve(async (req) => {
         const evtErr = await evtRes.text();
         console.error(`[Push Booking] /calendars/events also failed: [${evtRes.status}] ${evtErr}`);
         // Last resort: try block-slots
-        const blockPayload = { calendarId: roomSetting.ghl_calendar_id, locationId: GHL_LOCATION_ID, title: booking.title || 'Reservering', startTime: startISOwTZ, endTime: endISOwTZ };
+        const blockPayload = { calendarId: roomSetting.ghl_calendar_id, locationId: GHL_LOCATION_ID, title: titleForGhl, startTime: startISOwTZ, endTime: endISOwTZ };
         const blockRes = await ghlFetch(`${GHL_API_BASE}/calendars/events/block-slots`, { method: 'POST', headers: calEventHeaders, body: JSON.stringify(blockPayload) });
         if (blockRes.ok) {
           const blockData = await blockRes.json();
