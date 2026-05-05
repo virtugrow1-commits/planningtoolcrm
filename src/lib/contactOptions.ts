@@ -3,23 +3,15 @@
 // the final list from the user — it propagates to all forms.
 
 export const DMU_OPTIONS = [
-  'Beslisser',
+  'Gebruiker / deelnemer',
   'Beïnvloeder',
-  'Gebruiker',
-  'Inkoper',
-  'Gatekeeper',
-  'Initiator',
+  'Beslisser',
 ] as const;
 
 export const FUNCTION_GROUP_OPTIONS = [
-  'Directie',
-  'Management',
-  'HR',
-  'Sales / Marketing',
-  'Finance',
-  'Office Management',
-  'Operations',
-  'IT',
-  'Inkoop',
-  'Overig',
+  'Directie / Management',
+  'Secretariaat / Ondersteuning (staf)',
+  'Midden Management / Teamleiders (lijn)',
+  'Uitvoerende medewerkers',
+  'Ondernemingsraad',
 ] as const;
