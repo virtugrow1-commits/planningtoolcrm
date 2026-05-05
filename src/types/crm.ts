@@ -20,6 +20,7 @@ export interface Contact {
   postcode?: string;
   city?: string;
   country?: string;
+  birthDate?: string;
 }
 
 export interface Inquiry {
