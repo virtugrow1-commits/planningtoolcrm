@@ -11,7 +11,9 @@ import { useContactsContext } from '@/contexts/ContactsContext';
 import { useCompaniesContext } from '@/contexts/CompaniesContext';
 import { useInquiriesContext } from '@/contexts/InquiriesContext';
 import { useLanguage } from '@/contexts/LanguageContext';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { useAuth } from '@/contexts/AuthContext';
+import { supabase } from '@/integrations/supabase/client';
 import { useNavigate, Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -43,6 +45,29 @@ export default function TasksPage() {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'open' | 'completed'>('open');
   const [userFilter, setUserFilter] = useState<string>('__all__');
+  const userFilterTouched = useRef(false);
+  const { user } = useAuth();
+
+  // Default user filter to the logged-in user (if they map to Sjors/Iris)
+  useEffect(() => {
+    if (!user || userFilterTouched.current) return;
+    (async () => {
+      const { data } = await supabase
+        .from('profiles')
+        .select('display_name')
+        .eq('id', user.id)
+        .maybeSingle();
+      const name = data?.display_name?.trim();
+      if (name === 'Sjors Jochems' || name === 'Iris Machielse') {
+        if (!userFilterTouched.current) setUserFilter(name);
+      }
+    })();
+  }, [user]);
+
+  const handleUserFilterChange = (v: string) => {
+    userFilterTouched.current = true;
+    setUserFilter(v);
+  };
   const [sortKey, setSortKey] = useState<SortKey>('dueDate');
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [bulkDate, setBulkDate] = useState<Date | undefined>();
@@ -282,7 +307,7 @@ export default function TasksPage() {
           </SelectContent>
         </Select>
 
-        <Select value={userFilter} onValueChange={setUserFilter}>
+        <Select value={userFilter} onValueChange={handleUserFilterChange}>
           <SelectTrigger className="h-9 w-44 text-xs"><SelectValue /></SelectTrigger>
           <SelectContent>
             <SelectItem value="__all__">{t('dashboard.allUsers')}</SelectItem>

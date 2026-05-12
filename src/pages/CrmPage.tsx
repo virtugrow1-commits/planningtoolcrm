@@ -22,6 +22,7 @@ import { cn } from '@/lib/utils';
 import { exportToCSV } from '@/lib/csvExport';
 import { SortableHeader, useSortState } from '@/components/SortableHeader';
 import PostCompanyContactFlow from '@/components/company/PostCompanyContactFlow';
+import CrmCombobox from '@/components/CrmCombobox';
 import { Calendar } from '@/components/ui/calendar';
 import { CalendarIcon } from 'lucide-react';
 import { DMU_OPTIONS, FUNCTION_GROUP_OPTIONS } from '@/lib/contactOptions';
@@ -435,7 +436,23 @@ export default function CrmPage() {
             </div>
             <div className="grid gap-1.5"><Label>Email</Label><Input type="email" value={newContact.email} onChange={(e) => setNewContact({ ...newContact, email: e.target.value })} /></div>
             <div className="grid gap-1.5"><Label>Telefoon</Label><Input value={newContact.phone} onChange={(e) => setNewContact({ ...newContact, phone: e.target.value })} /></div>
-            <div className="grid gap-1.5"><Label>Bedrijf</Label><Input value={newContact.company || ''} onChange={(e) => setNewContact({ ...newContact, company: e.target.value || undefined })} /></div>
+            <div className="grid gap-1.5">
+              <Label>Bedrijf</Label>
+              <CrmCombobox
+                options={[...companies]
+                  .sort((a, b) => a.name.localeCompare(b.name))
+                  .map((c) => ({ id: c.id, label: c.name, secondary: c.city || undefined }))}
+                value={newContact.companyId || ''}
+                onSelect={(id, opt) => setNewContact({
+                  ...newContact,
+                  companyId: id || undefined,
+                  company: opt?.label || undefined,
+                })}
+                placeholder="Kies bedrijf..."
+                searchPlaceholder="Zoek bedrijf..."
+                allowClear
+              />
+            </div>
             <div className="grid grid-cols-2 gap-3">
               <div className="grid gap-1.5"><Label>Afdelingsnaam</Label><Input value={newContact.department || ''} onChange={(e) => setNewContact({ ...newContact, department: e.target.value || undefined })} /></div>
               <div className="grid gap-1.5">
