@@ -307,7 +307,7 @@ export default function TasksPage() {
           </SelectContent>
         </Select>
 
-        <Select value={userFilter} onValueChange={setUserFilter}>
+        <Select value={userFilter} onValueChange={handleUserFilterChange}>
           <SelectTrigger className="h-9 w-44 text-xs"><SelectValue /></SelectTrigger>
           <SelectContent>
             <SelectItem value="__all__">{t('dashboard.allUsers')}</SelectItem>
