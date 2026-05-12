@@ -45,6 +45,29 @@ export default function TasksPage() {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'open' | 'completed'>('open');
   const [userFilter, setUserFilter] = useState<string>('__all__');
+  const userFilterTouched = useRef(false);
+  const { user } = useAuth();
+
+  // Default user filter to the logged-in user (if they map to Sjors/Iris)
+  useEffect(() => {
+    if (!user || userFilterTouched.current) return;
+    (async () => {
+      const { data } = await supabase
+        .from('profiles')
+        .select('display_name')
+        .eq('id', user.id)
+        .maybeSingle();
+      const name = data?.display_name?.trim();
+      if (name === 'Sjors Jochems' || name === 'Iris Machielse') {
+        if (!userFilterTouched.current) setUserFilter(name);
+      }
+    })();
+  }, [user]);
+
+  const handleUserFilterChange = (v: string) => {
+    userFilterTouched.current = true;
+    setUserFilter(v);
+  };
   const [sortKey, setSortKey] = useState<SortKey>('dueDate');
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [bulkDate, setBulkDate] = useState<Date | undefined>();
