@@ -142,5 +142,19 @@ export function useTaskCallLogs(taskId: string | undefined) {
 
   useEffect(() => { fetch(); }, [fetch]);
 
-  return { logs, loading, refetch: fetch };
+  const updateLog = useCallback(async (id: string, updates: { body?: string; createdAt?: string }) => {
+    const patch: any = {};
+    if (updates.body !== undefined) patch.body = updates.body;
+    if (updates.createdAt !== undefined) patch.created_at = updates.createdAt;
+    const { error } = await supabase.from('contact_activities').update(patch).eq('id', id);
+    if (error) {
+      toast({ title: 'Fout bij bijwerken gespreksverslag', description: error.message, variant: 'destructive' });
+      return false;
+    }
+    toast({ title: 'Gespreksverslag bijgewerkt' });
+    fetch();
+    return true;
+  }, [toast, fetch]);
+
+  return { logs, loading, refetch: fetch, updateLog };
 }
