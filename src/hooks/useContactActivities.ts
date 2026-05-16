@@ -74,6 +74,22 @@ export function useContactActivities(contactId: string | undefined) {
     fetch();
   }, [user, contactId, toast, fetch]);
 
+  const updateActivity = useCallback(async (id: string, updates: Partial<AddActivityInput>) => {
+    const patch: any = {};
+    if (updates.type !== undefined) patch.type = updates.type;
+    if (updates.subject !== undefined) patch.subject = updates.subject || null;
+    if (updates.body !== undefined) patch.body = updates.body || null;
+    if (updates.createdAt !== undefined) patch.created_at = updates.createdAt;
+    const { error } = await supabase.from('contact_activities').update(patch).eq('id', id);
+    if (error) {
+      toast({ title: 'Fout bij bijwerken activiteit', description: error.message, variant: 'destructive' });
+      return false;
+    }
+    toast({ title: 'Activiteit bijgewerkt' });
+    fetch();
+    return true;
+  }, [toast, fetch]);
+
   const deleteActivity = useCallback(async (id: string) => {
     const { error } = await supabase.from('contact_activities').delete().eq('id', id);
     if (error) {
@@ -83,7 +99,7 @@ export function useContactActivities(contactId: string | undefined) {
     fetch();
   }, [toast, fetch]);
 
-  return { activities, loading, addActivity, deleteActivity, refetch: fetch };
+  return { activities, loading, addActivity, updateActivity, deleteActivity, refetch: fetch };
 }
 
 /**
@@ -126,5 +142,19 @@ export function useTaskCallLogs(taskId: string | undefined) {
 
   useEffect(() => { fetch(); }, [fetch]);
 
-  return { logs, loading, refetch: fetch };
+  const updateLog = useCallback(async (id: string, updates: { body?: string; createdAt?: string }) => {
+    const patch: any = {};
+    if (updates.body !== undefined) patch.body = updates.body;
+    if (updates.createdAt !== undefined) patch.created_at = updates.createdAt;
+    const { error } = await supabase.from('contact_activities').update(patch).eq('id', id);
+    if (error) {
+      toast({ title: 'Fout bij bijwerken gespreksverslag', description: error.message, variant: 'destructive' });
+      return false;
+    }
+    toast({ title: 'Gespreksverslag bijgewerkt' });
+    fetch();
+    return true;
+  }, [toast, fetch]);
+
+  return { logs, loading, refetch: fetch, updateLog };
 }
