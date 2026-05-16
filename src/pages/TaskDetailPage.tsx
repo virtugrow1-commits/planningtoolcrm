@@ -448,24 +448,90 @@ export default function TaskDetailPage() {
               <div className="border-t border-border/60 pt-3 space-y-2">
                 <p className="text-xs font-semibold text-muted-foreground">Eerdere verslagen bij deze taak</p>
                 <div className="space-y-2 max-h-[260px] overflow-y-auto pr-1">
-                  {taskCallLogs.map((log) => (
+                  {taskCallLogs.map((log) => {
+                    const isEditing = editingLogId === log.id;
+                    return (
                     <div key={log.id} className="group flex gap-3 text-sm rounded-lg border border-border/50 p-3 hover:bg-muted/30 transition-colors">
                       <Phone size={14} className="text-primary mt-0.5 shrink-0" />
-                      <div className="flex-1 min-w-0">
-                        <p className="text-[11px] text-muted-foreground">
-                          {format(new Date(log.createdAt), 'd MMM yyyy HH:mm', { locale: nl })}
-                        </p>
-                        {log.body && <p className="text-sm text-foreground whitespace-pre-wrap mt-0.5">{log.body}</p>}
+                      <div className="flex-1 min-w-0 space-y-2">
+                        {isEditing ? (
+                          <>
+                            <Textarea
+                              value={editLogText}
+                              onChange={(e) => setEditLogText(e.target.value)}
+                              className="min-h-[100px] text-sm"
+                            />
+                            <div className="flex items-center gap-2">
+                              <Popover>
+                                <PopoverTrigger asChild>
+                                  <Button variant="outline" size="sm" className="text-xs">
+                                    <CalendarIcon size={12} className="mr-1.5" />
+                                    {editLogDate ? format(editLogDate, 'd MMM yyyy', { locale: nl }) : 'Datum'}
+                                  </Button>
+                                </PopoverTrigger>
+                                <PopoverContent className="w-auto p-0 bg-popover z-50" align="start">
+                                  <Calendar mode="single" selected={editLogDate} onSelect={setEditLogDate} initialFocus className="p-3 pointer-events-auto" />
+                                </PopoverContent>
+                              </Popover>
+                              <div className="flex-1" />
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => { setEditingLogId(null); }}
+                                disabled={savingEditLog}
+                              >
+                                Annuleren
+                              </Button>
+                              <Button
+                                size="sm"
+                                disabled={savingEditLog || !editLogText.trim()}
+                                onClick={async () => {
+                                  setSavingEditLog(true);
+                                  const ok = await updateLog(log.id, {
+                                    body: editLogText.trim(),
+                                    createdAt: editLogDate ? editLogDate.toISOString() : undefined,
+                                  });
+                                  setSavingEditLog(false);
+                                  if (ok) setEditingLogId(null);
+                                }}
+                              >
+                                Opslaan
+                              </Button>
+                            </div>
+                          </>
+                        ) : (
+                          <>
+                            <p className="text-[11px] text-muted-foreground">
+                              {format(new Date(log.createdAt), 'd MMM yyyy HH:mm', { locale: nl })}
+                            </p>
+                            {log.body && <p className="text-sm text-foreground whitespace-pre-wrap mt-0.5">{log.body}</p>}
+                          </>
+                        )}
                       </div>
-                      <button
-                        onClick={() => handleDeleteCallLog(log.id)}
-                        className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-destructive transition-all shrink-0"
-                        title="Verwijderen"
-                      >
-                        <Trash2 size={12} />
-                      </button>
+                      {!isEditing && (
+                        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all shrink-0">
+                          <button
+                            onClick={() => {
+                              setEditingLogId(log.id);
+                              setEditLogText(log.body || '');
+                              setEditLogDate(log.createdAt ? new Date(log.createdAt) : undefined);
+                            }}
+                            className="text-muted-foreground hover:text-foreground"
+                            title="Bewerken"
+                          >
+                            <Pencil size={12} />
+                          </button>
+                          <button
+                            onClick={() => handleDeleteCallLog(log.id)}
+                            className="text-muted-foreground hover:text-destructive"
+                            title="Verwijderen"
+                          >
+                            <Trash2 size={12} />
+                          </button>
+                        </div>
+                      )}
                     </div>
-                  ))}
+                  );})}
                 </div>
               </div>
             )}
