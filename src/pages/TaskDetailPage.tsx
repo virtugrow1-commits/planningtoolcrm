@@ -58,7 +58,11 @@ export default function TaskDetailPage() {
   const [callLogText, setCallLogText] = useState('');
   const [callLogDate, setCallLogDate] = useState<Date | undefined>(new Date());
   const [savingCallLog, setSavingCallLog] = useState(false);
-  const { logs: taskCallLogs, refetch: refetchCallLogs } = useTaskCallLogs(id);
+  const { logs: taskCallLogs, refetch: refetchCallLogs, updateLog } = useTaskCallLogs(id);
+  const [editingLogId, setEditingLogId] = useState<string | null>(null);
+  const [editLogText, setEditLogText] = useState('');
+  const [editLogDate, setEditLogDate] = useState<Date | undefined>();
+  const [savingEditLog, setSavingEditLog] = useState(false);
 
   const contact = useMemo(() => task?.contactId ? contacts.find(c => c.id === task.contactId) : null, [task, contacts]);
   const company = useMemo(() => task?.companyId ? companies.find(c => c.id === task.companyId) : null, [task, companies]);
