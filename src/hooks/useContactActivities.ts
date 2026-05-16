@@ -99,7 +99,7 @@ export function useContactActivities(contactId: string | undefined) {
     fetch();
   }, [toast, fetch]);
 
-  return { activities, loading, addActivity, deleteActivity, refetch: fetch };
+  return { activities, loading, addActivity, updateActivity, deleteActivity, refetch: fetch };
 }
 
 /**
