@@ -74,6 +74,22 @@ export function useContactActivities(contactId: string | undefined) {
     fetch();
   }, [user, contactId, toast, fetch]);
 
+  const updateActivity = useCallback(async (id: string, updates: Partial<AddActivityInput>) => {
+    const patch: any = {};
+    if (updates.type !== undefined) patch.type = updates.type;
+    if (updates.subject !== undefined) patch.subject = updates.subject || null;
+    if (updates.body !== undefined) patch.body = updates.body || null;
+    if (updates.createdAt !== undefined) patch.created_at = updates.createdAt;
+    const { error } = await supabase.from('contact_activities').update(patch).eq('id', id);
+    if (error) {
+      toast({ title: 'Fout bij bijwerken activiteit', description: error.message, variant: 'destructive' });
+      return false;
+    }
+    toast({ title: 'Activiteit bijgewerkt' });
+    fetch();
+    return true;
+  }, [toast, fetch]);
+
   const deleteActivity = useCallback(async (id: string) => {
     const { error } = await supabase.from('contact_activities').delete().eq('id', id);
     if (error) {
