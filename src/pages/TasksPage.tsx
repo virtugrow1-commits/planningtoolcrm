@@ -190,28 +190,30 @@ export default function TasksPage() {
   };
 
   const resetForm = () =>
-    setForm({ title: '', description: '', status: 'open', priority: 'normal', dueDate: '', companyId: '', contactId: '', assignedTo: '' });
+    setForm({ title: '', description: '', status: 'open', priority: 'normal', dueDate: '', companyId: '', contactId: '', assignedTo: [] });
 
   const handleSave = async () => {
     if (!form.title.trim()) {
       toast({ title: t('tasks.giveTitleError'), variant: 'destructive' });
       return;
     }
-    if (!form.assignedTo) {
+    if (!form.assignedTo.length) {
       toast({ title: language === 'en' ? 'Choose a responsible person' : 'Kies een verantwoordelijke', variant: 'destructive' });
       return;
     }
-    await addTask({
-      title: form.title,
-      description: form.description || undefined,
-      status: 'open',
-      priority: 'normal',
-      dueDate: form.dueDate || undefined,
-      companyId: form.companyId || undefined,
-      contactId: form.contactId || undefined,
-      assignedTo: form.assignedTo || undefined,
-    });
-    toast({ title: t('tasks.taskCreated') });
+    for (const assignee of form.assignedTo) {
+      await addTask({
+        title: form.title,
+        description: form.description || undefined,
+        status: 'open',
+        priority: 'normal',
+        dueDate: form.dueDate || undefined,
+        companyId: form.companyId || undefined,
+        contactId: form.contactId || undefined,
+        assignedTo: assignee,
+      });
+    }
+    toast({ title: form.assignedTo.length > 1 ? `${form.assignedTo.length} ${language === 'en' ? 'tasks created' : 'taken aangemaakt'}` : t('tasks.taskCreated') });
     setNewOpen(false);
     resetForm();
   };
