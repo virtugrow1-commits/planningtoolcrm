@@ -40,7 +40,7 @@ export default function TasksSection({ tasks, defaults }: TasksSectionProps) {
   const [newTitle, setNewTitle] = useState('');
   const [newPriority, setNewPriority] = useState<Task['priority']>('normal');
   const [newDueDate, setNewDueDate] = useState<Date | undefined>();
-  const [newAssignedTo, setNewAssignedTo] = useState<string | undefined>();
+  const [newAssignedTo, setNewAssignedTo] = useState<string[]>([]);
   const [newContactId, setNewContactId] = useState<string | undefined>(defaults.contactId);
   const [newCompanyId, setNewCompanyId] = useState<string | undefined>(defaults.companyId);
   const [adding, setAdding] = useState(false);
