@@ -349,8 +349,11 @@ export default function TaskDetailPage() {
                   </Popover>
                 </div>
                 <div>
-                  <p className="text-xs font-semibold text-muted-foreground mb-1">Verantwoordelijke</p>
-                  <TeamMemberSelect value={form!.assignedTo} onValueChange={(v) => setForm({ ...form!, assignedTo: v })} />
+                  <p className="text-xs font-semibold text-muted-foreground mb-1">Verantwoordelijke(n) *</p>
+                  <TeamMemberMultiSelect value={editAssignedTo} onChange={setEditAssignedTo} />
+                  {editAssignedTo.length > 1 && (
+                    <p className="text-[11px] text-muted-foreground mt-1">Bij opslaan worden {editAssignedTo.length - 1} extra taak{editAssignedTo.length > 2 ? 'en' : ''} aangemaakt voor de overige personen.</p>
+                  )}
                 </div>
                 <div>
                   <p className="text-xs font-semibold text-muted-foreground mb-1">Contactpersoon</p>
