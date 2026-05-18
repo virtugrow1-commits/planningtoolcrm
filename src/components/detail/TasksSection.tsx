@@ -50,31 +50,34 @@ export default function TasksSection({ tasks, defaults }: TasksSectionProps) {
   const completedTasks = tasks.filter(t => t.status === 'completed');
 
   const handleAdd = async () => {
-    if (!newTitle.trim()) return;
+    if (!newTitle.trim() || !newAssignedTo.length) return;
     setAdding(true);
     const dueDate = newDueDate
       ? `${newDueDate.getFullYear()}-${String(newDueDate.getMonth() + 1).padStart(2, '0')}-${String(newDueDate.getDate()).padStart(2, '0')}`
       : undefined;
-    await addTask({
-      title: newTitle.trim(),
-      status: 'open',
-      priority: newPriority,
-      dueDate,
-      assignedTo: newAssignedTo,
-      contactId: newContactId,
-      companyId: newCompanyId,
-      inquiryId: defaults.inquiryId,
-      bookingId: defaults.bookingId,
-    });
+    for (const assignee of newAssignedTo) {
+      await addTask({
+        title: newTitle.trim(),
+        status: 'open',
+        priority: newPriority,
+        dueDate,
+        assignedTo: assignee,
+        contactId: newContactId,
+        companyId: newCompanyId,
+        inquiryId: defaults.inquiryId,
+        bookingId: defaults.bookingId,
+      });
+    }
+    const count = newAssignedTo.length;
     setNewTitle('');
     setNewPriority('normal');
     setNewDueDate(undefined);
-    setNewAssignedTo(undefined);
+    setNewAssignedTo([]);
     setNewContactId(defaults.contactId);
     setNewCompanyId(defaults.companyId);
     setAdding(false);
     setShowForm(false);
-    toast({ title: 'Taak aangemaakt' });
+    toast({ title: count > 1 ? `${count} taken aangemaakt` : 'Taak aangemaakt' });
   };
 
   const toggleComplete = async (task: Task, e: React.MouseEvent) => {
