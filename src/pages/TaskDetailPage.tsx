@@ -666,7 +666,7 @@ export default function TaskDetailPage() {
           </div>
           <DialogFooter className="gap-2 sm:gap-0">
             <Button variant="ghost" size="sm" onClick={() => setShowFollowUp(false)}>Sluiten</Button>
-            <Button size="sm" onClick={handleFollowUp} disabled={followAdding || !followTitle.trim() || !followDueDate}>Aanmaken</Button>
+            <Button size="sm" onClick={handleFollowUp} disabled={followAdding || !followTitle.trim() || !followDueDate || !followAssignedTo.length}>Aanmaken</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
