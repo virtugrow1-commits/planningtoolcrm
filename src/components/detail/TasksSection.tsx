@@ -177,7 +177,7 @@ export default function TasksSection({ tasks, defaults }: TasksSectionProps) {
             <Button variant="ghost" size="sm" className="h-8 text-xs" onClick={() => { setShowForm(false); setNewTitle(''); setNewDueDate(undefined); setNewAssignedTo(undefined); }}>
               Annuleren
             </Button>
-            <Button size="sm" className="h-8 text-xs" onClick={handleAdd} disabled={adding || !newTitle.trim()}>
+            <Button size="sm" className="h-8 text-xs" onClick={handleAdd} disabled={adding || !newTitle.trim() || !newAssignedTo.length}>
               <Plus size={12} className="mr-1" /> Toevoegen
             </Button>
           </div>
