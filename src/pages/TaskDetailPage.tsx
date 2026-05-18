@@ -119,7 +119,7 @@ export default function TaskDetailPage() {
       setFollowTitle('');
       setFollowPriority('normal');
       setFollowDueDate(undefined);
-      setFollowAssignedTo(task.assignedTo);
+      setFollowAssignedTo(task.assignedTo ? [task.assignedTo] : []);
       setFollowAttempted(false);
       setShowFollowUp(true);
     }
