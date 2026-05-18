@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
 import { Plus, CheckSquare, User } from 'lucide-react';
+import TeamMemberMultiSelect from '@/components/TeamMemberMultiSelect';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 
@@ -25,29 +26,32 @@ export default function InquiryTasksTab({ inquiry, tasks, contactId, companyId }
   
   const [newTitle, setNewTitle] = useState('');
   const [newPriority, setNewPriority] = useState<Task['priority']>('normal');
-  const [newAssignedTo, setNewAssignedTo] = useState<string | undefined>();
+  const [newAssignedTo, setNewAssignedTo] = useState<string[]>([]);
   const [adding, setAdding] = useState(false);
 
   const openTasks = tasks.filter(t => t.status !== 'completed');
   const completedTasks = tasks.filter(t => t.status === 'completed');
 
   const handleAdd = async () => {
-    if (!newTitle.trim()) return;
+    if (!newTitle.trim() || !newAssignedTo.length) return;
     setAdding(true);
-    await addTask({
-      title: newTitle.trim(),
-      status: 'open',
-      priority: newPriority,
-      assignedTo: newAssignedTo,
-      inquiryId: inquiry.id,
-      contactId: contactId || inquiry.contactId || undefined,
-      companyId: companyId || undefined,
-    });
+    for (const assignee of newAssignedTo) {
+      await addTask({
+        title: newTitle.trim(),
+        status: 'open',
+        priority: newPriority,
+        assignedTo: assignee,
+        inquiryId: inquiry.id,
+        contactId: contactId || inquiry.contactId || undefined,
+        companyId: companyId || undefined,
+      });
+    }
+    const count = newAssignedTo.length;
     setNewTitle('');
     setNewPriority('normal');
-    setNewAssignedTo(undefined);
+    setNewAssignedTo([]);
     setAdding(false);
-    toast({ title: 'Taak aangemaakt' });
+    toast({ title: count > 1 ? `${count} taken aangemaakt` : 'Taak aangemaakt' });
   };
 
   const toggleComplete = async (task: Task) => {
@@ -60,13 +64,13 @@ export default function InquiryTasksTab({ inquiry, tasks, contactId, companyId }
       {/* Add task form */}
       <div className="rounded-xl bg-card p-5 card-shadow space-y-3">
         <h3 className="text-base font-bold text-foreground">Nieuwe taak toevoegen</h3>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2 items-start">
           <Input
             placeholder="Taakomschrijving..."
             value={newTitle}
             onChange={(e) => setNewTitle(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && handleAdd()}
-            className="flex-1"
+            className="flex-1 min-w-[200px]"
           />
           <Select value={newPriority} onValueChange={(v: Task['priority']) => setNewPriority(v)}>
             <SelectTrigger className="w-[130px]">
@@ -78,18 +82,10 @@ export default function InquiryTasksTab({ inquiry, tasks, contactId, companyId }
               ))}
             </SelectContent>
           </Select>
-          <Select value={newAssignedTo || '__none__'} onValueChange={(v) => setNewAssignedTo(v === '__none__' ? undefined : v)}>
-            <SelectTrigger className="w-[150px]">
-              <User size={14} className="mr-1 shrink-0" />
-              <SelectValue placeholder="Toewijzen" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="__none__">Niemand</SelectItem>
-              <SelectItem value="Sjors Jochems">Sjors Jochems</SelectItem>
-              <SelectItem value="Iris Machielse">Iris Machielse</SelectItem>
-            </SelectContent>
-          </Select>
-          <Button onClick={handleAdd} disabled={adding || !newTitle.trim()} size="sm">
+          <div className="w-[180px]">
+            <TeamMemberMultiSelect value={newAssignedTo} onChange={setNewAssignedTo} />
+          </div>
+          <Button onClick={handleAdd} disabled={adding || !newTitle.trim() || !newAssignedTo.length} size="sm">
             <Plus size={14} className="mr-1" /> Toevoegen
           </Button>
         </div>

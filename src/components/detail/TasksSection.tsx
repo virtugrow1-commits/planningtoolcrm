@@ -12,6 +12,7 @@ import { Badge } from '@/components/ui/badge';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
 import CrmCombobox from '@/components/CrmCombobox';
+import TeamMemberMultiSelect from '@/components/TeamMemberMultiSelect';
 import { Plus, CalendarIcon, User, Building2, UserCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
@@ -39,7 +40,7 @@ export default function TasksSection({ tasks, defaults }: TasksSectionProps) {
   const [newTitle, setNewTitle] = useState('');
   const [newPriority, setNewPriority] = useState<Task['priority']>('normal');
   const [newDueDate, setNewDueDate] = useState<Date | undefined>();
-  const [newAssignedTo, setNewAssignedTo] = useState<string | undefined>();
+  const [newAssignedTo, setNewAssignedTo] = useState<string[]>([]);
   const [newContactId, setNewContactId] = useState<string | undefined>(defaults.contactId);
   const [newCompanyId, setNewCompanyId] = useState<string | undefined>(defaults.companyId);
   const [adding, setAdding] = useState(false);
@@ -49,31 +50,34 @@ export default function TasksSection({ tasks, defaults }: TasksSectionProps) {
   const completedTasks = tasks.filter(t => t.status === 'completed');
 
   const handleAdd = async () => {
-    if (!newTitle.trim()) return;
+    if (!newTitle.trim() || !newAssignedTo.length) return;
     setAdding(true);
     const dueDate = newDueDate
       ? `${newDueDate.getFullYear()}-${String(newDueDate.getMonth() + 1).padStart(2, '0')}-${String(newDueDate.getDate()).padStart(2, '0')}`
       : undefined;
-    await addTask({
-      title: newTitle.trim(),
-      status: 'open',
-      priority: newPriority,
-      dueDate,
-      assignedTo: newAssignedTo,
-      contactId: newContactId,
-      companyId: newCompanyId,
-      inquiryId: defaults.inquiryId,
-      bookingId: defaults.bookingId,
-    });
+    for (const assignee of newAssignedTo) {
+      await addTask({
+        title: newTitle.trim(),
+        status: 'open',
+        priority: newPriority,
+        dueDate,
+        assignedTo: assignee,
+        contactId: newContactId,
+        companyId: newCompanyId,
+        inquiryId: defaults.inquiryId,
+        bookingId: defaults.bookingId,
+      });
+    }
+    const count = newAssignedTo.length;
     setNewTitle('');
     setNewPriority('normal');
     setNewDueDate(undefined);
-    setNewAssignedTo(undefined);
+    setNewAssignedTo([]);
     setNewContactId(defaults.contactId);
     setNewCompanyId(defaults.companyId);
     setAdding(false);
     setShowForm(false);
-    toast({ title: 'Taak aangemaakt' });
+    toast({ title: count > 1 ? `${count} taken aangemaakt` : 'Taak aangemaakt' });
   };
 
   const toggleComplete = async (task: Task, e: React.MouseEvent) => {
@@ -137,17 +141,9 @@ export default function TasksSection({ tasks, defaults }: TasksSectionProps) {
                 <Calendar mode="single" selected={newDueDate} onSelect={setNewDueDate} initialFocus className="p-3 pointer-events-auto" />
               </PopoverContent>
             </Popover>
-            <Select value={newAssignedTo || '__none__'} onValueChange={(v) => setNewAssignedTo(v === '__none__' ? undefined : v)}>
-              <SelectTrigger className="w-[140px] h-8 text-xs">
-                <User size={12} className="mr-1 shrink-0" />
-                <SelectValue placeholder="Toewijzen" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="__none__" className="text-xs">Niemand</SelectItem>
-                <SelectItem value="Sjors Jochems" className="text-xs">Sjors Jochems</SelectItem>
-                <SelectItem value="Iris Machielse" className="text-xs">Iris Machielse</SelectItem>
-              </SelectContent>
-            </Select>
+            <div className="min-w-[180px]">
+              <TeamMemberMultiSelect compact value={newAssignedTo} onChange={setNewAssignedTo} />
+            </div>
           </div>
           <div className="flex flex-wrap gap-2 items-end">
             <div className="flex-1 min-w-[140px]">
@@ -181,7 +177,7 @@ export default function TasksSection({ tasks, defaults }: TasksSectionProps) {
             <Button variant="ghost" size="sm" className="h-8 text-xs" onClick={() => { setShowForm(false); setNewTitle(''); setNewDueDate(undefined); setNewAssignedTo(undefined); }}>
               Annuleren
             </Button>
-            <Button size="sm" className="h-8 text-xs" onClick={handleAdd} disabled={adding || !newTitle.trim()}>
+            <Button size="sm" className="h-8 text-xs" onClick={handleAdd} disabled={adding || !newTitle.trim() || !newAssignedTo.length}>
               <Plus size={12} className="mr-1" /> Toevoegen
             </Button>
           </div>

@@ -13,6 +13,7 @@ import { useContactsContext } from '@/contexts/ContactsContext';
 import { useTasksContext } from '@/contexts/TasksContext';
 import { useCompaniesContext } from '@/contexts/CompaniesContext';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import TeamMemberMultiSelect from '@/components/TeamMemberMultiSelect';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
@@ -111,6 +112,7 @@ export default function InquiriesPage() {
   const [noteText, setNoteText] = useState('');
   const [taskDialogInquiry, setTaskDialogInquiry] = useState<Inquiry | null>(null);
   const [taskTitle, setTaskTitle] = useState('');
+  const [taskAssignedTo, setTaskAssignedTo] = useState<string[]>([]);
   const { toast } = useToast();
   const { getDisplayName } = useRoomSettings();
   const [conflictPopup, setConflictPopup] = useState<{ conflicts: Booking[] } | null>(null);
@@ -738,7 +740,7 @@ export default function InquiriesPage() {
                           <StickyNote size={13} className="text-muted-foreground" />
                         </button>
                         <button
-                          onClick={(e) => { e.stopPropagation(); setTaskDialogInquiry(inq); setTaskTitle(''); }}
+                          onClick={(e) => { e.stopPropagation(); setTaskDialogInquiry(inq); setTaskTitle(''); setTaskAssignedTo([]); }}
                           className="relative p-1 rounded hover:bg-muted transition-colors"
                           title="Taak toevoegen"
                         >
@@ -1525,20 +1527,30 @@ export default function InquiriesPage() {
             value={taskTitle}
             onChange={(e) => setTaskTitle(e.target.value)}
           />
+          <div className="grid gap-1.5">
+            <Label>Verantwoordelijke *</Label>
+            <TeamMemberMultiSelect value={taskAssignedTo} onChange={setTaskAssignedTo} />
+          </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setTaskDialogInquiry(null)}>Annuleren</Button>
-            <Button onClick={async () => {
-              if (!taskDialogInquiry || !taskTitle.trim()) return;
-              await addTask({
-                title: taskTitle.trim(),
-                status: 'open',
-                priority: 'normal',
-                inquiryId: taskDialogInquiry.id,
-                contactId: taskDialogInquiry.contactId || undefined,
-              });
-              toast({ title: 'Taak aangemaakt' });
-              setTaskDialogInquiry(null);
-            }}>Opslaan</Button>
+            <Button
+              disabled={!taskTitle.trim() || !taskAssignedTo.length}
+              onClick={async () => {
+                if (!taskDialogInquiry || !taskTitle.trim() || !taskAssignedTo.length) return;
+                for (const assignee of taskAssignedTo) {
+                  await addTask({
+                    title: taskTitle.trim(),
+                    status: 'open',
+                    priority: 'normal',
+                    assignedTo: assignee,
+                    inquiryId: taskDialogInquiry.id,
+                    contactId: taskDialogInquiry.contactId || undefined,
+                  });
+                }
+                toast({ title: taskAssignedTo.length > 1 ? `${taskAssignedTo.length} taken aangemaakt` : 'Taak aangemaakt' });
+                setTaskDialogInquiry(null);
+              }}
+            >Opslaan</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

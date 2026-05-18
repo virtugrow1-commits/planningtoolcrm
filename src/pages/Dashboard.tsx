@@ -39,6 +39,7 @@ import { Calendar } from '@/components/ui/calendar';
 import CrmCombobox, { ComboboxOption } from '@/components/CrmCombobox';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
+import TeamMemberMultiSelect from '@/components/TeamMemberMultiSelect';
 import { Task, TASK_STATUSES, TASK_PRIORITIES } from '@/types/task';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
@@ -81,7 +82,7 @@ export default function Dashboard() {
   const [editTask, setEditTask] = useState<Task | null>(null);
   const [form, setForm] = useState({
     title: '', description: '', status: 'open' as Task['status'], priority: 'normal' as Task['priority'],
-    dueDate: '', companyId: '', contactId: '', assignedTo: '',
+    dueDate: '', companyId: '', contactId: '', assignedTo: [] as string[],
   });
   const [filter, setFilter] = useState<'all' | 'open' | 'completed'>('all');
   const [visibleCount, setVisibleCount] = useState(10);
@@ -215,7 +216,7 @@ export default function Dashboard() {
   };
 
   const resetForm = () => {
-    setForm({ title: '', description: '', status: 'open', priority: 'normal', dueDate: '', companyId: '', contactId: '', assignedTo: '' });
+    setForm({ title: '', description: '', status: 'open', priority: 'normal', dueDate: '', companyId: '', contactId: '', assignedTo: [] });
   };
 
   const openNew = () => { resetForm(); setEditTask(null); setNewOpen(true); };
@@ -234,13 +235,16 @@ export default function Dashboard() {
       });
       toast({ title: t('tasks.taskUpdated') });
     } else {
-      await addTask({
-        title: form.title, description: form.description || undefined,
-        status: form.status, priority: form.priority, dueDate: form.dueDate || undefined,
-        companyId: form.companyId || undefined, contactId: form.contactId || undefined,
-        assignedTo: form.assignedTo || undefined,
-      });
-      toast({ title: t('tasks.taskCreated') });
+      const assignees = form.assignedTo.length ? form.assignedTo : [undefined];
+      for (const assignee of assignees) {
+        await addTask({
+          title: form.title, description: form.description || undefined,
+          status: form.status, priority: form.priority, dueDate: form.dueDate || undefined,
+          companyId: form.companyId || undefined, contactId: form.contactId || undefined,
+          assignedTo: assignee,
+        });
+      }
+      toast({ title: form.assignedTo.length > 1 ? `${form.assignedTo.length} ${language === 'en' ? 'tasks created' : 'taken aangemaakt'}` : t('tasks.taskCreated') });
     }
     setNewOpen(false); resetForm(); setEditTask(null);
   };
@@ -747,21 +751,25 @@ export default function Dashboard() {
                 <Input type="date" value={form.dueDate} onChange={(e) => setForm({ ...form, dueDate: e.target.value })} />
               </div>
               <div className="grid gap-1.5">
-                <Label>{t('tasks.assignedTo')}</Label>
-                <Select value={form.assignedTo || '__none__'} onValueChange={(v) => setForm({ ...form, assignedTo: v === '__none__' ? '' : v })}>
-                  <SelectTrigger><SelectValue placeholder={language === 'en' ? 'Nobody' : 'Niemand'} /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="__none__">{language === 'en' ? 'Nobody' : 'Niemand'}</SelectItem>
-                    <SelectItem value="Sjors Jochems">Sjors Jochems</SelectItem>
-                    <SelectItem value="Iris Machielse">Iris Machielse</SelectItem>
-                  </SelectContent>
-                </Select>
+                <Label>{t('tasks.assignedTo')}{!editTask && ' *'}</Label>
+                {editTask ? (
+                  <Select value={(form.assignedTo[0]) || '__none__'} onValueChange={(v) => setForm({ ...form, assignedTo: v === '__none__' ? [] : [v] })}>
+                    <SelectTrigger><SelectValue placeholder={language === 'en' ? 'Nobody' : 'Niemand'} /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__none__">{language === 'en' ? 'Nobody' : 'Niemand'}</SelectItem>
+                      <SelectItem value="Sjors Jochems">Sjors Jochems</SelectItem>
+                      <SelectItem value="Iris Machielse">Iris Machielse</SelectItem>
+                    </SelectContent>
+                  </Select>
+                ) : (
+                  <TeamMemberMultiSelect value={form.assignedTo} onChange={(v) => setForm({ ...form, assignedTo: v })} />
+                )}
               </div>
             </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setNewOpen(false)}>{t('common.cancel')}</Button>
-            <Button onClick={handleSave}>{editTask ? t('common.save') : t('toast.created')}</Button>
+            <Button onClick={handleSave} disabled={!editTask && !form.assignedTo.length}>{editTask ? t('common.save') : t('toast.created')}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

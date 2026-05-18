@@ -20,6 +20,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { InfoRow, SectionCard } from '@/components/detail/DetailPageComponents';
 import TeamMemberSelect from '@/components/TeamMemberSelect';
+import TeamMemberMultiSelect from '@/components/TeamMemberMultiSelect';
 import CrmCombobox from '@/components/CrmCombobox';
 import { ArrowLeft, ChevronRight, Pencil, Check, X, CalendarIcon, User, Building2, FileText, Bookmark, CheckCircle2, Plus, Trash2, Phone, MessageSquareText } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -50,7 +51,7 @@ export default function TaskDetailPage() {
   const [followTitle, setFollowTitle] = useState('');
   const [followPriority, setFollowPriority] = useState<Task['priority']>('normal');
   const [followDueDate, setFollowDueDate] = useState<Date | undefined>();
-  const [followAssignedTo, setFollowAssignedTo] = useState<string | undefined>();
+  const [followAssignedTo, setFollowAssignedTo] = useState<string[]>([]);
   const [followAdding, setFollowAdding] = useState(false);
   const [followAttempted, setFollowAttempted] = useState(false);
 
@@ -119,7 +120,7 @@ export default function TaskDetailPage() {
       setFollowTitle('');
       setFollowPriority('normal');
       setFollowDueDate(undefined);
-      setFollowAssignedTo(task.assignedTo);
+      setFollowAssignedTo(task.assignedTo ? [task.assignedTo] : []);
       setFollowAttempted(false);
       setShowFollowUp(true);
     }
@@ -134,23 +135,26 @@ export default function TaskDetailPage() {
 
   const handleFollowUp = async () => {
     setFollowAttempted(true);
-    if (!followTitle.trim() || !followDueDate) return;
+    if (!followTitle.trim() || !followDueDate || !followAssignedTo.length) return;
     setFollowAdding(true);
     const dueDate = `${followDueDate.getFullYear()}-${String(followDueDate.getMonth() + 1).padStart(2, '0')}-${String(followDueDate.getDate()).padStart(2, '0')}`;
-    await addTask({
-      title: followTitle.trim(),
-      status: 'open',
-      priority: followPriority,
-      dueDate,
-      assignedTo: followAssignedTo,
-      contactId: task.contactId,
-      companyId: task.companyId,
-      inquiryId: task.inquiryId,
-      bookingId: task.bookingId,
-    });
+    for (const assignee of followAssignedTo) {
+      await addTask({
+        title: followTitle.trim(),
+        status: 'open',
+        priority: followPriority,
+        dueDate,
+        assignedTo: assignee,
+        contactId: task.contactId,
+        companyId: task.companyId,
+        inquiryId: task.inquiryId,
+        bookingId: task.bookingId,
+      });
+    }
+    const count = followAssignedTo.length;
     setFollowAdding(false);
     setShowFollowUp(false);
-    toast({ title: 'Vervolgtaak aangemaakt' });
+    toast({ title: count > 1 ? `${count} vervolgtaken aangemaakt` : 'Vervolgtaak aangemaakt' });
   };
 
   const handleSaveCallLog = async () => {
@@ -597,7 +601,7 @@ export default function TaskDetailPage() {
             setFollowTitle('');
             setFollowPriority('normal');
             setFollowDueDate(undefined);
-            setFollowAssignedTo(task.assignedTo);
+            setFollowAssignedTo(task.assignedTo ? [task.assignedTo] : []);
             setFollowAttempted(false);
             setShowFollowUp(true);
           }}>
@@ -633,13 +637,8 @@ export default function TaskDetailPage() {
                   ))}
                 </SelectContent>
               </Select>
-              <div className="w-[170px]">
-                <TeamMemberSelect
-                  value={followAssignedTo}
-                  onValueChange={setFollowAssignedTo}
-                  placeholder="Verantwoordelijke"
-                  className="h-8 text-xs"
-                />
+              <div className="min-w-[180px]">
+                <TeamMemberMultiSelect compact value={followAssignedTo} onChange={setFollowAssignedTo} />
               </div>
               <Popover>
                 <PopoverTrigger asChild>
@@ -667,7 +666,7 @@ export default function TaskDetailPage() {
           </div>
           <DialogFooter className="gap-2 sm:gap-0">
             <Button variant="ghost" size="sm" onClick={() => setShowFollowUp(false)}>Sluiten</Button>
-            <Button size="sm" onClick={handleFollowUp} disabled={followAdding || !followTitle.trim() || !followDueDate}>Aanmaken</Button>
+            <Button size="sm" onClick={handleFollowUp} disabled={followAdding || !followTitle.trim() || !followDueDate || !followAssignedTo.length}>Aanmaken</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
