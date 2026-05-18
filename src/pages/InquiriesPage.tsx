@@ -111,6 +111,7 @@ export default function InquiriesPage() {
   const [noteText, setNoteText] = useState('');
   const [taskDialogInquiry, setTaskDialogInquiry] = useState<Inquiry | null>(null);
   const [taskTitle, setTaskTitle] = useState('');
+  const [taskAssignedTo, setTaskAssignedTo] = useState<string[]>([]);
   const { toast } = useToast();
   const { getDisplayName } = useRoomSettings();
   const [conflictPopup, setConflictPopup] = useState<{ conflicts: Booking[] } | null>(null);
