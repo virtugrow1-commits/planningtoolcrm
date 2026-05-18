@@ -64,13 +64,13 @@ export default function InquiryTasksTab({ inquiry, tasks, contactId, companyId }
       {/* Add task form */}
       <div className="rounded-xl bg-card p-5 card-shadow space-y-3">
         <h3 className="text-base font-bold text-foreground">Nieuwe taak toevoegen</h3>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2 items-start">
           <Input
             placeholder="Taakomschrijving..."
             value={newTitle}
             onChange={(e) => setNewTitle(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && handleAdd()}
-            className="flex-1"
+            className="flex-1 min-w-[200px]"
           />
           <Select value={newPriority} onValueChange={(v: Task['priority']) => setNewPriority(v)}>
             <SelectTrigger className="w-[130px]">
@@ -82,18 +82,10 @@ export default function InquiryTasksTab({ inquiry, tasks, contactId, companyId }
               ))}
             </SelectContent>
           </Select>
-          <Select value={newAssignedTo || '__none__'} onValueChange={(v) => setNewAssignedTo(v === '__none__' ? undefined : v)}>
-            <SelectTrigger className="w-[150px]">
-              <User size={14} className="mr-1 shrink-0" />
-              <SelectValue placeholder="Toewijzen" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="__none__">Niemand</SelectItem>
-              <SelectItem value="Sjors Jochems">Sjors Jochems</SelectItem>
-              <SelectItem value="Iris Machielse">Iris Machielse</SelectItem>
-            </SelectContent>
-          </Select>
-          <Button onClick={handleAdd} disabled={adding || !newTitle.trim()} size="sm">
+          <div className="w-[180px]">
+            <TeamMemberMultiSelect value={newAssignedTo} onChange={setNewAssignedTo} />
+          </div>
+          <Button onClick={handleAdd} disabled={adding || !newTitle.trim() || !newAssignedTo.length} size="sm">
             <Plus size={14} className="mr-1" /> Toevoegen
           </Button>
         </div>
