@@ -259,6 +259,37 @@ export default function TasksPage() {
     toast({ title: `${count} ${t('dashboard.movedToDate')}` });
   };
 
+  const handleBulkAssign = async () => {
+    if (!bulkAssignees.length) return;
+    const ids = Array.from(selected);
+    const [first, ...rest] = bulkAssignees;
+    let extra = 0;
+    for (const id of ids) {
+      const tk = tasks.find(x => x.id === id);
+      if (!tk) continue;
+      await updateTask({ ...tk, assignedTo: first });
+      for (const assignee of rest) {
+        await addTask({
+          title: tk.title,
+          description: tk.description,
+          status: tk.status,
+          priority: tk.priority,
+          dueDate: tk.dueDate,
+          assignedTo: assignee,
+          contactId: tk.contactId,
+          companyId: tk.companyId,
+          inquiryId: tk.inquiryId,
+          bookingId: tk.bookingId,
+        });
+        extra++;
+      }
+    }
+    setSelected(new Set());
+    setBulkAssignees([]);
+    setBulkAssignOpen(false);
+    toast({ title: extra ? `${ids.length} taken toegewezen + ${extra} extra aangemaakt` : `${ids.length} taken toegewezen` });
+  };
+
   const handleStatusChange = async (task: Task, newStatus: Task['status']) => {
     await updateTask({ ...task, status: newStatus });
   };
