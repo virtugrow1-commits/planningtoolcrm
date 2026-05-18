@@ -26,29 +26,32 @@ export default function InquiryTasksTab({ inquiry, tasks, contactId, companyId }
   
   const [newTitle, setNewTitle] = useState('');
   const [newPriority, setNewPriority] = useState<Task['priority']>('normal');
-  const [newAssignedTo, setNewAssignedTo] = useState<string | undefined>();
+  const [newAssignedTo, setNewAssignedTo] = useState<string[]>([]);
   const [adding, setAdding] = useState(false);
 
   const openTasks = tasks.filter(t => t.status !== 'completed');
   const completedTasks = tasks.filter(t => t.status === 'completed');
 
   const handleAdd = async () => {
-    if (!newTitle.trim()) return;
+    if (!newTitle.trim() || !newAssignedTo.length) return;
     setAdding(true);
-    await addTask({
-      title: newTitle.trim(),
-      status: 'open',
-      priority: newPriority,
-      assignedTo: newAssignedTo,
-      inquiryId: inquiry.id,
-      contactId: contactId || inquiry.contactId || undefined,
-      companyId: companyId || undefined,
-    });
+    for (const assignee of newAssignedTo) {
+      await addTask({
+        title: newTitle.trim(),
+        status: 'open',
+        priority: newPriority,
+        assignedTo: assignee,
+        inquiryId: inquiry.id,
+        contactId: contactId || inquiry.contactId || undefined,
+        companyId: companyId || undefined,
+      });
+    }
+    const count = newAssignedTo.length;
     setNewTitle('');
     setNewPriority('normal');
-    setNewAssignedTo(undefined);
+    setNewAssignedTo([]);
     setAdding(false);
-    toast({ title: 'Taak aangemaakt' });
+    toast({ title: count > 1 ? `${count} taken aangemaakt` : 'Taak aangemaakt' });
   };
 
   const toggleComplete = async (task: Task) => {
