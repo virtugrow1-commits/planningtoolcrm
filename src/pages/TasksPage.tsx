@@ -82,7 +82,7 @@ export default function TasksPage() {
     dueDate: '',
     companyId: '',
     contactId: '',
-    assignedTo: '',
+    assignedTo: [] as string[],
   });
 
   const today = new Date().toISOString().split('T')[0];
