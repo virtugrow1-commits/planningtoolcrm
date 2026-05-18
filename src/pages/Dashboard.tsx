@@ -39,6 +39,7 @@ import { Calendar } from '@/components/ui/calendar';
 import CrmCombobox, { ComboboxOption } from '@/components/CrmCombobox';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
+import TeamMemberMultiSelect from '@/components/TeamMemberMultiSelect';
 import { Task, TASK_STATUSES, TASK_PRIORITIES } from '@/types/task';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
