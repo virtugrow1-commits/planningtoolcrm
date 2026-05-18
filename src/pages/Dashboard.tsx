@@ -234,13 +234,16 @@ export default function Dashboard() {
       });
       toast({ title: t('tasks.taskUpdated') });
     } else {
-      await addTask({
-        title: form.title, description: form.description || undefined,
-        status: form.status, priority: form.priority, dueDate: form.dueDate || undefined,
-        companyId: form.companyId || undefined, contactId: form.contactId || undefined,
-        assignedTo: form.assignedTo || undefined,
-      });
-      toast({ title: t('tasks.taskCreated') });
+      const assignees = form.assignedTo.length ? form.assignedTo : [undefined];
+      for (const assignee of assignees) {
+        await addTask({
+          title: form.title, description: form.description || undefined,
+          status: form.status, priority: form.priority, dueDate: form.dueDate || undefined,
+          companyId: form.companyId || undefined, contactId: form.contactId || undefined,
+          assignedTo: assignee,
+        });
+      }
+      toast({ title: form.assignedTo.length > 1 ? `${form.assignedTo.length} ${language === 'en' ? 'tasks created' : 'taken aangemaakt'}` : t('tasks.taskCreated') });
     }
     setNewOpen(false); resetForm(); setEditTask(null);
   };
