@@ -393,6 +393,23 @@ export default function TasksPage() {
                 )}
               </PopoverContent>
             </Popover>
+            <Popover open={bulkAssignOpen} onOpenChange={(o) => { setBulkAssignOpen(o); if (!o) setBulkAssignees([]); }}>
+              <PopoverTrigger asChild>
+                <Button variant="outline" size="sm" className="h-8 text-xs gap-1.5">
+                  Toewijzen aan…
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-64 p-3 space-y-2" align="end">
+                <p className="text-xs font-medium">Verantwoordelijke(n)</p>
+                <TeamMemberMultiSelect value={bulkAssignees} onChange={setBulkAssignees} />
+                <Button size="sm" className="w-full text-xs" disabled={!bulkAssignees.length} onClick={handleBulkAssign}>
+                  Toewijzen aan {selected.size} {selected.size === 1 ? t('dashboard.task') : t('dashboard.tasksPlural')}
+                </Button>
+                {bulkAssignees.length > 1 && (
+                  <p className="text-[11px] text-muted-foreground">Per extra persoon wordt een kopie van elke taak aangemaakt.</p>
+                )}
+              </PopoverContent>
+            </Popover>
             <Button variant="destructive" size="sm" className="h-8" onClick={handleBulkDelete}>
               <Trash2 size={14} className="mr-1" /> {t('common.delete')}
             </Button>
