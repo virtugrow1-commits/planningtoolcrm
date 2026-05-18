@@ -20,6 +20,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { InfoRow, SectionCard } from '@/components/detail/DetailPageComponents';
 import TeamMemberSelect from '@/components/TeamMemberSelect';
+import TeamMemberMultiSelect from '@/components/TeamMemberMultiSelect';
 import CrmCombobox from '@/components/CrmCombobox';
 import { ArrowLeft, ChevronRight, Pencil, Check, X, CalendarIcon, User, Building2, FileText, Bookmark, CheckCircle2, Plus, Trash2, Phone, MessageSquareText } from 'lucide-react';
 import { cn } from '@/lib/utils';
