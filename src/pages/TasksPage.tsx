@@ -24,6 +24,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogD
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
 import CrmCombobox, { ComboboxOption } from '@/components/CrmCombobox';
+import TeamMemberMultiSelect from '@/components/TeamMemberMultiSelect';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { Task, TASK_STATUSES } from '@/types/task';
@@ -72,6 +73,8 @@ export default function TasksPage() {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [bulkDate, setBulkDate] = useState<Date | undefined>();
   const [bulkDateOpen, setBulkDateOpen] = useState(false);
+  const [bulkAssignees, setBulkAssignees] = useState<string[]>([]);
+  const [bulkAssignOpen, setBulkAssignOpen] = useState(false);
 
   const [newOpen, setNewOpen] = useState(false);
   const [form, setForm] = useState({
@@ -256,6 +259,37 @@ export default function TasksPage() {
     toast({ title: `${count} ${t('dashboard.movedToDate')}` });
   };
 
+  const handleBulkAssign = async () => {
+    if (!bulkAssignees.length) return;
+    const ids = Array.from(selected);
+    const [first, ...rest] = bulkAssignees;
+    let extra = 0;
+    for (const id of ids) {
+      const tk = tasks.find(x => x.id === id);
+      if (!tk) continue;
+      await updateTask({ ...tk, assignedTo: first });
+      for (const assignee of rest) {
+        await addTask({
+          title: tk.title,
+          description: tk.description,
+          status: tk.status,
+          priority: tk.priority,
+          dueDate: tk.dueDate,
+          assignedTo: assignee,
+          contactId: tk.contactId,
+          companyId: tk.companyId,
+          inquiryId: tk.inquiryId,
+          bookingId: tk.bookingId,
+        });
+        extra++;
+      }
+    }
+    setSelected(new Set());
+    setBulkAssignees([]);
+    setBulkAssignOpen(false);
+    toast({ title: extra ? `${ids.length} taken toegewezen + ${extra} extra aangemaakt` : `${ids.length} taken toegewezen` });
+  };
+
   const handleStatusChange = async (task: Task, newStatus: Task['status']) => {
     await updateTask({ ...task, status: newStatus });
   };
@@ -356,6 +390,23 @@ export default function TasksPage() {
                       {t('dashboard.applyTo')} {selected.size} {selected.size === 1 ? t('dashboard.task') : t('dashboard.tasksPlural')}
                     </Button>
                   </div>
+                )}
+              </PopoverContent>
+            </Popover>
+            <Popover open={bulkAssignOpen} onOpenChange={(o) => { setBulkAssignOpen(o); if (!o) setBulkAssignees([]); }}>
+              <PopoverTrigger asChild>
+                <Button variant="outline" size="sm" className="h-8 text-xs gap-1.5">
+                  Toewijzen aan…
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-64 p-3 space-y-2" align="end">
+                <p className="text-xs font-medium">Verantwoordelijke(n)</p>
+                <TeamMemberMultiSelect value={bulkAssignees} onChange={setBulkAssignees} />
+                <Button size="sm" className="w-full text-xs" disabled={!bulkAssignees.length} onClick={handleBulkAssign}>
+                  Toewijzen aan {selected.size} {selected.size === 1 ? t('dashboard.task') : t('dashboard.tasksPlural')}
+                </Button>
+                {bulkAssignees.length > 1 && (
+                  <p className="text-[11px] text-muted-foreground">Per extra persoon wordt een kopie van elke taak aangemaakt.</p>
                 )}
               </PopoverContent>
             </Popover>

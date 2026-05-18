@@ -44,6 +44,7 @@ export default function TaskDetailPage() {
   const [editing, setEditing] = useState(false);
   const [form, setForm] = useState<Task | null>(null);
   const [editDueDate, setEditDueDate] = useState<Date | undefined>();
+  const [editAssignedTo, setEditAssignedTo] = useState<string[]>([]);
 
   // Follow-up dialog
   const [showFollowUp, setShowFollowUp] = useState(false);
@@ -99,18 +100,38 @@ export default function TaskDetailPage() {
   const startEdit = () => {
     setForm({ ...task });
     setEditDueDate(task.dueDate ? new Date(task.dueDate) : undefined);
+    setEditAssignedTo(task.assignedTo ? [task.assignedTo] : []);
     setEditing(true);
   };
   const cancelEdit = () => { setForm(null); setEditing(false); };
   const saveEdit = async () => {
     if (!form) return;
+    if (!editAssignedTo.length) {
+      toast({ title: 'Kies minimaal één verantwoordelijke', variant: 'destructive' });
+      return;
+    }
     const dueDate = editDueDate
       ? `${editDueDate.getFullYear()}-${String(editDueDate.getMonth() + 1).padStart(2, '0')}-${String(editDueDate.getDate()).padStart(2, '0')}`
       : undefined;
-    await updateTask({ ...form, dueDate });
+    const [first, ...rest] = editAssignedTo;
+    await updateTask({ ...form, dueDate, assignedTo: first });
+    for (const assignee of rest) {
+      await addTask({
+        title: form.title,
+        description: form.description,
+        status: form.status,
+        priority: form.priority,
+        dueDate,
+        assignedTo: assignee,
+        contactId: form.contactId,
+        companyId: form.companyId,
+        inquiryId: form.inquiryId,
+        bookingId: form.bookingId,
+      });
+    }
     setEditing(false);
     setForm(null);
-    toast({ title: 'Taak bijgewerkt' });
+    toast({ title: rest.length ? `Taak bijgewerkt + ${rest.length} extra taak${rest.length > 1 ? 'en' : ''} aangemaakt` : 'Taak bijgewerkt' });
   };
 
   const handleToggleComplete = async () => {
@@ -328,8 +349,11 @@ export default function TaskDetailPage() {
                   </Popover>
                 </div>
                 <div>
-                  <p className="text-xs font-semibold text-muted-foreground mb-1">Verantwoordelijke</p>
-                  <TeamMemberSelect value={form!.assignedTo} onValueChange={(v) => setForm({ ...form!, assignedTo: v })} />
+                  <p className="text-xs font-semibold text-muted-foreground mb-1">Verantwoordelijke(n) *</p>
+                  <TeamMemberMultiSelect value={editAssignedTo} onChange={setEditAssignedTo} />
+                  {editAssignedTo.length > 1 && (
+                    <p className="text-[11px] text-muted-foreground mt-1">Bij opslaan worden {editAssignedTo.length - 1} extra taak{editAssignedTo.length > 2 ? 'en' : ''} aangemaakt voor de overige personen.</p>
+                  )}
                 </div>
                 <div>
                   <p className="text-xs font-semibold text-muted-foreground mb-1">Contactpersoon</p>
