@@ -13,6 +13,7 @@ import { useContactsContext } from '@/contexts/ContactsContext';
 import { useTasksContext } from '@/contexts/TasksContext';
 import { useCompaniesContext } from '@/contexts/CompaniesContext';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import TeamMemberMultiSelect from '@/components/TeamMemberMultiSelect';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
