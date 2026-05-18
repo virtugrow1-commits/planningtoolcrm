@@ -141,17 +141,9 @@ export default function TasksSection({ tasks, defaults }: TasksSectionProps) {
                 <Calendar mode="single" selected={newDueDate} onSelect={setNewDueDate} initialFocus className="p-3 pointer-events-auto" />
               </PopoverContent>
             </Popover>
-            <Select value={newAssignedTo || '__none__'} onValueChange={(v) => setNewAssignedTo(v === '__none__' ? undefined : v)}>
-              <SelectTrigger className="w-[140px] h-8 text-xs">
-                <User size={12} className="mr-1 shrink-0" />
-                <SelectValue placeholder="Toewijzen" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="__none__" className="text-xs">Niemand</SelectItem>
-                <SelectItem value="Sjors Jochems" className="text-xs">Sjors Jochems</SelectItem>
-                <SelectItem value="Iris Machielse" className="text-xs">Iris Machielse</SelectItem>
-              </SelectContent>
-            </Select>
+            <div className="min-w-[180px]">
+              <TeamMemberMultiSelect compact value={newAssignedTo} onChange={setNewAssignedTo} />
+            </div>
           </div>
           <div className="flex flex-wrap gap-2 items-end">
             <div className="flex-1 min-w-[140px]">
