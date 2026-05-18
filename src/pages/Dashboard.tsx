@@ -750,15 +750,19 @@ export default function Dashboard() {
                 <Input type="date" value={form.dueDate} onChange={(e) => setForm({ ...form, dueDate: e.target.value })} />
               </div>
               <div className="grid gap-1.5">
-                <Label>{t('tasks.assignedTo')}</Label>
-                <Select value={form.assignedTo || '__none__'} onValueChange={(v) => setForm({ ...form, assignedTo: v === '__none__' ? '' : v })}>
-                  <SelectTrigger><SelectValue placeholder={language === 'en' ? 'Nobody' : 'Niemand'} /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="__none__">{language === 'en' ? 'Nobody' : 'Niemand'}</SelectItem>
-                    <SelectItem value="Sjors Jochems">Sjors Jochems</SelectItem>
-                    <SelectItem value="Iris Machielse">Iris Machielse</SelectItem>
-                  </SelectContent>
-                </Select>
+                <Label>{t('tasks.assignedTo')}{!editTask && ' *'}</Label>
+                {editTask ? (
+                  <Select value={(form.assignedTo[0]) || '__none__'} onValueChange={(v) => setForm({ ...form, assignedTo: v === '__none__' ? [] : [v] })}>
+                    <SelectTrigger><SelectValue placeholder={language === 'en' ? 'Nobody' : 'Niemand'} /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__none__">{language === 'en' ? 'Nobody' : 'Niemand'}</SelectItem>
+                      <SelectItem value="Sjors Jochems">Sjors Jochems</SelectItem>
+                      <SelectItem value="Iris Machielse">Iris Machielse</SelectItem>
+                    </SelectContent>
+                  </Select>
+                ) : (
+                  <TeamMemberMultiSelect value={form.assignedTo} onChange={(v) => setForm({ ...form, assignedTo: v })} />
+                )}
               </div>
             </div>
           </div>
