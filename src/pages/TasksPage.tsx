@@ -24,6 +24,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogD
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
 import CrmCombobox, { ComboboxOption } from '@/components/CrmCombobox';
+import TeamMemberMultiSelect from '@/components/TeamMemberMultiSelect';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { Task, TASK_STATUSES } from '@/types/task';
