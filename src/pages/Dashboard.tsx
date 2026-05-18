@@ -769,7 +769,7 @@ export default function Dashboard() {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setNewOpen(false)}>{t('common.cancel')}</Button>
-            <Button onClick={handleSave}>{editTask ? t('common.save') : t('toast.created')}</Button>
+            <Button onClick={handleSave} disabled={!editTask && !form.assignedTo.length}>{editTask ? t('common.save') : t('toast.created')}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
