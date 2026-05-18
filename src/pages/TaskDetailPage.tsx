@@ -50,7 +50,7 @@ export default function TaskDetailPage() {
   const [followTitle, setFollowTitle] = useState('');
   const [followPriority, setFollowPriority] = useState<Task['priority']>('normal');
   const [followDueDate, setFollowDueDate] = useState<Date | undefined>();
-  const [followAssignedTo, setFollowAssignedTo] = useState<string | undefined>();
+  const [followAssignedTo, setFollowAssignedTo] = useState<string[]>([]);
   const [followAdding, setFollowAdding] = useState(false);
   const [followAttempted, setFollowAttempted] = useState(false);
 
