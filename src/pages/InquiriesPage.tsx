@@ -1526,20 +1526,30 @@ export default function InquiriesPage() {
             value={taskTitle}
             onChange={(e) => setTaskTitle(e.target.value)}
           />
+          <div className="grid gap-1.5">
+            <Label>Verantwoordelijke *</Label>
+            <TeamMemberMultiSelect value={taskAssignedTo} onChange={setTaskAssignedTo} />
+          </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setTaskDialogInquiry(null)}>Annuleren</Button>
-            <Button onClick={async () => {
-              if (!taskDialogInquiry || !taskTitle.trim()) return;
-              await addTask({
-                title: taskTitle.trim(),
-                status: 'open',
-                priority: 'normal',
-                inquiryId: taskDialogInquiry.id,
-                contactId: taskDialogInquiry.contactId || undefined,
-              });
-              toast({ title: 'Taak aangemaakt' });
-              setTaskDialogInquiry(null);
-            }}>Opslaan</Button>
+            <Button
+              disabled={!taskTitle.trim() || !taskAssignedTo.length}
+              onClick={async () => {
+                if (!taskDialogInquiry || !taskTitle.trim() || !taskAssignedTo.length) return;
+                for (const assignee of taskAssignedTo) {
+                  await addTask({
+                    title: taskTitle.trim(),
+                    status: 'open',
+                    priority: 'normal',
+                    assignedTo: assignee,
+                    inquiryId: taskDialogInquiry.id,
+                    contactId: taskDialogInquiry.contactId || undefined,
+                  });
+                }
+                toast({ title: taskAssignedTo.length > 1 ? `${taskAssignedTo.length} taken aangemaakt` : 'Taak aangemaakt' });
+                setTaskDialogInquiry(null);
+              }}
+            >Opslaan</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
