@@ -72,6 +72,8 @@ export default function TasksPage() {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [bulkDate, setBulkDate] = useState<Date | undefined>();
   const [bulkDateOpen, setBulkDateOpen] = useState(false);
+  const [bulkAssignees, setBulkAssignees] = useState<string[]>([]);
+  const [bulkAssignOpen, setBulkAssignOpen] = useState(false);
 
   const [newOpen, setNewOpen] = useState(false);
   const [form, setForm] = useState({
