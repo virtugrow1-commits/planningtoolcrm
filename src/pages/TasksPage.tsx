@@ -525,15 +525,27 @@ export default function TasksPage() {
               </div>
               <div className="grid gap-1.5">
                 <Label>{t('tasks.assignedTo')} *</Label>
-                <Select value={form.assignedTo} onValueChange={v => setForm({ ...form, assignedTo: v })}>
-                  <SelectTrigger>
-                    <SelectValue placeholder={language === 'en' ? 'Choose...' : 'Kies...'} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="Sjors Jochems">Sjors Jochems</SelectItem>
-                    <SelectItem value="Iris Machielse">Iris Machielse</SelectItem>
-                  </SelectContent>
-                </Select>
+                <div className="flex flex-col gap-2 rounded-md border bg-background p-2.5">
+                  {['Sjors Jochems', 'Iris Machielse'].map((name) => {
+                    const checked = form.assignedTo.includes(name);
+                    return (
+                      <label key={name} className="flex items-center gap-2 text-sm cursor-pointer">
+                        <Checkbox
+                          checked={checked}
+                          onCheckedChange={(v) =>
+                            setForm({
+                              ...form,
+                              assignedTo: v
+                                ? [...form.assignedTo, name]
+                                : form.assignedTo.filter((a) => a !== name),
+                            })
+                          }
+                        />
+                        {name}
+                      </label>
+                    );
+                  })}
+                </div>
               </div>
             </div>
           </div>
