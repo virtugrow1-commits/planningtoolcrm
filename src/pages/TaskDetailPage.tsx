@@ -636,13 +636,8 @@ export default function TaskDetailPage() {
                   ))}
                 </SelectContent>
               </Select>
-              <div className="w-[170px]">
-                <TeamMemberSelect
-                  value={followAssignedTo}
-                  onValueChange={setFollowAssignedTo}
-                  placeholder="Verantwoordelijke"
-                  className="h-8 text-xs"
-                />
+              <div className="min-w-[180px]">
+                <TeamMemberMultiSelect compact value={followAssignedTo} onChange={setFollowAssignedTo} />
               </div>
               <Popover>
                 <PopoverTrigger asChild>
