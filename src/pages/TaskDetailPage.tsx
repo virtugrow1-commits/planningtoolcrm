@@ -134,23 +134,26 @@ export default function TaskDetailPage() {
 
   const handleFollowUp = async () => {
     setFollowAttempted(true);
-    if (!followTitle.trim() || !followDueDate) return;
+    if (!followTitle.trim() || !followDueDate || !followAssignedTo.length) return;
     setFollowAdding(true);
     const dueDate = `${followDueDate.getFullYear()}-${String(followDueDate.getMonth() + 1).padStart(2, '0')}-${String(followDueDate.getDate()).padStart(2, '0')}`;
-    await addTask({
-      title: followTitle.trim(),
-      status: 'open',
-      priority: followPriority,
-      dueDate,
-      assignedTo: followAssignedTo,
-      contactId: task.contactId,
-      companyId: task.companyId,
-      inquiryId: task.inquiryId,
-      bookingId: task.bookingId,
-    });
+    for (const assignee of followAssignedTo) {
+      await addTask({
+        title: followTitle.trim(),
+        status: 'open',
+        priority: followPriority,
+        dueDate,
+        assignedTo: assignee,
+        contactId: task.contactId,
+        companyId: task.companyId,
+        inquiryId: task.inquiryId,
+        bookingId: task.bookingId,
+      });
+    }
+    const count = followAssignedTo.length;
     setFollowAdding(false);
     setShowFollowUp(false);
-    toast({ title: 'Vervolgtaak aangemaakt' });
+    toast({ title: count > 1 ? `${count} vervolgtaken aangemaakt` : 'Vervolgtaak aangemaakt' });
   };
 
   const handleSaveCallLog = async () => {
