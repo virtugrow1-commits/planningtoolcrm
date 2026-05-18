@@ -12,6 +12,7 @@ import { Badge } from '@/components/ui/badge';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
 import CrmCombobox from '@/components/CrmCombobox';
+import TeamMemberMultiSelect from '@/components/TeamMemberMultiSelect';
 import { Plus, CalendarIcon, User, Building2, UserCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
