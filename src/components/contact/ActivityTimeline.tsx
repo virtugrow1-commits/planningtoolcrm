@@ -90,7 +90,7 @@ export default function ActivityTimeline({ contactId }: Props) {
                         {format(new Date(a.createdAt), 'd MMM yyyy HH:mm', { locale: nl })}
                       </span>
                     </div>
-                    <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all shrink-0">
+                    <div className="flex items-center gap-1.5 shrink-0">
                       <button
                         onClick={() => openEdit(a)}
                         className="text-muted-foreground hover:text-foreground"

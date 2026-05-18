@@ -1,30 +1,22 @@
-## Doel
-Bestaande gespreksverslagen (en andere activiteiten) kunnen wijzigen/aanvullen — niet alleen toevoegen of verwijderen.
+## 1. Taak voor meerdere gebruikers in 1× aanmaken (`src/pages/TasksPage.tsx`)
+- "Verantwoordelijke"-veld in de Nieuwe-taak-dialog wordt een **multi-select** met checkboxes (Sjors Jochems, Iris Machielse).
+- `form.assignedTo` wordt `string[]`.
+- Validatie: minimaal 1 persoon geselecteerd.
+- `handleSave` loopt door de geselecteerde namen en roept per persoon `addTask({...})` aan — dit creëert dus 1 taak per verantwoordelijke, met identieke titel/datum/koppelingen.
+- Toast: "X taken aangemaakt" wanneer er meer dan 1 is.
+- Bestaande takenlijst en filter blijven ongewijzigd (1 taak = 1 persoon, zoals nu).
 
-## Wijzigingen
+Niet gewijzigd: andere plaatsen waar taken aangemaakt worden (InquiryTasksTab, vervolgtaak op TaskDetailPage). Wil je daar ook multi-assign? Standaard houd ik het beperkt tot de hoofd-Nieuwe-taak-dialog.
 
-### 1. `useContactActivities` hook (`src/hooks/useContactActivities.ts`)
-Toevoegen: `updateActivity(id, { subject?, body?, type?, createdAt? })`
-- Doet `supabase.from('contact_activities').update({...}).eq('id', id)`
-- Bij succes: refetch + toast "Activiteit bijgewerkt"
-- Exporteren naast `addActivity` / `deleteActivity`
+## 2. "Wijzigen"-knop voor Gespreksverslag zichtbaar maken
+Het potlood-icoon is wél geïmplementeerd (in `ActivityTimeline` en in "Eerdere verslagen bij deze taak" op `TaskDetailPage`), maar staat op `opacity-0 group-hover:opacity-100` — alleen zichtbaar bij hover. Daardoor lijkt het te ontbreken.
 
-### 2. `ActivityTimeline` (`src/components/contact/ActivityTimeline.tsx`)
-- Per item een potlood-icoon (Pencil) naast Trash, zichtbaar op hover
-- Klik opent dezelfde Dialog, maar in "edit"-modus: form pre-filled met bestaande `type/subject/body`
-- Dialog-titel: "Activiteit bewerken" vs. "Activiteit toevoegen"
-- Submit roept `updateActivity` (edit) of `addActivity` (nieuw) aan
-- Voor Gespreksverslagen (subject === 'Gespreksverslag') blijft het subject vast — alleen body bewerkbaar; type-select verbergen voor deze entries
-
-### 3. `TaskDetailPage` (`src/pages/TaskDetailPage.tsx`)
-- "Eerdere verslagen bij deze taak"-lijst: potlood-knop toevoegen naast Trash
-- Inline edit: klik op potlood → tekst vervangen door `Textarea` + datum-popover + Opslaan/Annuleren knoppen (zelfde stijl als nieuwe-verslag input)
-- Opslaan roept nieuwe `updateActivity` aan (body + optioneel created_at), daarna `refetch` van `useTaskCallLogs`
-- `useTaskCallLogs` krijgt zelfde `updateActivity` helper (delen via gemeenschappelijke util of via een directe supabase-call in de page is ook acceptabel — voorkeur: helper in hook hergebruiken)
+Oplossing:
+- Potlood- en prullenbak-knoppen **altijd zichtbaar** maken (geen opacity-toggle), in beide views:
+  - `src/components/contact/ActivityTimeline.tsx`
+  - `src/pages/TaskDetailPage.tsx` (lijst "Eerdere verslagen bij deze taak")
+- Lichtgrijze styling zodat ze niet visueel domineren, maar wel meteen vindbaar zijn.
 
 ## Niet-doelen
-- Geen GHL-sync van edits (huidig gedrag bij delete is ook lokaal-first; sync van bewerkte notes valt buiten scope tenzij je het expliciet wilt)
-- Geen schema-wijziging — `contact_activities` heeft al `updated_at`
-
-## Bevestiging gevraagd
-Wil je dat een bewerkt Gespreksverslag óók naar GHL gesynchroniseerd wordt (via `ghl_note_id` update-call), of is lokaal bijwerken voldoende?
+- Geen wijziging aan datamodel/sync.
+- Geen GHL-sync van bewerkte gespreksverslagen (zoals eerder afgesproken — alleen lokaal).

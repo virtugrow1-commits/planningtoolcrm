@@ -82,7 +82,7 @@ export default function TasksPage() {
     dueDate: '',
     companyId: '',
     contactId: '',
-    assignedTo: '',
+    assignedTo: [] as string[],
   });
 
   const today = new Date().toISOString().split('T')[0];
@@ -190,28 +190,30 @@ export default function TasksPage() {
   };
 
   const resetForm = () =>
-    setForm({ title: '', description: '', status: 'open', priority: 'normal', dueDate: '', companyId: '', contactId: '', assignedTo: '' });
+    setForm({ title: '', description: '', status: 'open', priority: 'normal', dueDate: '', companyId: '', contactId: '', assignedTo: [] });
 
   const handleSave = async () => {
     if (!form.title.trim()) {
       toast({ title: t('tasks.giveTitleError'), variant: 'destructive' });
       return;
     }
-    if (!form.assignedTo) {
+    if (!form.assignedTo.length) {
       toast({ title: language === 'en' ? 'Choose a responsible person' : 'Kies een verantwoordelijke', variant: 'destructive' });
       return;
     }
-    await addTask({
-      title: form.title,
-      description: form.description || undefined,
-      status: 'open',
-      priority: 'normal',
-      dueDate: form.dueDate || undefined,
-      companyId: form.companyId || undefined,
-      contactId: form.contactId || undefined,
-      assignedTo: form.assignedTo || undefined,
-    });
-    toast({ title: t('tasks.taskCreated') });
+    for (const assignee of form.assignedTo) {
+      await addTask({
+        title: form.title,
+        description: form.description || undefined,
+        status: 'open',
+        priority: 'normal',
+        dueDate: form.dueDate || undefined,
+        companyId: form.companyId || undefined,
+        contactId: form.contactId || undefined,
+        assignedTo: assignee,
+      });
+    }
+    toast({ title: form.assignedTo.length > 1 ? `${form.assignedTo.length} ${language === 'en' ? 'tasks created' : 'taken aangemaakt'}` : t('tasks.taskCreated') });
     setNewOpen(false);
     resetForm();
   };
@@ -523,21 +525,33 @@ export default function TasksPage() {
               </div>
               <div className="grid gap-1.5">
                 <Label>{t('tasks.assignedTo')} *</Label>
-                <Select value={form.assignedTo} onValueChange={v => setForm({ ...form, assignedTo: v })}>
-                  <SelectTrigger>
-                    <SelectValue placeholder={language === 'en' ? 'Choose...' : 'Kies...'} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="Sjors Jochems">Sjors Jochems</SelectItem>
-                    <SelectItem value="Iris Machielse">Iris Machielse</SelectItem>
-                  </SelectContent>
-                </Select>
+                <div className="flex flex-col gap-2 rounded-md border bg-background p-2.5">
+                  {['Sjors Jochems', 'Iris Machielse'].map((name) => {
+                    const checked = form.assignedTo.includes(name);
+                    return (
+                      <label key={name} className="flex items-center gap-2 text-sm cursor-pointer">
+                        <Checkbox
+                          checked={checked}
+                          onCheckedChange={(v) =>
+                            setForm({
+                              ...form,
+                              assignedTo: v
+                                ? [...form.assignedTo, name]
+                                : form.assignedTo.filter((a) => a !== name),
+                            })
+                          }
+                        />
+                        {name}
+                      </label>
+                    );
+                  })}
+                </div>
               </div>
             </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setNewOpen(false)}>{t('common.cancel')}</Button>
-            <Button onClick={handleSave} disabled={!form.title.trim() || !form.assignedTo}>{t('toast.created')}</Button>
+            <Button onClick={handleSave} disabled={!form.title.trim() || !form.assignedTo.length}>{t('toast.created')}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
