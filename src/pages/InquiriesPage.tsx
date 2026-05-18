@@ -739,7 +739,7 @@ export default function InquiriesPage() {
                           <StickyNote size={13} className="text-muted-foreground" />
                         </button>
                         <button
-                          onClick={(e) => { e.stopPropagation(); setTaskDialogInquiry(inq); setTaskTitle(''); }}
+                          onClick={(e) => { e.stopPropagation(); setTaskDialogInquiry(inq); setTaskTitle(''); setTaskAssignedTo([]); }}
                           className="relative p-1 rounded hover:bg-muted transition-colors"
                           title="Taak toevoegen"
                         >
