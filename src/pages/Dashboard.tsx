@@ -215,7 +215,7 @@ export default function Dashboard() {
   };
 
   const resetForm = () => {
-    setForm({ title: '', description: '', status: 'open', priority: 'normal', dueDate: '', companyId: '', contactId: '', assignedTo: '' });
+    setForm({ title: '', description: '', status: 'open', priority: 'normal', dueDate: '', companyId: '', contactId: '', assignedTo: [] });
   };
 
   const openNew = () => { resetForm(); setEditTask(null); setNewOpen(true); };
