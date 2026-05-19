@@ -5,8 +5,6 @@ import { useContactsContext } from '@/contexts/ContactsContext';
 import { useCompaniesContext } from '@/contexts/CompaniesContext';
 import { useInquiriesContext } from '@/contexts/InquiriesContext';
 import { useBookings } from '@/contexts/BookingsContext';
-import { useAuth } from '@/contexts/AuthContext';
-import { supabase } from '@/integrations/supabase/client';
 import { Task, TASK_STATUSES, TASK_PRIORITIES } from '@/types/task';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
@@ -38,7 +36,6 @@ export default function TaskDetailPage() {
   const { inquiries } = useInquiriesContext();
   const { bookings } = useBookings();
   const { toast } = useToast();
-  const { user } = useAuth();
 
   const task = tasks.find(t => t.id === id);
   const [editing, setEditing] = useState(false);
