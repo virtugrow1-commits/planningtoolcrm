@@ -15,6 +15,7 @@ import { useToast } from '@/hooks/use-toast';
 import { ArrowLeft, Pencil, Check, X, Plus, ChevronRight, Calendar, FileText, Mail, Phone, Building2, User, CheckSquare, Send, Eye, CheckCircle2, MapPin } from 'lucide-react';
 import { Checkbox } from '@/components/ui/checkbox';
 import ActivityTimeline from '@/components/contact/ActivityTimeline';
+import CallLogPanel from '@/components/contact/CallLogPanel';
 import TasksSection from '@/components/detail/TasksSection';
 import HistorySection from '@/components/detail/HistorySection';
 import { Contact, ROOMS } from '@/types/crm';
@@ -465,7 +466,15 @@ export default function ContactDetailPage() {
             inquiriesEmptyText="Geen aanvragen van dit contact."
           />
 
-          {/* Gesprekken */}
+          {/* Gespreksverslagen (telefoongesprekken) */}
+          <div className="rounded-xl bg-card p-5 card-shadow">
+            <CallLogPanel
+              contactIds={[contact.id]}
+              defaultContactId={contact.id}
+            />
+          </div>
+
+          {/* Overige activiteiten (e-mail, vergadering, notities) */}
           <div className="rounded-xl bg-card p-5 card-shadow">
             <ActivityTimeline contactId={contact.id} />
           </div>

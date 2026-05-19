@@ -15,7 +15,7 @@ import { useTasksContext } from '@/contexts/TasksContext';
 import { useContactCompanies } from '@/hooks/useContactCompanies';
 import { useToast } from '@/hooks/use-toast';
 import { InfoField, SectionCard } from '@/components/detail/DetailPageComponents';
-import CompanyActivityTimeline from '@/components/company/CompanyActivityTimeline';
+import CallLogPanel from '@/components/contact/CallLogPanel';
 import TasksSection from '@/components/detail/TasksSection';
 import HistorySection from '@/components/detail/HistorySection';
 
@@ -421,12 +421,19 @@ export default function CompanyDetailPage() {
             )}
           </SectionCard>
 
-          {/* Gesprekken */}
-          <div className="rounded-xl bg-card p-5 card-shadow space-y-3">
-            <h3 className="text-base font-bold text-foreground">Gesprekken</h3>
-            <CompanyActivityTimeline
+          {/* Gespreksverslagen — aggregeert alle gekoppelde contacten */}
+          <div className="rounded-xl bg-card p-5 card-shadow">
+            <CallLogPanel
               contactIds={companyContacts.map((c) => c.id)}
               contactNames={Object.fromEntries(companyContacts.map((c) => [c.id, `${c.firstName} ${c.lastName}`]))}
+              requireContactSelection
+              defaultContactId={companyContacts.length === 1 ? companyContacts[0].id : undefined}
+              emptyHint={
+                companyContacts.length === 0
+                  ? 'Koppel eerst een contactpersoon om gesprekken vast te leggen.'
+                  : 'Nog geen gespreksverslagen — leg het eerste gesprek vast.'
+              }
+              readOnly={companyContacts.length === 0}
             />
           </div>
         </div>
