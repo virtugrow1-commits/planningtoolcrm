@@ -15,7 +15,7 @@ import { useTasksContext } from '@/contexts/TasksContext';
 import { useContactCompanies } from '@/hooks/useContactCompanies';
 import { useToast } from '@/hooks/use-toast';
 import { InfoField, SectionCard } from '@/components/detail/DetailPageComponents';
-import CompanyActivityTimeline from '@/components/company/CompanyActivityTimeline';
+import CallLogPanel from '@/components/contact/CallLogPanel';
 import TasksSection from '@/components/detail/TasksSection';
 import HistorySection from '@/components/detail/HistorySection';
 
