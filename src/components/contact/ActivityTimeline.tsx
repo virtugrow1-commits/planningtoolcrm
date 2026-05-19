@@ -22,7 +22,9 @@ interface Props {
 }
 
 export default function ActivityTimeline({ contactId }: Props) {
-  const { activities, loading, addActivity, updateActivity, deleteActivity } = useContactActivities(contactId);
+  const { activities: allActivities, loading, addActivity, updateActivity, deleteActivity } = useContactActivities(contactId);
+  // Filter out Gespreksverslagen — they live in the dedicated CallLogPanel
+  const activities = allActivities.filter((a) => !(a.type === 'call' && a.subject === 'Gespreksverslag'));
   const [open, setOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [isCallLog, setIsCallLog] = useState(false);
@@ -37,7 +39,7 @@ export default function ActivityTimeline({ contactId }: Props) {
 
   const openEdit = (a: typeof activities[number]) => {
     setEditingId(a.id);
-    setIsCallLog(a.type === 'call' && a.subject === 'Gespreksverslag');
+    setIsCallLog(false);
     setForm({ type: a.type, subject: a.subject || '', body: a.body || '' });
     setOpen(true);
   };
@@ -58,8 +60,8 @@ export default function ActivityTimeline({ contactId }: Props) {
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between">
-        <h3 className="text-base font-bold text-foreground">Gesprekken</h3>
-        <button onClick={openNew} className="text-muted-foreground hover:text-foreground transition-colors">
+        <h3 className="text-base font-bold text-foreground">Notities &amp; activiteiten</h3>
+        <button onClick={openNew} className="text-muted-foreground hover:text-foreground transition-colors" title="Toevoegen">
           <Plus size={16} />
         </button>
       </div>
@@ -67,16 +69,13 @@ export default function ActivityTimeline({ contactId }: Props) {
       {loading ? (
         <p className="text-xs text-muted-foreground">Laden...</p>
       ) : activities.length === 0 ? (
-        <p className="text-xs text-muted-foreground">Geen gesprekken vastgelegd</p>
+        <p className="text-xs text-muted-foreground">Geen notities of activiteiten</p>
       ) : (
         <div className="space-y-3 max-h-[400px] overflow-y-auto pr-1">
           {activities.map((a) => {
-            const isLog = a.type === 'call' && a.subject === 'Gespreksverslag';
-            const cfg = isLog
-              ? { label: 'Gespreksverslag', icon: Phone, color: 'text-primary' }
-              : (typeConfig[a.type] || typeConfig.note);
+            const cfg = typeConfig[a.type] || typeConfig.note;
             const Icon = cfg.icon;
-            const displayLabel = isLog ? 'Gespreksverslag' : (a.subject || cfg.label);
+            const displayLabel = a.subject || cfg.label;
             return (
               <div key={a.id} className="group flex gap-3 text-sm">
                 <div className={`mt-0.5 shrink-0 ${cfg.color}`}>
