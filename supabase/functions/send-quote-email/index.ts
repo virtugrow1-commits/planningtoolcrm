@@ -130,22 +130,22 @@ Deno.serve(async (req) => {
   </table>
 </body></html>`;
 
-    // Send via Lovable Email API
-    const emailRes = await fetch('https://api.lovable.dev/v1/email/send', {
+    // Send via Resend
+    const emailRes = await fetch('https://api.resend.com/emails', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${LOVABLE_API_KEY}`,
+        'Authorization': `Bearer ${RESEND_API_KEY}`,
       },
       body: JSON.stringify({
-        from: { email: FROM_EMAIL, name: FROM_NAME },
-        to: [{ email: recipientEmail }],
+        from: `${FROM_NAME} <${FROM_EMAIL}>`,
+        to: [recipientEmail],
+        reply_to: REPLY_TO,
         subject: finalSubject,
         html,
         attachments: [{
           filename: filename || `${quote.display_number || 'offerte'}.pdf`,
           content: pdfBase64,
-          contentType: 'application/pdf',
         }],
       }),
     });
