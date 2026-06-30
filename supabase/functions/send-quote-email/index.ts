@@ -8,10 +8,11 @@ const corsHeaders = {
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
 const SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY')!;
+const RESEND_API_KEY = Deno.env.get('RESEND_API_KEY')!;
 
-const FROM_EMAIL = 'contact@ontmoetenaandedonge.nl';
+const FROM_EMAIL = 'contact@send.ontmoetenaandedonge.nl';
 const FROM_NAME = 'Ontmoeten aan de Donge';
+const REPLY_TO = 'contact@ontmoetenaandedonge.nl';
 
 function fmtEUR(n: number) {
   return new Intl.NumberFormat('nl-NL', { style: 'currency', currency: 'EUR' }).format(n || 0);
@@ -129,22 +130,22 @@ Deno.serve(async (req) => {
   </table>
 </body></html>`;
 
-    // Send via Lovable Email API
-    const emailRes = await fetch('https://api.lovable.dev/v1/email/send', {
+    // Send via Resend
+    const emailRes = await fetch('https://api.resend.com/emails', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${LOVABLE_API_KEY}`,
+        'Authorization': `Bearer ${RESEND_API_KEY}`,
       },
       body: JSON.stringify({
-        from: { email: FROM_EMAIL, name: FROM_NAME },
-        to: [{ email: recipientEmail }],
+        from: `${FROM_NAME} <${FROM_EMAIL}>`,
+        to: [recipientEmail],
+        reply_to: REPLY_TO,
         subject: finalSubject,
         html,
         attachments: [{
           filename: filename || `${quote.display_number || 'offerte'}.pdf`,
           content: pdfBase64,
-          contentType: 'application/pdf',
         }],
       }),
     });
