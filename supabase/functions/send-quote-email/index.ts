@@ -8,10 +8,11 @@ const corsHeaders = {
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
 const SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY')!;
+const RESEND_API_KEY = Deno.env.get('RESEND_API_KEY')!;
 
-const FROM_EMAIL = 'contact@ontmoetenaandedonge.nl';
+const FROM_EMAIL = 'contact@send.ontmoetenaandedonge.nl';
 const FROM_NAME = 'Ontmoeten aan de Donge';
+const REPLY_TO = 'contact@ontmoetenaandedonge.nl';
 
 function fmtEUR(n: number) {
   return new Intl.NumberFormat('nl-NL', { style: 'currency', currency: 'EUR' }).format(n || 0);
