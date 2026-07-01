@@ -6,8 +6,8 @@ voordat je verdergaat.
 
 ## Status
 - ✅ **Fase 1 — GoHighLevel-koppeling** (contacten, pipelines, berichten, agenda)
-- ⬜ Fase 2 — Het brein (Claude met tools) + tekst-chat
-- ⬜ Fase 3 — Stem (spraak in/uit)
+- ✅ **Fase 2 — Het brein** (Claude met tools) + tekst-chat
+- ✅ **Fase 3 — Stem** (spraak in/uit)
 - ⬜ Fase 4 — Browser & bestanden (optioneel)
 
 ---
@@ -70,6 +70,56 @@ werkt de koppeling. 🎉
 
 ---
 
-## Volgende stap
-Werkt Fase 1? Dan bouwen we **Fase 2**: het brein (Claude) dat deze functies
-zelf als tools aanroept, met een chat in de terminal.
+## Fase 2 — Praten via tekst (het brein)
+
+Zorg dat je `ANTHROPIC_API_KEY` in `.env` staat (maak er een aan op
+console.anthropic.com), dan:
+
+```bash
+python chat.py
+```
+
+Nu kun je in gewone taal met Jarvis praten en bedient hij je CRM. Voorbeelden:
+- "Hoeveel contacten heb ik?"
+- "Zoek het contact Jan de Vries en vat zijn laatste gesprekken samen."
+- "Welke pipelines heb ik en hoeveel deals staan er open?"
+- "Voeg de tag 'VIP' toe aan dat contact." (vraagt eerst bevestiging)
+
+Jarvis gebruikt het model `claude-opus-4-8` en roept zelf de juiste CRM-tools
+aan. Wijzigende acties (contact aanmaken, tags, berichten sturen) worden altijd
+eerst ter bevestiging voorgelegd.
+
+## Fase 3 — Praten met je stem
+
+Installeer de (optionele) stem-pakketten:
+
+```bash
+pip install faster-whisper sounddevice elevenlabs pyttsx3
+```
+
+Optioneel: zet `ELEVENLABS_API_KEY` in `.env` voor een natuurlijke stem
+(anders wordt de gratis systeemstem `pyttsx3` gebruikt). Dan:
+
+```bash
+python jarvis.py
+```
+
+Druk op **Enter** om te spreken, of typ gewoon je vraag. Jarvis luistert,
+denkt na, bedient je CRM en antwoordt met stem.
+
+---
+
+## Bestanden in het kort
+| Bestand | Fase | Doel |
+|---------|------|------|
+| `ghl_client.py` | 1 | GoHighLevel-koppeling |
+| `test_ghl.py` | 1 | Koppeling testen |
+| `tools.py` | 2 | CRM-functies als tools voor Claude |
+| `brain.py` | 2 | Het brein (Claude + tool-loop) |
+| `chat.py` | 2 | Tekst-chat in de terminal |
+| `voice.py` | 3 | Spraak in (Whisper) en uit (ElevenLabs/pyttsx3) |
+| `jarvis.py` | 3 | Volledige spraak-assistent |
+
+## Volgende stap (Fase 4, optioneel)
+Browserbesturing (Playwright) en toegang tot een specifieke map met bestanden —
+alleen voor dingen die de GHL API niet kan. Zeg het maar als je dat wilt.

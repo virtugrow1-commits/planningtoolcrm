@@ -2,8 +2,8 @@
 requests>=2.31.0
 python-dotenv>=1.0.0
 
-# Fase 2 — brein (Claude). Uncomment wanneer je aan fase 2 begint:
-# anthropic>=0.40.0
+# Fase 2 — brein (Claude)
+anthropic>=0.40.0
 
 # Fase 3 — stem (optioneel). Uncomment wanneer je aan fase 3 begint:
 # faster-whisper>=1.0.0
