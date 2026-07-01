@@ -1,0 +1,21 @@
+# Secrets — NOOIT committen
+.env
+*.env
+!.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+env/
+.pytest_cache/
+
+# Audio / tijdelijke bestanden
+*.wav
+*.mp3
+*.tmp
+
+# OS
+.DS_Store
