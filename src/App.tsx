@@ -24,6 +24,7 @@ import NewQuotePage from "@/pages/NewQuotePage";
 import QuoteDetailPage from "@/pages/QuoteDetailPage";
 import InvoiceDetailPage from "@/pages/InvoiceDetailPage";
 import TemplateEditorPage from "@/pages/TemplateEditorPage";
+import JarvisPage from "@/pages/JarvisPage";
 import AuthPage from "@/pages/AuthPage";
 import PublicQuotePage from "@/pages/PublicQuotePage";
 import NotFound from "./pages/NotFound";
@@ -82,6 +83,7 @@ function ProtectedRoutes() {
                   
                   
                   <Route path="/calendar" element={<CalendarPage />} />
+                  <Route path="/jarvis" element={<JarvisPage />} />
                   <Route path="/settings" element={<SettingsPage />} />
                   <Route path="*" element={<NotFound />} />
                 </Routes>
