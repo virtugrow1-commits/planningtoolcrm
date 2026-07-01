@@ -162,6 +162,15 @@ Deno.serve(async (req) => {
   }
 });
 
+function normalizeCompanyName(s: string): string {
+  return s
+    .toLowerCase()
+    .replace(/\bb\.?\s*v\.?\b/g, 'bv')
+    .replace(/[.,]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
 async function handleFormSubmission(supabase: any, userId: string, payload: any) {
   // Extract contact info from GHL form payload
   const email = payload.email || payload.Email || payload['E-mail'] || payload['E-mailadres'] || null;
@@ -169,7 +178,8 @@ async function handleFormSubmission(supabase: any, userId: string, payload: any)
   const fullName = payload.full_name || payload.contact_name || payload.name || payload.Naam || payload['Volledige naam'] || '';
   const firstName = payload.first_name || payload.firstName || fullName.split(' ')[0] || 'Onbekend';
   const lastName = payload.last_name || payload.lastName || fullName.split(' ').slice(1).join(' ') || '';
-  const companyName = payload.company || payload.companyName || payload.Bedrijf || payload.Bedrijfsnaam || payload['Naam bedrijf'] || null;
+  const companyNameRaw = payload.company || payload.companyName || payload.Bedrijf || payload.Bedrijfsnaam || payload['Naam bedrijf'] || null;
+  const companyName = companyNameRaw ? String(companyNameRaw).trim() : null;
 
   // Extract inquiry data from Dutch form fields
   const eventType = payload['Type Evenement'] || payload.event_type || payload['Soort evenement'] || 'Aanvraag via formulier';
@@ -182,7 +192,6 @@ async function handleFormSubmission(supabase: any, userId: string, payload: any)
   const ghlContactId = payload.contact_id || payload.contactId || null;
   const formSource = payload.form_name || payload.formName || payload.workflow_name || payload.workflowName || payload['Form Name'] || payload.source || null;
 
-  // Build full message with dagdeel info
   const fullMessage = [
     message,
     dagdeel ? `Dagdeel: ${dagdeel}` : '',
@@ -192,31 +201,58 @@ async function handleFormSubmission(supabase: any, userId: string, payload: any)
     payload['Service Type'] ? `Service: ${payload['Service Type']}` : '',
   ].filter(Boolean).join('\n');
 
-
   const contactName = `${firstName} ${lastName}`.trim() || 'Onbekend';
 
-  // Step 1: Find or create contact
-  let contactId: string | null = null;
-  let companyId: string | null = null;
+  console.log('[FORM] incoming', JSON.stringify({ email, companyName, fullName: contactName, formSource, ghlContactId }));
 
-  if (email) {
-    // Try to match by email first
-    const { data: existingContact } = await supabase
-      .from('contacts')
-      .select('id, company_id')
-      .eq('email', email)
-      .limit(1)
-      .maybeSingle();
+  // ============================================================
+  // Step 1: Resolve SUBMITTED company FIRST (independent of contact)
+  // ============================================================
+  let submittedCompanyId: string | null = null;
+  let companyMatchedExisting = false;
+  let companyCreatedNew = false;
 
-    if (existingContact) {
-      contactId = existingContact.id;
-      companyId = existingContact.company_id;
-      console.log(`Form: Found existing contact by email: ${email} -> ${contactId}`);
+  if (companyName) {
+    const normalized = normalizeCompanyName(companyName);
+    // Fetch candidate companies and match on normalized name
+    const { data: candidates } = await supabase
+      .from('companies')
+      .select('id, name')
+      .ilike('name', `%${companyName.split(' ')[0]}%`)
+      .limit(50);
+
+    const match = (candidates || []).find((c: any) => normalizeCompanyName(c.name || '') === normalized);
+    if (match) {
+      submittedCompanyId = match.id;
+      companyMatchedExisting = true;
+    } else {
+      const { data: newCompany, error: coErr } = await supabase
+        .from('companies')
+        .insert({
+          user_id: userId,
+          name: companyName,
+          kvk: payload['KVK'] || null,
+          btw_number: payload['BTW'] || null,
+        })
+        .select('id')
+        .single();
+      if (coErr) console.error('[FORM] company.insert error', coErr.message);
+      if (newCompany) {
+        submittedCompanyId = newCompany.id;
+        companyCreatedNew = true;
+      }
     }
   }
+  console.log('[FORM] company.resolved', JSON.stringify({ submittedCompanyId, companyMatchedExisting, companyCreatedNew }));
 
-  if (!contactId && ghlContactId) {
-    // Try match by GHL contact ID
+  // ============================================================
+  // Step 2: Resolve contact — never let contact's old company override submission
+  // ============================================================
+  let contactId: string | null = null;
+  let matchedBy: 'ghl' | 'email+company' | 'created' | 'email-nocompany' = 'created';
+
+  // 2a: hardest identity — GHL contact ID
+  if (ghlContactId) {
     const { data: ghlMatch } = await supabase
       .from('contacts')
       .select('id, company_id')
@@ -224,45 +260,29 @@ async function handleFormSubmission(supabase: any, userId: string, payload: any)
       .maybeSingle();
     if (ghlMatch) {
       contactId = ghlMatch.id;
-      companyId = ghlMatch.company_id;
-      console.log(`Form: Found existing contact by GHL ID: ${ghlContactId} -> ${contactId}`);
+      matchedBy = 'ghl';
     }
   }
 
-  // Step 2: Create company if needed
-  if (!companyId && companyName) {
-    // Try find existing company by name
-    const { data: existingCompany } = await supabase
-      .from('companies')
-      .select('id')
-      .ilike('name', companyName.trim())
-      .limit(1)
-      .maybeSingle();
-
-    if (existingCompany) {
-      companyId = existingCompany.id;
-      console.log(`Form: Found existing company: ${companyName} -> ${companyId}`);
-    } else {
-      const { data: newCompany } = await supabase
-        .from('companies')
-        .insert({
-          user_id: userId,
-          name: companyName.trim(),
-          kvk: payload['KVK'] || null,
-          btw_number: payload['BTW'] || null,
-        })
-        .select('id')
-        .single();
-      if (newCompany) {
-        companyId = newCompany.id;
-        console.log(`Form: Created new company: ${companyName} -> ${companyId}`);
-      }
+  // 2b: email match, but ONLY if submitted company matches or contact has no company
+  if (!contactId && email) {
+    const { data: emailMatches } = await supabase
+      .from('contacts')
+      .select('id, company_id')
+      .eq('email', email)
+      .limit(10);
+    const safeMatch = (emailMatches || []).find((c: any) =>
+      submittedCompanyId ? (c.company_id === submittedCompanyId || c.company_id === null) : c.company_id === null,
+    );
+    if (safeMatch) {
+      contactId = safeMatch.id;
+      matchedBy = safeMatch.company_id ? 'email+company' : 'email-nocompany';
     }
   }
 
-  // Step 3: Create contact if needed
+  // 2c: create new contact — even if email exists under a DIFFERENT company
   if (!contactId) {
-    const { data: newContact } = await supabase
+    const { data: newContact, error: cErr } = await supabase
       .from('contacts')
       .insert({
         user_id: userId,
@@ -271,93 +291,97 @@ async function handleFormSubmission(supabase: any, userId: string, payload: any)
         email: email,
         phone: phone,
         company: companyName,
-        company_id: companyId,
+        company_id: submittedCompanyId,
         ghl_contact_id: ghlContactId,
         status: 'lead',
       })
       .select('id')
       .single();
+    if (cErr) console.error('[FORM] contact.insert error', cErr.message);
     if (newContact) {
       contactId = newContact.id;
-      console.log(`Form: Created new contact: ${contactName} -> ${contactId}`);
+      matchedBy = 'created';
     }
-  } else if (companyId) {
-    // Update existing contact with company if not set
-    await supabase
+  }
+  console.log('[FORM] contact.resolved', JSON.stringify({ contactId, matchedBy }));
+
+  // ============================================================
+  // Step 3: Link contact ↔ submitted company (non-primary if contact already has one)
+  // ============================================================
+  if (contactId && submittedCompanyId) {
+    const { data: contactRow } = await supabase
       .from('contacts')
-      .update({ company_id: companyId, company: companyName })
+      .select('company_id')
       .eq('id', contactId)
-      .is('company_id', null);
+      .maybeSingle();
+
+    const isPrimary = !contactRow?.company_id;
+    if (isPrimary) {
+      // Contact had no primary company yet — safe to set it
+      await supabase
+        .from('contacts')
+        .update({ company_id: submittedCompanyId, company: companyName })
+        .eq('id', contactId)
+        .is('company_id', null);
+    }
+    // Always ensure a link exists (junction table)
+    await supabase
+      .from('contact_companies')
+      .upsert(
+        { contact_id: contactId, company_id: submittedCompanyId, is_primary: isPrimary, user_id: userId },
+        { onConflict: 'contact_id,company_id' },
+      );
+    console.log('[FORM] contact_companies.linked', JSON.stringify({ contactId, companyId: submittedCompanyId, isPrimary }));
   }
 
-  // Step 4: Check for duplicate/existing inquiry before creating a new one
-  // IMPORTANT: Always prefer updating existing inquiries over creating new ones.
-  // This prevents duplicates when a room change or other edit triggers a webhook.
+  // ============================================================
+  // Step 4: Upsert inquiry — always pin company_id to SUBMITTED company
+  // ============================================================
   let duplicateFound = false;
+  let inquiryAction: string = 'insert';
+  let inquiryId: string | null = null;
 
-  // 4a: Check if contact already has ANY inquiry with the same event_type (regardless of age)
+  // 4a: same contact + event_type + same submitted company
   if (contactId) {
-    const { data: existingByContact } = await supabase
+    const q = supabase
       .from('inquiries')
       .select('id')
-      .not('id', 'is', null)
       .eq('contact_id', contactId)
-      .eq('event_type', eventType)
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .maybeSingle();
+      .eq('event_type', eventType);
+    const q2 = submittedCompanyId ? q.eq('company_id', submittedCompanyId) : q.is('company_id', null);
+    const { data: existingByContact } = await q2.order('created_at', { ascending: false }).limit(1).maybeSingle();
     if (existingByContact) {
-      console.log(`Form: Existing inquiry found by contact_id+event_type, updating ${existingByContact.id}`);
       await supabase.from('inquiries').update({
         preferred_date: preferredDate, room_preference: roomPreference,
         guest_count: guestCount, budget: budget,
         message: fullMessage || null,
+        company_id: submittedCompanyId,
       }).eq('id', existingByContact.id);
       duplicateFound = true;
+      inquiryAction = 'update-4a';
+      inquiryId = existingByContact.id;
     }
   }
 
-  // 4b: Check by contact_name + event_type (fallback)
+  // 4b: fallback — contact_name + event_type + submitted company
   if (!duplicateFound) {
-    const { data: existingByName } = await supabase
+    const q = supabase
       .from('inquiries')
       .select('id')
-      .not('id', 'is', null)
       .ilike('contact_name', contactName)
-      .eq('event_type', eventType)
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .maybeSingle();
+      .eq('event_type', eventType);
+    const q2 = submittedCompanyId ? q.eq('company_id', submittedCompanyId) : q.is('company_id', null);
+    const { data: existingByName } = await q2.order('created_at', { ascending: false }).limit(1).maybeSingle();
     if (existingByName) {
-      console.log(`Form: Existing inquiry found by contact_name+event_type, updating ${existingByName.id}`);
       await supabase.from('inquiries').update({
         contact_id: contactId, preferred_date: preferredDate, room_preference: roomPreference,
         guest_count: guestCount, budget: budget,
         message: fullMessage || null,
+        company_id: submittedCompanyId,
       }).eq('id', existingByName.id);
       duplicateFound = true;
-    }
-  }
-
-  // 4c: Check by GHL contact ID if present
-  if (!duplicateFound && ghlContactId) {
-    const { data: existingByGhl } = await supabase
-      .from('inquiries')
-      .select('id')
-      .not('id', 'is', null)
-      .eq('contact_id', contactId)
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .maybeSingle();
-    if (existingByGhl) {
-      console.log(`Form: Existing inquiry found for same contact, updating ${existingByGhl.id}`);
-      await supabase.from('inquiries').update({
-        preferred_date: preferredDate, room_preference: roomPreference,
-        guest_count: guestCount, budget: budget,
-        event_type: eventType,
-        message: fullMessage || null,
-      }).eq('id', existingByGhl.id);
-      duplicateFound = true;
+      inquiryAction = 'update-4b';
+      inquiryId = existingByName.id;
     }
   }
 
@@ -368,6 +392,7 @@ async function handleFormSubmission(supabase: any, userId: string, payload: any)
         user_id: userId,
         contact_id: contactId,
         contact_name: contactName,
+        company_id: submittedCompanyId,
         event_type: eventType,
         preferred_date: preferredDate,
         room_preference: roomPreference,
@@ -382,11 +407,15 @@ async function handleFormSubmission(supabase: any, userId: string, payload: any)
       .single();
 
     if (error) {
-      console.error('Form: Failed to create inquiry:', error.message);
+      console.error('[FORM] inquiry.insert error', error.message);
     } else {
-      console.log(`Form: Created inquiry ${newInquiry.id} for ${contactName} (contact: ${contactId}, company: ${companyId})`);
+      inquiryId = newInquiry.id;
     }
   }
+
+  console.log('[FORM] inquiry.upserted', JSON.stringify({
+    inquiryId, action: inquiryAction, company_id: submittedCompanyId, contact_id: contactId,
+  }));
 }
 
 async function handleContactDelete(supabase: any, userId: string, payload: any) {
