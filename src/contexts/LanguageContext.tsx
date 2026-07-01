@@ -13,7 +13,6 @@ const translations: Record<string, Record<Language, string>> = {
   'nav.conversations': { nl: 'Gesprekken', en: 'Conversations' },
   'nav.reserveringen': { nl: 'Reserveringen', en: 'Reservations' },
   'nav.calendar': { nl: 'Kalender', en: 'Calendar' },
-  'nav.jarvis': { nl: 'Jarvis', en: 'Jarvis' },
   'nav.documents': { nl: 'Documenten', en: 'Documents' },
   'nav.settings': { nl: 'Instellingen', en: 'Settings' },
   'nav.logout': { nl: 'Uitloggen', en: 'Sign out' },

@@ -15,7 +15,6 @@ import {
   RefreshCw,
   Building2,
   CheckSquare,
-  Cpu,
 } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { cn } from '@/lib/utils';
@@ -41,7 +40,6 @@ const navItemDefs = [
   { to: '/documents', icon: FileText, key: 'nav.documents' },
   { to: '/reserveringen', icon: ClipboardList, key: 'nav.reserveringen' },
   { to: '/calendar', icon: CalendarDays, key: 'nav.calendar' },
-  { to: '/jarvis', icon: Cpu, key: 'nav.jarvis' },
 ];
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
