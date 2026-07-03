@@ -245,17 +245,20 @@ export default function TaskDetailPage() {
                 </div>
                 <div>
                   <p className="text-xs font-semibold text-muted-foreground mb-1">Datum</p>
-                  <Popover>
-                    <PopoverTrigger asChild>
-                      <Button variant="outline" size="sm" className={cn('w-full h-8 text-sm justify-start', !editDueDate && 'text-muted-foreground')}>
-                        <CalendarIcon size={14} className="mr-2" />
-                        {editDueDate ? format(editDueDate, 'd MMM yyyy', { locale: nl }) : 'Geen datum'}
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0" align="start">
-                      <Calendar mode="single" selected={editDueDate} onSelect={setEditDueDate} initialFocus className="p-3 pointer-events-auto" />
-                    </PopoverContent>
-                  </Popover>
+                  <div className="flex gap-2">
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button variant="outline" size="sm" className={cn('flex-1 h-8 text-sm justify-start', !editDueDate && 'text-muted-foreground')}>
+                          <CalendarIcon size={14} className="mr-2" />
+                          {editDueDate ? format(editDueDate, 'd MMM yyyy', { locale: nl }) : 'Geen datum'}
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0" align="start">
+                        <Calendar mode="single" selected={editDueDate} onSelect={setEditDueDate} initialFocus className="p-3 pointer-events-auto" />
+                      </PopoverContent>
+                    </Popover>
+                    <Input type="time" value={editDueTime} onChange={e => setEditDueTime(e.target.value)} className="w-28 h-8 text-sm" />
+                  </div>
                 </div>
                 <div>
                   <p className="text-xs font-semibold text-muted-foreground mb-1">Verantwoordelijke(n) *</p>
