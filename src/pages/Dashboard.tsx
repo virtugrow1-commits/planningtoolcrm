@@ -245,7 +245,7 @@ export default function Dashboard() {
       for (const assignee of assignees) {
         await addTask({
           title: form.title, description: form.description || undefined,
-          status: form.status, priority: form.priority, dueDate: form.dueDate || undefined,
+          status: form.status, priority: form.priority, dueDate: form.dueDate || undefined, dueTime: form.dueTime || undefined,
           companyId: form.companyId || undefined, contactId: form.contactId || undefined,
           assignedTo: assignee,
         });
