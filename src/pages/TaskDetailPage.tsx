@@ -115,6 +115,7 @@ export default function TaskDetailPage() {
         status: form.status,
         priority: form.priority,
         dueDate,
+        dueTime,
         assignedTo: assignee,
         contactId: form.contactId,
         companyId: form.companyId,
