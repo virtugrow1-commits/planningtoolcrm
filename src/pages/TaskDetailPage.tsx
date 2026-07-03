@@ -301,7 +301,7 @@ export default function TaskDetailPage() {
                   </div>
                 )}
                 <InfoRow icon={<CalendarIcon size={14} />} label="Datum" value={task.dueDate ? (
-                  <span className={cn(isOverdue && 'text-destructive font-medium')}>{formatDate(task.dueDate)}</span>
+                  <span className={cn(isOverdue && 'text-destructive font-medium')}>{formatDate(task.dueDate)}{task.dueTime ? ` · ${task.dueTime}` : ''}</span>
                 ) as any : '—'} />
                 {task.assignedTo && <InfoRow icon={<User size={14} />} label="Verantwoordelijke" value={task.assignedTo} />}
                 <p className="text-xs text-muted-foreground pt-2">Aangemaakt: {formatDate(task.createdAt)}</p>
