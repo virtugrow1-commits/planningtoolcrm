@@ -150,10 +150,13 @@ export default function PostCompanyContactFlow({ company, onClose }: Props) {
               Bedrijf <strong>{company.name}</strong> is aangemaakt. Wil je nu direct een contactpersoon toevoegen aan dit bedrijf?
             </AlertDialogDescription>
           </AlertDialogHeader>
-          <AlertDialogFooter>
+          <AlertDialogFooter className="gap-2 sm:gap-2 flex-wrap">
             <AlertDialogCancel onClick={() => finish(false)}>Nee, sluiten</AlertDialogCancel>
+            <Button variant="outline" onClick={() => goToStep('link')}>
+              <Link2 size={14} className="mr-1" /> Bestaand contact koppelen
+            </Button>
             <AlertDialogAction onClick={() => goToStep('form')}>
-              <UserPlus size={14} className="mr-1" /> Ja, contact toevoegen
+              <UserPlus size={14} className="mr-1" /> Nieuw contact aanmaken
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
