@@ -236,7 +236,7 @@ export default function Dashboard() {
     if (editTask) {
       await updateTask({
         ...editTask, title: form.title, description: form.description || undefined,
-        status: form.status, priority: form.priority, dueDate: form.dueDate || undefined,
+        status: form.status, priority: form.priority, dueDate: form.dueDate || undefined, dueTime: form.dueTime || undefined,
         companyId: form.companyId || undefined, contactId: form.contactId || undefined,
       });
       toast({ title: t('tasks.taskUpdated') });
