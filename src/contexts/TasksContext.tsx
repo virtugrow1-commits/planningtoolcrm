@@ -95,6 +95,7 @@ export function TasksProvider({ children }: { children: ReactNode }) {
       status: task.status,
       priority: task.priority,
       due_date: task.dueDate || null,
+      due_time: task.dueTime || null,
       assigned_to: task.assignedTo || null,
       company_id: task.companyId || null,
       contact_id: task.contactId || null,
