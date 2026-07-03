@@ -580,7 +580,10 @@ export default function TasksPage() {
             <div className="grid grid-cols-2 gap-3">
               <div className="grid gap-1.5">
                 <Label>{t('tasks.dueDate')}</Label>
-                <Input type="date" value={form.dueDate} onChange={e => setForm({ ...form, dueDate: e.target.value })} />
+                <div className="flex gap-2">
+                  <Input type="date" value={form.dueDate} onChange={e => setForm({ ...form, dueDate: e.target.value })} className="flex-1" />
+                  <Input type="time" value={form.dueTime} onChange={e => setForm({ ...form, dueTime: e.target.value })} className="w-28" placeholder="Tijd" />
+                </div>
               </div>
               <div className="grid gap-1.5">
                 <Label>{t('tasks.assignedTo')} *</Label>
