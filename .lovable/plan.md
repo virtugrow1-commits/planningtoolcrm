@@ -1,24 +1,25 @@
-## Bestaand contact koppelen aan nieuw bedrijf
+## Probleem
 
-In de flow na het aanmaken van een bedrijf (`PostCompanyContactFlow.tsx`) staat momenteel alleen "Ja, contact toevoegen" (nieuw). We herstellen de mogelijkheid om een **bestaand** contact uit het CRM te koppelen.
+Bij het aanmaken van een optie/reservering vanuit een aanvraag-tegel (`NewReservationDialog`) filtert het contact-veld op `contact.companyId === form.companyId`. Veel contacten hebben echter alleen een link via de `contact_companies`-junctietabel of enkel een `company`-naamveld — die verdwijnen daardoor uit de lijst zodra je een bedrijf kiest, waardoor de dropdown leeg lijkt.
 
-### UI-wijzigingen (`src/components/company/PostCompanyContactFlow.tsx`)
+## Oplossing
 
-**Stap 1 — "Contactpersoon toevoegen?"** krijgt drie knoppen in plaats van twee:
-- `Nee, sluiten`
-- `Bestaand contact koppelen` (nieuw)
-- `Nieuw contact aanmaken`
+In `src/components/calendar/NewReservationDialog.tsx` de `filteredContacts` uitbreiden zodat een contact zichtbaar is wanneer één van deze condities klopt met het gekozen bedrijf:
 
-**Nieuwe stap `link`** (getoond bij klik op "Bestaand contact koppelen"):
-- Dialog met een `CrmCombobox` / zoekveld dat alle contacten uit `useContactsContext()` toont (naam + huidig bedrijf als hint).
-- Bij selectie: `updateContact({...contact, company: newCompany.name, companyId: newCompany.id})` → toast "X gekoppeld aan {bedrijf}".
-- Daarna door naar bestaande stap `another` ("Nog een contactpersoon toevoegen?"), waar de knop "Ja, nog één" een keuzemenu geeft (nieuw of bestaand) — simpelste: standaard terug naar stap 1.
+1. `contact.companyId === form.companyId` (huidige regel), of
+2. Het contact staat in `contact_companies` gekoppeld aan `form.companyId` (via `useContactCompanies().getCompanyContacts(companyId)`), of
+3. `contact.company` (tekst) komt hoofdletter-ongevoelig overeen met `selectedCompany.name`.
 
-**Stap 3 — "Nog een contactpersoon toevoegen?"** krijgt eveneens twee actieknoppen ("Nog nieuw" / "Nog bestaand koppelen") in plaats van één.
+Zo blijven ook contacten die alleen via de junctietabel of via naam gekoppeld zijn selecteerbaar.
 
-### Waarschuwing bij bestaand contact met ander bedrijf
-Als het geselecteerde contact al een `companyId` heeft dat afwijkt, tonen we in de dialog een korte melding: *"Dit contact is nu gekoppeld aan {oud bedrijf}. Bij bevestigen wordt dit overschreven."*
+## Technische details
 
-### Buiten scope
-- Geen wijzigingen aan `ContactsContext`, database of andere pagina's.
-- Bulk-koppelen van meerdere contacten in één keer.
+- Import `useContactCompanies` in `NewReservationDialog.tsx`.
+- Bouw een set van contact-id's voor het gekozen bedrijf: `new Set(getCompanyContacts(form.companyId).map(x => x.contact_id))`.
+- `filteredContacts` memoiseren op basis van `contacts`, `form.companyId`, deze set en `selectedCompany?.name`.
+- Overige logica (auto-reset bij mismatch in useEffect regel 191–198) verruimen met dezelfde drie-weg check zodat een geldig gekoppeld contact niet ten onrechte gewist wordt.
+
+## Buiten scope
+
+- Geen wijzigingen in andere dialogen, contexten of de database.
+- Geen aanpassing aan hoe contacten aan bedrijven gekoppeld worden.

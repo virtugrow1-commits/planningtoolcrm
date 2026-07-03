@@ -15,6 +15,7 @@ import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { pushToGHL } from '@/lib/ghlSync';
 import { capitalizeWords } from '@/lib/utils';
+import { useContactCompanies } from '@/hooks/useContactCompanies';
 
 export interface NewReservationForm {
   contactId: string;
@@ -87,6 +88,7 @@ export default function NewReservationDialog({
 }: NewReservationDialogProps) {
   const { user } = useAuth();
   const { toast } = useToast();
+  const { getCompanyContacts } = useContactCompanies();
   const today = (() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; })();
   const [form, setForm] = useState<NewReservationForm>({
     contactId: '',
@@ -170,9 +172,24 @@ export default function NewReservationDialog({
     setLastOpen(open);
   }, [open]);
 
-  const filteredContacts = useMemo(() =>
-    (form.companyId ? contacts.filter(c => c.companyId === form.companyId) : contacts).filter(c => !c.departed),
-    [contacts, form.companyId]
+  const selectedCompany = form.companyId ? companies.find(co => co.id === form.companyId) : null;
+
+  const junctionContactIds = useMemo(
+    () => new Set(form.companyId ? getCompanyContacts(form.companyId).map(l => l.contactId) : []),
+    [form.companyId, getCompanyContacts]
+  );
+
+  const contactMatchesCompany = (c: ContactOption) => {
+    if (!form.companyId) return true;
+    if (c.companyId === form.companyId) return true;
+    if (junctionContactIds.has(c.id)) return true;
+    if (selectedCompany && c.company && c.company.trim().toLowerCase() === selectedCompany.name.trim().toLowerCase()) return true;
+    return false;
+  };
+
+  const filteredContacts = useMemo(
+    () => contacts.filter(c => !c.departed && contactMatchesCompany(c)),
+    [contacts, form.companyId, junctionContactIds, selectedCompany?.name]
   );
 
   const contactOptions = useMemo<ComboboxOption[]>(() =>
@@ -185,17 +202,16 @@ export default function NewReservationDialog({
     [filteredContacts]
   );
 
-  const selectedCompany = form.companyId ? companies.find(co => co.id === form.companyId) : null;
-
   // Auto-reset contact when company changes and current contact doesn't belong
   useEffect(() => {
     if (!form.companyId || !form.contactId) return;
     const selected = contacts.find(c => c.id === form.contactId);
-    if (selected && selected.companyId && selected.companyId !== form.companyId) {
+    if (selected && !contactMatchesCompany(selected)) {
       setForm((prev) => ({ ...prev, contactId: '', contactName: '' }));
       toast({ title: 'Contact gewist', description: 'Contact hoort niet bij het gekozen bedrijf.' });
     }
-  }, [form.companyId]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [form.companyId, junctionContactIds]);
 
   const companyOptions = useMemo<ComboboxOption[]>(() =>
     companies.map(co => ({
