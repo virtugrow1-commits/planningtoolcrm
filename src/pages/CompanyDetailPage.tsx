@@ -391,13 +391,22 @@ export default function CompanyDetailPage() {
             ) : (
               <div className="space-y-1">
                 {visibleContacts.map((c) => (
-                  <div key={c.id} className="flex items-center justify-between py-1.5 px-2 rounded-md hover:bg-muted/50 transition-colors text-xs">
+                  <div key={c.id} className="flex items-start justify-between py-1.5 px-2 rounded-md hover:bg-muted/50 transition-colors text-xs">
                     <button onClick={() => navigate(`/crm/${c.id}`)} className="flex-1 text-left min-w-0">
-                      <span className={`font-medium ${c.departed ? 'text-muted-foreground/50' : 'text-foreground'}`}>{c.firstName} {c.lastName}</span>
-                      {c.departed && <span className="text-[10px] text-muted-foreground/50 ml-1.5">(uit dienst)</span>}
-                      {c.phone && <span className="text-muted-foreground ml-2">{c.phone}</span>}
+                      <div>
+                        <span className={`font-medium ${c.departed ? 'text-muted-foreground/50' : 'text-foreground'}`}>{c.firstName} {c.lastName}</span>
+                        {c.departed && <span className="text-[10px] text-muted-foreground/50 ml-1.5">(uit dienst)</span>}
+                        {c.phone && <span className="text-muted-foreground ml-2">{c.phone}</span>}
+                      </div>
+                      {(c.dmu || c.functionGroup || c.jobTitle) && (
+                        <div className="flex flex-wrap gap-1 mt-1">
+                          {c.jobTitle && <Badge variant="secondary" className="text-[9px] px-1 py-0 font-normal">{c.jobTitle}</Badge>}
+                          {c.functionGroup && <Badge variant="outline" className="text-[9px] px-1 py-0 font-normal" title="Functiegroep">{c.functionGroup}</Badge>}
+                          {c.dmu && <Badge variant="outline" className="text-[9px] px-1 py-0 font-normal" title="DMU">{c.dmu}</Badge>}
+                        </div>
+                      )}
                     </button>
-                    <div className="flex items-center gap-1.5 shrink-0">
+                    <div className="flex items-center gap-1.5 shrink-0 pt-0.5">
                       {c.companyId !== company?.id && <Badge variant="outline" className="text-[9px] px-1">Secundair</Badge>}
                       {c.status === 'do_not_contact' && <Badge variant="destructive" className="text-[10px]">{STATUS_LABELS[c.status]}</Badge>}
                       <button
