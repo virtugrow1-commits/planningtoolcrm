@@ -236,6 +236,81 @@ export default function ContactDetailPage() {
             )}
           </div>
 
+          {/* Tags */}
+          <div className="flex flex-wrap items-center gap-1.5">
+            {(contact.tags || []).map((tag) => (
+              <Badge
+                key={tag}
+                variant="secondary"
+                className="gap-1 pl-2 pr-1 py-0.5 text-xs bg-primary/10 text-primary hover:bg-primary/15"
+              >
+                {tag}
+                <button
+                  type="button"
+                  onClick={() => removeTag(tag)}
+                  className="rounded-full hover:bg-primary/20 p-0.5"
+                  aria-label={`Verwijder tag ${tag}`}
+                >
+                  <X size={10} />
+                </button>
+              </Badge>
+            ))}
+            <Popover open={tagPopoverOpen} onOpenChange={setTagPopoverOpen}>
+              <PopoverTrigger asChild>
+                <Button variant="outline" size="sm" className="h-6 gap-1 rounded-full px-2 text-xs">
+                  <Tag size={10} /> {(contact.tags || []).length === 0 ? 'Tag toevoegen' : '+'}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-64 p-0" align="start">
+                <Command>
+                  <CommandInput
+                    placeholder="Zoek of typ nieuwe tag…"
+                    value={tagInput}
+                    onValueChange={setTagInput}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && tagInput.trim()) {
+                        e.preventDefault();
+                        addTag(tagInput);
+                        setTagPopoverOpen(false);
+                      }
+                    }}
+                  />
+                  <CommandList>
+                    <CommandEmpty>
+                      {tagInput.trim() ? (
+                        <button
+                          type="button"
+                          className="w-full px-3 py-2 text-left text-sm hover:bg-accent"
+                          onClick={() => { addTag(tagInput); setTagPopoverOpen(false); }}
+                        >
+                          + Maak tag "{tagInput.trim()}"
+                        </button>
+                      ) : (
+                        <span className="text-xs text-muted-foreground">Geen tags gevonden</span>
+                      )}
+                    </CommandEmpty>
+                    {allTags.length > 0 && (
+                      <CommandGroup heading="Bestaande tags">
+                        {allTags
+                          .filter((t) => !(contact.tags || []).some((ct) => ct.toLowerCase() === t.toLowerCase()))
+                          .map((t) => (
+                            <CommandItem
+                              key={t}
+                              value={t}
+                              onSelect={() => { addTag(t); setTagPopoverOpen(false); }}
+                            >
+                              {t}
+                            </CommandItem>
+                          ))}
+                      </CommandGroup>
+                    )}
+                  </CommandList>
+                </Command>
+              </PopoverContent>
+            </Popover>
+          </div>
+
+
           <div className="space-y-4 text-sm">
             <InfoField icon={<User size={14} />} label="Voornaam" value={current.firstName} editing={editing} onChange={(v) => setForm({ ...form!, firstName: v })} />
             <InfoField icon={<User size={14} />} label="Achternaam" value={current.lastName} editing={editing} onChange={(v) => setForm({ ...form!, lastName: v })} />
