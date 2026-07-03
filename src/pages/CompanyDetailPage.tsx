@@ -186,6 +186,8 @@ export default function CompanyDetailPage() {
       company: company.name,
       companyId: company.id,
       status: 'lead',
+      dmu: newContactForm.dmu || undefined,
+      functionGroup: newContactForm.functionGroup || undefined,
     });
     toast({ title: `${newContactForm.firstName} ${newContactForm.lastName} aangemaakt en gekoppeld` });
     setAddContactOpen(false);
