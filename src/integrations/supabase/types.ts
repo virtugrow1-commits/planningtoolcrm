@@ -1239,6 +1239,7 @@ export type Database = {
           created_at: string
           description: string | null
           due_date: string | null
+          due_time: string | null
           ghl_task_id: string | null
           id: string
           inquiry_id: string | null
@@ -1258,6 +1259,7 @@ export type Database = {
           created_at?: string
           description?: string | null
           due_date?: string | null
+          due_time?: string | null
           ghl_task_id?: string | null
           id?: string
           inquiry_id?: string | null
@@ -1277,6 +1279,7 @@ export type Database = {
           created_at?: string
           description?: string | null
           due_date?: string | null
+          due_time?: string | null
           ghl_task_id?: string | null
           id?: string
           inquiry_id?: string | null
