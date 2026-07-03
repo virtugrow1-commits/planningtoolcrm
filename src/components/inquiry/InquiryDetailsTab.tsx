@@ -58,7 +58,7 @@ interface Props {
 
 /* InfoRow is now imported from @/components/detail/DetailPageComponents */
 
-export default function InquiryDetailsTab({ inquiry, editing, form, setForm, contact, company, onSave, onCancel, onDelete, onStartEdit, onConvert, onCreateOption, onStatusChange, refetch }: Props) {
+export default function InquiryDetailsTab({ inquiry, editing, form, setForm, contact, company, onSave, onCancel, onDelete, onStartEdit, onConvert, onCreateOption, onStatusChange, refetch, existingOption }: Props) {
   const navigate = useNavigate();
   const { toast } = useToast();
   const { t, language } = useLanguage();
