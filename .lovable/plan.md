@@ -1,40 +1,17 @@
-## Doel
+## Probleem
+Op de **bedrijfsdetailpagina** (`/companies/:id`) ontbreekt een verwijderknop. Op de overzichtspagina `/companies` bestaat al een prullenbak-icoon per rij, maar zodra je een bedrijf opent kun je hem niet meer verwijderen — vandaar dat "Test bedrijf BV" lastig weg te krijgen is.
 
-DMU en Functiegroep zijn nu alleen zichtbaar/bewerkbaar op:
-- Contact-detailpagina (edit-mode)
-- CRM > Nieuw contact-dialoog
-- Bedrijfsdetail > "Contact toevoegen na bedrijf"-flow
+## Oplossing
+Een **"Verwijderen"-knop** toevoegen in de header van `CompanyDetailPage.tsx` met bevestigingsdialoog.
 
-Ze **ontbreken** op andere plekken waar contactpersonen worden getoond of aangemaakt. De opties zelf blijven ongewijzigd (`src/lib/contactOptions.ts`).
+### Gedrag
+- Rode knop rechtsboven naast de bestaande acties (bijv. "Bewerken")
+- Klik → `AlertDialog` "Weet je zeker dat je *[bedrijfsnaam]* wilt verwijderen?"
+- Bij bevestiging: `deleteCompany(id)` uit `useCompaniesContext()` aanroepen, toast tonen en terug navigeren naar `/companies`
+- Bijhorende contacten worden **niet** automatisch verwijderd; hun `company_id` wordt losgekoppeld (zoals de bestaande delete al doet). Als je wilt dat contacten óók verdwijnen, laat het weten.
 
-## Wat ik toevoeg
+### Extra check
+Ook op de overzichtspagina blijft de prullenbak per rij + bulk-verwijderen werken zoals nu.
 
-### 1. Bedrijfsdetailpagina (`src/pages/CompanyDetailPage.tsx`)
-- Op de lijst met contactpersonen van het bedrijf: DMU en Functiegroep tonen naast Functie/Afdeling.
-- Bij inline bewerken van een contactrij: dropdowns voor DMU en Functiegroep toevoegen.
-
-### 2. Nieuw-aanvraag-dialoog (`src/components/inquiry/NewInquiryDialog.tsx`)
-- Als de flow een nieuw contact aanmaakt: DMU- en Functiegroep-dropdown toevoegen aan het contactformulier (onder Functie).
-
-### 3. Gesprekken-zijpaneel (`src/components/conversations/ContactDetailsPanel.tsx`)
-- Contactgegevens tonen ook DMU en Functiegroep (read-only) onder de bestaande velden.
-
-## Wat níet verandert
-
-- Waarden in `DMU_OPTIONS` en `FUNCTION_GROUP_OPTIONS` (blijven zoals ze zijn).
-- Database-kolommen (`dmu`, `function_group` bestaan al op `contacts`).
-- Bestaande UI-plekken die de velden al hebben.
-
-## Technische details
-
-- Dropdowns gebruiken shadcn `Select` met `DMU_OPTIONS` en `FUNCTION_GROUP_OPTIONS` uit `@/lib/contactOptions`.
-- Bij read-only weergave: waarde tonen of `—` als leeg (zelfde patroon als op `ContactDetailPage`).
-- Type `Contact` (`src/types/crm.ts`) heeft `dmu` en `functionGroup` al; geen typewijziging nodig.
-
-## Verificatie
-
-- Open een bedrijf → contactpersonen tonen DMU + Functiegroep; inline edit werkt en slaat op.
-- Nieuwe aanvraag met nieuw contact → DMU + Functiegroep meegegeven en zichtbaar op contactdetail.
-- Open een gesprek → paneel toont DMU + Functiegroep.
-
-Zeg wanneer ik dit mag bouwen.
+### Bestanden
+- `src/pages/CompanyDetailPage.tsx` — knop + AlertDialog + delete handler toevoegen
