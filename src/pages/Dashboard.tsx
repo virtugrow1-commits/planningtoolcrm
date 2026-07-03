@@ -83,7 +83,7 @@ export default function Dashboard() {
   const [editTask, setEditTask] = useState<Task | null>(null);
   const [form, setForm] = useState({
     title: '', description: '', status: 'open' as Task['status'], priority: 'normal' as Task['priority'],
-    dueDate: '', companyId: '', contactId: '', assignedTo: [] as string[],
+    dueDate: '', dueTime: '', companyId: '', contactId: '', assignedTo: [] as string[],
   });
   const [filter, setFilter] = useState<'all' | 'open' | 'completed'>('all');
   const [visibleCount, setVisibleCount] = useState(10);
