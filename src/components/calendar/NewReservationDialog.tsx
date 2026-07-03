@@ -88,6 +88,7 @@ export default function NewReservationDialog({
 }: NewReservationDialogProps) {
   const { user } = useAuth();
   const { toast } = useToast();
+  const { getCompanyContacts } = useContactCompanies();
   const today = (() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; })();
   const [form, setForm] = useState<NewReservationForm>({
     contactId: '',
