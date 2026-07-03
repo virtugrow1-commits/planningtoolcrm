@@ -169,7 +169,12 @@ export default function TasksPage() {
           if (!a.dueDate && !b.dueDate) return 0;
           if (!a.dueDate) return 1;
           if (!b.dueDate) return -1;
-          return a.dueDate.localeCompare(b.dueDate);
+          const dateCmp = a.dueDate.localeCompare(b.dueDate);
+          if (dateCmp !== 0) return dateCmp;
+          if (!a.dueTime && !b.dueTime) return 0;
+          if (!a.dueTime) return 1;
+          if (!b.dueTime) return -1;
+          return a.dueTime.localeCompare(b.dueTime);
       }
     });
     return result;
