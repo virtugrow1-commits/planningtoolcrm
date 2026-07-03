@@ -222,6 +222,8 @@ export default function NewInquiryDialog({ open, onOpenChange, contacts, compani
             phone: contactForm.phone || null,
             company_id: companyId || null,
             status: 'lead',
+            dmu: contactForm.dmu || null,
+            function_group: contactForm.functionGroup || null,
           } as any).select().single();
 
           if (cErr) {
