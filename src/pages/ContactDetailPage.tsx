@@ -64,6 +64,35 @@ export default function ContactDetailPage() {
   const contactTasks = useMemo(() => contact ? tasks.filter((t) => t.contactId === contact.id) : [], [tasks, contact]);
   const contactDocuments = useMemo(() => contact ? documents.filter((d) => d.contactId === contact.id) : [], [documents, contact]);
 
+  const allTags = useMemo(() => {
+    const set = new Set<string>();
+    contacts.forEach((c) => (c.tags || []).forEach((t) => set.add(t)));
+    return Array.from(set).sort((a, b) => a.localeCompare(b));
+  }, [contacts]);
+  const [tagInput, setTagInput] = useState('');
+  const [tagPopoverOpen, setTagPopoverOpen] = useState(false);
+
+  const saveTags = async (nextTags: string[]) => {
+    if (!contact) return;
+    await updateContact({ ...contact, tags: nextTags });
+  };
+  const addTag = async (raw: string) => {
+    if (!contact) return;
+    const value = raw.trim();
+    if (!value) return;
+    const current = contact.tags || [];
+    if (current.some((t) => t.toLowerCase() === value.toLowerCase())) {
+      setTagInput('');
+      return;
+    }
+    await saveTags([...current, value]);
+    setTagInput('');
+  };
+  const removeTag = async (tag: string) => {
+    if (!contact) return;
+    await saveTags((contact.tags || []).filter((t) => t !== tag));
+  };
+
   const { loading } = useContactsContext();
 
   if (loading) {
