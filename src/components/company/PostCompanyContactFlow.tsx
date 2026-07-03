@@ -45,11 +45,12 @@ const emptyForm = {
  */
 export default function PostCompanyContactFlow({ company, onClose }: Props) {
   const navigate = useNavigate();
-  const { addContact } = useContactsContext();
+  const { contacts, addContact, updateContact } = useContactsContext();
   const { toast } = useToast();
   const [step, setStep] = useState<Step>('ask');
   const [form, setForm] = useState(emptyForm);
   const [saving, setSaving] = useState(false);
+  const [selectedContactId, setSelectedContactId] = useState<string>('');
   // Guard against Radix firing onOpenChange(false) when we navigate between steps
   const transitioningRef = useRef(false);
 
