@@ -257,6 +257,38 @@ export default function PostCompanyContactFlow({ company, onClose }: Props) {
         </DialogContent>
       </Dialog>
 
+      {/* Step 2b: link existing contact */}
+      <Dialog open={step === 'link'} onOpenChange={handleClose}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Bestaand contact koppelen</DialogTitle>
+            <DialogDescription>Kies een contactpersoon uit het CRM om te koppelen aan <strong>{company.name}</strong>.</DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-3 py-2">
+            <Label>Contactpersoon</Label>
+            <CrmCombobox
+              options={contactOptions}
+              value={selectedContactId}
+              onSelect={(id) => setSelectedContactId(id)}
+              placeholder="Zoek een contact..."
+              searchPlaceholder="Typ naam, e-mail of bedrijf..."
+              allowClear
+            />
+            {selectedContact && selectedContact.companyId && selectedContact.companyId !== company.id && (
+              <p className="text-sm text-muted-foreground">
+                Dit contact is nu gekoppeld aan <strong>{selectedContact.company || 'een ander bedrijf'}</strong>. Bij bevestigen wordt dit overschreven.
+              </p>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => finish(false)} disabled={saving}>Annuleren</Button>
+            <Button onClick={handleLinkContact} disabled={saving || !selectedContactId}>
+              {saving ? 'Koppelen...' : 'Koppelen'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* Step 3: ask for another */}
       <AlertDialog open={step === 'another'} onOpenChange={handleClose}>
         <AlertDialogContent>
@@ -266,11 +298,14 @@ export default function PostCompanyContactFlow({ company, onClose }: Props) {
               De contactpersoon is gekoppeld aan <strong>{company.name}</strong>. Wil je er nog één toevoegen?
             </AlertDialogDescription>
           </AlertDialogHeader>
-          <AlertDialogFooter className="gap-2 sm:gap-2">
+          <AlertDialogFooter className="gap-2 sm:gap-2 flex-wrap">
             <Button variant="outline" onClick={() => finish(true)}>Naar bedrijfspagina</Button>
             <AlertDialogCancel onClick={() => finish(false)}>Nee, klaar</AlertDialogCancel>
+            <Button variant="outline" onClick={() => goToStep('link')}>
+              <Link2 size={14} className="mr-1" /> Bestaand koppelen
+            </Button>
             <AlertDialogAction onClick={() => goToStep('form')}>
-              <UserPlus size={14} className="mr-1" /> Ja, nog één
+              <UserPlus size={14} className="mr-1" /> Nieuw contact
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
