@@ -193,9 +193,20 @@ export default function InquiryDetailsTab({ inquiry, editing, form, setForm, con
                   <ArrowRight size={14} className="mr-1" /> Stadium wijzigen
                 </Button>
               </div>
-              <Button variant="secondary" size="sm" className="w-full" onClick={onCreateOption}>
-                <CalendarPlus size={14} className="mr-1" /> Maak optie
-              </Button>
+              {existingOption ? (
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  className="w-full border border-warning/40 bg-warning/10 text-warning hover:bg-warning/20"
+                  onClick={() => navigate(`/reserveringen/${existingOption.id}`)}
+                >
+                  <CalendarPlus size={14} className="mr-1" /> Optie staat in agenda ({formatDate(existingOption.date)}) — bekijken
+                </Button>
+              ) : (
+                <Button variant="secondary" size="sm" className="w-full" onClick={onCreateOption}>
+                  <CalendarPlus size={14} className="mr-1" /> Maak optie
+                </Button>
+              )}
             </div>
           )}
         </div>
