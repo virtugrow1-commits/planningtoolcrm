@@ -77,6 +77,7 @@ export function ContactsProvider({ children }: { children: ReactNode }) {
       city: (c as any).city || undefined,
       country: (c as any).country || undefined,
       birthDate: (c as any).birth_date || undefined,
+      tags: Array.isArray((c as any).tags) ? (c as any).tags : [],
     })));
     setLoading(false);
   }, [user, toast]);
