@@ -21,6 +21,7 @@ export interface Contact {
   city?: string;
   country?: string;
   birthDate?: string;
+  tags?: string[];
 }
 
 export interface Inquiry {
