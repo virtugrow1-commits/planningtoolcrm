@@ -56,3 +56,35 @@ export function safeDisplay(value: unknown, fallback = '—'): string {
   }
   return str;
 }
+
+/**
+ * Format any date-like value (ISO string, yyyy-MM-dd, Date) as Dutch
+ * day-month-year: `dd-MM-yyyy`. Returns fallback for empty/invalid input.
+ */
+export function formatDate(value: string | Date | null | undefined, fallback = '—'): string {
+  if (!value) return fallback;
+  let d: Date;
+  if (value instanceof Date) {
+    d = value;
+  } else {
+    const s = /^\d{4}-\d{2}-\d{2}$/.test(value) ? `${value}T00:00:00` : value;
+    d = new Date(s);
+  }
+  if (isNaN(d.getTime())) return fallback;
+  const dd = String(d.getDate()).padStart(2, '0');
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const yyyy = d.getFullYear();
+  return `${dd}-${mm}-${yyyy}`;
+}
+
+/** Same as formatDate but also appends HH:mm. */
+export function formatDateTime(value: string | Date | null | undefined, fallback = '—'): string {
+  if (!value) return fallback;
+  const d = value instanceof Date ? value : new Date(value);
+  if (isNaN(d.getTime())) return fallback;
+  const base = formatDate(d, fallback);
+  if (base === fallback) return fallback;
+  const hh = String(d.getHours()).padStart(2, '0');
+  const mi = String(d.getMinutes()).padStart(2, '0');
+  return `${base} ${hh}:${mi}`;
+}
