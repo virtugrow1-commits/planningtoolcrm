@@ -400,7 +400,7 @@ export default function CompanyDetailPage() {
 
           {/* Historie */}
           <HistorySection
-            bookings={bookings.filter((b) => b.contactId && contactIds.has(b.contactId))}
+            bookings={relatedBookings}
             inquiries={companyInquiries}
             inquiriesLabel="Aanvragen"
             inquiriesEmptyText="Geen aanvragen van dit bedrijf."
