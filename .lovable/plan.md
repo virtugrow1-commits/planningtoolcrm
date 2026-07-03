@@ -1,19 +1,35 @@
 ## Doel
-Contactpersonen met status **"Uit dienst"** verbergen in alle bedrijf-→contact selectielijsten in het systeem.
+Optioneel **tijd**-veld toevoegen aan taken. Bij het aanmaken/bewerken kun je naast de datum ook een tijd invullen. Taken worden gesorteerd op datum → tijd (met tijd bovenaan, zonder tijd daarna).
 
-## Aanpassing
-Overal waar contacten gefilterd worden op `companyId` óók filteren op `!c.departed`.
+## Aanpak
 
-### Locaties
-- `src/components/inquiry/NewInquiryDialog.tsx` (aanvraag aanmaken)
-- `src/components/calendar/NewReservationDialog.tsx` (reservering aanmaken)
-- `src/pages/TasksPage.tsx` (taak aanmaken)
-- `src/pages/Dashboard.tsx` (snelle acties)
-- `src/pages/InquiriesPage.tsx` (bewerken aanvraag, regel 1189)
-- `src/components/quotation/ContactSelector.tsx` (offerte/factuur contact kiezen)
+### 1. Database
+Nieuwe kolom `due_time` (type `time`, nullable) op `public.tasks`.
 
-### Uitgesloten
-- `CompanyDetailPage.tsx` — de contactlijst van het bedrijf zelf blijft "uit dienst" tonen (met grijze markering), zodat je die contacten nog kunt beheren.
+### 2. Types
+- `src/types/task.ts` — `dueTime?: string` toevoegen (formaat `HH:mm`)
+- `TasksContext.tsx` — mappen naar/uit `due_time` bij fetch/insert/update
 
-### Detail
-Filter wordt: `contacts.filter(c => c.companyId === X && !c.departed)`. Wanneer er geen bedrijf gekozen is blijft het volledige contactoverzicht van toepassing — daar filteren we óók `!c.departed` uit om consistent te zijn in de aanmaakdialogen.
+### 3. UI — Aanmaakdialog & detail
+- `src/pages/TasksPage.tsx` — extra `<Input type="time">` naast het datumveld in het nieuwe-taak-dialoog
+- `src/pages/TaskDetailPage.tsx` — tijdveld tonen en bewerkbaar maken
+- `src/components/inquiry/InquiryTasksTab.tsx` — tijd tonen naast datum als aanwezig
+
+### 4. Weergave
+Overal waar `📅 formatDate(task.dueDate)` staat, er `⏰ HH:mm` achter tonen als `dueTime` bestaat:
+- `TasksPage.tsx` (lijst)
+- `TasksSection.tsx` (detailpagina's contact/bedrijf/aanvraag)
+- `KpiDetailDialog.tsx` (dashboard)
+- `Dashboard.tsx` (widgets)
+
+### 5. Sortering
+In `TasksPage.tsx` bij `sortKey === 'dueDate'` en in `TasksSection.tsx`:
+```
+1. Datum oplopend
+2. Binnen dezelfde datum: taken mét tijd op tijd oplopend
+3. Taken zonder tijd onderaan die dag
+4. Taken zonder datum helemaal onderaan
+```
+
+### Buiten scope
+Niet aanpassen: offertes/facturen `dueDate` (die staan op `useInvoices`/`quotation.ts` en hebben geen tijd nodig).
