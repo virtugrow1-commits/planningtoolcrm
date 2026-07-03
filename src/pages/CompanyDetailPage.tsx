@@ -82,8 +82,26 @@ export default function CompanyDetailPage() {
   const contactIds = useMemo(() => new Set(companyContacts.map((c) => c.id)), [companyContacts]);
 
   const todayStr = useMemo(() => new Date().toISOString().split('T')[0], []);
-  const confirmedBookings = useMemo(() => bookings.filter((b) => (b.companyId === company?.id || (b.contactId && contactIds.has(b.contactId))) && b.status !== 'option' && b.date >= todayStr).sort((a, b) => a.date.localeCompare(b.date)), [bookings, contactIds, company, todayStr]);
-  const optionBookings = useMemo(() => bookings.filter((b) => (b.companyId === company?.id || (b.contactId && contactIds.has(b.contactId))) && b.status === 'option' && b.date >= todayStr).sort((a, b) => a.date.localeCompare(b.date)), [bookings, contactIds, company, todayStr]);
+  const relatedBookings = useMemo(() => {
+    if (!company) return [];
+    const companyNameLower = company.name?.toLowerCase().trim() || '';
+    const contactNames = new Set(
+      companyContacts.map((c) => `${c.firstName || ''} ${c.lastName || ''}`.toLowerCase().trim()).filter(Boolean)
+    );
+    return bookings.filter((b) => {
+      if (b.companyId === company.id) return true;
+      if (b.contactId && contactIds.has(b.contactId)) return true;
+      // Fallback: match by contactName against the company name or one of the linked contacts
+      if (!b.contactId && !b.companyId && b.contactName) {
+        const n = b.contactName.toLowerCase().trim();
+        if (n === companyNameLower) return true;
+        if (contactNames.has(n)) return true;
+      }
+      return false;
+    });
+  }, [bookings, contactIds, company, companyContacts]);
+  const confirmedBookings = useMemo(() => relatedBookings.filter((b) => b.status !== 'option' && b.date >= todayStr).sort((a, b) => a.date.localeCompare(b.date)), [relatedBookings, todayStr]);
+  const optionBookings = useMemo(() => relatedBookings.filter((b) => b.status === 'option' && b.date >= todayStr).sort((a, b) => a.date.localeCompare(b.date)), [relatedBookings, todayStr]);
   const companyInquiries = useMemo(() => inquiries.filter((i) => i.companyId === company?.id || (i.contactId && contactIds.has(i.contactId))), [inquiries, contactIds, company]);
   const companyTasks = useMemo(() => tasks.filter((t) => (t.contactId && contactIds.has(t.contactId)) || (t.companyId === company?.id)), [tasks, contactIds, company]);
 
@@ -382,7 +400,7 @@ export default function CompanyDetailPage() {
 
           {/* Historie */}
           <HistorySection
-            bookings={bookings.filter((b) => b.contactId && contactIds.has(b.contactId))}
+            bookings={relatedBookings}
             inquiries={companyInquiries}
             inquiriesLabel="Aanvragen"
             inquiriesEmptyText="Geen aanvragen van dit bedrijf."
