@@ -28,6 +28,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import CrmCombobox from '@/components/CrmCombobox';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
+import { Tag } from 'lucide-react';
 import { DMU_OPTIONS, FUNCTION_GROUP_OPTIONS } from '@/lib/contactOptions';
 
 export default function ContactDetailPage() {
@@ -60,6 +63,35 @@ export default function ContactDetailPage() {
   
   const contactTasks = useMemo(() => contact ? tasks.filter((t) => t.contactId === contact.id) : [], [tasks, contact]);
   const contactDocuments = useMemo(() => contact ? documents.filter((d) => d.contactId === contact.id) : [], [documents, contact]);
+
+  const allTags = useMemo(() => {
+    const set = new Set<string>();
+    contacts.forEach((c) => (c.tags || []).forEach((t) => set.add(t)));
+    return Array.from(set).sort((a, b) => a.localeCompare(b));
+  }, [contacts]);
+  const [tagInput, setTagInput] = useState('');
+  const [tagPopoverOpen, setTagPopoverOpen] = useState(false);
+
+  const saveTags = async (nextTags: string[]) => {
+    if (!contact) return;
+    await updateContact({ ...contact, tags: nextTags });
+  };
+  const addTag = async (raw: string) => {
+    if (!contact) return;
+    const value = raw.trim();
+    if (!value) return;
+    const current = contact.tags || [];
+    if (current.some((t) => t.toLowerCase() === value.toLowerCase())) {
+      setTagInput('');
+      return;
+    }
+    await saveTags([...current, value]);
+    setTagInput('');
+  };
+  const removeTag = async (tag: string) => {
+    if (!contact) return;
+    await saveTags((contact.tags || []).filter((t) => t !== tag));
+  };
 
   const { loading } = useContactsContext();
 
@@ -203,6 +235,81 @@ export default function ContactDetailPage() {
               </div>
             )}
           </div>
+
+          {/* Tags */}
+          <div className="flex flex-wrap items-center gap-1.5">
+            {(contact.tags || []).map((tag) => (
+              <Badge
+                key={tag}
+                variant="secondary"
+                className="gap-1 pl-2 pr-1 py-0.5 text-xs bg-primary/10 text-primary hover:bg-primary/15"
+              >
+                {tag}
+                <button
+                  type="button"
+                  onClick={() => removeTag(tag)}
+                  className="rounded-full hover:bg-primary/20 p-0.5"
+                  aria-label={`Verwijder tag ${tag}`}
+                >
+                  <X size={10} />
+                </button>
+              </Badge>
+            ))}
+            <Popover open={tagPopoverOpen} onOpenChange={setTagPopoverOpen}>
+              <PopoverTrigger asChild>
+                <Button variant="outline" size="sm" className="h-6 gap-1 rounded-full px-2 text-xs">
+                  <Tag size={10} /> {(contact.tags || []).length === 0 ? 'Tag toevoegen' : '+'}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-64 p-0" align="start">
+                <Command>
+                  <CommandInput
+                    placeholder="Zoek of typ nieuwe tag…"
+                    value={tagInput}
+                    onValueChange={setTagInput}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && tagInput.trim()) {
+                        e.preventDefault();
+                        addTag(tagInput);
+                        setTagPopoverOpen(false);
+                      }
+                    }}
+                  />
+                  <CommandList>
+                    <CommandEmpty>
+                      {tagInput.trim() ? (
+                        <button
+                          type="button"
+                          className="w-full px-3 py-2 text-left text-sm hover:bg-accent"
+                          onClick={() => { addTag(tagInput); setTagPopoverOpen(false); }}
+                        >
+                          + Maak tag "{tagInput.trim()}"
+                        </button>
+                      ) : (
+                        <span className="text-xs text-muted-foreground">Geen tags gevonden</span>
+                      )}
+                    </CommandEmpty>
+                    {allTags.length > 0 && (
+                      <CommandGroup heading="Bestaande tags">
+                        {allTags
+                          .filter((t) => !(contact.tags || []).some((ct) => ct.toLowerCase() === t.toLowerCase()))
+                          .map((t) => (
+                            <CommandItem
+                              key={t}
+                              value={t}
+                              onSelect={() => { addTag(t); setTagPopoverOpen(false); }}
+                            >
+                              {t}
+                            </CommandItem>
+                          ))}
+                      </CommandGroup>
+                    )}
+                  </CommandList>
+                </Command>
+              </PopoverContent>
+            </Popover>
+          </div>
+
 
           <div className="space-y-4 text-sm">
             <InfoField icon={<User size={14} />} label="Voornaam" value={current.firstName} editing={editing} onChange={(v) => setForm({ ...form!, firstName: v })} />

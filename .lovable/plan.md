@@ -1,35 +1,27 @@
 ## Doel
-Optioneel **tijd**-veld toevoegen aan taken. Bij het aanmaken/bewerken kun je naast de datum ook een tijd invullen. Taken worden gesorteerd op datum → tijd (met tijd bovenaan, zonder tijd daarna).
+Op de contactpersoon-detailpagina een **tag-dropdown** toevoegen (onder de naam) waarmee je snel tags kunt selecteren of nieuw kunt aanmaken. Geselecteerde tags zijn direct zichtbaar als chips zonder het menu te openen.
 
 ## Aanpak
 
 ### 1. Database
-Nieuwe kolom `due_time` (type `time`, nullable) op `public.tasks`.
+Nieuwe kolom `tags text[]` op `public.contacts` (default `'{}'`, nullable false).
 
-### 2. Types
-- `src/types/task.ts` — `dueTime?: string` toevoegen (formaat `HH:mm`)
-- `TasksContext.tsx` — mappen naar/uit `due_time` bij fetch/insert/update
+### 2. Types / context
+- `src/types/crm.ts` — `tags?: string[]` op `Contact`
+- `src/contexts/ContactsContext.tsx` — mappen naar/uit `tags` bij fetch/insert/update
 
-### 3. UI — Aanmaakdialog & detail
-- `src/pages/TasksPage.tsx` — extra `<Input type="time">` naast het datumveld in het nieuwe-taak-dialoog
-- `src/pages/TaskDetailPage.tsx` — tijdveld tonen en bewerkbaar maken
-- `src/components/inquiry/InquiryTasksTab.tsx` — tijd tonen naast datum als aanwezig
+### 3. UI
+Op `src/pages/ContactDetailPage.tsx`, in het linker zijbalk-kaartje net onder de naam (op de plek uit de screenshot):
+- **Chips** van bestaande tags (kleine badges met een `×` om te verwijderen)
+- **"+ Tag toevoegen"** knop die een popover opent met:
+  - Een `Command` (shadcn Combobox) met alle unieke tags die al in de organisatie voorkomen (autosuggest)
+  - Vrije invoer: bij Enter of "Nieuwe tag maken" komt de getypte waarde erbij
+- Klik op een suggestie voegt hem toe; typen filtert; nieuwe waarden worden aangemaakt
+- Duplicaten worden voorkomen (case-insensitive)
 
-### 4. Weergave
-Overal waar `📅 formatDate(task.dueDate)` staat, er `⏰ HH:mm` achter tonen als `dueTime` bestaat:
-- `TasksPage.tsx` (lijst)
-- `TasksSection.tsx` (detailpagina's contact/bedrijf/aanvraag)
-- `KpiDetailDialog.tsx` (dashboard)
-- `Dashboard.tsx` (widgets)
-
-### 5. Sortering
-In `TasksPage.tsx` bij `sortKey === 'dueDate'` en in `TasksSection.tsx`:
-```
-1. Datum oplopend
-2. Binnen dezelfde datum: taken mét tijd op tijd oplopend
-3. Taken zonder tijd onderaan die dag
-4. Taken zonder datum helemaal onderaan
-```
+### 4. Waar tags nog zichtbaar maken
+- Contactoverzicht (`src/pages/ContactsPage.tsx`, indien lijst) — chips achter naam. **Alleen als deze pagina in-scope is; anders overslaan.**
 
 ### Buiten scope
-Niet aanpassen: offertes/facturen `dueDate` (die staan op `useInvoices`/`quotation.ts` en hebben geen tijd nodig).
+- Filteren/zoeken op tag (kan later)
+- Tags bij bedrijven
