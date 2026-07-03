@@ -66,7 +66,7 @@ export default function CompanyDetailPage() {
   const [addContactOpen, setAddContactOpen] = useState(false);
   const [addContactTab, setAddContactTab] = useState<string>('link');
   const [linkSearch, setLinkSearch] = useState('');
-  const [newContactForm, setNewContactForm] = useState({ firstName: '', lastName: '', email: '', phone: '' });
+  const [newContactForm, setNewContactForm] = useState({ firstName: '', lastName: '', email: '', phone: '', dmu: '', functionGroup: '' });
 
   const company = companies.find((c) => c.id === id);
 
