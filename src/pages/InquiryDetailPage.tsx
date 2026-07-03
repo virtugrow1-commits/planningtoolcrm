@@ -71,6 +71,18 @@ export default function InquiryDetailPage() {
     return null;
   }, [inquiry, contact, companies]);
   const contactBookings = useMemo(() => inquiry?.contactId ? bookings.filter(b => b.contactId === inquiry.contactId) : [], [bookings, inquiry]);
+  const existingOption = useMemo(() => {
+    if (!inquiry) return null;
+    const candidates = bookings.filter(b => b.status === 'option' && (
+      (inquiry.contactId && b.contactId === inquiry.contactId) ||
+      (inquiry.contactName && b.contactName?.toLowerCase() === inquiry.contactName.toLowerCase())
+    ));
+    if (!candidates.length) return null;
+    // Prefer match on preferredDate
+    const dateMatch = inquiry.preferredDate ? candidates.find(b => b.date === inquiry.preferredDate) : null;
+    const chosen = dateMatch || candidates[0];
+    return { id: chosen.id, date: chosen.date };
+  }, [bookings, inquiry]);
   const companyBookings = useMemo(() => company?.id ? bookings.filter(b => {
     const bc = contacts.find(c => c.id === b.contactId);
     return bc?.companyId === company.id;
