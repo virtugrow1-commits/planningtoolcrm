@@ -53,6 +53,7 @@ interface Props {
   onCreateOption: () => void;
   onStatusChange: () => void;
   refetch: () => Promise<void>;
+  existingOption?: { id: string; date: string } | null;
 }
 
 /* InfoRow is now imported from @/components/detail/DetailPageComponents */
