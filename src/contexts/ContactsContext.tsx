@@ -136,6 +136,7 @@ export function ContactsProvider({ children }: { children: ReactNode }) {
       city: contact.city || null,
       country: contact.country || 'NL',
       birth_date: contact.birthDate || null,
+      tags: contact.tags || [],
       pending_outbound_sync: true,
       last_local_edit_at: new Date().toISOString(),
     }).select().single();
