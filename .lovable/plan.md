@@ -1,27 +1,24 @@
-## Doel
-Op de contactpersoon-detailpagina een **tag-dropdown** toevoegen (onder de naam) waarmee je snel tags kunt selecteren of nieuw kunt aanmaken. Geselecteerde tags zijn direct zichtbaar als chips zonder het menu te openen.
+## Bestaand contact koppelen aan nieuw bedrijf
 
-## Aanpak
+In de flow na het aanmaken van een bedrijf (`PostCompanyContactFlow.tsx`) staat momenteel alleen "Ja, contact toevoegen" (nieuw). We herstellen de mogelijkheid om een **bestaand** contact uit het CRM te koppelen.
 
-### 1. Database
-Nieuwe kolom `tags text[]` op `public.contacts` (default `'{}'`, nullable false).
+### UI-wijzigingen (`src/components/company/PostCompanyContactFlow.tsx`)
 
-### 2. Types / context
-- `src/types/crm.ts` — `tags?: string[]` op `Contact`
-- `src/contexts/ContactsContext.tsx` — mappen naar/uit `tags` bij fetch/insert/update
+**Stap 1 — "Contactpersoon toevoegen?"** krijgt drie knoppen in plaats van twee:
+- `Nee, sluiten`
+- `Bestaand contact koppelen` (nieuw)
+- `Nieuw contact aanmaken`
 
-### 3. UI
-Op `src/pages/ContactDetailPage.tsx`, in het linker zijbalk-kaartje net onder de naam (op de plek uit de screenshot):
-- **Chips** van bestaande tags (kleine badges met een `×` om te verwijderen)
-- **"+ Tag toevoegen"** knop die een popover opent met:
-  - Een `Command` (shadcn Combobox) met alle unieke tags die al in de organisatie voorkomen (autosuggest)
-  - Vrije invoer: bij Enter of "Nieuwe tag maken" komt de getypte waarde erbij
-- Klik op een suggestie voegt hem toe; typen filtert; nieuwe waarden worden aangemaakt
-- Duplicaten worden voorkomen (case-insensitive)
+**Nieuwe stap `link`** (getoond bij klik op "Bestaand contact koppelen"):
+- Dialog met een `CrmCombobox` / zoekveld dat alle contacten uit `useContactsContext()` toont (naam + huidig bedrijf als hint).
+- Bij selectie: `updateContact({...contact, company: newCompany.name, companyId: newCompany.id})` → toast "X gekoppeld aan {bedrijf}".
+- Daarna door naar bestaande stap `another` ("Nog een contactpersoon toevoegen?"), waar de knop "Ja, nog één" een keuzemenu geeft (nieuw of bestaand) — simpelste: standaard terug naar stap 1.
 
-### 4. Waar tags nog zichtbaar maken
-- Contactoverzicht (`src/pages/ContactsPage.tsx`, indien lijst) — chips achter naam. **Alleen als deze pagina in-scope is; anders overslaan.**
+**Stap 3 — "Nog een contactpersoon toevoegen?"** krijgt eveneens twee actieknoppen ("Nog nieuw" / "Nog bestaand koppelen") in plaats van één.
+
+### Waarschuwing bij bestaand contact met ander bedrijf
+Als het geselecteerde contact al een `companyId` heeft dat afwijkt, tonen we in de dialog een korte melding: *"Dit contact is nu gekoppeld aan {oud bedrijf}. Bij bevestigen wordt dit overschreven."*
 
 ### Buiten scope
-- Filteren/zoeken op tag (kan later)
-- Tags bij bedrijven
+- Geen wijzigingen aan `ContactsContext`, database of andere pagina's.
+- Bulk-koppelen van meerdere contacten in één keer.

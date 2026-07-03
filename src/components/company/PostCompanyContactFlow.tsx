@@ -1,7 +1,7 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { format } from 'date-fns';
-import { CalendarIcon, UserPlus } from 'lucide-react';
+import { CalendarIcon, UserPlus, Link2 } from 'lucide-react';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
@@ -14,6 +14,7 @@ import { useContactsContext } from '@/contexts/ContactsContext';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import { DMU_OPTIONS, FUNCTION_GROUP_OPTIONS } from '@/lib/contactOptions';
+import CrmCombobox from '@/components/CrmCombobox';
 
 interface Props {
   /** When set, the flow is active for this newly created company. Set to null to close. */
@@ -21,7 +22,8 @@ interface Props {
   onClose: () => void;
 }
 
-type Step = 'ask' | 'form' | 'another';
+type Step = 'ask' | 'form' | 'link' | 'another';
+
 
 const emptyForm = {
   firstName: '',
@@ -43,11 +45,12 @@ const emptyForm = {
  */
 export default function PostCompanyContactFlow({ company, onClose }: Props) {
   const navigate = useNavigate();
-  const { addContact } = useContactsContext();
+  const { contacts, addContact, updateContact } = useContactsContext();
   const { toast } = useToast();
   const [step, setStep] = useState<Step>('ask');
   const [form, setForm] = useState(emptyForm);
   const [saving, setSaving] = useState(false);
+  const [selectedContactId, setSelectedContactId] = useState<string>('');
   // Guard against Radix firing onOpenChange(false) when we navigate between steps
   const transitioningRef = useRef(false);
 
@@ -56,6 +59,7 @@ export default function PostCompanyContactFlow({ company, onClose }: Props) {
     if (company) {
       setStep('ask');
       setForm(emptyForm);
+      setSelectedContactId('');
       transitioningRef.current = false;
     }
   }, [company?.id]);
@@ -101,6 +105,35 @@ export default function PostCompanyContactFlow({ company, onClose }: Props) {
     goToStep('another');
   };
 
+  const contactOptions = useMemo(
+    () => contacts.map((c) => ({
+      id: c.id,
+      label: `${c.firstName || ''} ${c.lastName || ''}`.trim() || c.email || '(geen naam)',
+      secondary: c.company || c.email || undefined,
+      tertiary: c.email && c.company ? c.email : undefined,
+    })),
+    [contacts]
+  );
+
+  const selectedContact = useMemo(
+    () => contacts.find((c) => c.id === selectedContactId),
+    [contacts, selectedContactId]
+  );
+
+  const handleLinkContact = async () => {
+    if (!selectedContact) return;
+    setSaving(true);
+    await updateContact({
+      ...selectedContact,
+      company: company.name,
+      companyId: company.id,
+    });
+    setSaving(false);
+    toast({ title: `${selectedContact.firstName} ${selectedContact.lastName} gekoppeld aan ${company.name}` });
+    setSelectedContactId('');
+    goToStep('another');
+  };
+
   const finish = (goToCompany: boolean) => {
     onClose();
     if (goToCompany) navigate(`/companies/${company.id}`);
@@ -117,10 +150,13 @@ export default function PostCompanyContactFlow({ company, onClose }: Props) {
               Bedrijf <strong>{company.name}</strong> is aangemaakt. Wil je nu direct een contactpersoon toevoegen aan dit bedrijf?
             </AlertDialogDescription>
           </AlertDialogHeader>
-          <AlertDialogFooter>
+          <AlertDialogFooter className="gap-2 sm:gap-2 flex-wrap">
             <AlertDialogCancel onClick={() => finish(false)}>Nee, sluiten</AlertDialogCancel>
+            <Button variant="outline" onClick={() => goToStep('link')}>
+              <Link2 size={14} className="mr-1" /> Bestaand contact koppelen
+            </Button>
             <AlertDialogAction onClick={() => goToStep('form')}>
-              <UserPlus size={14} className="mr-1" /> Ja, contact toevoegen
+              <UserPlus size={14} className="mr-1" /> Nieuw contact aanmaken
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -221,6 +257,38 @@ export default function PostCompanyContactFlow({ company, onClose }: Props) {
         </DialogContent>
       </Dialog>
 
+      {/* Step 2b: link existing contact */}
+      <Dialog open={step === 'link'} onOpenChange={handleClose}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Bestaand contact koppelen</DialogTitle>
+            <DialogDescription>Kies een contactpersoon uit het CRM om te koppelen aan <strong>{company.name}</strong>.</DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-3 py-2">
+            <Label>Contactpersoon</Label>
+            <CrmCombobox
+              options={contactOptions}
+              value={selectedContactId}
+              onSelect={(id) => setSelectedContactId(id)}
+              placeholder="Zoek een contact..."
+              searchPlaceholder="Typ naam, e-mail of bedrijf..."
+              allowClear
+            />
+            {selectedContact && selectedContact.companyId && selectedContact.companyId !== company.id && (
+              <p className="text-sm text-muted-foreground">
+                Dit contact is nu gekoppeld aan <strong>{selectedContact.company || 'een ander bedrijf'}</strong>. Bij bevestigen wordt dit overschreven.
+              </p>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => finish(false)} disabled={saving}>Annuleren</Button>
+            <Button onClick={handleLinkContact} disabled={saving || !selectedContactId}>
+              {saving ? 'Koppelen...' : 'Koppelen'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* Step 3: ask for another */}
       <AlertDialog open={step === 'another'} onOpenChange={handleClose}>
         <AlertDialogContent>
@@ -230,11 +298,14 @@ export default function PostCompanyContactFlow({ company, onClose }: Props) {
               De contactpersoon is gekoppeld aan <strong>{company.name}</strong>. Wil je er nog één toevoegen?
             </AlertDialogDescription>
           </AlertDialogHeader>
-          <AlertDialogFooter className="gap-2 sm:gap-2">
+          <AlertDialogFooter className="gap-2 sm:gap-2 flex-wrap">
             <Button variant="outline" onClick={() => finish(true)}>Naar bedrijfspagina</Button>
             <AlertDialogCancel onClick={() => finish(false)}>Nee, klaar</AlertDialogCancel>
+            <Button variant="outline" onClick={() => goToStep('link')}>
+              <Link2 size={14} className="mr-1" /> Bestaand koppelen
+            </Button>
             <AlertDialogAction onClick={() => goToStep('form')}>
-              <UserPlus size={14} className="mr-1" /> Ja, nog één
+              <UserPlus size={14} className="mr-1" /> Nieuw contact
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
