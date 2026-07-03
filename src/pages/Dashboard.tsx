@@ -569,7 +569,7 @@ export default function Dashboard() {
                     </Link>
                   )}
                   {task.dueDate && (
-                    <span className={task.dueDate < today ? 'text-destructive font-medium' : ''}>📅 {formatDate(task.dueDate)}</span>
+                    <span className={task.dueDate < today ? 'text-destructive font-medium' : ''}>📅 {formatDate(task.dueDate)}{task.dueTime ? ` ⏰ ${task.dueTime}` : ''}</span>
                   )}
                   {task.assignedTo && <span className="truncate max-w-[120px]">👤 {task.assignedTo}</span>}
                 </div>
