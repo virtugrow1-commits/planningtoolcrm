@@ -54,7 +54,8 @@ const STATUS_LABELS: Record<string, string> = {
 export default function CompanyDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { companies, loading: companiesLoading, updateCompany } = useCompaniesContext();
+  const { companies, loading: companiesLoading, updateCompany, deleteCompany } = useCompaniesContext();
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const { contacts, loading: contactsLoading, updateContact, addContact } = useContactsContext();
   const { bookings, loading: bookingsLoading } = useBookings();
   const { inquiries } = useInquiriesContext();
