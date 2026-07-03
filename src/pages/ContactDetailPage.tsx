@@ -55,7 +55,16 @@ export default function ContactDetailPage() {
   const [inquiryForm, setInquiryForm] = useState({ eventType: '', preferredDate: '', guestCount: '', budget: '', message: '', roomPreference: '' });
 
   const contactInquiries = useMemo(() => contact ? inquiries.filter((i) => i.contactId === contact.id) : [], [inquiries, contact]);
-  const contactBookings = useMemo(() => contact ? bookings.filter((b) => b.contactId === contact.id) : [], [bookings, contact]);
+  const contactBookings = useMemo(() => {
+    if (!contact) return [];
+    const fullName = `${contact.firstName || ''} ${contact.lastName || ''}`.toLowerCase().trim();
+    return bookings.filter((b) => {
+      if (b.contactId === contact.id) return true;
+      // Fallback: match by name when contactId is missing on the booking
+      if (!b.contactId && b.contactName && fullName && b.contactName.toLowerCase().trim() === fullName) return true;
+      return false;
+    });
+  }, [bookings, contact]);
   const todayStr = useMemo(() => new Date().toISOString().split('T')[0], []);
   const confirmedBookings = useMemo(() => contactBookings.filter((b) => b.status !== 'option' && b.date >= todayStr).sort((a, b) => a.date.localeCompare(b.date)), [contactBookings, todayStr]);
   const optionBookings = useMemo(() => contactBookings.filter((b) => b.status === 'option' && b.date >= todayStr).sort((a, b) => a.date.localeCompare(b.date)), [contactBookings, todayStr]);
