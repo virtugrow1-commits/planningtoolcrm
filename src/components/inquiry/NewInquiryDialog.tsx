@@ -90,7 +90,7 @@ export default function NewInquiryDialog({ open, onOpenChange, contacts, compani
   }, [companies]);
 
   const filteredContacts = useMemo(() =>
-    form.companyId ? contacts.filter(c => c.companyId === form.companyId) : contacts,
+    (form.companyId ? contacts.filter(c => c.companyId === form.companyId) : contacts).filter(c => !c.departed),
     [contacts, form.companyId]
   );
 
