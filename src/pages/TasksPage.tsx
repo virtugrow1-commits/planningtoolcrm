@@ -84,6 +84,7 @@ export default function TasksPage() {
     status: 'open' as Task['status'],
     priority: 'normal' as Task['priority'],
     dueDate: '',
+    dueTime: '',
     companyId: '',
     contactId: '',
     assignedTo: [] as string[],
