@@ -112,7 +112,7 @@ export default function Dashboard() {
     })), [companies]);
 
   const contactOptions = useMemo<ComboboxOption[]>(() => {
-    const pool = form.companyId ? contacts.filter(c => c.companyId === form.companyId) : contacts;
+    const pool = (form.companyId ? contacts.filter(c => c.companyId === form.companyId) : contacts).filter(c => !c.departed);
     return pool.map(c => ({
       id: c.id,
       label: [c.firstName, c.lastName].filter(n => n && n !== '—').join(' ') || c.email || 'Onbekend',

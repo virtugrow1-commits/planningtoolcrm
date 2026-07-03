@@ -18,8 +18,8 @@ export default function ContactSelector({ value, onChange, filterCompanyId }: Co
   const { contacts } = useContactsContext();
 
   const filteredContacts = useMemo(() => {
-    if (!filterCompanyId) return contacts;
-    return contacts.filter((c) => c.companyId === filterCompanyId);
+    const base = filterCompanyId ? contacts.filter((c) => c.companyId === filterCompanyId) : contacts;
+    return base.filter((c) => !c.departed);
   }, [contacts, filterCompanyId]);
 
   const selected = useMemo(

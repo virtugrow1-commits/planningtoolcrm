@@ -1,17 +1,19 @@
-## Probleem
-Op de **bedrijfsdetailpagina** (`/companies/:id`) ontbreekt een verwijderknop. Op de overzichtspagina `/companies` bestaat al een prullenbak-icoon per rij, maar zodra je een bedrijf opent kun je hem niet meer verwijderen — vandaar dat "Test bedrijf BV" lastig weg te krijgen is.
+## Doel
+Contactpersonen met status **"Uit dienst"** verbergen in alle bedrijf-→contact selectielijsten in het systeem.
 
-## Oplossing
-Een **"Verwijderen"-knop** toevoegen in de header van `CompanyDetailPage.tsx` met bevestigingsdialoog.
+## Aanpassing
+Overal waar contacten gefilterd worden op `companyId` óók filteren op `!c.departed`.
 
-### Gedrag
-- Rode knop rechtsboven naast de bestaande acties (bijv. "Bewerken")
-- Klik → `AlertDialog` "Weet je zeker dat je *[bedrijfsnaam]* wilt verwijderen?"
-- Bij bevestiging: `deleteCompany(id)` uit `useCompaniesContext()` aanroepen, toast tonen en terug navigeren naar `/companies`
-- Bijhorende contacten worden **niet** automatisch verwijderd; hun `company_id` wordt losgekoppeld (zoals de bestaande delete al doet). Als je wilt dat contacten óók verdwijnen, laat het weten.
+### Locaties
+- `src/components/inquiry/NewInquiryDialog.tsx` (aanvraag aanmaken)
+- `src/components/calendar/NewReservationDialog.tsx` (reservering aanmaken)
+- `src/pages/TasksPage.tsx` (taak aanmaken)
+- `src/pages/Dashboard.tsx` (snelle acties)
+- `src/pages/InquiriesPage.tsx` (bewerken aanvraag, regel 1189)
+- `src/components/quotation/ContactSelector.tsx` (offerte/factuur contact kiezen)
 
-### Extra check
-Ook op de overzichtspagina blijft de prullenbak per rij + bulk-verwijderen werken zoals nu.
+### Uitgesloten
+- `CompanyDetailPage.tsx` — de contactlijst van het bedrijf zelf blijft "uit dienst" tonen (met grijze markering), zodat je die contacten nog kunt beheren.
 
-### Bestanden
-- `src/pages/CompanyDetailPage.tsx` — knop + AlertDialog + delete handler toevoegen
+### Detail
+Filter wordt: `contacts.filter(c => c.companyId === X && !c.departed)`. Wanneer er geen bedrijf gekozen is blijft het volledige contactoverzicht van toepassing — daar filteren we óók `!c.departed` uit om consistent te zijn in de aanmaakdialogen.
