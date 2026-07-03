@@ -189,7 +189,7 @@ export default function CompanyDetailPage() {
     });
     toast({ title: `${newContactForm.firstName} ${newContactForm.lastName} aangemaakt en gekoppeld` });
     setAddContactOpen(false);
-    setNewContactForm({ firstName: '', lastName: '', email: '', phone: '' });
+    setNewContactForm({ firstName: '', lastName: '', email: '', phone: '', dmu: '', functionGroup: '' });
   };
 
   return (
@@ -382,7 +382,7 @@ export default function CompanyDetailPage() {
           <SectionCard
             title="Contactpersonen"
             count={companyContacts.length}
-            onAdd={() => { setAddContactOpen(true); setAddContactTab('link'); setLinkSearch(''); setNewContactForm({ firstName: '', lastName: '', email: '', phone: '' }); }}
+            onAdd={() => { setAddContactOpen(true); setAddContactTab('link'); setLinkSearch(''); setNewContactForm({ firstName: '', lastName: '', email: '', phone: '', dmu: '', functionGroup: '' }); }}
           >
             {companyContacts.length === 0 ? (
               <p className="text-xs text-muted-foreground">Geen contactpersonen gevonden.</p>
