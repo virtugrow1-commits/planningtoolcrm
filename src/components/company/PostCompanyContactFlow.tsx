@@ -59,6 +59,7 @@ export default function PostCompanyContactFlow({ company, onClose }: Props) {
     if (company) {
       setStep('ask');
       setForm(emptyForm);
+      setSelectedContactId('');
       transitioningRef.current = false;
     }
   }, [company?.id]);
