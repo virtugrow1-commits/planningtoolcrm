@@ -14,6 +14,7 @@ import { capitalizeWords } from '@/lib/utils';
 import { Inquiry, ROOMS, Contact } from '@/types/crm';
 import { Company } from '@/contexts/CompaniesContext';
 import { Plus, Building2, User } from 'lucide-react';
+import { DMU_OPTIONS, FUNCTION_GROUP_OPTIONS } from '@/lib/contactOptions';
 
 const PIPELINE_COLUMNS: { key: Inquiry['status']; label: string }[] = [
   { key: 'new', label: 'Nieuwe Aanvraag' },
@@ -51,10 +52,12 @@ interface NewContactForm {
   lastName: string;
   email: string;
   phone: string;
+  dmu: string;
+  functionGroup: string;
 }
 
 const emptyCompanyForm: NewCompanyForm = { name: '', email: '', phone: '', address: '' };
-const emptyContactForm: NewContactForm = { firstName: '', lastName: '', email: '', phone: '' };
+const emptyContactForm: NewContactForm = { firstName: '', lastName: '', email: '', phone: '', dmu: '', functionGroup: '' };
 
 export default function NewInquiryDialog({ open, onOpenChange, contacts, companies, onInquiryAdded }: NewInquiryDialogProps) {
   const { toast } = useToast();
@@ -219,6 +222,8 @@ export default function NewInquiryDialog({ open, onOpenChange, contacts, compani
             phone: contactForm.phone || null,
             company_id: companyId || null,
             status: 'lead',
+            dmu: contactForm.dmu || null,
+            function_group: contactForm.functionGroup || null,
           } as any).select().single();
 
           if (cErr) {
@@ -416,6 +421,20 @@ export default function NewInquiryDialog({ open, onOpenChange, contacts, compani
                       onChange={(e) => setContactForm({ ...contactForm, phone: e.target.value })}
                       className="text-sm h-8"
                     />
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <Select value={contactForm.dmu} onValueChange={(v) => setContactForm({ ...contactForm, dmu: v })}>
+                      <SelectTrigger className="text-sm h-8"><SelectValue placeholder="DMU" /></SelectTrigger>
+                      <SelectContent>
+                        {DMU_OPTIONS.map((o) => <SelectItem key={o} value={o}>{o}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                    <Select value={contactForm.functionGroup} onValueChange={(v) => setContactForm({ ...contactForm, functionGroup: v })}>
+                      <SelectTrigger className="text-sm h-8"><SelectValue placeholder="Functiegroep" /></SelectTrigger>
+                      <SelectContent>
+                        {FUNCTION_GROUP_OPTIONS.map((o) => <SelectItem key={o} value={o}>{o}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
                   </div>
                 </div>
               </div>

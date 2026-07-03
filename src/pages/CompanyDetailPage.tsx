@@ -7,6 +7,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { DMU_OPTIONS, FUNCTION_GROUP_OPTIONS } from '@/lib/contactOptions';
 import { useCompaniesContext, Company } from '@/contexts/CompaniesContext';
 import { useContactsContext } from '@/contexts/ContactsContext';
 import { useBookings } from '@/contexts/BookingsContext';
@@ -64,7 +66,7 @@ export default function CompanyDetailPage() {
   const [addContactOpen, setAddContactOpen] = useState(false);
   const [addContactTab, setAddContactTab] = useState<string>('link');
   const [linkSearch, setLinkSearch] = useState('');
-  const [newContactForm, setNewContactForm] = useState({ firstName: '', lastName: '', email: '', phone: '' });
+  const [newContactForm, setNewContactForm] = useState({ firstName: '', lastName: '', email: '', phone: '', dmu: '', functionGroup: '' });
 
   const company = companies.find((c) => c.id === id);
 
@@ -184,10 +186,12 @@ export default function CompanyDetailPage() {
       company: company.name,
       companyId: company.id,
       status: 'lead',
+      dmu: newContactForm.dmu || undefined,
+      functionGroup: newContactForm.functionGroup || undefined,
     });
     toast({ title: `${newContactForm.firstName} ${newContactForm.lastName} aangemaakt en gekoppeld` });
     setAddContactOpen(false);
-    setNewContactForm({ firstName: '', lastName: '', email: '', phone: '' });
+    setNewContactForm({ firstName: '', lastName: '', email: '', phone: '', dmu: '', functionGroup: '' });
   };
 
   return (
@@ -380,20 +384,29 @@ export default function CompanyDetailPage() {
           <SectionCard
             title="Contactpersonen"
             count={companyContacts.length}
-            onAdd={() => { setAddContactOpen(true); setAddContactTab('link'); setLinkSearch(''); setNewContactForm({ firstName: '', lastName: '', email: '', phone: '' }); }}
+            onAdd={() => { setAddContactOpen(true); setAddContactTab('link'); setLinkSearch(''); setNewContactForm({ firstName: '', lastName: '', email: '', phone: '', dmu: '', functionGroup: '' }); }}
           >
             {companyContacts.length === 0 ? (
               <p className="text-xs text-muted-foreground">Geen contactpersonen gevonden.</p>
             ) : (
               <div className="space-y-1">
                 {visibleContacts.map((c) => (
-                  <div key={c.id} className="flex items-center justify-between py-1.5 px-2 rounded-md hover:bg-muted/50 transition-colors text-xs">
+                  <div key={c.id} className="flex items-start justify-between py-1.5 px-2 rounded-md hover:bg-muted/50 transition-colors text-xs">
                     <button onClick={() => navigate(`/crm/${c.id}`)} className="flex-1 text-left min-w-0">
-                      <span className={`font-medium ${c.departed ? 'text-muted-foreground/50' : 'text-foreground'}`}>{c.firstName} {c.lastName}</span>
-                      {c.departed && <span className="text-[10px] text-muted-foreground/50 ml-1.5">(uit dienst)</span>}
-                      {c.phone && <span className="text-muted-foreground ml-2">{c.phone}</span>}
+                      <div>
+                        <span className={`font-medium ${c.departed ? 'text-muted-foreground/50' : 'text-foreground'}`}>{c.firstName} {c.lastName}</span>
+                        {c.departed && <span className="text-[10px] text-muted-foreground/50 ml-1.5">(uit dienst)</span>}
+                        {c.phone && <span className="text-muted-foreground ml-2">{c.phone}</span>}
+                      </div>
+                      {(c.dmu || c.functionGroup || c.jobTitle) && (
+                        <div className="flex flex-wrap gap-1 mt-1">
+                          {c.jobTitle && <Badge variant="secondary" className="text-[9px] px-1 py-0 font-normal">{c.jobTitle}</Badge>}
+                          {c.functionGroup && <Badge variant="outline" className="text-[9px] px-1 py-0 font-normal" title="Functiegroep">{c.functionGroup}</Badge>}
+                          {c.dmu && <Badge variant="outline" className="text-[9px] px-1 py-0 font-normal" title="DMU">{c.dmu}</Badge>}
+                        </div>
+                      )}
                     </button>
-                    <div className="flex items-center gap-1.5 shrink-0">
+                    <div className="flex items-center gap-1.5 shrink-0 pt-0.5">
                       {c.companyId !== company?.id && <Badge variant="outline" className="text-[9px] px-1">Secundair</Badge>}
                       {c.status === 'do_not_contact' && <Badge variant="destructive" className="text-[10px]">{STATUS_LABELS[c.status]}</Badge>}
                       <button
@@ -507,6 +520,26 @@ export default function CompanyDetailPage() {
               <div className="grid gap-1.5">
                 <Label>Telefoon</Label>
                 <Input value={newContactForm.phone} onChange={(e) => setNewContactForm({ ...newContactForm, phone: e.target.value })} />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="grid gap-1.5">
+                  <Label>DMU</Label>
+                  <Select value={newContactForm.dmu} onValueChange={(v) => setNewContactForm({ ...newContactForm, dmu: v })}>
+                    <SelectTrigger><SelectValue placeholder="Kies DMU..." /></SelectTrigger>
+                    <SelectContent>
+                      {DMU_OPTIONS.map((o) => <SelectItem key={o} value={o}>{o}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="grid gap-1.5">
+                  <Label>Functiegroep</Label>
+                  <Select value={newContactForm.functionGroup} onValueChange={(v) => setNewContactForm({ ...newContactForm, functionGroup: v })}>
+                    <SelectTrigger><SelectValue placeholder="Kies functiegroep..." /></SelectTrigger>
+                    <SelectContent>
+                      {FUNCTION_GROUP_OPTIONS.map((o) => <SelectItem key={o} value={o}>{o}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
               <Button className="w-full" onClick={handleCreateContact}>Aanmaken & koppelen</Button>
             </TabsContent>
