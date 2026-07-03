@@ -213,6 +213,7 @@ export default function TasksPage() {
         status: 'open',
         priority: 'normal',
         dueDate: form.dueDate || undefined,
+        dueTime: form.dueTime || undefined,
         companyId: form.companyId || undefined,
         contactId: form.contactId || undefined,
         assignedTo: assignee,
