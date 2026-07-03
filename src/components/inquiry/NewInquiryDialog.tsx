@@ -14,6 +14,7 @@ import { capitalizeWords } from '@/lib/utils';
 import { Inquiry, ROOMS, Contact } from '@/types/crm';
 import { Company } from '@/contexts/CompaniesContext';
 import { Plus, Building2, User } from 'lucide-react';
+import { DMU_OPTIONS, FUNCTION_GROUP_OPTIONS } from '@/lib/contactOptions';
 
 const PIPELINE_COLUMNS: { key: Inquiry['status']; label: string }[] = [
   { key: 'new', label: 'Nieuwe Aanvraag' },
