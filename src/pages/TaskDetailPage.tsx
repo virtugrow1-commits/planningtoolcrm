@@ -42,6 +42,7 @@ export default function TaskDetailPage() {
   const [editing, setEditing] = useState(false);
   const [form, setForm] = useState<Task | null>(null);
   const [editDueDate, setEditDueDate] = useState<Date | undefined>();
+  const [editDueTime, setEditDueTime] = useState<string>('');
   const [editAssignedTo, setEditAssignedTo] = useState<string[]>([]);
 
   // Follow-up dialog
@@ -90,6 +91,7 @@ export default function TaskDetailPage() {
   const startEdit = () => {
     setForm({ ...task });
     setEditDueDate(task.dueDate ? new Date(task.dueDate) : undefined);
+    setEditDueTime(task.dueTime || '');
     setEditAssignedTo(task.assignedTo ? [task.assignedTo] : []);
     setEditing(true);
   };
@@ -103,8 +105,9 @@ export default function TaskDetailPage() {
     const dueDate = editDueDate
       ? `${editDueDate.getFullYear()}-${String(editDueDate.getMonth() + 1).padStart(2, '0')}-${String(editDueDate.getDate()).padStart(2, '0')}`
       : undefined;
+    const dueTime = editDueTime || undefined;
     const [first, ...rest] = editAssignedTo;
-    await updateTask({ ...form, dueDate, assignedTo: first });
+    await updateTask({ ...form, dueDate, dueTime, assignedTo: first });
     for (const assignee of rest) {
       await addTask({
         title: form.title,
@@ -112,6 +115,7 @@ export default function TaskDetailPage() {
         status: form.status,
         priority: form.priority,
         dueDate,
+        dueTime,
         assignedTo: assignee,
         contactId: form.contactId,
         companyId: form.companyId,
@@ -241,17 +245,20 @@ export default function TaskDetailPage() {
                 </div>
                 <div>
                   <p className="text-xs font-semibold text-muted-foreground mb-1">Datum</p>
-                  <Popover>
-                    <PopoverTrigger asChild>
-                      <Button variant="outline" size="sm" className={cn('w-full h-8 text-sm justify-start', !editDueDate && 'text-muted-foreground')}>
-                        <CalendarIcon size={14} className="mr-2" />
-                        {editDueDate ? format(editDueDate, 'd MMM yyyy', { locale: nl }) : 'Geen datum'}
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0" align="start">
-                      <Calendar mode="single" selected={editDueDate} onSelect={setEditDueDate} initialFocus className="p-3 pointer-events-auto" />
-                    </PopoverContent>
-                  </Popover>
+                  <div className="flex gap-2">
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button variant="outline" size="sm" className={cn('flex-1 h-8 text-sm justify-start', !editDueDate && 'text-muted-foreground')}>
+                          <CalendarIcon size={14} className="mr-2" />
+                          {editDueDate ? format(editDueDate, 'd MMM yyyy', { locale: nl }) : 'Geen datum'}
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0" align="start">
+                        <Calendar mode="single" selected={editDueDate} onSelect={setEditDueDate} initialFocus className="p-3 pointer-events-auto" />
+                      </PopoverContent>
+                    </Popover>
+                    <Input type="time" value={editDueTime} onChange={e => setEditDueTime(e.target.value)} className="w-28 h-8 text-sm" />
+                  </div>
                 </div>
                 <div>
                   <p className="text-xs font-semibold text-muted-foreground mb-1">Verantwoordelijke(n) *</p>
@@ -297,7 +304,7 @@ export default function TaskDetailPage() {
                   </div>
                 )}
                 <InfoRow icon={<CalendarIcon size={14} />} label="Datum" value={task.dueDate ? (
-                  <span className={cn(isOverdue && 'text-destructive font-medium')}>{formatDate(task.dueDate)}</span>
+                  <span className={cn(isOverdue && 'text-destructive font-medium')}>{formatDate(task.dueDate)}{task.dueTime ? ` · ${task.dueTime}` : ''}</span>
                 ) as any : '—'} />
                 {task.assignedTo && <InfoRow icon={<User size={14} />} label="Verantwoordelijke" value={task.assignedTo} />}
                 <p className="text-xs text-muted-foreground pt-2">Aangemaakt: {formatDate(task.createdAt)}</p>

@@ -5,6 +5,7 @@ export interface Task {
   status: 'open' | 'completed';
   priority: 'low' | 'normal' | 'high' | 'urgent';
   dueDate?: string;
+  dueTime?: string;
   assignedTo?: string;
   companyId?: string;
   contactId?: string;

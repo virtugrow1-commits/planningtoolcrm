@@ -83,7 +83,7 @@ export default function Dashboard() {
   const [editTask, setEditTask] = useState<Task | null>(null);
   const [form, setForm] = useState({
     title: '', description: '', status: 'open' as Task['status'], priority: 'normal' as Task['priority'],
-    dueDate: '', companyId: '', contactId: '', assignedTo: [] as string[],
+    dueDate: '', dueTime: '', companyId: '', contactId: '', assignedTo: [] as string[],
   });
   const [filter, setFilter] = useState<'all' | 'open' | 'completed'>('all');
   const [visibleCount, setVisibleCount] = useState(10);
@@ -195,7 +195,12 @@ export default function Dashboard() {
       if (!a.dueDate && !b.dueDate) return 0;
       if (!a.dueDate) return 1;
       if (!b.dueDate) return -1;
-      return a.dueDate.localeCompare(b.dueDate);
+      const dateCmp = a.dueDate.localeCompare(b.dueDate);
+      if (dateCmp !== 0) return dateCmp;
+      if (!a.dueTime && !b.dueTime) return 0;
+      if (!a.dueTime) return 1;
+      if (!b.dueTime) return -1;
+      return a.dueTime.localeCompare(b.dueTime);
     });
     return result;
   }, [tasks, filter, resolvedUserFilter]);
@@ -217,7 +222,7 @@ export default function Dashboard() {
   };
 
   const resetForm = () => {
-    setForm({ title: '', description: '', status: 'open', priority: 'normal', dueDate: '', companyId: '', contactId: '', assignedTo: [] });
+    setForm({ title: '', description: '', status: 'open', priority: 'normal', dueDate: '', dueTime: '', companyId: '', contactId: '', assignedTo: [] });
   };
 
   const openNew = () => { resetForm(); setEditTask(null); setNewOpen(true); };
@@ -231,7 +236,7 @@ export default function Dashboard() {
     if (editTask) {
       await updateTask({
         ...editTask, title: form.title, description: form.description || undefined,
-        status: form.status, priority: form.priority, dueDate: form.dueDate || undefined,
+        status: form.status, priority: form.priority, dueDate: form.dueDate || undefined, dueTime: form.dueTime || undefined,
         companyId: form.companyId || undefined, contactId: form.contactId || undefined,
       });
       toast({ title: t('tasks.taskUpdated') });
@@ -240,7 +245,7 @@ export default function Dashboard() {
       for (const assignee of assignees) {
         await addTask({
           title: form.title, description: form.description || undefined,
-          status: form.status, priority: form.priority, dueDate: form.dueDate || undefined,
+          status: form.status, priority: form.priority, dueDate: form.dueDate || undefined, dueTime: form.dueTime || undefined,
           companyId: form.companyId || undefined, contactId: form.contactId || undefined,
           assignedTo: assignee,
         });
@@ -564,7 +569,7 @@ export default function Dashboard() {
                     </Link>
                   )}
                   {task.dueDate && (
-                    <span className={task.dueDate < today ? 'text-destructive font-medium' : ''}>📅 {formatDate(task.dueDate)}</span>
+                    <span className={task.dueDate < today ? 'text-destructive font-medium' : ''}>📅 {formatDate(task.dueDate)}{task.dueTime ? ` ⏰ ${task.dueTime}` : ''}</span>
                   )}
                   {task.assignedTo && <span className="truncate max-w-[120px]">👤 {task.assignedTo}</span>}
                 </div>
@@ -749,7 +754,10 @@ export default function Dashboard() {
             <div className="grid grid-cols-2 gap-3">
               <div className="grid gap-1.5">
                 <Label>{t('tasks.dueDate')}</Label>
-                <Input type="date" value={form.dueDate} onChange={(e) => setForm({ ...form, dueDate: e.target.value })} />
+                <div className="flex gap-2">
+                  <Input type="date" value={form.dueDate} onChange={(e) => setForm({ ...form, dueDate: e.target.value })} className="flex-1" />
+                  <Input type="time" value={form.dueTime} onChange={(e) => setForm({ ...form, dueTime: e.target.value })} className="w-28" />
+                </div>
               </div>
               <div className="grid gap-1.5">
                 <Label>{t('tasks.assignedTo')}{!editTask && ' *'}</Label>

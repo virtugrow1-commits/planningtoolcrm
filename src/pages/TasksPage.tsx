@@ -84,6 +84,7 @@ export default function TasksPage() {
     status: 'open' as Task['status'],
     priority: 'normal' as Task['priority'],
     dueDate: '',
+    dueTime: '',
     companyId: '',
     contactId: '',
     assignedTo: [] as string[],
@@ -168,7 +169,12 @@ export default function TasksPage() {
           if (!a.dueDate && !b.dueDate) return 0;
           if (!a.dueDate) return 1;
           if (!b.dueDate) return -1;
-          return a.dueDate.localeCompare(b.dueDate);
+          const dateCmp = a.dueDate.localeCompare(b.dueDate);
+          if (dateCmp !== 0) return dateCmp;
+          if (!a.dueTime && !b.dueTime) return 0;
+          if (!a.dueTime) return 1;
+          if (!b.dueTime) return -1;
+          return a.dueTime.localeCompare(b.dueTime);
       }
     });
     return result;
@@ -194,7 +200,7 @@ export default function TasksPage() {
   };
 
   const resetForm = () =>
-    setForm({ title: '', description: '', status: 'open', priority: 'normal', dueDate: '', companyId: '', contactId: '', assignedTo: [] });
+    setForm({ title: '', description: '', status: 'open', priority: 'normal', dueDate: '', dueTime: '', companyId: '', contactId: '', assignedTo: [] });
 
   const handleSave = async () => {
     if (!form.title.trim()) {
@@ -212,6 +218,7 @@ export default function TasksPage() {
         status: 'open',
         priority: 'normal',
         dueDate: form.dueDate || undefined,
+        dueTime: form.dueTime || undefined,
         companyId: form.companyId || undefined,
         contactId: form.contactId || undefined,
         assignedTo: assignee,
@@ -488,7 +495,7 @@ export default function TasksPage() {
                       )}
                       {task.dueDate && (
                         <span className={overdue ? 'text-destructive font-medium' : ''}>
-                          📅 {formatDate(task.dueDate)}
+                          📅 {formatDate(task.dueDate)}{task.dueTime ? ` ⏰ ${task.dueTime}` : ''}
                         </span>
                       )}
                       {task.assignedTo && (
@@ -573,7 +580,10 @@ export default function TasksPage() {
             <div className="grid grid-cols-2 gap-3">
               <div className="grid gap-1.5">
                 <Label>{t('tasks.dueDate')}</Label>
-                <Input type="date" value={form.dueDate} onChange={e => setForm({ ...form, dueDate: e.target.value })} />
+                <div className="flex gap-2">
+                  <Input type="date" value={form.dueDate} onChange={e => setForm({ ...form, dueDate: e.target.value })} className="flex-1" />
+                  <Input type="time" value={form.dueTime} onChange={e => setForm({ ...form, dueTime: e.target.value })} className="w-28" placeholder="Tijd" />
+                </div>
               </div>
               <div className="grid gap-1.5">
                 <Label>{t('tasks.assignedTo')} *</Label>

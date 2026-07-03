@@ -62,7 +62,7 @@ export default function KpiDetailDialog({
                         {task.description && <span className="truncate max-w-[200px]">{task.description}</span>}
                         {task.dueDate && (
                           <span className={task.dueDate < today ? 'text-destructive font-medium' : ''}>
-                            📅 {formatDate(task.dueDate)}
+                            📅 {formatDate(task.dueDate)}{task.dueTime ? ` ⏰ ${task.dueTime}` : ''}
                           </span>
                         )}
                       </div>
