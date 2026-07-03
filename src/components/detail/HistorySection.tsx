@@ -1,3 +1,4 @@
+import { formatDate } from '@/lib/formatters';
 import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { format } from 'date-fns';
@@ -193,7 +194,7 @@ export default function HistorySection({
               >
                 <div className="min-w-0">
                   <span className="font-medium text-foreground block truncate">{inq.eventType}</span>
-                  <span className="text-muted-foreground">{inq.createdAt}</span>
+                  <span className="text-muted-foreground">{formatDate(inq.createdAt)}</span>
                 </div>
                 <Badge variant="secondary" className="text-[10px] shrink-0">{s?.label || inq.status}</Badge>
               </button>

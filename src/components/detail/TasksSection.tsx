@@ -1,3 +1,4 @@
+import { formatDate } from '@/lib/formatters';
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Task, TASK_PRIORITIES } from '@/types/task';
@@ -211,7 +212,7 @@ export default function TasksSection({ tasks, defaults }: TasksSectionProps) {
                 )}
                 {t.dueDate && (
                   <span className={cn('text-[11px] shrink-0', overdue ? 'text-destructive font-medium' : 'text-muted-foreground')}>
-                    {t.dueDate}
+                    {formatDate(t.dueDate)}
                   </span>
                 )}
               </div>

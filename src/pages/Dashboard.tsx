@@ -1,3 +1,4 @@
+import { formatDate } from '@/lib/formatters';
 import {
   InboxIcon,
   CalendarCheck,
@@ -433,7 +434,7 @@ export default function Dashboard() {
               <div className="flex items-center gap-2 text-xs text-muted-foreground flex-wrap">
                 <span className="truncate max-w-[180px]">{inq.eventType}</span>
                 {inq.guestCount > 0 && <><span>·</span><span>{inq.guestCount} gasten</span></>}
-                {inq.preferredDate && <><span>·</span><span>📅 {inq.preferredDate}</span></>}
+                {inq.preferredDate && <><span>·</span><span>📅 {formatDate(inq.preferredDate)}</span></>}
               </div>
             </div>
             <span className={cn(
@@ -563,7 +564,7 @@ export default function Dashboard() {
                     </Link>
                   )}
                   {task.dueDate && (
-                    <span className={task.dueDate < today ? 'text-destructive font-medium' : ''}>📅 {task.dueDate}</span>
+                    <span className={task.dueDate < today ? 'text-destructive font-medium' : ''}>📅 {formatDate(task.dueDate)}</span>
                   )}
                   {task.assignedTo && <span className="truncate max-w-[120px]">👤 {task.assignedTo}</span>}
                 </div>
@@ -618,7 +619,7 @@ export default function Dashboard() {
               </div>
               <div className="flex items-center gap-2 text-xs text-muted-foreground flex-wrap">
                 <span className="truncate max-w-[180px]">{q.companyName || q.contactName}</span>
-                {q.validUntil && <><span>·</span><span>geldig tot {q.validUntil}</span></>}
+                {q.validUntil && <><span>·</span><span>geldig tot {formatDate(q.validUntil)}</span></>}
               </div>
             </div>
             <span className="text-sm font-medium tabular-nums text-card-foreground shrink-0">{fmtMoney(q.total)}</span>
@@ -660,7 +661,7 @@ export default function Dashboard() {
                   <>
                     <span>·</span>
                     <span className={inv.status === 'overdue' ? 'text-destructive font-medium' : ''}>
-                      vervalt {inv.dueDate}
+                      vervalt {formatDate(inv.dueDate)}
                     </span>
                   </>
                 )}

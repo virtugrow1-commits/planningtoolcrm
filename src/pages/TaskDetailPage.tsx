@@ -1,3 +1,4 @@
+import { formatDate } from '@/lib/formatters';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useState, useMemo } from 'react';
 import { useTasksContext } from '@/contexts/TasksContext';
@@ -296,10 +297,10 @@ export default function TaskDetailPage() {
                   </div>
                 )}
                 <InfoRow icon={<CalendarIcon size={14} />} label="Datum" value={task.dueDate ? (
-                  <span className={cn(isOverdue && 'text-destructive font-medium')}>{task.dueDate}</span>
+                  <span className={cn(isOverdue && 'text-destructive font-medium')}>{formatDate(task.dueDate)}</span>
                 ) as any : '—'} />
                 {task.assignedTo && <InfoRow icon={<User size={14} />} label="Verantwoordelijke" value={task.assignedTo} />}
-                <p className="text-xs text-muted-foreground pt-2">Aangemaakt: {task.createdAt}</p>
+                <p className="text-xs text-muted-foreground pt-2">Aangemaakt: {formatDate(task.createdAt)}</p>
                 {task.completedAt && <p className="text-xs text-muted-foreground">Afgerond: {task.completedAt.split('T')[0]}</p>}
 
                 <div className="flex gap-2 pt-2">
@@ -380,7 +381,7 @@ export default function TaskDetailPage() {
                 className="w-full text-left rounded-lg border border-border/50 p-3 hover:bg-muted/30 transition-colors"
               >
                 <p className="text-sm font-medium text-foreground">{inquiry.eventType}</p>
-                <p className="text-xs text-muted-foreground">{inquiry.contactName} · {inquiry.createdAt}</p>
+                <p className="text-xs text-muted-foreground">{inquiry.contactName} · {formatDate(inquiry.createdAt)}</p>
               </button>
             </SectionCard>
           )}

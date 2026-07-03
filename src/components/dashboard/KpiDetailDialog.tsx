@@ -1,3 +1,4 @@
+import { formatDate } from '@/lib/formatters';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -61,7 +62,7 @@ export default function KpiDetailDialog({
                         {task.description && <span className="truncate max-w-[200px]">{task.description}</span>}
                         {task.dueDate && (
                           <span className={task.dueDate < today ? 'text-destructive font-medium' : ''}>
-                            📅 {task.dueDate}
+                            📅 {formatDate(task.dueDate)}
                           </span>
                         )}
                       </div>

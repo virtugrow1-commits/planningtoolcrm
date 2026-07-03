@@ -1,3 +1,4 @@
+import { formatDate } from '@/lib/formatters';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useState, useMemo } from 'react';
 import { format } from 'date-fns';
@@ -404,7 +405,7 @@ export default function BookingDetailPage() {
               {contactInquiries.slice(0, 5).map(inq => (
                 <button key={inq.id} onClick={() => navigate(`/inquiries/${inq.id}`)} className="w-full flex items-center justify-between py-1.5 px-2 rounded-md hover:bg-muted/50 transition-colors text-left text-xs">
                   <span className="font-medium text-foreground">{inq.eventType}</span>
-                  <span className="text-muted-foreground">{inq.createdAt}</span>
+                  <span className="text-muted-foreground">{formatDate(inq.createdAt)}</span>
                 </button>
               ))}
             </div>

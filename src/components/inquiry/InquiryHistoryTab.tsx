@@ -1,3 +1,4 @@
+import { formatDate } from '@/lib/formatters';
 import { useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { format } from 'date-fns';
@@ -127,7 +128,7 @@ export default function InquiryHistoryTab({ inquiry, contactBookings, companyBoo
                 >
                   <div>
                     <span className="font-medium text-foreground">{inq.eventType}</span>
-                    <span className="text-muted-foreground ml-2">{inq.createdAt}</span>
+                    <span className="text-muted-foreground ml-2">{formatDate(inq.createdAt)}</span>
                   </div>
                   <Badge variant="secondary" className={cn('text-[10px]', c?.badgeClass)}>{c?.label}</Badge>
                 </button>

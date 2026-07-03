@@ -1,3 +1,4 @@
+import { formatDate } from '@/lib/formatters';
 import { useState } from 'react';
 import { Inquiry } from '@/types/crm';
 import { Task, TASK_PRIORITIES } from '@/types/task';
@@ -110,7 +111,7 @@ export default function InquiryTasksTab({ inquiry, tasks, contactId, companyId }
                   {t.priority !== 'normal' && (
                     <Badge variant="secondary" className={cn('text-[10px]', prio?.color)}>{prio?.label}</Badge>
                   )}
-                  {t.dueDate && <span className="text-xs text-muted-foreground">{t.dueDate}</span>}
+                  {t.dueDate && <span className="text-xs text-muted-foreground">{formatDate(t.dueDate)}</span>}
                 </div>
               );
             })}
