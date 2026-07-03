@@ -1,4 +1,4 @@
-import { User, Mail, Phone, Building2, ExternalLink } from 'lucide-react';
+import { User, Mail, Phone, Building2, ExternalLink, Users, Briefcase } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useNavigate } from 'react-router-dom';
 import { useEffect, useState } from 'react';
@@ -19,6 +19,8 @@ interface ContactDetails {
   phone: string | null;
   company: string | null;
   status: string;
+  dmu: string | null;
+  function_group: string | null;
 }
 
 export default function ContactDetailsPanel({ contactId, contactName, phone, email }: Props) {
@@ -30,10 +32,10 @@ export default function ContactDetailsPanel({ contactId, contactName, phone, ema
       if (!contactId) return;
       const { data } = await supabase
         .from('contacts')
-        .select('id, first_name, last_name, email, phone, company, status')
+        .select('id, first_name, last_name, email, phone, company, status, dmu, function_group')
         .eq('ghl_contact_id', contactId)
         .maybeSingle();
-      if (data) setContact(data);
+      if (data) setContact(data as ContactDetails);
     };
     fetchContact();
   }, [contactId]);
@@ -74,6 +76,18 @@ export default function ContactDetailsPanel({ contactId, contactName, phone, ema
             <div className="flex items-center gap-2 text-xs">
               <Building2 size={13} className="text-muted-foreground shrink-0" />
               <span className="text-foreground truncate">{contact.company}</span>
+            </div>
+          )}
+          {contact?.dmu && (
+            <div className="flex items-center gap-2 text-xs">
+              <Users size={13} className="text-muted-foreground shrink-0" />
+              <span className="text-foreground truncate" title="DMU">{contact.dmu}</span>
+            </div>
+          )}
+          {contact?.function_group && (
+            <div className="flex items-center gap-2 text-xs">
+              <Briefcase size={13} className="text-muted-foreground shrink-0" />
+              <span className="text-foreground truncate" title="Functiegroep">{contact.function_group}</span>
             </div>
           )}
         </div>
