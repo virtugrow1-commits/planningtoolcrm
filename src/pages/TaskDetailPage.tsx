@@ -91,6 +91,7 @@ export default function TaskDetailPage() {
   const startEdit = () => {
     setForm({ ...task });
     setEditDueDate(task.dueDate ? new Date(task.dueDate) : undefined);
+    setEditDueTime(task.dueTime || '');
     setEditAssignedTo(task.assignedTo ? [task.assignedTo] : []);
     setEditing(true);
   };
