@@ -422,6 +422,20 @@ export default function NewInquiryDialog({ open, onOpenChange, contacts, compani
                       className="text-sm h-8"
                     />
                   </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <Select value={contactForm.dmu} onValueChange={(v) => setContactForm({ ...contactForm, dmu: v })}>
+                      <SelectTrigger className="text-sm h-8"><SelectValue placeholder="DMU" /></SelectTrigger>
+                      <SelectContent>
+                        {DMU_OPTIONS.map((o) => <SelectItem key={o} value={o}>{o}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                    <Select value={contactForm.functionGroup} onValueChange={(v) => setContactForm({ ...contactForm, functionGroup: v })}>
+                      <SelectTrigger className="text-sm h-8"><SelectValue placeholder="Functiegroep" /></SelectTrigger>
+                      <SelectContent>
+                        {FUNCTION_GROUP_OPTIONS.map((o) => <SelectItem key={o} value={o}>{o}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
                 </div>
               </div>
             )}
