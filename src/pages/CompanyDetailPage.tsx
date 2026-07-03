@@ -1,7 +1,8 @@
 import { formatDate } from '@/lib/formatters';
 import { useState, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Building2, ChevronRight, Plus, Pencil, Check, X, Search, UserPlus, Unlink } from 'lucide-react';
+import { ArrowLeft, Building2, ChevronRight, Plus, Pencil, Check, X, Search, UserPlus, Unlink, Trash2 } from 'lucide-react';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
@@ -53,7 +54,8 @@ const STATUS_LABELS: Record<string, string> = {
 export default function CompanyDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { companies, loading: companiesLoading, updateCompany } = useCompaniesContext();
+  const { companies, loading: companiesLoading, updateCompany, deleteCompany } = useCompaniesContext();
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const { contacts, loading: contactsLoading, updateContact, addContact } = useContactsContext();
   const { bookings, loading: bookingsLoading } = useBookings();
   const { inquiries } = useInquiriesContext();
@@ -235,9 +237,14 @@ export default function CompanyDetailPage() {
               </div>
               <div className="flex items-center gap-1 shrink-0">
                 {!editing ? (
-                  <Button variant="ghost" size="icon" onClick={startEdit} className="h-8 w-8">
-                    <Pencil size={14} />
-                  </Button>
+                  <>
+                    <Button variant="ghost" size="icon" onClick={startEdit} className="h-8 w-8">
+                      <Pencil size={14} />
+                    </Button>
+                    <Button variant="ghost" size="icon" onClick={() => setDeleteConfirmOpen(true)} className="h-8 w-8 text-destructive hover:text-destructive" title="Bedrijf verwijderen">
+                      <Trash2 size={14} />
+                    </Button>
+                  </>
                 ) : (
                   <>
                     <Button variant="ghost" size="icon" onClick={cancelEdit} className="h-8 w-8 text-muted-foreground">
@@ -547,6 +554,30 @@ export default function CompanyDetailPage() {
           </Tabs>
         </DialogContent>
       </Dialog>
+
+      <AlertDialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Bedrijf verwijderen?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Weet je zeker dat je <strong>{company.name}</strong> wilt verwijderen? Gekoppelde contacten blijven bestaan maar worden losgekoppeld. Deze actie kan niet ongedaan worden gemaakt.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annuleren</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={async () => {
+                await deleteCompany(company.id);
+                toast({ title: `${company.name} verwijderd` });
+                navigate('/companies');
+              }}
+            >
+              Verwijderen
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
