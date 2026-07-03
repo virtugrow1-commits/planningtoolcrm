@@ -172,9 +172,24 @@ export default function NewReservationDialog({
     setLastOpen(open);
   }, [open]);
 
-  const filteredContacts = useMemo(() =>
-    (form.companyId ? contacts.filter(c => c.companyId === form.companyId) : contacts).filter(c => !c.departed),
-    [contacts, form.companyId]
+  const selectedCompany = form.companyId ? companies.find(co => co.id === form.companyId) : null;
+
+  const junctionContactIds = useMemo(
+    () => new Set(form.companyId ? getCompanyContacts(form.companyId).map(l => l.contactId) : []),
+    [form.companyId, getCompanyContacts]
+  );
+
+  const contactMatchesCompany = (c: ContactOption) => {
+    if (!form.companyId) return true;
+    if (c.companyId === form.companyId) return true;
+    if (junctionContactIds.has(c.id)) return true;
+    if (selectedCompany && c.company && c.company.trim().toLowerCase() === selectedCompany.name.trim().toLowerCase()) return true;
+    return false;
+  };
+
+  const filteredContacts = useMemo(
+    () => contacts.filter(c => !c.departed && contactMatchesCompany(c)),
+    [contacts, form.companyId, junctionContactIds, selectedCompany?.name]
   );
 
   const contactOptions = useMemo<ComboboxOption[]>(() =>
@@ -187,17 +202,16 @@ export default function NewReservationDialog({
     [filteredContacts]
   );
 
-  const selectedCompany = form.companyId ? companies.find(co => co.id === form.companyId) : null;
-
   // Auto-reset contact when company changes and current contact doesn't belong
   useEffect(() => {
     if (!form.companyId || !form.contactId) return;
     const selected = contacts.find(c => c.id === form.contactId);
-    if (selected && selected.companyId && selected.companyId !== form.companyId) {
+    if (selected && !contactMatchesCompany(selected)) {
       setForm((prev) => ({ ...prev, contactId: '', contactName: '' }));
       toast({ title: 'Contact gewist', description: 'Contact hoort niet bij het gekozen bedrijf.' });
     }
-  }, [form.companyId]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [form.companyId, junctionContactIds]);
 
   const companyOptions = useMemo<ComboboxOption[]>(() =>
     companies.map(co => ({
