@@ -1,3 +1,4 @@
+import { formatDate } from '@/lib/formatters';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useContactsContext } from '@/contexts/ContactsContext';
 import { useInquiriesContext } from '@/contexts/InquiriesContext';

@@ -1,3 +1,4 @@
+import { formatDate } from '@/lib/formatters';
 import {
   InboxIcon,
   CalendarCheck,

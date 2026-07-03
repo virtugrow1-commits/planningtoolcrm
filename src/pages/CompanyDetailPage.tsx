@@ -1,3 +1,4 @@
+import { formatDate } from '@/lib/formatters';
 import { useState, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Building2, ChevronRight, Plus, Pencil, Check, X, Search, UserPlus, Unlink } from 'lucide-react';
