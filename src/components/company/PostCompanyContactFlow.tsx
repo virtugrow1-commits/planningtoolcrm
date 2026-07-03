@@ -105,6 +105,35 @@ export default function PostCompanyContactFlow({ company, onClose }: Props) {
     goToStep('another');
   };
 
+  const contactOptions = useMemo(
+    () => contacts.map((c) => ({
+      id: c.id,
+      label: `${c.firstName || ''} ${c.lastName || ''}`.trim() || c.email || '(geen naam)',
+      secondary: c.company || c.email || undefined,
+      tertiary: c.email && c.company ? c.email : undefined,
+    })),
+    [contacts]
+  );
+
+  const selectedContact = useMemo(
+    () => contacts.find((c) => c.id === selectedContactId),
+    [contacts, selectedContactId]
+  );
+
+  const handleLinkContact = async () => {
+    if (!selectedContact) return;
+    setSaving(true);
+    await updateContact({
+      ...selectedContact,
+      company: company.name,
+      companyId: company.id,
+    });
+    setSaving(false);
+    toast({ title: `${selectedContact.firstName} ${selectedContact.lastName} gekoppeld aan ${company.name}` });
+    setSelectedContactId('');
+    goToStep('another');
+  };
+
   const finish = (goToCompany: boolean) => {
     onClose();
     if (goToCompany) navigate(`/companies/${company.id}`);
