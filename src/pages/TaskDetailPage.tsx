@@ -105,8 +105,9 @@ export default function TaskDetailPage() {
     const dueDate = editDueDate
       ? `${editDueDate.getFullYear()}-${String(editDueDate.getMonth() + 1).padStart(2, '0')}-${String(editDueDate.getDate()).padStart(2, '0')}`
       : undefined;
+    const dueTime = editDueTime || undefined;
     const [first, ...rest] = editAssignedTo;
-    await updateTask({ ...form, dueDate, assignedTo: first });
+    await updateTask({ ...form, dueDate, dueTime, assignedTo: first });
     for (const assignee of rest) {
       await addTask({
         title: form.title,
