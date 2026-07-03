@@ -215,6 +215,7 @@ export default function InquiryDetailPage() {
         onCreateOption={() => { setReservationStatus('option'); setShowReservationDialog(true); }}
         onStatusChange={() => setShowStatusDialog(true)}
         refetch={refetch}
+        existingOption={existingOption}
       />
 
       {/* Historie */}
