@@ -42,6 +42,7 @@ export default function TaskDetailPage() {
   const [editing, setEditing] = useState(false);
   const [form, setForm] = useState<Task | null>(null);
   const [editDueDate, setEditDueDate] = useState<Date | undefined>();
+  const [editDueTime, setEditDueTime] = useState<string>('');
   const [editAssignedTo, setEditAssignedTo] = useState<string[]>([]);
 
   // Follow-up dialog
