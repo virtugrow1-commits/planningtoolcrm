@@ -554,6 +554,31 @@ export default function CompanyDetailPage() {
           </Tabs>
         </DialogContent>
       </Dialog>
+
+      <AlertDialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Bedrijf verwijderen?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Weet je zeker dat je <strong>{company.name}</strong> wilt verwijderen? Gekoppelde contacten blijven bestaan maar worden losgekoppeld. Deze actie kan niet ongedaan worden gemaakt.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annuleren</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={async () => {
+                await deleteCompany(company.id);
+                toast({ title: `${company.name} verwijderd` });
+                navigate('/companies');
+              }}
+            >
+              Verwijderen
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
+}
 }
