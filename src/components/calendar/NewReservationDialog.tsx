@@ -15,6 +15,7 @@ import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { pushToGHL } from '@/lib/ghlSync';
 import { capitalizeWords } from '@/lib/utils';
+import { useContactCompanies } from '@/hooks/useContactCompanies';
 
 export interface NewReservationForm {
   contactId: string;
