@@ -58,6 +58,7 @@ export function TasksProvider({ children }: { children: ReactNode }) {
         status: t.status as Task['status'],
         priority: t.priority as Task['priority'],
         dueDate: t.due_date || undefined,
+        dueTime: t.due_time ? String(t.due_time).slice(0, 5) : undefined,
         assignedTo: t.assigned_to || undefined,
         companyId: t.company_id || undefined,
         contactId: t.contact_id || undefined,
