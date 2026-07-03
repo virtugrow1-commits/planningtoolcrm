@@ -52,10 +52,12 @@ interface NewContactForm {
   lastName: string;
   email: string;
   phone: string;
+  dmu: string;
+  functionGroup: string;
 }
 
 const emptyCompanyForm: NewCompanyForm = { name: '', email: '', phone: '', address: '' };
-const emptyContactForm: NewContactForm = { firstName: '', lastName: '', email: '', phone: '' };
+const emptyContactForm: NewContactForm = { firstName: '', lastName: '', email: '', phone: '', dmu: '', functionGroup: '' };
 
 export default function NewInquiryDialog({ open, onOpenChange, contacts, companies, onInquiryAdded }: NewInquiryDialogProps) {
   const { toast } = useToast();
