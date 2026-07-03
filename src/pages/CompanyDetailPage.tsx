@@ -273,7 +273,7 @@ export default function CompanyDetailPage() {
               </div>
             </div>
 
-            <p className="text-xs text-muted-foreground pt-1">Aangemaakt: {company.createdAt}</p>
+            <p className="text-xs text-muted-foreground pt-1">Aangemaakt: {formatDate(company.createdAt)}</p>
           </div>
         </div>
 
@@ -299,7 +299,7 @@ export default function CompanyDetailPage() {
                       </div>
                     </div>
                     <div className="flex flex-wrap gap-x-4 gap-y-0.5 text-[11px] text-muted-foreground">
-                      <span>{inq.createdAt}</span>
+                      <span>{formatDate(inq.createdAt)}</span>
                       <span>{inq.contactName}</span>
                       {inq.guestCount > 0 && <span>{inq.guestCount} gasten</span>}
                       {inq.roomPreference && <span>{inq.roomPreference}</span>}

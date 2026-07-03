@@ -488,7 +488,7 @@ export default function TasksPage() {
                       )}
                       {task.dueDate && (
                         <span className={overdue ? 'text-destructive font-medium' : ''}>
-                          📅 {task.dueDate}
+                          📅 {formatDate(task.dueDate)}
                         </span>
                       )}
                       {task.assignedTo && (

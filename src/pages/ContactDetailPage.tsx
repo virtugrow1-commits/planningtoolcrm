@@ -326,7 +326,7 @@ export default function ContactDetailPage() {
               )}
             </div>
 
-            <p className="text-xs text-muted-foreground pt-2">Aangemaakt: {current.createdAt}</p>
+            <p className="text-xs text-muted-foreground pt-2">Aangemaakt: {formatDate(current.createdAt)}</p>
 
             {editing && (
               <Button variant="destructive" size="sm" className="w-full mt-2" onClick={() => setDeleteConfirmOpen(true)}>
@@ -363,7 +363,7 @@ export default function ContactDetailPage() {
                       </div>
                     </div>
                     <div className="flex flex-wrap gap-x-4 gap-y-0.5 text-[11px] text-muted-foreground">
-                      <span>{inq.createdAt}</span>
+                      <span>{formatDate(inq.createdAt)}</span>
                       {inq.guestCount > 0 && <span>{inq.guestCount} gasten</span>}
                       {inq.roomPreference && <span>{inq.roomPreference}</span>}
                       {inq.source && inq.source !== 'Handmatig' && inq.source !== 'CRM' && (

@@ -212,7 +212,7 @@ export default function TasksSection({ tasks, defaults }: TasksSectionProps) {
                 )}
                 {t.dueDate && (
                   <span className={cn('text-[11px] shrink-0', overdue ? 'text-destructive font-medium' : 'text-muted-foreground')}>
-                    {t.dueDate}
+                    {formatDate(t.dueDate)}
                   </span>
                 )}
               </div>

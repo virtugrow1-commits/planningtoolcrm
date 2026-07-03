@@ -684,7 +684,7 @@ export default function InquiriesPage() {
                       <div className="flex gap-2"><span className="text-muted-foreground w-[100px] shrink-0">Bron:</span><span className="text-card-foreground truncate">{inq.source === 'GHL' ? 'VirtuGrow' : inq.source}</span></div>
                       {inq.guestCount > 0 && <div className="flex gap-2"><span className="text-muted-foreground w-[100px] shrink-0">Personen:</span><span className="text-card-foreground">{inq.guestCount}</span></div>}
                       {inq.roomPreference && <div className="flex gap-2"><span className="text-muted-foreground w-[100px] shrink-0">Ruimte:</span><span className="text-card-foreground truncate">{inq.roomPreference}</span></div>}
-                      {inq.preferredDate && <div className="flex gap-2"><span className="text-muted-foreground w-[100px] shrink-0">Datum:</span><span className="text-card-foreground">{inq.preferredDate}</span></div>}
+                      {inq.preferredDate && <div className="flex gap-2"><span className="text-muted-foreground w-[100px] shrink-0">Datum:</span><span className="text-card-foreground">{formatDate(inq.preferredDate)}</span></div>}
                       {(inq.budget ?? 0) > 0 && <div className="flex gap-2"><span className="text-muted-foreground w-[100px] shrink-0">Waarde:</span><span className="text-card-foreground font-medium">€{inq.budget!.toLocaleString('nl-NL', { minimumFractionDigits: 2 })}</span></div>}
                       
                       {relatedBookings.length > 0 && (() => {
@@ -846,7 +846,7 @@ export default function InquiriesPage() {
                       return <span className="text-muted-foreground">—</span>;
                     })()}
                   </td>
-                  <td className="px-4 py-2.5 text-muted-foreground hidden md:table-cell">{inq.preferredDate || '—'}</td>
+                  <td className="px-4 py-2.5 text-muted-foreground hidden md:table-cell">{formatDate(inq.preferredDate)}</td>
                   <td className="px-4 py-2.5 text-muted-foreground hidden md:table-cell">{inq.guestCount}</td>
                   <td className="px-4 py-2.5 text-muted-foreground hidden lg:table-cell">{inq.budget ? `€${inq.budget.toLocaleString('nl-NL')}` : '—'}</td>
                   <td className="px-4 py-2.5">
@@ -962,7 +962,7 @@ export default function InquiriesPage() {
                             <p className="text-sm font-medium text-foreground truncate">{inq.eventType}</p>
                             <p className="text-xs text-muted-foreground">
                               {inq.contactName}
-                              {inq.preferredDate && <span> · {inq.preferredDate}</span>}
+                              {inq.preferredDate && <span> · {formatDate(inq.preferredDate)}</span>}
                               {inq.guestCount > 0 && <span> · {inq.guestCount} gasten</span>}
                             </p>
                           </div>
@@ -974,7 +974,7 @@ export default function InquiriesPage() {
                           <span className={cn("inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold", col?.badgeClass)}>
                             {col?.label || inq.status}
                           </span>
-                          <span className="text-xs text-muted-foreground hidden sm:block">{inq.createdAt}</span>
+                          <span className="text-xs text-muted-foreground hidden sm:block">{formatDate(inq.createdAt)}</span>
                           <button
                             onClick={() => {
                               updateInquiry({ ...inq, status: 'new' });
@@ -1228,12 +1228,12 @@ export default function InquiriesPage() {
                   <div className="grid grid-cols-2 gap-x-6 gap-y-2 text-sm">
                     <div className="flex justify-between"><span className="text-muted-foreground">Type:</span><span className="font-medium text-foreground">{editInquiry.eventType}</span></div>
                     <div className="flex justify-between"><span className="text-muted-foreground">Status:</span><span className="font-medium text-foreground">{col?.label}</span></div>
-                    <div className="flex justify-between"><span className="text-muted-foreground">Voorkeursdatum:</span><span className="font-medium text-foreground">{editInquiry.preferredDate || '—'}</span></div>
+                    <div className="flex justify-between"><span className="text-muted-foreground">Voorkeursdatum:</span><span className="font-medium text-foreground">{formatDate(editInquiry.preferredDate)}</span></div>
                     <div className="flex justify-between"><span className="text-muted-foreground">Aantal gasten:</span><span className="font-medium text-foreground">{editInquiry.guestCount}</span></div>
                     <div className="flex justify-between"><span className="text-muted-foreground">Ruimte:</span><span className="font-medium text-foreground">{editInquiry.roomPreference || '—'}</span></div>
                     <div className="flex justify-between"><span className="text-muted-foreground">Budget:</span><span className="font-medium text-foreground">{editInquiry.budget ? `€${editInquiry.budget.toLocaleString('nl-NL', { minimumFractionDigits: 2 })}` : '—'}</span></div>
                     <div className="flex justify-between"><span className="text-muted-foreground">Bron:</span><span className="font-medium text-foreground">{editInquiry.source === 'GHL' ? 'VirtuGrow' : editInquiry.source}</span></div>
-                    <div className="flex justify-between"><span className="text-muted-foreground">Aangemaakt:</span><span className="font-medium text-foreground">{editInquiry.createdAt}</span></div>
+                    <div className="flex justify-between"><span className="text-muted-foreground">Aangemaakt:</span><span className="font-medium text-foreground">{formatDate(editInquiry.createdAt)}</span></div>
                   </div>
                 </div>
 
