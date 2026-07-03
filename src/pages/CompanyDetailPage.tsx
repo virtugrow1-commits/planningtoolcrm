@@ -237,9 +237,14 @@ export default function CompanyDetailPage() {
               </div>
               <div className="flex items-center gap-1 shrink-0">
                 {!editing ? (
-                  <Button variant="ghost" size="icon" onClick={startEdit} className="h-8 w-8">
-                    <Pencil size={14} />
-                  </Button>
+                  <>
+                    <Button variant="ghost" size="icon" onClick={startEdit} className="h-8 w-8">
+                      <Pencil size={14} />
+                    </Button>
+                    <Button variant="ghost" size="icon" onClick={() => setDeleteConfirmOpen(true)} className="h-8 w-8 text-destructive hover:text-destructive" title="Bedrijf verwijderen">
+                      <Trash2 size={14} />
+                    </Button>
+                  </>
                 ) : (
                   <>
                     <Button variant="ghost" size="icon" onClick={cancelEdit} className="h-8 w-8 text-muted-foreground">
