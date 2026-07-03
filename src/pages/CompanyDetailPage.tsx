@@ -521,6 +521,26 @@ export default function CompanyDetailPage() {
                 <Label>Telefoon</Label>
                 <Input value={newContactForm.phone} onChange={(e) => setNewContactForm({ ...newContactForm, phone: e.target.value })} />
               </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="grid gap-1.5">
+                  <Label>DMU</Label>
+                  <Select value={newContactForm.dmu} onValueChange={(v) => setNewContactForm({ ...newContactForm, dmu: v })}>
+                    <SelectTrigger><SelectValue placeholder="Kies DMU..." /></SelectTrigger>
+                    <SelectContent>
+                      {DMU_OPTIONS.map((o) => <SelectItem key={o} value={o}>{o}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="grid gap-1.5">
+                  <Label>Functiegroep</Label>
+                  <Select value={newContactForm.functionGroup} onValueChange={(v) => setNewContactForm({ ...newContactForm, functionGroup: v })}>
+                    <SelectTrigger><SelectValue placeholder="Kies functiegroep..." /></SelectTrigger>
+                    <SelectContent>
+                      {FUNCTION_GROUP_OPTIONS.map((o) => <SelectItem key={o} value={o}>{o}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
               <Button className="w-full" onClick={handleCreateContact}>Aanmaken & koppelen</Button>
             </TabsContent>
           </Tabs>
