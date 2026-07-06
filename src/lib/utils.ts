@@ -13,16 +13,20 @@ const DUTCH_TUSSENVOEGSELS = new Set([
   'von', 'zu', 'af', 'al', 'el', 'y',
 ]);
 
-/** Capitalize first letter of each word, keeping Dutch tussenvoegsels lowercase */
+/**
+ * Normalize a name/string:
+ *  - Preserves the user's own capitalization (does NOT force Title Case).
+ *  - Always lowercases Dutch tussenvoegsels ("van", "de", "der", ...) wherever
+ *    they appear, so "Van Der Berg" becomes "van der Berg".
+ */
 export function capitalizeWords(str: string): string {
   if (!str) return str;
   return str
-    .split(/(\s+)/) // preserve whitespace between words
-    .map((word, idx) => {
+    .split(/(\s+)/)
+    .map((word) => {
       if (!word || /^\s+$/.test(word)) return word;
-      const lower = word.toLowerCase();
-      if (idx > 0 && DUTCH_TUSSENVOEGSELS.has(lower)) return lower;
-      return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
+      if (DUTCH_TUSSENVOEGSELS.has(word.toLowerCase())) return word.toLowerCase();
+      return word;
     })
     .join('');
 }
