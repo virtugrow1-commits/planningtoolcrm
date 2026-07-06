@@ -5,10 +5,10 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
-/** Dutch tussenvoegsels — should stay lowercase unless they're the first word */
+/** Dutch tussenvoegsels — should always stay lowercase */
 const DUTCH_TUSSENVOEGSELS = new Set([
   'van', 'de', 'den', 'der', 'des', 'ten', 'ter', 'te', 'het',
-  'op', 'in', 'aan', 'bij', 'onder', 'over', 'uit', 'voor', 'tot',
+  'op', 'in', 'aan', 'bij', 'onder', 'over', 'uit', 'voor', 'tot', 'en',
   "'t", "'s", 'la', 'le', 'du', 'da', 'do', 'dos', 'das', 'di', 'del', 'della',
   'von', 'zu', 'af', 'al', 'el', 'y',
 ]);

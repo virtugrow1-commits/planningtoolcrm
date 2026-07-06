@@ -1,25 +1,35 @@
-## Probleem
+## Plan
 
-Bij het aanmaken van een optie/reservering vanuit een aanvraag-tegel (`NewReservationDialog`) filtert het contact-veld op `contact.companyId === form.companyId`. Veel contacten hebben echter alleen een link via de `contact_companies`-junctietabel of enkel een `company`-naamveld — die verdwijnen daardoor uit de lijst zodra je een bedrijf kiest, waardoor de dropdown leeg lijkt.
+Ik pas dit overal consequent aan, niet alleen in één scherm.
 
-## Oplossing
+### 1. Bestaande data opschonen
+- Alle bestaande contactnamen bijwerken:
+  - `contacts.first_name`
+  - `contacts.last_name`
+  - `contacts.company`
+- Alle bestaande bedrijfsnamen bijwerken:
+  - `companies.name`
+- Ook afgeleide opgeslagen namen bijwerken waar ze in kaarten/overzichten zichtbaar zijn:
+  - `inquiries.contact_name`
+  - `bookings.contact_name`
+  - `quotes.contact_name`, `quotes.company_name`
+  - `invoices.contact_name`, `invoices.company_name`
+  - `documents.contact_name`, `documents.company_name`
 
-In `src/components/calendar/NewReservationDialog.tsx` de `filteredContacts` uitbreiden zodat een contact zichtbaar is wanneer één van deze condities klopt met het gekozen bedrijf:
+### 2. Lijst met tussenvoegsels uitbreiden
+Ik voeg in ieder geval `en` toe, plus de al gebruikte tussenvoegsels zoals:
+`van`, `de`, `der`, `den`, `des`, `ten`, `ter`, `te`, `het`, `op`, `in`, `aan`, `bij`, `onder`, `over`, `uit`, `voor`, `tot`, `'t`, `'s`, `la`, `le`, `du`, `da`, `do`, `dos`, `das`, `di`, `del`, `della`, `von`, `zu`, `af`, `al`, `el`, `y`.
 
-1. `contact.companyId === form.companyId` (huidige regel), of
-2. Het contact staat in `contact_companies` gekoppeld aan `form.companyId` (via `useContactCompanies().getCompanyContacts(companyId)`), of
-3. `contact.company` (tekst) komt hoofdletter-ongevoelig overeen met `selectedCompany.name`.
+### 3. Nieuwe invoer blijvend goed opslaan
+- De bestaande naam-normalisatie in de app wordt uitgebreid zodat `en` ook altijd lowercase wordt.
+- Nieuwe contacten/bedrijven die handmatig worden aangemaakt blijven de zelf getypte hoofdletters behouden, behalve tussenvoegsels.
 
-Zo blijven ook contacten die alleen via de junctietabel of via naam gekoppeld zijn selecteerbaar.
+### 4. Backend-veiligheidsnet toevoegen
+- Ik voeg een databasefunctie/trigger toe die bij nieuwe of gewijzigde contacten, bedrijven, aanvragen, reserveringen en documenten automatisch dezelfde tussenvoegsel-normalisatie toepast.
+- Daardoor blijft dit ook goed bij import, sync of andere invoer buiten de handmatige schermen.
 
-## Technische details
-
-- Import `useContactCompanies` in `NewReservationDialog.tsx`.
-- Bouw een set van contact-id's voor het gekozen bedrijf: `new Set(getCompanyContacts(form.companyId).map(x => x.contact_id))`.
-- `filteredContacts` memoiseren op basis van `contacts`, `form.companyId`, deze set en `selectedCompany?.name`.
-- Overige logica (auto-reset bij mismatch in useEffect regel 191–198) verruimen met dezelfde drie-weg check zodat een geldig gekoppeld contact niet ten onrechte gewist wordt.
-
-## Buiten scope
-
-- Geen wijzigingen in andere dialogen, contexten of de database.
-- Geen aanpassing aan hoe contacten aan bedrijven gekoppeld worden.
+### Technische aanpak
+- Nieuwe migration met een herbruikbare functie `normalize_dutch_name_particles(text)`.
+- Data-update op alle relevante bestaande naamkolommen.
+- Triggers op tabellen waar naamvelden worden opgeslagen.
+- Kleine frontend-aanpassing in `src/lib/utils.ts` om `en` mee te nemen.
