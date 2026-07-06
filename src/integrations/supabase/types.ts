@@ -1373,6 +1373,10 @@ export type Database = {
         }
         Returns: boolean
       }
+      normalize_dutch_name_particles: {
+        Args: { input_text: string }
+        Returns: string
+      }
     }
     Enums: {
       app_role: "admin" | "team_member"
