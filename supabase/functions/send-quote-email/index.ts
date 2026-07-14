@@ -56,6 +56,38 @@ Deno.serve(async (req) => {
       });
     }
 
+    // Refresh snapshot fields from the linked CRM records so the PDF always
+    // uses the most up-to-date contact/company data (name, email, address).
+    try {
+      const snapshot: Record<string, any> = {};
+      if (quote.contact_id) {
+        const { data: c } = await supabase.from('contacts')
+          .select('first_name, last_name, email, phone')
+          .eq('id', quote.contact_id).maybeSingle();
+        if (c) {
+          const full = [c.first_name, c.last_name].filter(Boolean).join(' ').trim();
+          if (full && !quote.contact_name) snapshot.contact_name = full;
+          if (c.email && !quote.client_email) snapshot.client_email = c.email;
+        }
+      }
+      if (quote.company_id) {
+        const { data: co } = await supabase.from('companies')
+          .select('name, address, postcode, city')
+          .eq('id', quote.company_id).maybeSingle();
+        if (co) {
+          if (co.name && !quote.company_name) snapshot.company_name = co.name;
+          const addr = [co.address, co.postcode, co.city].filter(Boolean).join(', ');
+          if (addr && !quote.client_address) snapshot.client_address = addr;
+        }
+      }
+      if (Object.keys(snapshot).length > 0) {
+        await supabase.from('quotes').update(snapshot).eq('id', quoteId);
+        Object.assign(quote, snapshot);
+      }
+    } catch (e) {
+      console.warn('snapshot refresh failed', e);
+    }
+
     // Generate PDF (call our own function) — only returns pdfUrl now
     const pdfRes = await fetch(`${SUPABASE_URL}/functions/v1/generate-quote-pdf`, {
       method: 'POST',
