@@ -105,13 +105,68 @@ function buildMergeMap(quote: any, contact: any, company: any): Record<string, s
   return map;
 }
 
+function applyAliases(text: string, map: Record<string, string>): string {
+  if (!text) return text;
+  const g = (k: string) => map[k] || '';
+  const aliases: Array<[RegExp, string]> = [
+    [/(?:<|&lt;)\s*voornaam\s*(?:>|&gt;)/gi, g('{{contact.first_name}}')],
+    [/(?:<|&lt;)\s*achternaam\s*(?:>|&gt;)/gi, g('{{contact.last_name}}')],
+    [/(?:<|&lt;)\s*naam(?:\s+klant)?\s*(?:>|&gt;)/gi, g('{{contact.name}}')],
+    [/(?:<|&lt;)\s*(?:email|e-?mailadres)\s*(?:>|&gt;)/gi, g('{{contact.email}}')],
+    [/(?:<|&lt;)\s*telefoon(?:nummer)?\s*(?:>|&gt;)/gi, g('{{contact.phone}}')],
+    [/(?:<|&lt;)\s*(?:bedrijf|bedrijfsnaam|organisatie)\s*(?:>|&gt;)/gi, g('{{company.name}}')],
+    [/(?:<|&lt;)\s*adres\s*(?:>|&gt;)/gi, g('{{company.address}}') || g('{{client_address}}')],
+    [/(?:<|&lt;)\s*postcode\s*(?:>|&gt;)/gi, g('{{company.postcode}}')],
+    [/(?:<|&lt;)\s*(?:plaats|stad|woonplaats)\s*(?:>|&gt;)/gi, g('{{company.city}}')],
+    [/(?:<|&lt;)\s*datum\s*(?:>|&gt;)/gi, g('{{date.today_long}}')],
+    [/(?:<|&lt;)\s*offertenummer\s*(?:>|&gt;)/gi, g('{{quote.display_number}}')],
+    [/(?:<|&lt;)\s*kostenplaats\s*(?:>|&gt;)/gi, g('{{company.name}}')],
+    [/\{\s*naam\s+klant\s*\}/gi, g('{{contact.name}}')],
+    [/\{\s*klantnaam\s*\}/gi, g('{{contact.name}}')],
+    [/\{\s*klant\s*\}/gi, g('{{contact.name}}')],
+    [/\{\s*bedrijf(?:snaam)?\s*\}/gi, g('{{company.name}}')],
+  ];
+  let out = text;
+  for (const [re, val] of aliases) out = out.replace(re, val);
+  return out;
+}
+
+function expandLabelLines(text: string, map: Record<string, string>): string {
+  if (!text) return text;
+  const labelValues: Array<[RegExp, string]> = [
+    [/^(\s*)Naam\s*:?\s*$/i, map['{{contact.name}}'] || ''],
+    [/^(\s*)Voornaam\s*:?\s*$/i, map['{{contact.first_name}}'] || ''],
+    [/^(\s*)Achternaam\s*:?\s*$/i, map['{{contact.last_name}}'] || ''],
+    [/^(\s*)Adres\s*:?\s*$/i, map['{{company.address}}'] || map['{{client_address}}'] || ''],
+    [/^(\s*)Postcode(?:\s+en\s+Plaats)?\s*:?\s*$/i,
+      [map['{{company.postcode}}'], map['{{company.city}}']].filter(Boolean).join(' ')],
+    [/^(\s*)Plaats\s*:?\s*$/i, map['{{company.city}}'] || ''],
+    [/^(\s*)E-?mail(?:adres)?(?:\s*\([^)]*\))?\s*:?\s*$/i, map['{{contact.email}}'] || ''],
+    [/^(\s*)Telefoon(?:nummer)?\s*:?\s*$/i, map['{{contact.phone}}'] || ''],
+    [/^(\s*)Bedrijf(?:snaam)?\s*:?\s*$/i, map['{{company.name}}'] || ''],
+    [/^(\s*)Kostenplaats\s*:?\s*$/i, map['{{company.name}}'] || ''],
+    [/^(\s*)Reserveringsnummer\s*:?\s*$/i, map['{{quote.display_number}}'] || ''],
+    [/^(\s*)Datum(?:\s+en\s+tijd)?\s*:?\s*$/i, map['{{date.today_long}}'] || ''],
+  ];
+  return text.split('\n').map((line) => {
+    for (const [re, val] of labelValues) {
+      if (re.test(line) && val) {
+        const label = line.replace(/\s*:?\s*$/, '').trim();
+        return `${label}: ${val}`;
+      }
+    }
+    return line;
+  }).join('\n');
+}
+
 function resolveMergeTags(text: string, map: Record<string, string>): string {
   if (!text) return '';
-  let out = text;
+  let out = applyAliases(text, map);
   for (const [tag, value] of Object.entries(map)) {
     const escaped = tag.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     out = out.replace(new RegExp(escaped, 'g'), value);
   }
+  out = expandLabelLines(out, map);
   return out;
 }
 
