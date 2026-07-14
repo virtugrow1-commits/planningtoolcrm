@@ -314,7 +314,7 @@ async function renderBlock(block: any, ctx: RenderCtx) {
       const align = block.textAlign || 'left';
 
       const rawHtml = resolveMergeTags(String(block.content || ''), ctx.map);
-      const paragraphs = htmlToParagraphs(rawHtml);
+      const paragraphs = htmlToParagraphs(rawHtml).map((p) => expandLabelLines(p, ctx.map));
       let cursorY = ph - yTop - fontSize;
       const bottomLimit = ph - yTop - h;
 
