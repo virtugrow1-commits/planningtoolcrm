@@ -120,16 +120,72 @@ function buildMap(data: MergeTagData): Record<string, string> {
   };
 }
 
+function applyAliases(content: string, map: Record<string, string>): string {
+  if (!content) return content;
+  const g = (k: string) => map[k] || '';
+  const aliases: Array<[RegExp, string]> = [
+    [/(?:<|&lt;)\s*voornaam\s*(?:>|&gt;)/gi, g('{{contact.first_name}}')],
+    [/(?:<|&lt;)\s*achternaam\s*(?:>|&gt;)/gi, g('{{contact.last_name}}')],
+    [/(?:<|&lt;)\s*naam(?:\s+klant)?\s*(?:>|&gt;)/gi, g('{{contact.name}}')],
+    [/(?:<|&lt;)\s*(?:email|e-?mailadres)\s*(?:>|&gt;)/gi, g('{{contact.email}}')],
+    [/(?:<|&lt;)\s*telefoon(?:nummer)?\s*(?:>|&gt;)/gi, g('{{contact.phone}}')],
+    [/(?:<|&lt;)\s*(?:bedrijf|bedrijfsnaam|organisatie)\s*(?:>|&gt;)/gi, g('{{company.name}}')],
+    [/(?:<|&lt;)\s*adres\s*(?:>|&gt;)/gi, g('{{company.address}}') || g('{{client_address}}')],
+    [/(?:<|&lt;)\s*postcode\s*(?:>|&gt;)/gi, g('{{company.postcode}}')],
+    [/(?:<|&lt;)\s*(?:plaats|stad|woonplaats)\s*(?:>|&gt;)/gi, g('{{company.city}}')],
+    [/(?:<|&lt;)\s*datum\s*(?:>|&gt;)/gi, g('{{date.today_long}}')],
+    [/(?:<|&lt;)\s*offertenummer\s*(?:>|&gt;)/gi, g('{{quote.display_number}}')],
+    [/(?:<|&lt;)\s*kostenplaats\s*(?:>|&gt;)/gi, g('{{company.name}}')],
+    [/\{\s*naam\s+klant\s*\}/gi, g('{{contact.name}}')],
+    [/\{\s*klantnaam\s*\}/gi, g('{{contact.name}}')],
+    [/\{\s*klant\s*\}/gi, g('{{contact.name}}')],
+    [/\{\s*bedrijf(?:snaam)?\s*\}/gi, g('{{company.name}}')],
+  ];
+  let out = content;
+  for (const [re, val] of aliases) out = out.replace(re, val);
+  return out;
+}
+
+function expandLabelLinesInHtml(html: string, map: Record<string, string>): string {
+  if (!html) return html;
+  const labels: Array<[RegExp, string]> = [
+    [/\bNaam\b\s*:?/i, map['{{contact.name}}'] || ''],
+    [/\bVoornaam\b\s*:?/i, map['{{contact.first_name}}'] || ''],
+    [/\bAchternaam\b\s*:?/i, map['{{contact.last_name}}'] || ''],
+    [/\bAdres\b\s*:?/i, map['{{company.address}}'] || map['{{client_address}}'] || ''],
+    [/\bPostcode(?:\s+en\s+Plaats)?\b\s*:?/i,
+      [map['{{company.postcode}}'], map['{{company.city}}']].filter(Boolean).join(' ')],
+    [/\bPlaats\b\s*:?/i, map['{{company.city}}'] || ''],
+    [/\bE-?mail(?:adres)?(?:\s*\([^)]*\))?\b\s*:?/i, map['{{contact.email}}'] || ''],
+    [/\bTelefoon(?:nummer)?\b\s*:?/i, map['{{contact.phone}}'] || ''],
+    [/\bBedrijf(?:snaam)?\b\s*:?/i, map['{{company.name}}'] || ''],
+    [/\bKostenplaats\b\s*:?/i, map['{{company.name}}'] || ''],
+    [/\bReserveringsnummer\b\s*:?/i, map['{{quote.display_number}}'] || ''],
+    [/\bDatum(?:\s+en\s+tijd)?\b\s*:?/i, map['{{date.today_long}}'] || ''],
+  ];
+  // Split by lines/paragraphs preserving separators
+  return html.replace(/([^\n<>]+)/g, (segment) => {
+    const trimmed = segment.trim();
+    for (const [re, val] of labels) {
+      if (val && re.test(trimmed) && trimmed.replace(re, '').trim() === '') {
+        return segment.replace(trimmed, `${trimmed.replace(/\s*:?\s*$/, '')}: ${val}`);
+      }
+    }
+    return segment;
+  });
+}
+
 /** Replace all {{tag}} occurrences in a plain text or HTML string */
 export function resolveMergeTags(content: string, data: MergeTagData): string {
   if (!content) return content;
   const map = buildMap(data);
-  let result = content;
+  let result = applyAliases(content, map);
   for (const [tag, value] of Object.entries(map)) {
     // Escape special regex chars in the tag (braces, dots)
     const escaped = tag.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     result = result.replace(new RegExp(escaped, 'g'), value);
   }
+  result = expandLabelLinesInHtml(result, map);
   return result;
 }
 
