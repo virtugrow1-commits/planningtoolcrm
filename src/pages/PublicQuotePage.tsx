@@ -132,10 +132,9 @@ export default function PublicQuotePage() {
   const canAccept = agreed && hasRequiredSignatures() && hasRequiredCheckboxes();
 
   const handleAccept = async () => {
-    if (!quote || !canAccept) return;
+    if (!quote || !canAccept || !token) return;
     setSubmitting(true);
 
-    // Get client IP (best effort)
     let ip = '';
     try {
       const res = await fetch('https://api.ipify.org?format=json');
@@ -143,36 +142,32 @@ export default function PublicQuotePage() {
       ip = json.ip || '';
     } catch { /* ignore */ }
 
-    // Save signature if any
     const firstSig = Object.values(signatureValues).find(Boolean) || null;
 
-    // Update quote
-    await supabase
-      .from('quotes')
-      .update({
-        status: 'accepted',
-        accepted_at: new Date().toISOString(),
-        signature_data: firstSig,
-        signature_ip: ip || null,
-      })
-      .eq('id', quote.id);
-
-    // Invoice creation happens manually by the team after acceptance
+    await supabase.rpc('public_quote_respond', {
+      _token: token,
+      _action: 'accepted',
+      _signature: firstSig,
+      _ip: ip || null,
+    });
 
     setResponded('accepted');
     setSubmitting(false);
   };
 
   const handleDecline = async () => {
-    if (!quote) return;
+    if (!quote || !token) return;
     setSubmitting(true);
-    await supabase
-      .from('quotes')
-      .update({ status: 'declined', declined_at: new Date().toISOString() })
-      .eq('id', quote.id);
+    await supabase.rpc('public_quote_respond', {
+      _token: token,
+      _action: 'declined',
+      _signature: null,
+      _ip: null,
+    });
     setResponded('declined');
     setSubmitting(false);
   };
+
 
   if (loading) {
     return (
