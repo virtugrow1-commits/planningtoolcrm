@@ -55,11 +55,7 @@ export default function PublicQuotePage() {
   useEffect(() => {
     if (!token) return;
     (async () => {
-      const { data, error: err } = await supabase
-        .from('quotes')
-        .select('*')
-        .eq('public_token', token)
-        .single();
+      const { data, error: err } = await supabase.rpc('get_public_quote', { _token: token });
 
       if (err || !data) {
         setError('Dit document kon niet worden gevonden of is niet meer beschikbaar.');
@@ -67,21 +63,26 @@ export default function PublicQuotePage() {
         return;
       }
 
-      const q = data as any as PublicQuote;
+      const payload = data as any;
+      const q = payload.quote as PublicQuote;
+      const items = (payload.line_items || []) as any[];
+
+      if (!q) {
+        setError('Dit document kon niet worden gevonden of is niet meer beschikbaar.');
+        setLoading(false);
+        return;
+      }
+
       setQuote(q);
 
       if (q.status === 'accepted') setResponded('accepted');
       if (q.status === 'declined') setResponded('declined');
 
-      // Mark as viewed
+      // Mark as viewed (server-side, token-scoped)
       if (q.status === 'sent') {
-        await supabase
-          .from('quotes')
-          .update({ viewed_at: new Date().toISOString(), status: 'viewed' })
-          .eq('id', q.id);
+        await supabase.rpc('public_quote_mark_viewed', { _token: token });
       }
 
-      // Resolve blocks with quote data
       const rawBlocks: any[] = q.content_blocks || [];
       if (rawBlocks.length > 0) {
         const mergeData: MergeTagData = {
@@ -99,29 +100,22 @@ export default function PublicQuotePage() {
         setResolvedBlocks(resolveBlocksMergeTags(rawBlocks, mergeData));
       }
 
-      // Fetch line items so the product table appears in the preview
-      const { data: items } = await supabase
-        .from('quote_line_items')
-        .select('*')
-        .eq('quote_id', q.id)
-        .order('sort_order');
-      if (items) {
-        setLineItems(items.map((li: any) => ({
-          id: li.id,
-          itemName: li.item_name,
-          description: li.description || '',
-          quantity: Number(li.quantity),
-          unitPrice: Number(li.unit_price),
-          discountPercent: Number(li.discount_percent || 0),
-          vatRate: Number(li.vat_rate),
-          lineTotal: Number(li.line_total),
-          sortOrder: Number(li.sort_order || 0),
-        })));
-      }
+      setLineItems(items.map((li: any) => ({
+        id: li.id,
+        itemName: li.item_name,
+        description: li.description || '',
+        quantity: Number(li.quantity),
+        unitPrice: Number(li.unit_price),
+        discountPercent: Number(li.discount_percent || 0),
+        vatRate: Number(li.vat_rate),
+        lineTotal: Number(li.line_total),
+        sortOrder: Number(li.sort_order || 0),
+      })));
 
       setLoading(false);
     })();
   }, [token]);
+
 
   const hasRequiredSignatures = () => {
     if (!resolvedBlocks.length) return true;
@@ -138,10 +132,9 @@ export default function PublicQuotePage() {
   const canAccept = agreed && hasRequiredSignatures() && hasRequiredCheckboxes();
 
   const handleAccept = async () => {
-    if (!quote || !canAccept) return;
+    if (!quote || !canAccept || !token) return;
     setSubmitting(true);
 
-    // Get client IP (best effort)
     let ip = '';
     try {
       const res = await fetch('https://api.ipify.org?format=json');
@@ -149,36 +142,32 @@ export default function PublicQuotePage() {
       ip = json.ip || '';
     } catch { /* ignore */ }
 
-    // Save signature if any
     const firstSig = Object.values(signatureValues).find(Boolean) || null;
 
-    // Update quote
-    await supabase
-      .from('quotes')
-      .update({
-        status: 'accepted',
-        accepted_at: new Date().toISOString(),
-        signature_data: firstSig,
-        signature_ip: ip || null,
-      })
-      .eq('id', quote.id);
-
-    // Invoice creation happens manually by the team after acceptance
+    await supabase.rpc('public_quote_respond', {
+      _token: token,
+      _action: 'accepted',
+      _signature: firstSig,
+      _ip: ip || null,
+    });
 
     setResponded('accepted');
     setSubmitting(false);
   };
 
   const handleDecline = async () => {
-    if (!quote) return;
+    if (!quote || !token) return;
     setSubmitting(true);
-    await supabase
-      .from('quotes')
-      .update({ status: 'declined', declined_at: new Date().toISOString() })
-      .eq('id', quote.id);
+    await supabase.rpc('public_quote_respond', {
+      _token: token,
+      _action: 'declined',
+      _signature: null,
+      _ip: null,
+    });
     setResponded('declined');
     setSubmitting(false);
   };
+
 
   if (loading) {
     return (

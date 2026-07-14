@@ -1303,45 +1303,6 @@ export type Database = {
           },
         ]
       }
-      tmp_address_import: {
-        Row: {
-          address: string | null
-          city: string | null
-          company_name: string | null
-          country: string | null
-          email: string | null
-          first_name: string | null
-          job_title: string | null
-          last_name: string | null
-          phone: string | null
-          postcode: string | null
-        }
-        Insert: {
-          address?: string | null
-          city?: string | null
-          company_name?: string | null
-          country?: string | null
-          email?: string | null
-          first_name?: string | null
-          job_title?: string | null
-          last_name?: string | null
-          phone?: string | null
-          postcode?: string | null
-        }
-        Update: {
-          address?: string | null
-          city?: string | null
-          company_name?: string | null
-          country?: string | null
-          email?: string | null
-          first_name?: string | null
-          job_title?: string | null
-          last_name?: string | null
-          phone?: string | null
-          postcode?: string | null
-        }
-        Relationships: []
-      }
       user_roles: {
         Row: {
           id: string
@@ -1365,17 +1326,20 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      get_user_organization_id: { Args: { _user_id: string }; Returns: string }
-      has_role: {
-        Args: {
-          _role: Database["public"]["Enums"]["app_role"]
-          _user_id: string
-        }
-        Returns: boolean
-      }
+      get_public_quote: { Args: { _token: string }; Returns: Json }
       normalize_dutch_name_particles: {
         Args: { input_text: string }
         Returns: string
+      }
+      public_quote_mark_viewed: { Args: { _token: string }; Returns: undefined }
+      public_quote_respond: {
+        Args: {
+          _action: string
+          _ip: string
+          _signature: string
+          _token: string
+        }
+        Returns: undefined
       }
     }
     Enums: {
