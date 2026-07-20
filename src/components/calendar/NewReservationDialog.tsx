@@ -181,6 +181,7 @@ export default function NewReservationDialog({
 
   const contactMatchesCompany = (c: ContactOption) => {
     if (!form.companyId) return true;
+    if (c.id === form.contactId) return true; // always keep the selected/prefilled contact visible
     if (c.companyId === form.companyId) return true;
     if (junctionContactIds.has(c.id)) return true;
     if (selectedCompany && c.company && c.company.trim().toLowerCase() === selectedCompany.name.trim().toLowerCase()) return true;
@@ -189,7 +190,7 @@ export default function NewReservationDialog({
 
   const filteredContacts = useMemo(
     () => contacts.filter(c => !c.departed && contactMatchesCompany(c)),
-    [contacts, form.companyId, junctionContactIds, selectedCompany?.name]
+    [contacts, form.companyId, form.contactId, junctionContactIds, selectedCompany?.name]
   );
 
   const contactOptions = useMemo<ComboboxOption[]>(() =>
@@ -202,9 +203,11 @@ export default function NewReservationDialog({
     [filteredContacts]
   );
 
-  // Auto-reset contact when company changes and current contact doesn't belong
+  // Auto-reset contact when company changes and current contact doesn't belong.
+  // Skip when the contact was prefilled from the source (e.g. inquiry) — keep it selectable.
   useEffect(() => {
     if (!form.companyId || !form.contactId) return;
+    if (prefill?.contactId && form.contactId === prefill.contactId) return;
     const selected = contacts.find(c => c.id === form.contactId);
     if (selected && !contactMatchesCompany(selected)) {
       setForm((prev) => ({ ...prev, contactId: '', contactName: '' }));
@@ -212,6 +215,17 @@ export default function NewReservationDialog({
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [form.companyId, junctionContactIds]);
+
+  // Info hint when selected contact is not officially linked to the chosen company
+  const contactCompanyMismatch = useMemo(() => {
+    if (!form.companyId || !form.contactId) return false;
+    const c = contacts.find(x => x.id === form.contactId);
+    if (!c) return false;
+    if (c.companyId === form.companyId) return false;
+    if (junctionContactIds.has(c.id)) return false;
+    if (selectedCompany && c.company && c.company.trim().toLowerCase() === selectedCompany.name.trim().toLowerCase()) return false;
+    return true;
+  }, [form.companyId, form.contactId, contacts, junctionContactIds, selectedCompany?.name]);
 
   const companyOptions = useMemo<ComboboxOption[]>(() =>
     companies.map(co => ({
