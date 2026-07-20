@@ -482,6 +482,11 @@ export default function NewReservationDialog({
                     Toont alleen contacten van <span className="font-medium">{selectedCompany.name}</span>. Wis bedrijf om alle contacten te zien.
                   </p>
                 )}
+                {contactCompanyMismatch && selectedContact && (
+                  <p className="text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-1">
+                    Let op: deze contactpersoon is niet gekoppeld aan {selectedCompany?.name || 'dit bedrijf'}.
+                  </p>
+                )}
                 {!selectedContact && (
                   <button
                     type="button"
