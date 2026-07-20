@@ -1,24 +1,17 @@
-## Probleem
+## Doel
+Op de aanvraagpagina een "Opties"-kaart tonen (zelfde stijl als op de bedrijfskaart), zodat direct zichtbaar is of er al een optie in het systeem staat, en er snel een nieuwe optie aangemaakt of geopend kan worden.
 
-Op de aanvraag-detailpagina open je "Maak optie" → het optie-dialoog krijgt zowel `contactId` als `companyId` van de aanvraag mee. Het dialoog filtert vervolgens de contactenlijst strikt op "hoort bij dit bedrijf" (via `contact.company_id`, de junction-tabel, of exacte bedrijfsnaam). Staat de contactpersoon *niet* aan dat bedrijf gekoppeld (bv. GHL-import zonder company link, of ander bedrijf), dan:
+## Wijzigingen
 
-1. De contact valt uit `filteredContacts` en verschijnt niet in de dropdown.
-2. Een tweede effect (`Auto-reset contact when company changes`) wist zelfs de vooraf-ingevulde contactpersoon en toont de toast "Contact gewist".
+**`src/pages/InquiryDetailPage.tsx`**
+- Nieuwe `optionBookings` memo: filter `bookings` op `status === 'option'` gekoppeld aan deze aanvraag via `contactId`, `companyId`, of naam-match (zelfde logica als de bestaande detectie voor `existingOption`), maar dan de volledige lijst i.p.v. één resultaat.
+- Boven "Historie" een nieuwe sectie renderen met dezelfde kaartopmaak als op `CompanyDetailPage`:
+  - Titel "Opties" met aantal-badge.
+  - "+"-knop → opent de bestaande "Optie maken"-dialog (`setReservationStatus('option'); setShowReservationDialog(true)`).
+  - "Bekijk agenda"-link → navigeert naar `/calendar`.
+  - Bij lege lijst: "Geen opties".
+  - Bij items: rijen met titel, ruimte, datum + tijd, klikbaar naar `/reserveringen/:id`.
 
-Vanuit de kalender is er geen bedrijf voorgeselecteerd, dus alle contacten zijn zichtbaar — daar werkt het wel.
-
-## Oplossing
-
-`src/components/calendar/NewReservationDialog.tsx` aanpassen zodat een expliciet gekozen/prefilled contact altijd zichtbaar en behouden blijft, zelfs als de koppeling met het bedrijf ontbreekt:
-
-1. `prefill?.contactId` als prop opvangen als "altijd toegestaan id".
-2. `contactMatchesCompany`: ook `true` teruggeven voor `c.id === form.contactId` (de op dit moment geselecteerde contactpersoon) — zo blijft de aanvraagcontact altijd in de dropdown staan.
-3. Auto-reset-effect (regels 206–214): overslaan wanneer het contact gelijk is aan de initiële `prefill.contactId` — geen ongewenste "Contact gewist"-toast meer bij het openen van de optie-flow vanuit een aanvraag.
-4. Als de gekozen contactpersoon niet bij het bedrijf hoort, een kleine info-hint tonen ("Contact is niet gekoppeld aan dit bedrijf") in plaats van hem te verbergen.
-
-Geen wijzigingen aan database, edge-functies of andere schermen.
-
-## Verificatie
-
-- Open een aanvraag waarvan de contact niet aan een bedrijf hangt → klik "Maak optie" → contactnaam blijft ingevuld en zichtbaar in de dropdown, geen "Contact gewist"-toast.
-- Kalender-flow ongewijzigd: alle contacten blijven zichtbaar zonder bedrijf, filter werkt als bedrijf gekozen wordt.
+## Uit scope
+- Geen wijziging aan `InquiryDetailsTab` of de bestaande "Optie maken"-knop bovenaan; die blijft staan.
+- Geen backend/schema-wijzigingen.

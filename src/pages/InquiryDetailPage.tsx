@@ -20,6 +20,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
 import InquiryDetailsTab, { PIPELINE_COLUMNS } from '@/components/inquiry/InquiryDetailsTab';
+import { SectionCard } from '@/components/detail/DetailPageComponents';
 import InquiryHistoryTab from '@/components/inquiry/InquiryHistoryTab';
 import TasksSection from '@/components/detail/TasksSection';
 import NewReservationDialog from '@/components/calendar/NewReservationDialog';
@@ -82,6 +83,14 @@ export default function InquiryDetailPage() {
     const dateMatch = inquiry.preferredDate ? candidates.find(b => b.date === inquiry.preferredDate) : null;
     const chosen = dateMatch || candidates[0];
     return { id: chosen.id, date: chosen.date };
+  }, [bookings, inquiry]);
+  const inquiryOptionBookings = useMemo(() => {
+    if (!inquiry) return [] as Booking[];
+    return bookings.filter(b => b.status === 'option' && (
+      (inquiry.contactId && b.contactId === inquiry.contactId) ||
+      (inquiry.companyId && b.companyId === inquiry.companyId) ||
+      (inquiry.contactName && b.contactName?.toLowerCase() === inquiry.contactName.toLowerCase())
+    ));
   }, [bookings, inquiry]);
   const companyBookings = useMemo(() => company?.id ? bookings.filter(b => {
     const bc = contacts.find(c => c.id === b.contactId);
@@ -217,6 +226,40 @@ export default function InquiryDetailPage() {
         refetch={refetch}
         existingOption={existingOption}
       />
+
+      {/* Opties */}
+      <SectionCard
+        title="Opties"
+        count={inquiryOptionBookings.length}
+        linkLabel="Bekijk agenda"
+        onLink={() => navigate('/calendar')}
+        onAdd={() => { setReservationStatus('option'); setShowReservationDialog(true); }}
+      >
+        {inquiryOptionBookings.length === 0 ? (
+          <p className="text-xs text-muted-foreground">Geen opties</p>
+        ) : (
+          <div className="space-y-1">
+            {inquiryOptionBookings
+              .slice()
+              .sort((a, b) => b.date.localeCompare(a.date))
+              .map((b) => (
+                <button
+                  key={b.id}
+                  onClick={() => navigate(`/reserveringen/${b.id}`)}
+                  className="w-full flex items-center justify-between py-1.5 px-2 rounded-md hover:bg-muted/50 transition-colors text-left text-xs"
+                >
+                  <div className="flex-1 min-w-0">
+                    <span className="font-medium text-foreground">{b.title}</span>
+                    <span className="text-muted-foreground ml-2">{b.roomName}</span>
+                  </div>
+                  <span className="text-muted-foreground shrink-0">
+                    {b.date} · {String(b.startHour).padStart(2, '0')}:{String(b.startMinute).padStart(2, '0')} – {String(b.endHour).padStart(2, '0')}:{String(b.endMinute).padStart(2, '0')}
+                  </span>
+                </button>
+              ))}
+          </div>
+        )}
+      </SectionCard>
 
       {/* Historie */}
       <div className="space-y-3">
