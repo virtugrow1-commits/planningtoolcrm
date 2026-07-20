@@ -64,6 +64,21 @@ export default function PostCompanyContactFlow({ company, onClose }: Props) {
     }
   }, [company?.id]);
 
+  const contactOptions = useMemo(
+    () => contacts.map((c) => ({
+      id: c.id,
+      label: `${c.firstName || ''} ${c.lastName || ''}`.trim() || c.email || '(geen naam)',
+      secondary: c.company || c.email || undefined,
+      tertiary: c.email && c.company ? c.email : undefined,
+    })),
+    [contacts]
+  );
+
+  const selectedContact = useMemo(
+    () => contacts.find((c) => c.id === selectedContactId),
+    [contacts, selectedContactId]
+  );
+
   if (!company) return null;
 
   const goToStep = (next: Step) => {
@@ -104,21 +119,6 @@ export default function PostCompanyContactFlow({ company, onClose }: Props) {
     setForm(emptyForm);
     goToStep('another');
   };
-
-  const contactOptions = useMemo(
-    () => contacts.map((c) => ({
-      id: c.id,
-      label: `${c.firstName || ''} ${c.lastName || ''}`.trim() || c.email || '(geen naam)',
-      secondary: c.company || c.email || undefined,
-      tertiary: c.email && c.company ? c.email : undefined,
-    })),
-    [contacts]
-  );
-
-  const selectedContact = useMemo(
-    () => contacts.find((c) => c.id === selectedContactId),
-    [contacts, selectedContactId]
-  );
 
   const handleLinkContact = async () => {
     if (!selectedContact) return;
