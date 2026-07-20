@@ -227,6 +227,40 @@ export default function InquiryDetailPage() {
         existingOption={existingOption}
       />
 
+      {/* Opties */}
+      <SectionCard
+        title="Opties"
+        count={inquiryOptionBookings.length}
+        linkLabel="Bekijk agenda"
+        onLink={() => navigate('/calendar')}
+        onAdd={() => { setReservationStatus('option'); setShowReservationDialog(true); }}
+      >
+        {inquiryOptionBookings.length === 0 ? (
+          <p className="text-xs text-muted-foreground">Geen opties</p>
+        ) : (
+          <div className="space-y-1">
+            {inquiryOptionBookings
+              .slice()
+              .sort((a, b) => b.date.localeCompare(a.date))
+              .map((b) => (
+                <button
+                  key={b.id}
+                  onClick={() => navigate(`/reserveringen/${b.id}`)}
+                  className="w-full flex items-center justify-between py-1.5 px-2 rounded-md hover:bg-muted/50 transition-colors text-left text-xs"
+                >
+                  <div className="flex-1 min-w-0">
+                    <span className="font-medium text-foreground">{b.title}</span>
+                    <span className="text-muted-foreground ml-2">{b.roomName}</span>
+                  </div>
+                  <span className="text-muted-foreground shrink-0">
+                    {b.date} · {String(b.startHour).padStart(2, '0')}:{String(b.startMinute).padStart(2, '0')} – {String(b.endHour).padStart(2, '0')}:{String(b.endMinute).padStart(2, '0')}
+                  </span>
+                </button>
+              ))}
+          </div>
+        )}
+      </SectionCard>
+
       {/* Historie */}
       <div className="space-y-3">
         <h2 className="text-lg font-bold text-foreground flex items-center gap-2">
