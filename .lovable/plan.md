@@ -1,35 +1,38 @@
-## Plan
+## Probleem
+De preview toont een React error #310 ("Rendered more hooks than during the previous render"). Dit betekent dat een component in de ene render meer hooks aanroept dan in de vorige — meestal veroorzaakt door een `if (...) return` **tussen** hooks, of een `useMemo`/`useState`/`useEffect` binnen een conditie.
 
-Ik pas dit overal consequent aan, niet alleen in één scherm.
+De minified stack (`useMemo` → component `Mt` → `Hz` → …) wijst op een component met `useMemo` net vóór of ná een conditionele early-return. De verdachte is `src/pages/Dashboard.tsx` (route `/`), waar op regel 330 een `if (loading) return …` staat vóór verdere logica — maar op basis van een eerste scan zitten alle hooks daarvoor. Er is dus meer onderzoek nodig om zeker de juiste component te raken.
 
-### 1. Bestaande data opschonen
-- Alle bestaande contactnamen bijwerken:
-  - `contacts.first_name`
-  - `contacts.last_name`
-  - `contacts.company`
-- Alle bestaande bedrijfsnamen bijwerken:
-  - `companies.name`
-- Ook afgeleide opgeslagen namen bijwerken waar ze in kaarten/overzichten zichtbaar zijn:
-  - `inquiries.contact_name`
-  - `bookings.contact_name`
-  - `quotes.contact_name`, `quotes.company_name`
-  - `invoices.contact_name`, `invoices.company_name`
-  - `documents.contact_name`, `documents.company_name`
+## Aanpak
 
-### 2. Lijst met tussenvoegsels uitbreiden
-Ik voeg in ieder geval `en` toe, plus de al gebruikte tussenvoegsels zoals:
-`van`, `de`, `der`, `den`, `des`, `ten`, `ter`, `te`, `het`, `op`, `in`, `aan`, `bij`, `onder`, `over`, `uit`, `voor`, `tot`, `'t`, `'s`, `la`, `le`, `du`, `da`, `do`, `dos`, `das`, `di`, `del`, `della`, `von`, `zu`, `af`, `al`, `el`, `y`.
+1. **Diagnose scherp krijgen**
+   - Bron-map de minified stack door via de dev-server (niet-geminified) dezelfde route te openen, zodat we exact zien welk bestand + regel de #310 gooit.
+   - Check ook `NewQuotePage`, `QuoteDetailPage`, `PublicQuotePage`, `TemplateEditorPage` — daar zijn recent `useMemo`-blokken toegevoegd rond merge-tags/blocks.
 
-### 3. Nieuwe invoer blijvend goed opslaan
-- De bestaande naam-normalisatie in de app wordt uitgebreid zodat `en` ook altijd lowercase wordt.
-- Nieuwe contacten/bedrijven die handmatig worden aangemaakt blijven de zelf getypte hoofdletters behouden, behalve tussenvoegsels.
+2. **De hook-orde herstellen**
+   - In het geïdentificeerde bestand alle `useState`/`useMemo`/`useEffect`/`useCallback` bovenaan de component plaatsen, vóór elke `if (...) return …`.
+   - Conditionele hook-aanroepen omzetten naar hooks die *altijd* draaien maar intern conditioneel werken (bv. `useMemo(() => cond ? … : fallback, [deps])`).
 
-### 4. Backend-veiligheidsnet toevoegen
-- Ik voeg een databasefunctie/trigger toe die bij nieuwe of gewijzigde contacten, bedrijven, aanvragen, reserveringen en documenten automatisch dezelfde tussenvoegsel-normalisatie toepast.
-- Daardoor blijft dit ook goed bij import, sync of andere invoer buiten de handmatige schermen.
+3. **Regressie voorkomen**
+   - ESLint-regel `react-hooks/rules-of-hooks` en `react-hooks/exhaustive-deps` verifiëren dat ze aan staan; eventuele bestaande waarschuwingen die eerder werden genegeerd oplossen.
 
-### Technische aanpak
-- Nieuwe migration met een herbruikbare functie `normalize_dutch_name_particles(text)`.
-- Data-update op alle relevante bestaande naamkolommen.
-- Triggers op tabellen waar naamvelden worden opgeslagen.
-- Kleine frontend-aanpassing in `src/lib/utils.ts` om `en` mee te nemen.
+4. **Verifiëren**
+   - Preview opnieuw laden op `/` en op de recent gewijzigde offerte-pagina's.
+   - Bevestigen dat er geen "App Error" meer verschijnt en de UI normaal rendert.
+
+## Technische details
+
+- React error #310 = *Rendered more hooks than during the previous render.* Ontstaat wanneer het aantal Hook-aanroepen per render verandert. Bijna altijd door: `if (loading) return null;` gevolgd door meer hooks, of een hook binnen `if`/`&&`/ternary.
+- Fix-patroon:
+  ```tsx
+  // fout
+  const a = useX();
+  if (loading) return <Spinner/>;
+  const b = useY(); // hook aantal wisselt
+  
+  // goed
+  const a = useX();
+  const b = useY();
+  if (loading) return <Spinner/>;
+  ```
+- Voor Dashboard specifiek: als daar de bron ligt, betekent het waarschijnlijk dat de gebruiker onbedoeld tijdens laden→klaar een verandering triggerde in de sub-tree (bv. `KpiDetailDialog`, `SendQuoteDialog`, of een van de Providers).
