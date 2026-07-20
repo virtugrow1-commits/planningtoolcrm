@@ -84,6 +84,14 @@ export default function InquiryDetailPage() {
     const chosen = dateMatch || candidates[0];
     return { id: chosen.id, date: chosen.date };
   }, [bookings, inquiry]);
+  const inquiryOptionBookings = useMemo(() => {
+    if (!inquiry) return [] as Booking[];
+    return bookings.filter(b => b.status === 'option' && (
+      (inquiry.contactId && b.contactId === inquiry.contactId) ||
+      (inquiry.companyId && b.companyId === inquiry.companyId) ||
+      (inquiry.contactName && b.contactName?.toLowerCase() === inquiry.contactName.toLowerCase())
+    ));
+  }, [bookings, inquiry]);
   const companyBookings = useMemo(() => company?.id ? bookings.filter(b => {
     const bc = contacts.find(c => c.id === b.contactId);
     return bc?.companyId === company.id;
