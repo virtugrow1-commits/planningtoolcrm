@@ -20,6 +20,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
 import InquiryDetailsTab, { PIPELINE_COLUMNS } from '@/components/inquiry/InquiryDetailsTab';
+import { SectionCard } from '@/components/detail/DetailPageComponents';
 import InquiryHistoryTab from '@/components/inquiry/InquiryHistoryTab';
 import TasksSection from '@/components/detail/TasksSection';
 import NewReservationDialog from '@/components/calendar/NewReservationDialog';
