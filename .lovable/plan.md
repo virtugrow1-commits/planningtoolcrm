@@ -1,38 +1,24 @@
 ## Probleem
-De preview toont een React error #310 ("Rendered more hooks than during the previous render"). Dit betekent dat een component in de ene render meer hooks aanroept dan in de vorige — meestal veroorzaakt door een `if (...) return` **tussen** hooks, of een `useMemo`/`useState`/`useEffect` binnen een conditie.
 
-De minified stack (`useMemo` → component `Mt` → `Hz` → …) wijst op een component met `useMemo` net vóór of ná een conditionele early-return. De verdachte is `src/pages/Dashboard.tsx` (route `/`), waar op regel 330 een `if (loading) return …` staat vóór verdere logica — maar op basis van een eerste scan zitten alle hooks daarvoor. Er is dus meer onderzoek nodig om zeker de juiste component te raken.
+Op de aanvraag-detailpagina open je "Maak optie" → het optie-dialoog krijgt zowel `contactId` als `companyId` van de aanvraag mee. Het dialoog filtert vervolgens de contactenlijst strikt op "hoort bij dit bedrijf" (via `contact.company_id`, de junction-tabel, of exacte bedrijfsnaam). Staat de contactpersoon *niet* aan dat bedrijf gekoppeld (bv. GHL-import zonder company link, of ander bedrijf), dan:
 
-## Aanpak
+1. De contact valt uit `filteredContacts` en verschijnt niet in de dropdown.
+2. Een tweede effect (`Auto-reset contact when company changes`) wist zelfs de vooraf-ingevulde contactpersoon en toont de toast "Contact gewist".
 
-1. **Diagnose scherp krijgen**
-   - Bron-map de minified stack door via de dev-server (niet-geminified) dezelfde route te openen, zodat we exact zien welk bestand + regel de #310 gooit.
-   - Check ook `NewQuotePage`, `QuoteDetailPage`, `PublicQuotePage`, `TemplateEditorPage` — daar zijn recent `useMemo`-blokken toegevoegd rond merge-tags/blocks.
+Vanuit de kalender is er geen bedrijf voorgeselecteerd, dus alle contacten zijn zichtbaar — daar werkt het wel.
 
-2. **De hook-orde herstellen**
-   - In het geïdentificeerde bestand alle `useState`/`useMemo`/`useEffect`/`useCallback` bovenaan de component plaatsen, vóór elke `if (...) return …`.
-   - Conditionele hook-aanroepen omzetten naar hooks die *altijd* draaien maar intern conditioneel werken (bv. `useMemo(() => cond ? … : fallback, [deps])`).
+## Oplossing
 
-3. **Regressie voorkomen**
-   - ESLint-regel `react-hooks/rules-of-hooks` en `react-hooks/exhaustive-deps` verifiëren dat ze aan staan; eventuele bestaande waarschuwingen die eerder werden genegeerd oplossen.
+`src/components/calendar/NewReservationDialog.tsx` aanpassen zodat een expliciet gekozen/prefilled contact altijd zichtbaar en behouden blijft, zelfs als de koppeling met het bedrijf ontbreekt:
 
-4. **Verifiëren**
-   - Preview opnieuw laden op `/` en op de recent gewijzigde offerte-pagina's.
-   - Bevestigen dat er geen "App Error" meer verschijnt en de UI normaal rendert.
+1. `prefill?.contactId` als prop opvangen als "altijd toegestaan id".
+2. `contactMatchesCompany`: ook `true` teruggeven voor `c.id === form.contactId` (de op dit moment geselecteerde contactpersoon) — zo blijft de aanvraagcontact altijd in de dropdown staan.
+3. Auto-reset-effect (regels 206–214): overslaan wanneer het contact gelijk is aan de initiële `prefill.contactId` — geen ongewenste "Contact gewist"-toast meer bij het openen van de optie-flow vanuit een aanvraag.
+4. Als de gekozen contactpersoon niet bij het bedrijf hoort, een kleine info-hint tonen ("Contact is niet gekoppeld aan dit bedrijf") in plaats van hem te verbergen.
 
-## Technische details
+Geen wijzigingen aan database, edge-functies of andere schermen.
 
-- React error #310 = *Rendered more hooks than during the previous render.* Ontstaat wanneer het aantal Hook-aanroepen per render verandert. Bijna altijd door: `if (loading) return null;` gevolgd door meer hooks, of een hook binnen `if`/`&&`/ternary.
-- Fix-patroon:
-  ```tsx
-  // fout
-  const a = useX();
-  if (loading) return <Spinner/>;
-  const b = useY(); // hook aantal wisselt
-  
-  // goed
-  const a = useX();
-  const b = useY();
-  if (loading) return <Spinner/>;
-  ```
-- Voor Dashboard specifiek: als daar de bron ligt, betekent het waarschijnlijk dat de gebruiker onbedoeld tijdens laden→klaar een verandering triggerde in de sub-tree (bv. `KpiDetailDialog`, `SendQuoteDialog`, of een van de Providers).
+## Verificatie
+
+- Open een aanvraag waarvan de contact niet aan een bedrijf hangt → klik "Maak optie" → contactnaam blijft ingevuld en zichtbaar in de dropdown, geen "Contact gewist"-toast.
+- Kalender-flow ongewijzigd: alle contacten blijven zichtbaar zonder bedrijf, filter werkt als bedrijf gekozen wordt.
