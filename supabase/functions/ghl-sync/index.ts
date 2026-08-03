@@ -743,9 +743,9 @@ Deno.serve(async (req) => {
       const ghlPayload: Record<string, any> = {
         title: task.title || 'Taak',
         body: task.description || '',
+        completed: task.status === 'completed',
       };
       if (task.due_date) ghlPayload.dueDate = task.due_date;
-      if (task.status === 'completed') ghlPayload.completed = true;
 
       try {
         if (task.ghl_task_id) {
@@ -900,8 +900,8 @@ Deno.serve(async (req) => {
       }
 
       if (!ghlContactId) {
-        console.log(`[Delete Task] No GHL contact for task deletion, skipping`);
-        return new Response(JSON.stringify({ ok: true, skipped: true }), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+        console.error(`[Delete Task] No GHL contact for task deletion`);
+        return new Response(JSON.stringify({ ok: false, error: 'Geen gekoppeld extern contact voor taakverwijdering' }), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
       }
 
       console.log(`[Delete Task] Deleting GHL task: ${ghl_task_id} under contact ${ghlContactId}`);
@@ -919,6 +919,7 @@ Deno.serve(async (req) => {
           const errText = await res.text();
           console.error(`Failed to delete GHL task: [${res.status}] ${errText}`);
           await logSyncOperation(supabase, authUser.id, 'delete-task', 'task', { error: errText, ghlTaskId: ghl_task_id }, 'error');
+          return new Response(JSON.stringify({ ok: false, error: `GHL delete failed: ${errText}` }), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
         }
 
         return new Response(JSON.stringify({ ok: true, success: true }), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
@@ -1229,18 +1230,42 @@ Deno.serve(async (req) => {
         for (const ghlTask of tasks) {
           const { data: existing } = await supabase
             .from('tasks')
-            .select('id')
+            .select('id, status, title, description, due_date, local_status_changed_at')
             .in('user_id', orgUserIds)
             .eq('ghl_task_id', ghlTask.id)
             .maybeSingle();
 
           if (existing) {
-            await supabase.from('tasks').update({
-              title: ghlTask.title || 'Taak',
-              description: ghlTask.body || null,
-              status: ghlTask.completed ? 'completed' : 'open',
-              due_date: ghlTask.dueDate || null,
-            }).eq('id', existing.id);
+            const externalStatus = ghlTask.completed ? 'completed' : 'open';
+            if (existing.local_status_changed_at && existing.status !== externalStatus) {
+              const protectedPayload: Record<string, any> = {
+                title: existing.title || 'Taak',
+                body: existing.description || '',
+                completed: existing.status === 'completed',
+              };
+              if (existing.due_date) protectedPayload.dueDate = existing.due_date;
+              const pushRes = await ghlFetch(`${GHL_API_BASE}/contacts/${contact.ghl_contact_id}/tasks/${ghlTask.id}`, {
+                method: 'PUT',
+                headers: ghlHeaders,
+                body: JSON.stringify(protectedPayload),
+              });
+              if (pushRes.ok) {
+                await logSyncOperation(supabase, authUser.id, 'protect_local_task_status', 'task', {
+                  taskId: existing.id,
+                  ghlTaskId: ghlTask.id,
+                  crmStatus: existing.status,
+                  externalStatus,
+                });
+              }
+            } else {
+              await supabase.from('tasks').update({
+                title: ghlTask.title || 'Taak',
+                description: ghlTask.body || null,
+                status: externalStatus,
+                due_date: ghlTask.dueDate || null,
+                completed_at: ghlTask.completed ? (ghlTask.completedDate || new Date().toISOString()) : null,
+              }).eq('id', existing.id);
+            }
           } else {
             await supabase.from('tasks').insert({
               user_id: primaryUserId,
@@ -1251,6 +1276,7 @@ Deno.serve(async (req) => {
               status: ghlTask.completed ? 'completed' : 'open',
               due_date: ghlTask.dueDate || null,
               priority: 'medium',
+              completed_at: ghlTask.completed ? (ghlTask.completedDate || new Date().toISOString()) : null,
             });
           }
           synced++;
@@ -2133,7 +2159,7 @@ Deno.serve(async (req) => {
             }
             replayPayload = { action: 'push-task', task: currentTask };
           } else if (item.entity_type === 'task' && item.action_type === 'delete') {
-            replayPayload = payload?.action ? payload : { action: 'delete-task', ghl_task_id: payload?.ghl_task_id };
+            replayPayload = payload?.action ? payload : { action: 'delete-task', ghl_task_id: payload?.ghl_task_id, contact_id: payload?.contact_id };
           } else if (item.entity_type === 'inquiry' && (item.action_type === 'create' || item.action_type === 'update')) {
             const { data: currentInquiry } = await supabase.from('inquiries').select('*').eq('id', item.entity_id).single();
             if (!currentInquiry) {
@@ -2151,14 +2177,22 @@ Deno.serve(async (req) => {
             body: JSON.stringify(replayPayload),
           });
 
-          if (result.ok) {
+          let resultBody: Record<string, any> | null = null;
+          try {
+            resultBody = await result.clone().json();
+          } catch (_) { /* non-JSON response is handled by HTTP status */ }
+          const functionSucceeded = result.ok && resultBody?.ok !== false && !resultBody?.error;
+
+          if (functionSucceeded) {
             await supabase.from('sync_queue').update({
               status: 'completed', completed_at: new Date().toISOString(),
             }).eq('id', item.id);
             succeeded++;
             console.log(`[Process Queue] ✓ ${item.entity_type}/${item.action_type} for ${item.entity_id}`);
           } else {
-            const errText = await result.text();
+            const errText = resultBody?.error
+              ? String(resultBody.error)
+              : await result.text();
             const newRetry = (item.retry_count || 0) + 1;
             await supabase.from('sync_queue').update({
               status: newRetry >= (item.max_retries || 5) ? 'failed' : 'pending',

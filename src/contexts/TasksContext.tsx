@@ -66,6 +66,7 @@ export function TasksProvider({ children }: { children: ReactNode }) {
         bookingId: t.booking_id || undefined,
         ghlTaskId: t.ghl_task_id || undefined,
         completedAt: t.completed_at || undefined,
+        localStatusChangedAt: t.local_status_changed_at || undefined,
         createdAt: t.created_at?.split('T')[0],
       })));
     setLoading(false);
@@ -109,16 +110,24 @@ export function TasksProvider({ children }: { children: ReactNode }) {
       return;
     }
     if (data) {
-      await pushToGHL('push-task', { task: data }, {
+      const syncResult = await pushToGHL('push-task', { task: data }, {
         entityType: 'task', entityId: data.id, actionType: 'create',
       });
+      if (syncResult.outcome === 'queued' || syncResult.outcome === 'error') {
+        toast({ title: 'Taak opgeslagen, synchronisatie volgt later', description: syncResult.error });
+      }
     }
   }, [user, toast]);
 
   const updateTask = useCallback(async (task: Task) => {
+    const previousTask = tasks.find(existingTask => existingTask.id === task.id);
+    const statusChangedLocally = previousTask?.status !== task.status;
+    const localStatusChangedAt = statusChangedLocally
+      ? new Date().toISOString()
+      : (task.localStatusChangedAt || null);
     // GHL first: push to GHL before updating local DB
     if (task.ghlTaskId) {
-      await pushToGHL('push-task', { task: {
+      const syncResult = await pushToGHL('push-task', { task: {
         id: task.id,
         ghl_task_id: task.ghlTaskId,
         title: task.title,
@@ -130,6 +139,9 @@ export function TasksProvider({ children }: { children: ReactNode }) {
       }}, {
         entityType: 'task', entityId: task.id, actionType: 'update',
       });
+      if (syncResult.outcome === 'queued' || syncResult.outcome === 'error') {
+        toast({ title: 'Wijziging opgeslagen, synchronisatie volgt later', description: syncResult.error });
+      }
     }
     // Then update local DB
     const completedAt = task.status === 'completed'
@@ -149,6 +161,7 @@ export function TasksProvider({ children }: { children: ReactNode }) {
       booking_id: task.bookingId || null,
       ghl_task_id: task.ghlTaskId || null,
       completed_at: completedAt,
+      local_status_changed_at: localStatusChangedAt,
     }).eq('id', task.id).select().single();
     if (error) {
       toast({ title: 'Fout bij bijwerken taak', description: error.message, variant: 'destructive' });
@@ -160,15 +173,18 @@ export function TasksProvider({ children }: { children: ReactNode }) {
         entityType: 'task', entityId: data.id, actionType: 'create',
       });
     }
-  }, [toast]);
+  }, [tasks, toast]);
 
   const deleteTask = useCallback(async (id: string) => {
     const { data: existing } = await (supabase as any).from('tasks').select('ghl_task_id, contact_id').eq('id', id).single();
     // GHL first: delete from GHL before local DB
     if (existing?.ghl_task_id) {
-      await pushToGHL('delete-task', { ghl_task_id: existing.ghl_task_id, contact_id: existing.contact_id }, {
+      const syncResult = await pushToGHL('delete-task', { ghl_task_id: existing.ghl_task_id, contact_id: existing.contact_id }, {
         entityType: 'task', entityId: id, actionType: 'delete',
       });
+      if (syncResult.outcome === 'queued' || syncResult.outcome === 'error') {
+        toast({ title: 'Taak lokaal verwijderd, externe verwijdering volgt later', description: syncResult.error });
+      }
     }
     const { error } = await (supabase as any).from('tasks').delete().eq('id', id);
     if (error) {
