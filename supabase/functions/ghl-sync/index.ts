@@ -1275,6 +1275,7 @@ Deno.serve(async (req) => {
               status: ghlTask.completed ? 'completed' : 'open',
               due_date: ghlTask.dueDate || null,
               priority: 'medium',
+              completed_at: ghlTask.completed ? (ghlTask.completedDate || new Date().toISOString()) : null,
             });
           }
           synced++;
