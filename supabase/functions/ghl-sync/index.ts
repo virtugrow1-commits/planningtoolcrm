@@ -1229,18 +1229,42 @@ Deno.serve(async (req) => {
         for (const ghlTask of tasks) {
           const { data: existing } = await supabase
             .from('tasks')
-            .select('id')
+            .select('id, status, title, description, due_date, local_status_changed_at')
             .in('user_id', orgUserIds)
             .eq('ghl_task_id', ghlTask.id)
             .maybeSingle();
 
           if (existing) {
-            await supabase.from('tasks').update({
-              title: ghlTask.title || 'Taak',
-              description: ghlTask.body || null,
-              status: ghlTask.completed ? 'completed' : 'open',
-              due_date: ghlTask.dueDate || null,
-            }).eq('id', existing.id);
+            const externalStatus = ghlTask.completed ? 'completed' : 'open';
+            if (existing.local_status_changed_at && existing.status !== externalStatus) {
+              const protectedPayload: Record<string, any> = {
+                title: existing.title || 'Taak',
+                body: existing.description || '',
+                completed: existing.status === 'completed',
+              };
+              if (existing.due_date) protectedPayload.dueDate = existing.due_date;
+              const pushRes = await ghlFetch(`${GHL_API_BASE}/contacts/${contact.ghl_contact_id}/tasks/${ghlTask.id}`, {
+                method: 'PUT',
+                headers: ghlHeaders,
+                body: JSON.stringify(protectedPayload),
+              });
+              if (pushRes.ok) {
+                await logSyncOperation(supabase, authUser.id, 'protect_local_task_status', 'task', {
+                  taskId: existing.id,
+                  ghlTaskId: ghlTask.id,
+                  crmStatus: existing.status,
+                  externalStatus,
+                });
+              }
+            } else {
+              await supabase.from('tasks').update({
+                title: ghlTask.title || 'Taak',
+                description: ghlTask.body || null,
+                status: externalStatus,
+                due_date: ghlTask.dueDate || null,
+                completed_at: ghlTask.completed ? (ghlTask.completedDate || new Date().toISOString()) : null,
+              }).eq('id', existing.id);
+            }
           } else {
             await supabase.from('tasks').insert({
               user_id: primaryUserId,
