@@ -900,8 +900,8 @@ Deno.serve(async (req) => {
       }
 
       if (!ghlContactId) {
-        console.log(`[Delete Task] No GHL contact for task deletion, skipping`);
-        return new Response(JSON.stringify({ ok: true, skipped: true }), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+        console.error(`[Delete Task] No GHL contact for task deletion`);
+        return new Response(JSON.stringify({ ok: false, error: 'Geen gekoppeld extern contact voor taakverwijdering' }), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
       }
 
       console.log(`[Delete Task] Deleting GHL task: ${ghl_task_id} under contact ${ghlContactId}`);
@@ -919,6 +919,7 @@ Deno.serve(async (req) => {
           const errText = await res.text();
           console.error(`Failed to delete GHL task: [${res.status}] ${errText}`);
           await logSyncOperation(supabase, authUser.id, 'delete-task', 'task', { error: errText, ghlTaskId: ghl_task_id }, 'error');
+          return new Response(JSON.stringify({ ok: false, error: `GHL delete failed: ${errText}` }), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
         }
 
         return new Response(JSON.stringify({ ok: true, success: true }), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
