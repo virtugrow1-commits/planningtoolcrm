@@ -110,9 +110,12 @@ export function TasksProvider({ children }: { children: ReactNode }) {
       return;
     }
     if (data) {
-      await pushToGHL('push-task', { task: data }, {
+      const syncResult = await pushToGHL('push-task', { task: data }, {
         entityType: 'task', entityId: data.id, actionType: 'create',
       });
+      if (syncResult.outcome === 'queued' || syncResult.outcome === 'error') {
+        toast({ title: 'Taak opgeslagen, synchronisatie volgt later', description: syncResult.error });
+      }
     }
   }, [user, toast]);
 
@@ -124,7 +127,7 @@ export function TasksProvider({ children }: { children: ReactNode }) {
       : (task.localStatusChangedAt || null);
     // GHL first: push to GHL before updating local DB
     if (task.ghlTaskId) {
-      await pushToGHL('push-task', { task: {
+      const syncResult = await pushToGHL('push-task', { task: {
         id: task.id,
         ghl_task_id: task.ghlTaskId,
         title: task.title,
@@ -136,6 +139,9 @@ export function TasksProvider({ children }: { children: ReactNode }) {
       }}, {
         entityType: 'task', entityId: task.id, actionType: 'update',
       });
+      if (syncResult.outcome === 'queued' || syncResult.outcome === 'error') {
+        toast({ title: 'Wijziging opgeslagen, synchronisatie volgt later', description: syncResult.error });
+      }
     }
     // Then update local DB
     const completedAt = task.status === 'completed'
@@ -173,9 +179,12 @@ export function TasksProvider({ children }: { children: ReactNode }) {
     const { data: existing } = await (supabase as any).from('tasks').select('ghl_task_id, contact_id').eq('id', id).single();
     // GHL first: delete from GHL before local DB
     if (existing?.ghl_task_id) {
-      await pushToGHL('delete-task', { ghl_task_id: existing.ghl_task_id, contact_id: existing.contact_id }, {
+      const syncResult = await pushToGHL('delete-task', { ghl_task_id: existing.ghl_task_id, contact_id: existing.contact_id }, {
         entityType: 'task', entityId: id, actionType: 'delete',
       });
+      if (syncResult.outcome === 'queued' || syncResult.outcome === 'error') {
+        toast({ title: 'Taak lokaal verwijderd, externe verwijdering volgt later', description: syncResult.error });
+      }
     }
     const { error } = await (supabase as any).from('tasks').delete().eq('id', id);
     if (error) {
