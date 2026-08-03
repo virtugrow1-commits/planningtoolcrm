@@ -179,7 +179,7 @@ Deno.serve(async (req) => {
         fetchAll(supabase, 'contacts', 'id, ghl_contact_id, first_name, last_name, email, phone, company, company_id, status, updated_at, pending_outbound_sync, last_local_edit_at', {}),
         fetchAll(supabase, 'companies', 'id, ghl_company_id, name, email, phone, website, address, city, updated_at, pending_outbound_sync, last_local_edit_at', {}),
         fetchAll(supabase, 'inquiries', 'id, ghl_opportunity_id, status, budget, event_type, contact_name, contact_id, updated_at', {}),
-        fetchAll(supabase, 'tasks', 'id, ghl_task_id, title, description, status, updated_at, contact_id', {}),
+        fetchAll(supabase, 'tasks', 'id, ghl_task_id, title, description, status, updated_at, contact_id, local_status_changed_at', {}),
       ]);
 
       // Build lookup maps
@@ -1381,8 +1381,9 @@ async function syncTasks(supabase: any, ghlHeaders: any, locationId: string, use
         if (existing) {
           const crmRecentlyUpdated = existing.updated_at > recentThreshold;
           const crmDiffers = existing.status !== ghlStatus || existing.title !== ghlTitle;
+          const localStatusIsAuthoritative = Boolean(existing.local_status_changed_at) && existing.status !== ghlStatus;
 
-          if (crmRecentlyUpdated && crmDiffers) {
+          if (localStatusIsAuthoritative || (crmRecentlyUpdated && crmDiffers)) {
             // CRM wins
             const pushPayload: any = {
               title: existing.title,
@@ -1392,7 +1393,19 @@ async function syncTasks(supabase: any, ghlHeaders: any, locationId: string, use
             const pushRes = await fetch(`${GHL_API_BASE}/contacts/${ghlTask._ghlContactId}/tasks/${ghlTask.id}`, {
               method: 'PUT', headers: ghlHeaders, body: JSON.stringify(pushPayload),
             });
-            if (pushRes.ok) results.tasks_pushed++;
+            if (pushRes.ok) {
+              results.tasks_pushed++;
+              if (localStatusIsAuthoritative) {
+                await supabase.from('sync_log').insert({
+                  user_id: userId,
+                  entity_type: 'task',
+                  entity_id: existing.id,
+                  action: 'protect_local_task_status',
+                  details: { crm_status: existing.status, external_status: ghlStatus, ghl_task_id: ghlTask.id },
+                  status: 'success',
+                });
+              }
+            }
           } else if (crmDiffers) {
             // GHL wins
             await supabase.from('tasks').update({
@@ -1792,13 +1805,22 @@ async function processSyncQueue(supabase: any, ghlHeaders: any, locationId: stri
           if (!task) { await supabase.from('sync_queue').delete().eq('id', item.id); continue; }
           let ghlContactId = null;
           if (task.contact_id) { const { data: c } = await supabase.from('contacts').select('ghl_contact_id').eq('id', task.contact_id).single(); ghlContactId = c?.ghl_contact_id; }
-          const tPayload: Record<string, any> = { title: task.title || 'Taak', body: task.description || '', locationId };
-          if (ghlContactId) tPayload.contactId = ghlContactId;
+          const tPayload: Record<string, any> = {
+            title: task.title || 'Taak',
+            body: task.description || '',
+            completed: task.status === 'completed',
+          };
+          if (task.due_date) tPayload.dueDate = task.due_date;
+          if (!ghlContactId) {
+            await supabase.from('sync_queue').update({ status: 'failed', last_error: 'Geen gekoppeld extern contact voor taak' }).eq('id', item.id);
+            failed++;
+            continue;
+          }
           if (task.ghl_task_id) {
-            const res = await fetch(`${GHL_API_BASE}/tasks/${task.ghl_task_id}`, { method: 'PUT', headers: ghlHeaders, body: JSON.stringify(tPayload) });
+            const res = await fetch(`${GHL_API_BASE}/contacts/${ghlContactId}/tasks/${task.ghl_task_id}`, { method: 'PUT', headers: ghlHeaders, body: JSON.stringify(tPayload) });
             success = res.ok; await res.text();
           } else {
-            const res = await fetch(`${GHL_API_BASE}/tasks/`, { method: 'POST', headers: ghlHeaders, body: JSON.stringify(tPayload) });
+            const res = await fetch(`${GHL_API_BASE}/contacts/${ghlContactId}/tasks`, { method: 'POST', headers: ghlHeaders, body: JSON.stringify(tPayload) });
             if (res.ok) { const td = await res.json(); if (td.task?.id) await supabase.from('tasks').update({ ghl_task_id: td.task.id }).eq('id', task.id); success = true; }
             else { await res.text(); }
           }
@@ -1843,7 +1865,10 @@ async function processSyncQueue(supabase: any, ghlHeaders: any, locationId: stri
           else { success = true; }
         } else if (item.entity_type === 'task' && item.action_type === 'delete') {
           const ghlTaskId = (item.payload as any)?.ghl_task_id;
-          if (ghlTaskId) { const res = await fetch(`${GHL_API_BASE}/tasks/${ghlTaskId}`, { method: 'DELETE', headers: ghlHeaders }); success = res.ok || res.status === 404; await res.text(); }
+          const localContactId = (item.payload as any)?.contact_id;
+          let ghlContactId = null;
+          if (localContactId) { const { data: c } = await supabase.from('contacts').select('ghl_contact_id').eq('id', localContactId).maybeSingle(); ghlContactId = c?.ghl_contact_id; }
+          if (ghlTaskId && ghlContactId) { const res = await fetch(`${GHL_API_BASE}/contacts/${ghlContactId}/tasks/${ghlTaskId}`, { method: 'DELETE', headers: ghlHeaders }); success = res.ok || res.status === 404; await res.text(); }
           else { success = true; }
         } else if (item.entity_type === 'company' && item.action_type === 'delete') {
           const ghlCompanyId = (item.payload as any)?.ghl_company_id;

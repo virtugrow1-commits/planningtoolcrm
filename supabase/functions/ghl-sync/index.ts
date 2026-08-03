@@ -743,9 +743,9 @@ Deno.serve(async (req) => {
       const ghlPayload: Record<string, any> = {
         title: task.title || 'Taak',
         body: task.description || '',
+        completed: task.status === 'completed',
       };
       if (task.due_date) ghlPayload.dueDate = task.due_date;
-      if (task.status === 'completed') ghlPayload.completed = true;
 
       try {
         if (task.ghl_task_id) {
@@ -2133,7 +2133,7 @@ Deno.serve(async (req) => {
             }
             replayPayload = { action: 'push-task', task: currentTask };
           } else if (item.entity_type === 'task' && item.action_type === 'delete') {
-            replayPayload = payload?.action ? payload : { action: 'delete-task', ghl_task_id: payload?.ghl_task_id };
+            replayPayload = payload?.action ? payload : { action: 'delete-task', ghl_task_id: payload?.ghl_task_id, contact_id: payload?.contact_id };
           } else if (item.entity_type === 'inquiry' && (item.action_type === 'create' || item.action_type === 'update')) {
             const { data: currentInquiry } = await supabase.from('inquiries').select('*').eq('id', item.entity_id).single();
             if (!currentInquiry) {
@@ -2151,14 +2151,22 @@ Deno.serve(async (req) => {
             body: JSON.stringify(replayPayload),
           });
 
-          if (result.ok) {
+          let resultBody: Record<string, any> | null = null;
+          try {
+            resultBody = await result.clone().json();
+          } catch (_) { /* non-JSON response is handled by HTTP status */ }
+          const functionSucceeded = result.ok && resultBody?.ok !== false && !resultBody?.error;
+
+          if (functionSucceeded) {
             await supabase.from('sync_queue').update({
               status: 'completed', completed_at: new Date().toISOString(),
             }).eq('id', item.id);
             succeeded++;
             console.log(`[Process Queue] ✓ ${item.entity_type}/${item.action_type} for ${item.entity_id}`);
           } else {
-            const errText = await result.text();
+            const errText = resultBody?.error
+              ? String(resultBody.error)
+              : await result.text();
             const newRetry = (item.retry_count || 0) + 1;
             await supabase.from('sync_queue').update({
               status: newRetry >= (item.max_retries || 5) ? 'failed' : 'pending',

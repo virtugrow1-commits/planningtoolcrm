@@ -13,6 +13,7 @@ export interface Task {
   bookingId?: string;
   ghlTaskId?: string;
   completedAt?: string;
+  localStatusChangedAt?: string;
   createdAt: string;
 }
 
