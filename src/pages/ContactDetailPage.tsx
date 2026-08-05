@@ -576,6 +576,7 @@ export default function ContactDetailPage() {
           {/* Taken */}
           <TasksSection
             tasks={contactTasks}
+            showOrigin
             defaults={{ contactId: contact.id, companyId: contact.companyId }}
           />
 
