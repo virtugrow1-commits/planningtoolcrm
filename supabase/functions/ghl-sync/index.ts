@@ -1203,6 +1203,17 @@ Deno.serve(async (req) => {
       console.log(`[Tasks Sync] Starting tasks sync for organization`);
       const primaryUserId = orgUserIds[0];
 
+      const { data: taskDeleteQueue } = await supabase
+        .from('sync_queue')
+        .select('payload')
+        .eq('entity_type', 'task')
+        .eq('action_type', 'delete');
+      const deletedGhlTaskIds = new Set<string>();
+      for (const item of taskDeleteQueue || []) {
+        const deletedId = item.payload?.ghl_task_id;
+        if (deletedId) deletedGhlTaskIds.add(deletedId);
+      }
+
       // Fetch contacts with ghl_contact_id to get tasks per contact
       const { data: linkedContacts } = await supabase
         .from('contacts')
@@ -1228,6 +1239,15 @@ Deno.serve(async (req) => {
         const tasks = data.tasks || [];
 
         for (const ghlTask of tasks) {
+          if (deletedGhlTaskIds.has(ghlTask.id)) {
+            const deleteRes = await ghlFetch(`${GHL_API_BASE}/contacts/${contact.ghl_contact_id}/tasks/${ghlTask.id}`, {
+              method: 'DELETE',
+              headers: ghlHeaders,
+            });
+            await deleteRes.text();
+            console.log(`[Tasks Sync] Suppressed deleted task ${ghlTask.id}; external delete status ${deleteRes.status}`);
+            continue;
+          }
           const { data: existing } = await supabase
             .from('tasks')
             .select('id, status, title, description, due_date, local_status_changed_at')
