@@ -125,25 +125,8 @@ export function TasksProvider({ children }: { children: ReactNode }) {
     const localStatusChangedAt = statusChangedLocally
       ? new Date().toISOString()
       : (task.localStatusChangedAt || null);
-    // GHL first: push to GHL before updating local DB
-    if (task.ghlTaskId) {
-      const syncResult = await pushToGHL('push-task', { task: {
-        id: task.id,
-        ghl_task_id: task.ghlTaskId,
-        title: task.title,
-        description: task.description || null,
-        status: task.status,
-        due_date: task.dueDate || null,
-        completed_at: task.status === 'completed' ? new Date().toISOString() : null,
-        contact_id: task.contactId || null,
-      }}, {
-        entityType: 'task', entityId: task.id, actionType: 'update',
-      });
-      if (syncResult.outcome === 'queued' || syncResult.outcome === 'error') {
-        toast({ title: 'Wijziging opgeslagen, synchronisatie volgt later', description: syncResult.error });
-      }
-    }
-    // Then update local DB
+    // Persist the local decision first. This closes the race where an automatic
+    // pull could restore the old external status before the protection marker existed.
     const completedAt = task.status === 'completed'
       ? (task.completedAt || new Date().toISOString())
       : null;
@@ -167,11 +150,13 @@ export function TasksProvider({ children }: { children: ReactNode }) {
       toast({ title: 'Fout bij bijwerken taak', description: error.message, variant: 'destructive' });
       return;
     }
-    // If no GHL task yet, push the saved data to create one
-    if (data && !task.ghlTaskId) {
-      await pushToGHL('push-task', { task: data }, {
-        entityType: 'task', entityId: data.id, actionType: 'create',
+    if (data) {
+      const syncResult = await pushToGHL('push-task', { task: data }, {
+        entityType: 'task', entityId: data.id, actionType: task.ghlTaskId ? 'update' : 'create',
       });
+      if (syncResult.outcome === 'queued' || syncResult.outcome === 'error') {
+        toast({ title: 'Wijziging opgeslagen, synchronisatie volgt later', description: syncResult.error });
+      }
     }
   }, [tasks, toast]);
 

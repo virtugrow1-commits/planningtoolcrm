@@ -204,13 +204,29 @@ Deno.serve(async (req) => {
       }
 
       const taskByGhlId = new Map<string, any>();
-      const taskByTitle = new Map<string, any>();
+      const taskByContactAndTitle = new Map<string, any>();
       for (const t of existingTasks) {
         if (t.ghl_task_id) taskByGhlId.set(t.ghl_task_id, t);
-        if (!taskByTitle.has(t.title)) taskByTitle.set(t.title, t);
+        const taskKey = `${t.contact_id || ''}|${norm(t.title)}`;
+        if (!taskByContactAndTitle.has(taskKey)) taskByContactAndTitle.set(taskKey, t);
       }
 
-      const lookups = { contactByGhlId, contactByNameEmail, companyByGhlId, companyByName, inquiryByGhlId, taskByGhlId, taskByTitle, existingContacts, existingCompanies, existingInquiries };
+      const { data: taskDeleteQueue } = await supabase
+        .from('sync_queue')
+        .select('payload')
+        .eq('entity_type', 'task')
+        .eq('action_type', 'delete');
+      const deletedGhlTaskIds = new Set<string>();
+      for (const item of taskDeleteQueue || []) {
+        const deletedId = item.payload?.ghl_task_id;
+        if (deletedId) deletedGhlTaskIds.add(deletedId);
+      }
+
+      const lookups = { contactByGhlId, contactByNameEmail, companyByGhlId, companyByName, inquiryByGhlId, taskByGhlId, taskByContactAndTitle, deletedGhlTaskIds, existingContacts, existingCompanies, existingInquiries };
+
+      // Apply outbound creates, updates and deletes before reading external state.
+      // Otherwise a pending task deletion can be pulled back into the CRM first.
+      await processSyncQueue(supabase, ghlHeaders, GHL_LOCATION_ID, userId, results);
 
       if (shouldRunFullSync) {
         await syncContacts(supabase, ghlHeaders, GHL_LOCATION_ID, userId, results, lookups);
@@ -236,9 +252,6 @@ Deno.serve(async (req) => {
 
       // Push local inquiries without GHL opportunity ID
       await pushLocalInquiries(supabase, ghlHeaders, GHL_LOCATION_ID, userId, results);
-
-      // Process sync queue (retry failed items — skip permanently failed)
-      await processSyncQueue(supabase, ghlHeaders, GHL_LOCATION_ID, userId, results);
 
       await logSystemSync(supabase, userId, 'auto-sync-run', {
         phase: 'completed',
@@ -1370,6 +1383,14 @@ async function syncTasks(supabase: any, ghlHeaders: any, locationId: string, use
 
       for (const ghlTask of allTasks) {
         seenGhlTaskIds.add(ghlTask.id);
+        if (lookups.deletedGhlTaskIds.has(ghlTask.id)) {
+          const deleteRes = await fetch(`${GHL_API_BASE}/contacts/${ghlTask._ghlContactId}/tasks/${ghlTask.id}`, {
+            method: 'DELETE', headers: ghlHeaders,
+          });
+          await deleteRes.text();
+          console.log(`[Task Sync] Suppressed deleted task ${ghlTask.id}; external delete status ${deleteRes.status}`);
+          continue;
+        }
         const ghlStatus = ghlTask.completed ? 'completed' : 'open';
         const ghlTitle = ghlTask.title || 'GHL Taak';
         const ghlDescription = ghlTask.body || null;
@@ -1418,8 +1439,10 @@ async function syncTasks(supabase: any, ghlHeaders: any, locationId: string, use
             results.tasks_pulled++;
           }
         } else {
-          // Check title dedup in-memory
-          const titleDup = lookups.taskByTitle.get(ghlTitle);
+          // Only deduplicate within the same contact. Global title matching linked
+          // common titles such as "Offerte nabellen" to unrelated contacts.
+          const titleKey = `${ghlTask._localContactId || ''}|${norm(ghlTitle)}`;
+          const titleDup = lookups.taskByContactAndTitle.get(titleKey);
 
           if (titleDup) {
             await supabase.from('tasks').update({ ghl_task_id: ghlTask.id }).eq('id', titleDup.id);
@@ -1439,7 +1462,7 @@ async function syncTasks(supabase: any, ghlHeaders: any, locationId: string, use
             if (inserted) {
               const newTask = { id: inserted.id, ghl_task_id: ghlTask.id, title: ghlTitle };
               lookups.taskByGhlId.set(ghlTask.id, newTask);
-              lookups.taskByTitle.set(ghlTitle, newTask);
+              lookups.taskByContactAndTitle.set(titleKey, newTask);
             }
             results.tasks_pulled++;
           }
