@@ -250,6 +250,9 @@ export default function TasksSection({ tasks, defaults, showOrigin }: TasksSecti
                 className="shrink-0"
               />
               <span className="flex-1 text-sm text-muted-foreground line-through min-w-0 truncate">{t.title}</span>
+              {originLabel(t) && (
+                <Badge variant="outline" className="text-[10px] shrink-0 text-muted-foreground">({originLabel(t)})</Badge>
+              )}
             </div>
           ))}
         </div>
