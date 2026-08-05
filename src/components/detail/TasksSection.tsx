@@ -23,6 +23,7 @@ import { useToast } from '@/hooks/use-toast';
 
 interface TasksSectionProps {
   tasks: Task[];
+  showOrigin?: boolean;
   defaults: {
     contactId?: string;
     companyId?: string;
@@ -31,7 +32,7 @@ interface TasksSectionProps {
   };
 }
 
-export default function TasksSection({ tasks, defaults }: TasksSectionProps) {
+export default function TasksSection({ tasks, defaults, showOrigin }: TasksSectionProps) {
   const { addTask, updateTask } = useTasksContext();
   const { contacts } = useContactsContext();
   const { companies } = useCompaniesContext();
