@@ -224,6 +224,10 @@ Deno.serve(async (req) => {
 
       const lookups = { contactByGhlId, contactByNameEmail, companyByGhlId, companyByName, inquiryByGhlId, taskByGhlId, taskByContactAndTitle, deletedGhlTaskIds, existingContacts, existingCompanies, existingInquiries };
 
+      // Apply outbound creates, updates and deletes before reading external state.
+      // Otherwise a pending task deletion can be pulled back into the CRM first.
+      await processSyncQueue(supabase, ghlHeaders, GHL_LOCATION_ID, userId, results);
+
       if (shouldRunFullSync) {
         await syncContacts(supabase, ghlHeaders, GHL_LOCATION_ID, userId, results, lookups);
         await delay(200);
@@ -248,9 +252,6 @@ Deno.serve(async (req) => {
 
       // Push local inquiries without GHL opportunity ID
       await pushLocalInquiries(supabase, ghlHeaders, GHL_LOCATION_ID, userId, results);
-
-      // Process sync queue (retry failed items — skip permanently failed)
-      await processSyncQueue(supabase, ghlHeaders, GHL_LOCATION_ID, userId, results);
 
       await logSystemSync(supabase, userId, 'auto-sync-run', {
         phase: 'completed',
