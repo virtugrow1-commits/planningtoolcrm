@@ -70,7 +70,11 @@ export default function ContactDetailPage() {
   const optionBookings = useMemo(() => contactBookings.filter((b) => b.status === 'option' && b.date >= todayStr).sort((a, b) => a.date.localeCompare(b.date)), [contactBookings, todayStr]);
   const pastBookings = useMemo(() => contactBookings.filter((b) => b.date < todayStr).sort((a, b) => b.date.localeCompare(a.date)), [contactBookings, todayStr]);
   
-  const contactTasks = useMemo(() => contact ? tasks.filter((t) => t.contactId === contact.id) : [], [tasks, contact]);
+  const contactTasks = useMemo(() => {
+    if (!contact) return [];
+    const inquiryIds = new Set(contactInquiries.map((i) => i.id));
+    return tasks.filter((t) => t.contactId === contact.id || (t.inquiryId && inquiryIds.has(t.inquiryId)));
+  }, [tasks, contact, contactInquiries]);
   const contactDocuments = useMemo(() => contact ? documents.filter((d) => d.contactId === contact.id) : [], [documents, contact]);
 
   const allTags = useMemo(() => {
@@ -572,6 +576,7 @@ export default function ContactDetailPage() {
           {/* Taken */}
           <TasksSection
             tasks={contactTasks}
+            showOrigin
             defaults={{ contactId: contact.id, companyId: contact.companyId }}
           />
 

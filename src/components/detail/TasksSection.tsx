@@ -23,6 +23,7 @@ import { useToast } from '@/hooks/use-toast';
 
 interface TasksSectionProps {
   tasks: Task[];
+  showOrigin?: boolean;
   defaults: {
     contactId?: string;
     companyId?: string;
@@ -31,7 +32,7 @@ interface TasksSectionProps {
   };
 }
 
-export default function TasksSection({ tasks, defaults }: TasksSectionProps) {
+export default function TasksSection({ tasks, defaults, showOrigin }: TasksSectionProps) {
   const { addTask, updateTask } = useTasksContext();
   const { contacts } = useContactsContext();
   const { companies } = useCompaniesContext();
@@ -92,6 +93,14 @@ export default function TasksSection({ tasks, defaults }: TasksSectionProps) {
     const today = new Date();
     const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
     return dueDate < todayStr;
+  };
+
+  const originLabel = (t: Task) => {
+    if (!showOrigin) return null;
+    if (t.inquiryId) return 'Taak vanuit Aanvraag';
+    if (t.contactId) return 'Taak van CP';
+    if (t.companyId) return 'Taak van Bedrijf';
+    return null;
   };
 
   return (
@@ -207,6 +216,9 @@ export default function TasksSection({ tasks, defaults }: TasksSectionProps) {
                   className="shrink-0"
                 />
                 <span className="flex-1 text-sm text-foreground min-w-0 truncate">{t.title}</span>
+                {originLabel(t) && (
+                  <Badge variant="outline" className="text-[10px] shrink-0 text-muted-foreground">({originLabel(t)})</Badge>
+                )}
                 {t.priority !== 'normal' && (
                   <Badge variant="secondary" className={cn('text-[10px] shrink-0', prio?.color)}>{prio?.label}</Badge>
                 )}
@@ -238,6 +250,9 @@ export default function TasksSection({ tasks, defaults }: TasksSectionProps) {
                 className="shrink-0"
               />
               <span className="flex-1 text-sm text-muted-foreground line-through min-w-0 truncate">{t.title}</span>
+              {originLabel(t) && (
+                <Badge variant="outline" className="text-[10px] shrink-0 text-muted-foreground">({originLabel(t)})</Badge>
+              )}
             </div>
           ))}
         </div>
