@@ -317,6 +317,7 @@ export default function InquiryDetailPage() {
         </h2>
         <TasksSection
           tasks={inquiryTasks}
+          showOrigin
           defaults={{ inquiryId: inquiry.id, contactId: contact?.id, companyId: company?.id }}
         />
       </div>
