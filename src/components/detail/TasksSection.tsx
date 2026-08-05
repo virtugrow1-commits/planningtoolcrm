@@ -95,6 +95,14 @@ export default function TasksSection({ tasks, defaults, showOrigin }: TasksSecti
     return dueDate < todayStr;
   };
 
+  const originLabel = (t: Task) => {
+    if (!showOrigin) return null;
+    if (t.inquiryId) return 'Taak vanuit Aanvraag';
+    if (t.contactId) return 'Taak van CP';
+    if (t.companyId) return 'Taak van Bedrijf';
+    return null;
+  };
+
   return (
     <div className="rounded-xl bg-card p-5 card-shadow space-y-3">
       <div className="flex items-center justify-between">
