@@ -202,6 +202,7 @@ Deno.serve(async (req) => {
             email: ghlContact.email || null,
             phone: ghlContact.phone || null,
             company: ghlContact.companyName || null,
+            tags: Array.isArray(ghlContact.tags) ? ghlContact.tags : [],
             status: 'lead',
           }).select('id').single();
           console.log(`[Contacts Sync] Created new contact: ${firstName} ${lastName} (${inserted?.id}) for user ${primaryUserId}`);
