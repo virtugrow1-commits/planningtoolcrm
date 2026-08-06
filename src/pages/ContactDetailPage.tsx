@@ -291,33 +291,18 @@ export default function ContactDetailPage() {
                   <Tag size={10} /> {(contact.tags || []).length === 0 ? 'Tag toevoegen' : '+'}
                 </Button>
               </PopoverTrigger>
-              <PopoverContent className="w-64 p-0" align="start">
+              <PopoverContent className="w-72 p-0" align="start">
                 <Command>
                   <CommandInput
-                    placeholder="Zoek of typ nieuwe tag…"
+                    placeholder="Zoek in bestaande tags…"
                     value={tagInput}
                     onValueChange={setTagInput}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' && tagInput.trim()) {
-                        e.preventDefault();
-                        addTag(tagInput);
-                        setTagPopoverOpen(false);
-                      }
-                    }}
                   />
                   <CommandList>
                     <CommandEmpty>
-                      {tagInput.trim() ? (
-                        <button
-                          type="button"
-                          className="w-full px-3 py-2 text-left text-sm hover:bg-accent"
-                          onClick={() => { addTag(tagInput); setTagPopoverOpen(false); }}
-                        >
-                          + Maak tag "{tagInput.trim()}"
-                        </button>
-                      ) : (
-                        <span className="text-xs text-muted-foreground">Geen tags gevonden</span>
-                      )}
+                      <span className="block px-3 py-3 text-xs text-muted-foreground">
+                        Geen tag gevonden. Nieuwe tags worden alleen in de oude omgeving aangemaakt.
+                      </span>
                     </CommandEmpty>
                     {allTags.length > 0 && (
                       <CommandGroup heading="Bestaande tags">
