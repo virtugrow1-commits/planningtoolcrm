@@ -32,6 +32,8 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
 import { Tag } from 'lucide-react';
 import { DMU_OPTIONS, FUNCTION_GROUP_OPTIONS } from '@/lib/contactOptions';
+import { useGhlTags } from '@/hooks/useGhlTags';
+import { supabase } from '@/integrations/supabase/client';
 
 export default function ContactDetailPage() {
   const { id } = useParams<{ id: string }>();
