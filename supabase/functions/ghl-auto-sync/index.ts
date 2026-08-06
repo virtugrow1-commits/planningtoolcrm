@@ -998,6 +998,10 @@ async function syncContacts(supabase: any, ghlHeaders: any, locationId: string, 
           }
         } else {
           // Truly new → insert
+          const newTags: string[] = Array.isArray(ghlContact.tags)
+            ? ghlContact.tags.map((t: any) => fixEnc(String(t))).filter(Boolean)
+            : [];
+          for (const t of newTags) allSeenTags.add(t);
           const { data: inserted, error: insertErr } = await supabase.from('contacts').insert({
             user_id: userId,
             ghl_contact_id: ghlContact.id,
@@ -1006,6 +1010,7 @@ async function syncContacts(supabase: any, ghlHeaders: any, locationId: string, 
             email: ghlEmail,
             phone: ghlPhone,
             company: ghlCompanyName,
+            tags: newTags,
             status: 'lead',
           }).select('id').maybeSingle();
           if (insertErr) {
