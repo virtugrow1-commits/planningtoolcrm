@@ -287,6 +287,46 @@ Deno.serve(async (req) => {
   return new Response(JSON.stringify({ success: true, message: 'Sync started in background', scope: syncScope }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
 });
 
+// === TAG LIST SYNC ===
+// Pulls the full list of tags configured on the GHL location so the CRM can
+// offer them as a fixed selection (new tags are only created inside GHL).
+async function syncLocationTags(supabase: any, ghlHeaders: any, locationId: string, results: any) {
+  try {
+    const res = await fetch(`${GHL_API_BASE}/locations/${locationId}/tags`, { headers: ghlHeaders });
+    if (!res.ok) {
+      console.error('[Tags] Fetch failed:', res.status, await res.text());
+      return;
+    }
+    const data = await res.json();
+    const remoteTags: any[] = data.tags || data.locationTags || [];
+
+    const { data: knownTags } = await supabase.from('ghl_tags').select('id, name, ghl_tag_id');
+    const knownByName = new Map<string, any>((knownTags || []).map((t: any) => [norm(t.name), t]));
+
+    let added = 0;
+    for (const t of remoteTags) {
+      const name = fixEnc(typeof t === 'string' ? t : t?.name);
+      if (!name || !name.trim()) continue;
+      const ghlTagId = typeof t === 'string' ? null : (t?.id || null);
+      const existing = knownByName.get(norm(name));
+      if (existing) {
+        if (ghlTagId && existing.ghl_tag_id !== ghlTagId) {
+          await supabase.from('ghl_tags').update({ ghl_tag_id: ghlTagId }).eq('id', existing.id);
+        }
+      } else {
+        await supabase.from('ghl_tags').insert({ name, ghl_tag_id: ghlTagId });
+        added++;
+      }
+    }
+    results.tags_synced = remoteTags.length;
+    console.log(`[Tags] Synced ${remoteTags.length} tag(s) from GHL, ${added} new`);
+  } catch (err) {
+    console.error('[Tags] Sync error:', err);
+    results.errors.push(`tags: ${String(err)}`);
+  }
+}
+
+
 // === CALENDAR SYNC ===
 async function syncCalendar(supabase: any, ghlHeaders: any, locationId: string, userId: string, results: any, isFullSync: boolean = true) {
   try {
