@@ -514,6 +514,30 @@ export type Database = {
           },
         ]
       }
+      ghl_tags: {
+        Row: {
+          created_at: string
+          ghl_tag_id: string | null
+          id: string
+          name: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          ghl_tag_id?: string | null
+          id?: string
+          name: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          ghl_tag_id?: string | null
+          id?: string
+          name?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       inquiries: {
         Row: {
           assigned_to: string | null

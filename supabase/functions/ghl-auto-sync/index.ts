@@ -176,7 +176,7 @@ Deno.serve(async (req) => {
       // PRE-LOAD: Fetch all existing CRM records into lookup Maps ONCE
       // This eliminates thousands of individual DB queries
       const [existingContacts, existingCompanies, existingInquiries, existingTasks] = await Promise.all([
-        fetchAll(supabase, 'contacts', 'id, ghl_contact_id, first_name, last_name, email, phone, company, company_id, status, updated_at, pending_outbound_sync, last_local_edit_at', {}),
+        fetchAll(supabase, 'contacts', 'id, ghl_contact_id, first_name, last_name, email, phone, company, company_id, status, tags, updated_at, pending_outbound_sync, last_local_edit_at', {}),
         fetchAll(supabase, 'companies', 'id, ghl_company_id, name, email, phone, website, address, city, updated_at, pending_outbound_sync, last_local_edit_at', {}),
         fetchAll(supabase, 'inquiries', 'id, ghl_opportunity_id, status, budget, event_type, contact_name, contact_id, updated_at', {}),
         fetchAll(supabase, 'tasks', 'id, ghl_task_id, title, description, status, updated_at, contact_id, local_status_changed_at', {}),
@@ -229,6 +229,8 @@ Deno.serve(async (req) => {
       await processSyncQueue(supabase, ghlHeaders, GHL_LOCATION_ID, userId, results);
 
       if (shouldRunFullSync) {
+        await syncLocationTags(supabase, ghlHeaders, GHL_LOCATION_ID, results);
+        await delay(200);
         await syncContacts(supabase, ghlHeaders, GHL_LOCATION_ID, userId, results, lookups);
         await delay(200);
         await syncCompanies(supabase, ghlHeaders, GHL_LOCATION_ID, userId, results, lookups);
@@ -284,6 +286,46 @@ Deno.serve(async (req) => {
 
   return new Response(JSON.stringify({ success: true, message: 'Sync started in background', scope: syncScope }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
 });
+
+// === TAG LIST SYNC ===
+// Pulls the full list of tags configured on the GHL location so the CRM can
+// offer them as a fixed selection (new tags are only created inside GHL).
+async function syncLocationTags(supabase: any, ghlHeaders: any, locationId: string, results: any) {
+  try {
+    const res = await fetch(`${GHL_API_BASE}/locations/${locationId}/tags`, { headers: ghlHeaders });
+    if (!res.ok) {
+      console.error('[Tags] Fetch failed:', res.status, await res.text());
+      return;
+    }
+    const data = await res.json();
+    const remoteTags: any[] = data.tags || data.locationTags || [];
+
+    const { data: knownTags } = await supabase.from('ghl_tags').select('id, name, ghl_tag_id');
+    const knownByName = new Map<string, any>((knownTags || []).map((t: any) => [norm(t.name), t]));
+
+    let added = 0;
+    for (const t of remoteTags) {
+      const name = fixEnc(typeof t === 'string' ? t : t?.name);
+      if (!name || !name.trim()) continue;
+      const ghlTagId = typeof t === 'string' ? null : (t?.id || null);
+      const existing = knownByName.get(norm(name));
+      if (existing) {
+        if (ghlTagId && existing.ghl_tag_id !== ghlTagId) {
+          await supabase.from('ghl_tags').update({ ghl_tag_id: ghlTagId }).eq('id', existing.id);
+        }
+      } else {
+        await supabase.from('ghl_tags').insert({ name, ghl_tag_id: ghlTagId });
+        added++;
+      }
+    }
+    results.tags_synced = remoteTags.length;
+    console.log(`[Tags] Synced ${remoteTags.length} tag(s) from GHL, ${added} new`);
+  } catch (err) {
+    console.error('[Tags] Sync error:', err);
+    results.errors.push(`tags: ${String(err)}`);
+  }
+}
+
 
 // === CALENDAR SYNC ===
 async function syncCalendar(supabase: any, ghlHeaders: any, locationId: string, userId: string, results: any, isFullSync: boolean = true) {
@@ -865,6 +907,7 @@ async function syncOpportunities(supabase: any, ghlHeaders: any, locationId: str
 
 // === BIDIRECTIONAL CONTACTS SYNC ===
 async function syncContacts(supabase: any, ghlHeaders: any, locationId: string, userId: string, results: any, lookups: any) {
+  const allSeenTags = new Set<string>();
   try {
     const recentThreshold = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
 
@@ -967,6 +1010,19 @@ async function syncContacts(supabase: any, ghlHeaders: any, locationId: string, 
             }
           }
         }
+
+        // Tags are managed in GHL and are always mirrored into the CRM
+        if (Array.isArray(ghlContact.tags)) {
+          const ghlTags: string[] = ghlContact.tags.map((t: any) => fixEnc(String(t))).filter(Boolean);
+          for (const t of ghlTags) allSeenTags.add(t);
+          const currentTags: string[] = Array.isArray(existing.tags) ? existing.tags : [];
+          const differs = currentTags.length !== ghlTags.length ||
+            ghlTags.some((t) => !currentTags.some((c) => norm(c) === norm(t)));
+          if (differs) {
+            await supabase.from('contacts').update({ tags: ghlTags }).eq('id', existing.id);
+            existing.tags = ghlTags;
+          }
+        }
       } else {
         // New from GHL → check in-memory lookup by name+email
         const key = `${norm(firstName)}|${norm(lastName)}|${norm(ghlEmail)}`;
@@ -985,6 +1041,10 @@ async function syncContacts(supabase: any, ghlHeaders: any, locationId: string, 
           }
         } else {
           // Truly new → insert
+          const newTags: string[] = Array.isArray(ghlContact.tags)
+            ? ghlContact.tags.map((t: any) => fixEnc(String(t))).filter(Boolean)
+            : [];
+          for (const t of newTags) allSeenTags.add(t);
           const { data: inserted, error: insertErr } = await supabase.from('contacts').insert({
             user_id: userId,
             ghl_contact_id: ghlContact.id,
@@ -993,6 +1053,7 @@ async function syncContacts(supabase: any, ghlHeaders: any, locationId: string, 
             email: ghlEmail,
             phone: ghlPhone,
             company: ghlCompanyName,
+            tags: newTags,
             status: 'lead',
           }).select('id').maybeSingle();
           if (insertErr) {
@@ -1013,6 +1074,21 @@ async function syncContacts(supabase: any, ghlHeaders: any, locationId: string, 
       }
       results.contacts++;
     }
+
+    // Keep the selectable tag list in sync with everything seen on GHL contacts
+    if (allSeenTags.size > 0) {
+      const { data: knownTags } = await supabase.from('ghl_tags').select('id, name');
+      const known = new Set<string>((knownTags || []).map((t: any) => norm(t.name)));
+      const newTagRows = Array.from(allSeenTags)
+        .filter((t) => !known.has(norm(t)))
+        .map((t) => ({ name: t }));
+      if (newTagRows.length > 0) {
+        await supabase.from('ghl_tags').insert(newTagRows);
+        console.log(`[Tags] Added ${newTagRows.length} new tag(s) to the selectable list`);
+      }
+    }
+
+
 
     // 2. Push recently changed CRM contacts
     const { data: recentlyChanged } = await supabase

@@ -32,6 +32,8 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
 import { Tag } from 'lucide-react';
 import { DMU_OPTIONS, FUNCTION_GROUP_OPTIONS } from '@/lib/contactOptions';
+import { useGhlTags } from '@/hooks/useGhlTags';
+import { supabase } from '@/integrations/supabase/client';
 
 export default function ContactDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -77,28 +79,43 @@ export default function ContactDetailPage() {
   }, [tasks, contact, contactInquiries]);
   const contactDocuments = useMemo(() => contact ? documents.filter((d) => d.contactId === contact.id) : [], [documents, contact]);
 
-  const allTags = useMemo(() => {
-    const set = new Set<string>();
-    contacts.forEach((c) => (c.tags || []).forEach((t) => set.add(t)));
-    return Array.from(set).sort((a, b) => a.localeCompare(b));
-  }, [contacts]);
+  // Tags come from GHL only — creating new tags here would pollute the system
+  const { tags: ghlTags } = useGhlTags();
+  const allTags = useMemo(
+    () => [...ghlTags].sort((a, b) => a.localeCompare(b)),
+    [ghlTags]
+  );
   const [tagInput, setTagInput] = useState('');
   const [tagPopoverOpen, setTagPopoverOpen] = useState(false);
 
   const saveTags = async (nextTags: string[]) => {
     if (!contact) return;
     await updateContact({ ...contact, tags: nextTags });
+    // Mirror the selection to GHL so both systems stay aligned
+    try {
+      await supabase.functions.invoke('ghl-sync', {
+        body: { action: 'push-contact-tags', contact_id: contact.id },
+      });
+    } catch {
+      // Sync failures are logged server-side; the local change is already saved
+    }
   };
   const addTag = async (raw: string) => {
     if (!contact) return;
     const value = raw.trim();
     if (!value) return;
-    const current = contact.tags || [];
-    if (current.some((t) => t.toLowerCase() === value.toLowerCase())) {
+    // Only existing GHL tags may be selected
+    const known = allTags.find((t) => t.toLowerCase() === value.toLowerCase());
+    if (!known) {
       setTagInput('');
       return;
     }
-    await saveTags([...current, value]);
+    const current = contact.tags || [];
+    if (current.some((t) => t.toLowerCase() === known.toLowerCase())) {
+      setTagInput('');
+      return;
+    }
+    await saveTags([...current, known]);
     setTagInput('');
   };
   const removeTag = async (tag: string) => {
@@ -274,33 +291,18 @@ export default function ContactDetailPage() {
                   <Tag size={10} /> {(contact.tags || []).length === 0 ? 'Tag toevoegen' : '+'}
                 </Button>
               </PopoverTrigger>
-              <PopoverContent className="w-64 p-0" align="start">
+              <PopoverContent className="w-72 p-0" align="start">
                 <Command>
                   <CommandInput
-                    placeholder="Zoek of typ nieuwe tag…"
+                    placeholder="Zoek in bestaande tags…"
                     value={tagInput}
                     onValueChange={setTagInput}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' && tagInput.trim()) {
-                        e.preventDefault();
-                        addTag(tagInput);
-                        setTagPopoverOpen(false);
-                      }
-                    }}
                   />
                   <CommandList>
                     <CommandEmpty>
-                      {tagInput.trim() ? (
-                        <button
-                          type="button"
-                          className="w-full px-3 py-2 text-left text-sm hover:bg-accent"
-                          onClick={() => { addTag(tagInput); setTagPopoverOpen(false); }}
-                        >
-                          + Maak tag "{tagInput.trim()}"
-                        </button>
-                      ) : (
-                        <span className="text-xs text-muted-foreground">Geen tags gevonden</span>
-                      )}
+                      <span className="block px-3 py-3 text-xs text-muted-foreground">
+                        Geen tag gevonden. Nieuwe tags worden alleen in de oude omgeving aangemaakt.
+                      </span>
                     </CommandEmpty>
                     {allTags.length > 0 && (
                       <CommandGroup heading="Bestaande tags">

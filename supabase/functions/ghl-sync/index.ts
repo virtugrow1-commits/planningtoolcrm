@@ -187,6 +187,7 @@ Deno.serve(async (req) => {
               email: ghlContact.email || null,
               phone: ghlContact.phone || null,
               company: ghlContact.companyName || null,
+              tags: Array.isArray(ghlContact.tags) ? ghlContact.tags : [],
             }).eq('id', existing.id);
             console.log(`[Contacts Sync] Updated contact (GHL newer): ${firstName} ${lastName} (${existing.id})`);
           } else {
@@ -201,6 +202,7 @@ Deno.serve(async (req) => {
             email: ghlContact.email || null,
             phone: ghlContact.phone || null,
             company: ghlContact.companyName || null,
+            tags: Array.isArray(ghlContact.tags) ? ghlContact.tags : [],
             status: 'lead',
           }).select('id').single();
           console.log(`[Contacts Sync] Created new contact: ${firstName} ${lastName} (${inserted?.id}) for user ${primaryUserId}`);
@@ -213,6 +215,99 @@ Deno.serve(async (req) => {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
+
+    if (action === 'sync-tags') {
+      // Pull the full list of available tags from the GHL location
+      const tagsUrl = `${GHL_API_BASE}/locations/${GHL_LOCATION_ID}/tags`;
+      console.log(`[Tags Sync] Fetching from: ${tagsUrl}`);
+      const res = await ghlFetch(tagsUrl, { headers: ghlHeaders });
+      if (!res.ok) {
+        const errText = await res.text();
+        console.error(`[Tags Sync] Failed [${res.status}]: ${errText}`);
+        await logSyncOperation(supabase, authUser.id, 'sync-tags', 'tag', { error: errText }, 'error');
+        return new Response(JSON.stringify({ success: false, error: `GHL tags fetch failed [${res.status}]: ${errText}` }), {
+          status: res.status, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+      const data = await res.json();
+      const remoteTags: any[] = data.tags || data.locationTags || [];
+
+      let upserted = 0;
+      for (const t of remoteTags) {
+        const name = (typeof t === 'string' ? t : t.name)?.toString().trim();
+        if (!name) continue;
+        const ghlTagId = typeof t === 'string' ? null : (t.id || null);
+
+        const { data: existing } = await supabase
+          .from('ghl_tags')
+          .select('id')
+          .ilike('name', name)
+          .maybeSingle();
+
+        if (existing) {
+          await supabase.from('ghl_tags').update({ name, ghl_tag_id: ghlTagId }).eq('id', existing.id);
+        } else {
+          await supabase.from('ghl_tags').insert({ name, ghl_tag_id: ghlTagId });
+        }
+        upserted++;
+      }
+
+      await logSyncOperation(supabase, authUser.id, 'sync-tags', 'tag', { upserted, total: remoteTags.length });
+      return new Response(JSON.stringify({ success: true, upserted, total: remoteTags.length }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    if (action === 'push-contact-tags') {
+      // Write the full tag list of a single contact back to GHL
+      const contactId: string | undefined = body.contact_id;
+      if (!contactId) {
+        return new Response(JSON.stringify({ success: false, error: 'contact_id is verplicht' }), {
+          status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      const { data: contact } = await supabase
+        .from('contacts')
+        .select('id, ghl_contact_id, tags')
+        .eq('id', contactId)
+        .maybeSingle();
+
+      if (!contact) {
+        return new Response(JSON.stringify({ success: false, error: 'Contact niet gevonden' }), {
+          status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+      if (!contact.ghl_contact_id) {
+        console.log(`[Push Tags] Contact ${contactId} heeft geen GHL id, overgeslagen`);
+        return new Response(JSON.stringify({ success: true, skipped: true }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      const tags = Array.isArray(contact.tags) ? contact.tags : [];
+      const res = await ghlFetch(`${GHL_API_BASE}/contacts/${contact.ghl_contact_id}`, {
+        method: 'PUT',
+        headers: ghlHeaders,
+        body: JSON.stringify({ tags }),
+      });
+
+      if (!res.ok) {
+        const errText = await res.text();
+        console.error(`[Push Tags] Failed [${res.status}]: ${errText}`);
+        await logSyncOperation(supabase, authUser.id, 'push-contact-tags', 'contact', { error: errText, contactId }, 'error');
+        return new Response(JSON.stringify({ success: false, error: `GHL tag update failed [${res.status}]: ${errText}` }), {
+          status: res.status, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      await logSyncOperation(supabase, authUser.id, 'push-contact-tags', 'contact', { contactId, tags });
+      return new Response(JSON.stringify({ success: true, tags }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+
 
     if (action === 'push-contacts') {
       // Push local contacts to GHL - now for entire organization
