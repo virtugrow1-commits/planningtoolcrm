@@ -229,6 +229,8 @@ Deno.serve(async (req) => {
       await processSyncQueue(supabase, ghlHeaders, GHL_LOCATION_ID, userId, results);
 
       if (shouldRunFullSync) {
+        await syncLocationTags(supabase, ghlHeaders, GHL_LOCATION_ID, results);
+        await delay(200);
         await syncContacts(supabase, ghlHeaders, GHL_LOCATION_ID, userId, results, lookups);
         await delay(200);
         await syncCompanies(supabase, ghlHeaders, GHL_LOCATION_ID, userId, results, lookups);
