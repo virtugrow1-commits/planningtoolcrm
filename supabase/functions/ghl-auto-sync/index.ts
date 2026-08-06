@@ -1033,6 +1033,21 @@ async function syncContacts(supabase: any, ghlHeaders: any, locationId: string, 
       results.contacts++;
     }
 
+    // Keep the selectable tag list in sync with everything seen on GHL contacts
+    if (allSeenTags.size > 0) {
+      const { data: knownTags } = await supabase.from('ghl_tags').select('id, name');
+      const known = new Set<string>((knownTags || []).map((t: any) => norm(t.name)));
+      const newTagRows = Array.from(allSeenTags)
+        .filter((t) => !known.has(norm(t)))
+        .map((t) => ({ name: t }));
+      if (newTagRows.length > 0) {
+        await supabase.from('ghl_tags').insert(newTagRows);
+        console.log(`[Tags] Added ${newTagRows.length} new tag(s) to the selectable list`);
+      }
+    }
+
+
+
     // 2. Push recently changed CRM contacts
     const { data: recentlyChanged } = await supabase
       .from('contacts')
