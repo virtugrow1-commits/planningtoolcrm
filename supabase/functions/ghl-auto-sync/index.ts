@@ -865,6 +865,7 @@ async function syncOpportunities(supabase: any, ghlHeaders: any, locationId: str
 
 // === BIDIRECTIONAL CONTACTS SYNC ===
 async function syncContacts(supabase: any, ghlHeaders: any, locationId: string, userId: string, results: any, lookups: any) {
+  const allSeenTags = new Set<string>();
   try {
     const recentThreshold = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
 
