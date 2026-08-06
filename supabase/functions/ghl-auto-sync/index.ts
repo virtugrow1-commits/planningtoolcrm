@@ -967,6 +967,19 @@ async function syncContacts(supabase: any, ghlHeaders: any, locationId: string, 
             }
           }
         }
+
+        // Tags are managed in GHL and are always mirrored into the CRM
+        if (Array.isArray(ghlContact.tags)) {
+          const ghlTags: string[] = ghlContact.tags.map((t: any) => fixEnc(String(t))).filter(Boolean);
+          for (const t of ghlTags) allSeenTags.add(t);
+          const currentTags: string[] = Array.isArray(existing.tags) ? existing.tags : [];
+          const differs = currentTags.length !== ghlTags.length ||
+            ghlTags.some((t) => !currentTags.some((c) => norm(c) === norm(t)));
+          if (differs) {
+            await supabase.from('contacts').update({ tags: ghlTags }).eq('id', existing.id);
+            existing.tags = ghlTags;
+          }
+        }
       } else {
         // New from GHL → check in-memory lookup by name+email
         const key = `${norm(firstName)}|${norm(lastName)}|${norm(ghlEmail)}`;
