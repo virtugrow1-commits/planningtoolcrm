@@ -188,33 +188,37 @@ export default function NewReservationDialog({
     return false;
   };
 
-  const filteredContacts = useMemo(
-    () => contacts.filter(c => !c.departed && contactMatchesCompany(c)),
+  // Show ALL active contacts, but sort the ones belonging to the selected company first.
+  // Never hide contacts — CRM links are sometimes incomplete (only a company name as text).
+  const sortedContacts = useMemo(() => {
+    const active = contacts.filter(c => !c.departed);
+    if (!form.companyId) return active;
+    const inCompany = active.filter(c => contactMatchesCompany(c));
+    const inCompanyIds = new Set(inCompany.map(c => c.id));
+    const others = active.filter(c => !inCompanyIds.has(c.id));
+    return [...inCompany, ...others];
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [contacts, form.companyId, form.contactId, junctionContactIds, selectedCompany?.name]);
+
+  const companyContactCount = useMemo(
+    () => (form.companyId ? contacts.filter(c => !c.departed && contactMatchesCompany(c)).length : 0),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [contacts, form.companyId, form.contactId, junctionContactIds, selectedCompany?.name]
   );
 
   const contactOptions = useMemo<ComboboxOption[]>(() =>
-    filteredContacts.map(c => ({
+    sortedContacts.map((c, i) => ({
       id: c.id,
       label: [c.firstName, c.lastName].filter(n => n && n !== '—').join(' ') || c.email || 'Onbekend',
       secondary: [c.company, c.email].filter(Boolean).join(' · ') || undefined,
       searchText: `${c.firstName} ${c.lastName} ${c.email || ''} ${c.company || ''}`,
+      group: form.companyId
+        ? (i < companyContactCount ? 'Contactpersonen van dit bedrijf' : 'Overige contactpersonen')
+        : undefined,
     })),
-    [filteredContacts]
+    [sortedContacts, companyContactCount, form.companyId]
   );
 
-  // Auto-reset contact when company changes and current contact doesn't belong.
-  // Skip when the contact was prefilled from the source (e.g. inquiry) — keep it selectable.
-  useEffect(() => {
-    if (!form.companyId || !form.contactId) return;
-    if (prefill?.contactId && form.contactId === prefill.contactId) return;
-    const selected = contacts.find(c => c.id === form.contactId);
-    if (selected && !contactMatchesCompany(selected)) {
-      setForm((prev) => ({ ...prev, contactId: '', contactName: '' }));
-      toast({ title: 'Contact gewist', description: 'Contact hoort niet bij het gekozen bedrijf.' });
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [form.companyId, junctionContactIds]);
 
   // Info hint when selected contact is not officially linked to the chosen company
   const contactCompanyMismatch = useMemo(() => {
