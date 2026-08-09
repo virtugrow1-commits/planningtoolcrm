@@ -13,7 +13,10 @@ export interface ComboboxOption {
   tertiary?: string;
   /** Raw searchable string (built automatically if omitted) */
   searchText?: string;
+  /** Optional group heading; a header is rendered when it changes between items */
+  group?: string;
 }
+
 
 interface CrmComboboxProps {
   options: ComboboxOption[];
@@ -218,27 +221,35 @@ export default function CrmCombobox({
             const idx = allowClear ? i + 1 : i;
             const isActive = activeIndex === idx;
             const isSelected = value === opt.id;
+            const showGroup = !!opt.group && (i === 0 || filtered[i - 1].group !== opt.group);
             return (
-              <button
-                key={opt.id}
-                ref={(el) => setItemRef(idx, el)}
-                role="option"
-                aria-selected={isSelected}
-                className={cn(
-                  'w-full text-left px-3 py-2 rounded-md transition-colors',
-                  isActive && 'bg-accent text-accent-foreground',
-                  isSelected && !isActive && 'bg-primary/10 text-primary',
+              <div key={opt.id}>
+                {showGroup && (
+                  <p className="px-3 pt-2 pb-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                    {opt.group}
+                  </p>
                 )}
-                onClick={() => handleSelect(opt.id, opt)}
-                onMouseEnter={() => setActiveIndex(idx)}
-              >
-                <span className="text-sm font-medium leading-tight">{opt.label}</span>
-                {opt.secondary && (
-                  <span className="block text-xs text-muted-foreground mt-0.5 leading-tight">{opt.secondary}</span>
-                )}
-              </button>
+                <button
+                  ref={(el) => setItemRef(idx, el)}
+                  role="option"
+                  aria-selected={isSelected}
+                  className={cn(
+                    'w-full text-left px-3 py-2 rounded-md transition-colors',
+                    isActive && 'bg-accent text-accent-foreground',
+                    isSelected && !isActive && 'bg-primary/10 text-primary',
+                  )}
+                  onClick={() => handleSelect(opt.id, opt)}
+                  onMouseEnter={() => setActiveIndex(idx)}
+                >
+                  <span className="text-sm font-medium leading-tight">{opt.label}</span>
+                  {opt.secondary && (
+                    <span className="block text-xs text-muted-foreground mt-0.5 leading-tight">{opt.secondary}</span>
+                  )}
+                </button>
+              </div>
             );
           })}
+
 
           {/* Empty state */}
           {filtered.length === 0 && (
