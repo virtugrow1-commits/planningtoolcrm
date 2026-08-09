@@ -16,21 +16,29 @@ export function useContactCompanies() {
 
   const fetchLinks = useCallback(async () => {
     if (!user) return;
-    const { data } = await supabase
-      .from('contact_companies' as any)
-      .select('id, contact_id, company_id, is_primary')
-      .order('is_primary', { ascending: false });
-
-    if (data) {
-      setLinks((data as any[]).map((r) => ({
-        id: r.id,
-        contactId: r.contact_id,
-        companyId: r.company_id,
-        isPrimary: r.is_primary,
-      })));
+    // Paginate to avoid the 1000-row limit (junction table exceeds it).
+    const PAGE_SIZE = 1000;
+    const rows: any[] = [];
+    for (let from = 0; ; from += PAGE_SIZE) {
+      const { data, error } = await supabase
+        .from('contact_companies' as any)
+        .select('id, contact_id, company_id, is_primary')
+        .order('is_primary', { ascending: false })
+        .range(from, from + PAGE_SIZE - 1);
+      if (error || !data) break;
+      rows.push(...(data as any[]));
+      if ((data as any[]).length < PAGE_SIZE) break;
     }
+
+    setLinks(rows.map((r) => ({
+      id: r.id,
+      contactId: r.contact_id,
+      companyId: r.company_id,
+      isPrimary: r.is_primary,
+    })));
     setLoading(false);
   }, [user]);
+
 
   useEffect(() => { fetchLinks(); }, [fetchLinks]);
 
