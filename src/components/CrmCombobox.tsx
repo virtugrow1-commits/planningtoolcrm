@@ -13,7 +13,10 @@ export interface ComboboxOption {
   tertiary?: string;
   /** Raw searchable string (built automatically if omitted) */
   searchText?: string;
+  /** Optional group heading; a header is rendered when it changes between items */
+  group?: string;
 }
+
 
 interface CrmComboboxProps {
   options: ComboboxOption[];
