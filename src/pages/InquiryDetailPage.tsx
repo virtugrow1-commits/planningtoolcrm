@@ -62,7 +62,20 @@ export default function InquiryDetailPage() {
     }
   }, [inquiry?.id, inquiry?.isRead, markAsRead]);
 
-  const contact = useMemo(() => inquiry?.contactId ? contacts.find(c => c.id === inquiry.contactId) : null, [inquiry, contacts]);
+  const contact = useMemo(() => {
+    if (!inquiry) return null;
+    if (inquiry.contactId) {
+      const byId = contacts.find(c => c.id === inquiry.contactId);
+      if (byId) return byId;
+    }
+    // Fallback: an inquiry can arrive from VirtuGrow before it is linked to a
+    // contact. Match on name so the contact stays clickable.
+    const nameKey = (s?: string) => (s || '').toLowerCase().trim().replace(/\s+/g, ' ');
+    const target = nameKey(inquiry.contactName);
+    if (!target) return null;
+    return contacts.find(c => nameKey(`${c.firstName} ${c.lastName}`) === target) || null;
+  }, [inquiry, contacts]);
+
   const company = useMemo(() => {
     if (!inquiry) return null;
     // First try direct company_id on inquiry

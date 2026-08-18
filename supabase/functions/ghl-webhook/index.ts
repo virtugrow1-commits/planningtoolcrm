@@ -554,16 +554,34 @@ async function handleOpportunityFromWebhookPayload(supabase: any, ghlHeaders: an
     
     // Also try matching by name if no GHL contact ID match
     if (!contactId && contactName && contactName !== 'Onbekend') {
+      const parts = contactName.trim().split(/\s+/);
+      const first = parts[0] || '';
+      const rest = parts.slice(1).join(' ');
       const { data: nameMatch } = await supabase
         .from('contacts')
         .select('id')
         .not('id', 'is', null)
-        .ilike('first_name', contactName.split(' ')[0] || '')
-        .ilike('last_name', contactName.split(' ').slice(1).join(' ') || '')
+        .ilike('first_name', first)
+        .ilike('last_name', rest)
         .limit(1)
         .maybeSingle();
       contactId = nameMatch?.id || null;
+
+      // Fallback: Dutch tussenvoegsels may be stored on either name part
+      if (!contactId && parts.length > 2) {
+        const lastWord = parts[parts.length - 1];
+        const { data: looseMatch } = await supabase
+          .from('contacts')
+          .select('id')
+          .not('id', 'is', null)
+          .ilike('first_name', first)
+          .ilike('last_name', `%${lastWord}`)
+          .limit(1)
+          .maybeSingle();
+        contactId = looseMatch?.id || null;
+      }
     }
+
 
     // Before inserting, try to find a recent inquiry from form submission for the same contact
     const recentCutoff = new Date(Date.now() - 10 * 60 * 1000).toISOString();

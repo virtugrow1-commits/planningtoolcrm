@@ -1,4 +1,6 @@
 import { formatDate } from '@/lib/formatters';
+import { resolveContact } from '@/lib/contactLookup';
+
 import { useState, useCallback, useEffect, useMemo, useRef, DragEvent } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { format } from 'date-fns';
@@ -662,7 +664,8 @@ export default function InquiriesPage() {
                           <p className="text-sm font-semibold text-card-foreground truncate">{inq.eventType}</p>
                           <button
                             className="text-xs text-muted-foreground hover:text-primary transition-colors text-left truncate block w-full"
-                            onClick={(e) => { e.stopPropagation(); if (inq.contactId) navigate(`/crm/${inq.contactId}`); else openDetailDialog(inq); }}
+                            onClick={(e) => { e.stopPropagation(); const c = resolveContact(contacts, inq.contactId, inq.contactName); if (c) navigate(`/crm/${c.id}`); else openDetailDialog(inq); }}
+
                           >
                             {inq.contactName}
                           </button>
@@ -677,7 +680,7 @@ export default function InquiriesPage() {
 
                     <div className="mt-2.5 space-y-1 text-xs">
                       
-                      {(() => { const contact = inq.contactId ? contacts.find(c => c.id === inq.contactId) : null; const company = contact?.companyId ? companies.find(co => co.id === contact.companyId) : null; return contact?.company ? (
+                      {(() => { const contact = resolveContact(contacts, inq.contactId, inq.contactName); const company = contact?.companyId ? companies.find(co => co.id === contact.companyId) : null; return contact?.company ? (
                         <div className="flex gap-2"><span className="text-muted-foreground w-[100px] shrink-0">Bedrijf:</span>{company ? (
                           <button className="text-card-foreground font-medium truncate hover:text-primary transition-colors text-left" onClick={(e) => { e.stopPropagation(); navigate(`/companies/${company.id}`); }}>{contact.company}</button>
                         ) : (<span className="text-card-foreground font-medium truncate">{contact.company}</span>)}</div>
@@ -833,14 +836,15 @@ export default function InquiriesPage() {
                   <td className="px-4 py-2.5">
                     <button
                       className="text-primary hover:underline text-left"
-                      onClick={(e) => { e.stopPropagation(); if (inq.contactId) navigate(`/crm/${inq.contactId}`); else openDetailDialog(inq); }}
+                      onClick={(e) => { e.stopPropagation(); const c = resolveContact(contacts, inq.contactId, inq.contactName); if (c) navigate(`/crm/${c.id}`); else openDetailDialog(inq); }}
                     >
                       {inq.contactName}
                     </button>
                   </td>
                   <td className="px-4 py-2.5 hidden md:table-cell">
                     {(() => {
-                      const contact = inq.contactId ? contacts.find(c => c.id === inq.contactId) : null;
+                      const contact = resolveContact(contacts, inq.contactId, inq.contactName);
+
                       const company = contact?.companyId ? companies.find(co => co.id === contact.companyId) : null;
                       if (company) return <button className="text-primary hover:underline text-left text-xs" onClick={(e) => { e.stopPropagation(); navigate(`/companies/${company.id}`); }}>{company.name}</button>;
                       if (contact?.company) return <span className="text-muted-foreground text-xs">{contact.company}</span>;
@@ -1183,7 +1187,7 @@ export default function InquiriesPage() {
             </DialogTitle>
           </DialogHeader>
           {editInquiry && (() => {
-            const contact = editInquiry.contactId ? contacts.find(c => c.id === editInquiry.contactId) : null;
+            const contact = resolveContact(contacts, editInquiry.contactId, editInquiry.contactName);
             const company = contact?.companyId ? companies.find(co => co.id === contact.companyId) : null;
             const contactInquiries = editInquiry.contactId ? inquiries.filter(i => i.contactId === editInquiry.contactId) : [];
             const contactBookings = editInquiry.contactId ? bookings.filter(b => b.contactId === editInquiry.contactId) : [];
@@ -1213,7 +1217,7 @@ export default function InquiriesPage() {
                     <div>
                       <h3 className="text-lg font-semibold text-foreground">{editInquiry.eventType}</h3>
                       <button
-                        onClick={() => { setDetailOpen(false); if (editInquiry.contactId) navigate(`/crm/${editInquiry.contactId}`); }}
+                        onClick={() => { setDetailOpen(false); if (contact) navigate(`/crm/${contact.id}`); }}
                         className="text-sm text-primary hover:underline"
                       >
                         {editInquiry.contactName}

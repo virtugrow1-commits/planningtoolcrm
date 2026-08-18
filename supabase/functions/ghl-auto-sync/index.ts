@@ -27,6 +27,34 @@ function norm(s: string | null | undefined): string {
   return fixEnc((s || '')).toLowerCase().trim().replace(/\s+/g, ' ');
 }
 
+
+
+/** Dutch name particles ignored when matching a full name */
+const NAME_PARTICLES = new Set([
+  'van', 'de', 'den', 'der', 'des', 'ten', 'ter', 'te', 'het', "'t", "'s",
+  'op', 'in', 'aan', 'bij', 'uit', 'voor', 'tot', 'la', 'le', 'du', 'von', 'zu',
+]);
+
+/** Normalized full-name key, with a variant that drops Dutch particles */
+function nameKeys(full: string | null | undefined): string[] {
+  const base = norm(full).replace(/[.,]/g, '');
+  if (!base) return [];
+  const stripped = base.split(' ').filter(p => !NAME_PARTICLES.has(p)).join(' ');
+  return stripped && stripped !== base ? [base, stripped] : [base];
+}
+
+/** Resolve a local contact id from a full name using loaded contacts */
+function findContactIdByName(full: string | null | undefined, contacts: any[]): string | null {
+  const keys = nameKeys(full);
+  if (!keys.length) return null;
+  for (const key of keys) {
+    const hit = contacts.find((c: any) => nameKeys(`${c.first_name || ''} ${c.last_name || ''}`).includes(key));
+    if (hit) return hit.id;
+  }
+  return null;
+}
+
+
 /** Rate-limit delay to avoid 429 errors */
 function delay(ms: number) {
   return new Promise(resolve => setTimeout(resolve, ms));
@@ -254,6 +282,11 @@ Deno.serve(async (req) => {
 
       // Push local inquiries without GHL opportunity ID
       await pushLocalInquiries(supabase, ghlHeaders, GHL_LOCATION_ID, userId, results);
+
+      // Inquiries can arrive from VirtuGrow before their contact is synced.
+      // Link any that are still unlinked so the contact name stays clickable.
+      await backfillInquiryContacts(supabase, userId, results);
+
 
       await logSystemSync(supabase, userId, 'auto-sync-run', {
         phase: 'completed',
@@ -819,11 +852,19 @@ async function syncOpportunities(supabase: any, ghlHeaders: any, locationId: str
             // Auto-enrich merged inquiry
             await autoEnrichInquiry(supabase, ghlHeaders, locationId, opp.id, mergedExisting.id);
           } else {
+            // Resolve the local contact up-front: first on GHL contact id, then on name.
+            // Leaving this null caused inquiries to arrive without a clickable contact.
+            const resolvedContactId =
+              (opp.contact?.id ? lookups.contactByGhlId.get(opp.contact.id)?.id : null) ||
+              findContactIdByName(contactName, lookups.existingContacts) ||
+              null;
+
             const { data: inserted, error: insertErr } = await supabase.from('inquiries').upsert({
               user_id: userId,
               ghl_opportunity_id: opp.id,
               contact_name: contactName,
-              contact_id: null,
+              contact_id: resolvedContactId,
+
               event_type: opp.name || 'Onbekend',
               status: ghlStatus,
               guest_count: 0,
@@ -904,6 +945,33 @@ async function syncOpportunities(supabase: any, ghlHeaders: any, locationId: str
     }
   } catch (e) { console.error('Opp sync error:', e); }
 }
+
+// === BACKFILL: link inquiries that were created before their contact existed ===
+async function backfillInquiryContacts(supabase: any, userId: string, results: any) {
+  try {
+    const orphans = await fetchAll(supabase, 'inquiries', 'id, contact_name, contact_id', { contact_id: null });
+    if (!orphans.length) return;
+
+    const contacts = await fetchAll(supabase, 'contacts', 'id, first_name, last_name', {});
+    let linked = 0;
+    for (const inq of orphans) {
+      const contactId = findContactIdByName(inq.contact_name, contacts);
+      if (!contactId) continue;
+      const { error } = await supabase.from('inquiries').update({ contact_id: contactId }).eq('id', inq.id);
+      if (!error) linked++;
+    }
+
+    if (linked > 0) {
+      results.inquiries_contact_linked = linked;
+      console.log(`Backfill: linked ${linked} inquiries to a contact`);
+      await logSystemSync(supabase, userId, 'inquiry-contact-backfill', { linked, checked: orphans.length });
+    }
+  } catch (e) {
+    console.error('Inquiry contact backfill error:', e);
+  }
+}
+
+
 
 // === BIDIRECTIONAL CONTACTS SYNC ===
 async function syncContacts(supabase: any, ghlHeaders: any, locationId: string, userId: string, results: any, lookups: any) {
