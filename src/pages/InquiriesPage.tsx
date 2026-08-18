@@ -836,7 +836,7 @@ export default function InquiriesPage() {
                   <td className="px-4 py-2.5">
                     <button
                       className="text-primary hover:underline text-left"
-                      onClick={(e) => { e.stopPropagation(); if (inq.contactId) navigate(`/crm/${inq.contactId}`); else openDetailDialog(inq); }}
+                      onClick={(e) => { e.stopPropagation(); const c = resolveContact(contacts, inq.contactId, inq.contactName); if (c) navigate(`/crm/${c.id}`); else openDetailDialog(inq); }}
                     >
                       {inq.contactName}
                     </button>
