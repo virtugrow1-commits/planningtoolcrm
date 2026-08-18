@@ -1187,7 +1187,7 @@ export default function InquiriesPage() {
             </DialogTitle>
           </DialogHeader>
           {editInquiry && (() => {
-            const contact = editInquiry.contactId ? contacts.find(c => c.id === editInquiry.contactId) : null;
+            const contact = resolveContact(contacts, editInquiry.contactId, editInquiry.contactName);
             const company = contact?.companyId ? companies.find(co => co.id === contact.companyId) : null;
             const contactInquiries = editInquiry.contactId ? inquiries.filter(i => i.contactId === editInquiry.contactId) : [];
             const contactBookings = editInquiry.contactId ? bookings.filter(b => b.contactId === editInquiry.contactId) : [];
