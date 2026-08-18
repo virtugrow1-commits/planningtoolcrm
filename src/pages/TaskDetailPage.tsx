@@ -248,7 +248,7 @@ export default function TaskDetailPage() {
                   </Select>
                 </div>
                 <div>
-                  <p className="text-xs font-semibold text-muted-foreground mb-1">Datum</p>
+                  <p className="text-xs font-semibold text-muted-foreground mb-1">Datum *</p>
                   <div className="flex gap-2">
                     <Popover>
                       <PopoverTrigger asChild>
