@@ -1,4 +1,6 @@
 import { formatDate } from '@/lib/formatters';
+import { resolveContact } from '@/lib/contactLookup';
+
 import { useState, useCallback, useEffect, useMemo, useRef, DragEvent } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { format } from 'date-fns';
