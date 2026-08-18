@@ -113,6 +113,7 @@ export default function InquiriesPage() {
   const [noteText, setNoteText] = useState('');
   const [taskDialogInquiry, setTaskDialogInquiry] = useState<Inquiry | null>(null);
   const [taskTitle, setTaskTitle] = useState('');
+  const [taskDueDate, setTaskDueDate] = useState('');
   const [taskAssignedTo, setTaskAssignedTo] = useState<string[]>([]);
   const { toast } = useToast();
   const { getDisplayName } = useRoomSettings();
@@ -741,7 +742,7 @@ export default function InquiriesPage() {
                           <StickyNote size={13} className="text-muted-foreground" />
                         </button>
                         <button
-                          onClick={(e) => { e.stopPropagation(); setTaskDialogInquiry(inq); setTaskTitle(''); setTaskAssignedTo([]); }}
+                          onClick={(e) => { e.stopPropagation(); setTaskDialogInquiry(inq); setTaskTitle(''); setTaskDueDate(''); setTaskAssignedTo([]); }}
                           className="relative p-1 rounded hover:bg-muted transition-colors"
                           title="Taak toevoegen"
                         >
@@ -1529,20 +1530,25 @@ export default function InquiriesPage() {
             onChange={(e) => setTaskTitle(e.target.value)}
           />
           <div className="grid gap-1.5">
+            <Label>Datum *</Label>
+            <Input type="date" value={taskDueDate} onChange={(e) => setTaskDueDate(e.target.value)} />
+          </div>
+          <div className="grid gap-1.5">
             <Label>Verantwoordelijke *</Label>
             <TeamMemberMultiSelect value={taskAssignedTo} onChange={setTaskAssignedTo} />
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setTaskDialogInquiry(null)}>Annuleren</Button>
             <Button
-              disabled={!taskTitle.trim() || !taskAssignedTo.length}
+              disabled={!taskTitle.trim() || !taskDueDate.trim() || !taskAssignedTo.length}
               onClick={async () => {
-                if (!taskDialogInquiry || !taskTitle.trim() || !taskAssignedTo.length) return;
+                if (!taskDialogInquiry || !taskTitle.trim() || !taskDueDate.trim() || !taskAssignedTo.length) return;
                 for (const assignee of taskAssignedTo) {
                   await addTask({
                     title: taskTitle.trim(),
                     status: 'open',
                     priority: 'normal',
+                    dueDate: taskDueDate,
                     assignedTo: assignee,
                     inquiryId: taskDialogInquiry.id,
                     contactId: taskDialogInquiry.contactId || undefined,

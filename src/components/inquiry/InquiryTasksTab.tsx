@@ -8,9 +8,13 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
-import { Plus, CheckSquare, User } from 'lucide-react';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Calendar } from '@/components/ui/calendar';
+import { Plus, CheckSquare, User, CalendarIcon } from 'lucide-react';
 import TeamMemberMultiSelect from '@/components/TeamMemberMultiSelect';
 import { cn } from '@/lib/utils';
+import { format } from 'date-fns';
+import { nl } from 'date-fns/locale';
 import { useToast } from '@/hooks/use-toast';
 
 
@@ -27,6 +31,7 @@ export default function InquiryTasksTab({ inquiry, tasks, contactId, companyId }
   
   const [newTitle, setNewTitle] = useState('');
   const [newPriority, setNewPriority] = useState<Task['priority']>('normal');
+  const [newDueDate, setNewDueDate] = useState<Date | undefined>();
   const [newAssignedTo, setNewAssignedTo] = useState<string[]>([]);
   const [adding, setAdding] = useState(false);
 
@@ -34,13 +39,17 @@ export default function InquiryTasksTab({ inquiry, tasks, contactId, companyId }
   const completedTasks = tasks.filter(t => t.status === 'completed');
 
   const handleAdd = async () => {
-    if (!newTitle.trim() || !newAssignedTo.length) return;
+    if (!newTitle.trim() || !newAssignedTo.length || !newDueDate) return;
     setAdding(true);
+    const dueDate = newDueDate
+      ? `${newDueDate.getFullYear()}-${String(newDueDate.getMonth() + 1).padStart(2, '0')}-${String(newDueDate.getDate()).padStart(2, '0')}`
+      : undefined;
     for (const assignee of newAssignedTo) {
       await addTask({
         title: newTitle.trim(),
         status: 'open',
         priority: newPriority,
+        dueDate,
         assignedTo: assignee,
         inquiryId: inquiry.id,
         contactId: contactId || inquiry.contactId || undefined,
@@ -50,6 +59,7 @@ export default function InquiryTasksTab({ inquiry, tasks, contactId, companyId }
     const count = newAssignedTo.length;
     setNewTitle('');
     setNewPriority('normal');
+    setNewDueDate(undefined);
     setNewAssignedTo([]);
     setAdding(false);
     toast({ title: count > 1 ? `${count} taken aangemaakt` : 'Taak aangemaakt' });
@@ -83,10 +93,21 @@ export default function InquiryTasksTab({ inquiry, tasks, contactId, companyId }
               ))}
             </SelectContent>
           </Select>
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button variant="outline" size="sm" className={cn('h-10 text-sm gap-1.5', !newDueDate && 'text-muted-foreground')}>
+                <CalendarIcon size={14} />
+                {newDueDate ? format(newDueDate, 'd MMM yyyy', { locale: nl }) : 'Datum *'}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-0" align="start">
+              <Calendar mode="single" selected={newDueDate} onSelect={setNewDueDate} initialFocus className="p-3 pointer-events-auto" />
+            </PopoverContent>
+          </Popover>
           <div className="w-[180px]">
             <TeamMemberMultiSelect value={newAssignedTo} onChange={setNewAssignedTo} />
           </div>
-          <Button onClick={handleAdd} disabled={adding || !newTitle.trim() || !newAssignedTo.length} size="sm">
+          <Button onClick={handleAdd} disabled={adding || !newTitle.trim() || !newAssignedTo.length || !newDueDate} size="sm">
             <Plus size={14} className="mr-1" /> Toevoegen
           </Button>
         </div>

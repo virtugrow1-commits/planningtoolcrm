@@ -102,6 +102,10 @@ export default function TaskDetailPage() {
       toast({ title: 'Kies minimaal één verantwoordelijke', variant: 'destructive' });
       return;
     }
+    if (!editDueDate) {
+      toast({ title: 'Datum is verplicht', variant: 'destructive' });
+      return;
+    }
     const dueDate = editDueDate
       ? `${editDueDate.getFullYear()}-${String(editDueDate.getMonth() + 1).padStart(2, '0')}-${String(editDueDate.getDate()).padStart(2, '0')}`
       : undefined;
@@ -244,7 +248,7 @@ export default function TaskDetailPage() {
                   </Select>
                 </div>
                 <div>
-                  <p className="text-xs font-semibold text-muted-foreground mb-1">Datum</p>
+                  <p className="text-xs font-semibold text-muted-foreground mb-1">Datum *</p>
                   <div className="flex gap-2">
                     <Popover>
                       <PopoverTrigger asChild>

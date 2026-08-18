@@ -233,6 +233,14 @@ export default function Dashboard() {
       toast({ title: t('tasks.giveTitleError'), variant: 'destructive' });
       return;
     }
+    if (!editTask && !form.assignedTo.length) {
+      toast({ title: language === 'en' ? 'Choose an assignee' : 'Kies een verantwoordelijke', variant: 'destructive' });
+      return;
+    }
+    if (!form.dueDate.trim()) {
+      toast({ title: language === 'en' ? 'Please provide a due date' : 'Datum is verplicht', variant: 'destructive' });
+      return;
+    }
     if (editTask) {
       await updateTask({
         ...editTask, title: form.title, description: form.description || undefined,
@@ -304,7 +312,7 @@ export default function Dashboard() {
   };
 
   const handleFollowUp = async () => {
-    if (!followTitle.trim()) return;
+    if (!followTitle.trim() || !followDueDate.trim()) return;
     setFollowAdding(true);
     await addTask({
       title: followTitle.trim(), status: 'open', priority: followPriority,
@@ -753,7 +761,7 @@ export default function Dashboard() {
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div className="grid gap-1.5">
-                <Label>{t('tasks.dueDate')}</Label>
+                <Label>{t('tasks.dueDate')} *</Label>
                 <div className="flex gap-2">
                   <Input type="date" value={form.dueDate} onChange={(e) => setForm({ ...form, dueDate: e.target.value })} className="flex-1" />
                   <Input type="time" value={form.dueTime} onChange={(e) => setForm({ ...form, dueTime: e.target.value })} className="w-28" />
@@ -805,13 +813,16 @@ export default function Dashboard() {
                     {TASK_PRIORITIES.map(p => (<SelectItem key={p.value} value={p.value} className="text-xs">{p.label}</SelectItem>))}
                   </SelectContent>
                 </Select>
-                <Input type="date" value={followDueDate} onChange={(e) => setFollowDueDate(e.target.value)} className="h-8 w-auto text-xs" />
+                <div className="grid gap-1">
+                  <Label className="text-xs text-muted-foreground">{t('tasks.dueDate')} *</Label>
+                  <Input type="date" value={followDueDate} onChange={(e) => setFollowDueDate(e.target.value)} className="h-8 w-auto text-xs" />
+                </div>
               </div>
             )}
           </div>
           <DialogFooter className="gap-2 sm:gap-0">
             <Button variant="ghost" size="sm" onClick={() => setShowFollowUp(false)}>{t('common.close')}</Button>
-            <Button size="sm" onClick={handleFollowUp} disabled={followAdding || !followTitle.trim()}>{t('toast.created')}</Button>
+            <Button size="sm" onClick={handleFollowUp} disabled={followAdding || !followTitle.trim() || !followDueDate.trim()}>{t('toast.created')}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

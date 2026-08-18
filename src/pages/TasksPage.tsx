@@ -211,6 +211,10 @@ export default function TasksPage() {
       toast({ title: language === 'en' ? 'Choose a responsible person' : 'Kies een verantwoordelijke', variant: 'destructive' });
       return;
     }
+    if (!form.dueDate.trim()) {
+      toast({ title: language === 'en' ? 'Please provide a due date' : 'Datum is verplicht', variant: 'destructive' });
+      return;
+    }
     for (const assignee of form.assignedTo) {
       await addTask({
         title: form.title,
@@ -579,7 +583,7 @@ export default function TasksPage() {
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div className="grid gap-1.5">
-                <Label>{t('tasks.dueDate')}</Label>
+                <Label>{t('tasks.dueDate')} *</Label>
                 <div className="flex gap-2">
                   <Input type="date" value={form.dueDate} onChange={e => setForm({ ...form, dueDate: e.target.value })} className="flex-1" />
                   <Input type="time" value={form.dueTime} onChange={e => setForm({ ...form, dueTime: e.target.value })} className="w-28" placeholder="Tijd" />
