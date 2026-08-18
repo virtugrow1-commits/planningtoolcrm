@@ -662,7 +662,8 @@ export default function InquiriesPage() {
                           <p className="text-sm font-semibold text-card-foreground truncate">{inq.eventType}</p>
                           <button
                             className="text-xs text-muted-foreground hover:text-primary transition-colors text-left truncate block w-full"
-                            onClick={(e) => { e.stopPropagation(); if (inq.contactId) navigate(`/crm/${inq.contactId}`); else openDetailDialog(inq); }}
+                            onClick={(e) => { e.stopPropagation(); const c = resolveContact(contacts, inq.contactId, inq.contactName); if (c) navigate(`/crm/${c.id}`); else openDetailDialog(inq); }}
+
                           >
                             {inq.contactName}
                           </button>
