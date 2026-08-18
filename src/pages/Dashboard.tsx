@@ -233,6 +233,14 @@ export default function Dashboard() {
       toast({ title: t('tasks.giveTitleError'), variant: 'destructive' });
       return;
     }
+    if (!editTask && !form.assignedTo.length) {
+      toast({ title: language === 'en' ? 'Choose an assignee' : 'Kies een verantwoordelijke', variant: 'destructive' });
+      return;
+    }
+    if (!form.dueDate.trim()) {
+      toast({ title: language === 'en' ? 'Please provide a due date' : 'Datum is verplicht', variant: 'destructive' });
+      return;
+    }
     if (editTask) {
       await updateTask({
         ...editTask, title: form.title, description: form.description || undefined,
