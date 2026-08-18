@@ -283,6 +283,11 @@ Deno.serve(async (req) => {
       // Push local inquiries without GHL opportunity ID
       await pushLocalInquiries(supabase, ghlHeaders, GHL_LOCATION_ID, userId, results);
 
+      // Inquiries can arrive from VirtuGrow before their contact is synced.
+      // Link any that are still unlinked so the contact name stays clickable.
+      await backfillInquiryContacts(supabase, userId, results);
+
+
       await logSystemSync(supabase, userId, 'auto-sync-run', {
         phase: 'completed',
         scope: syncScope,
