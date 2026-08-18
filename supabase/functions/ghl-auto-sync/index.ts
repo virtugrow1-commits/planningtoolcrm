@@ -941,6 +941,33 @@ async function syncOpportunities(supabase: any, ghlHeaders: any, locationId: str
   } catch (e) { console.error('Opp sync error:', e); }
 }
 
+// === BACKFILL: link inquiries that were created before their contact existed ===
+async function backfillInquiryContacts(supabase: any, userId: string, results: any) {
+  try {
+    const orphans = await fetchAll(supabase, 'inquiries', 'id, contact_name, contact_id', { contact_id: null });
+    if (!orphans.length) return;
+
+    const contacts = await fetchAll(supabase, 'contacts', 'id, first_name, last_name', {});
+    let linked = 0;
+    for (const inq of orphans) {
+      const contactId = findContactIdByName(inq.contact_name, contacts);
+      if (!contactId) continue;
+      const { error } = await supabase.from('inquiries').update({ contact_id: contactId }).eq('id', inq.id);
+      if (!error) linked++;
+    }
+
+    if (linked > 0) {
+      results.inquiries_contact_linked = linked;
+      console.log(`Backfill: linked ${linked} inquiries to a contact`);
+      await logSystemSync(supabase, userId, 'inquiry-contact-backfill', { linked, checked: orphans.length });
+    }
+  } catch (e) {
+    console.error('Inquiry contact backfill error:', e);
+  }
+}
+
+
+
 // === BIDIRECTIONAL CONTACTS SYNC ===
 async function syncContacts(supabase: any, ghlHeaders: any, locationId: string, userId: string, results: any, lookups: any) {
   const allSeenTags = new Set<string>();
