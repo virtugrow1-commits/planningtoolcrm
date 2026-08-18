@@ -813,13 +813,16 @@ export default function Dashboard() {
                     {TASK_PRIORITIES.map(p => (<SelectItem key={p.value} value={p.value} className="text-xs">{p.label}</SelectItem>))}
                   </SelectContent>
                 </Select>
-                <Input type="date" value={followDueDate} onChange={(e) => setFollowDueDate(e.target.value)} className="h-8 w-auto text-xs" />
+                <div className="grid gap-1">
+                  <Label className="text-xs text-muted-foreground">{t('tasks.dueDate')} *</Label>
+                  <Input type="date" value={followDueDate} onChange={(e) => setFollowDueDate(e.target.value)} className="h-8 w-auto text-xs" />
+                </div>
               </div>
             )}
           </div>
           <DialogFooter className="gap-2 sm:gap-0">
             <Button variant="ghost" size="sm" onClick={() => setShowFollowUp(false)}>{t('common.close')}</Button>
-            <Button size="sm" onClick={handleFollowUp} disabled={followAdding || !followTitle.trim()}>{t('toast.created')}</Button>
+            <Button size="sm" onClick={handleFollowUp} disabled={followAdding || !followTitle.trim() || !followDueDate.trim()}>{t('toast.created')}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
