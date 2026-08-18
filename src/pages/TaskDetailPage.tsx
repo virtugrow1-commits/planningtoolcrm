@@ -102,6 +102,10 @@ export default function TaskDetailPage() {
       toast({ title: 'Kies minimaal één verantwoordelijke', variant: 'destructive' });
       return;
     }
+    if (!editDueDate) {
+      toast({ title: 'Datum is verplicht', variant: 'destructive' });
+      return;
+    }
     const dueDate = editDueDate
       ? `${editDueDate.getFullYear()}-${String(editDueDate.getMonth() + 1).padStart(2, '0')}-${String(editDueDate.getDate()).padStart(2, '0')}`
       : undefined;
