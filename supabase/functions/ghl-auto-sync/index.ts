@@ -25,6 +25,9 @@ function fixEnc(text: string | null | undefined): string {
 /** Normalize string for comparison (lowercase, trim, collapse whitespace) */
 function norm(s: string | null | undefined): string {
   return fixEnc((s || '')).toLowerCase().trim().replace(/\s+/g, ' ');
+}
+
+
 
 /** Dutch name particles ignored when matching a full name */
 const NAME_PARTICLES = new Set([
