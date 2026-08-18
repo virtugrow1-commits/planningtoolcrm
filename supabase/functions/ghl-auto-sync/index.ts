@@ -25,7 +25,32 @@ function fixEnc(text: string | null | undefined): string {
 /** Normalize string for comparison (lowercase, trim, collapse whitespace) */
 function norm(s: string | null | undefined): string {
   return fixEnc((s || '')).toLowerCase().trim().replace(/\s+/g, ' ');
+
+/** Dutch name particles ignored when matching a full name */
+const NAME_PARTICLES = new Set([
+  'van', 'de', 'den', 'der', 'des', 'ten', 'ter', 'te', 'het', "'t", "'s",
+  'op', 'in', 'aan', 'bij', 'uit', 'voor', 'tot', 'la', 'le', 'du', 'von', 'zu',
+]);
+
+/** Normalized full-name key, with a variant that drops Dutch particles */
+function nameKeys(full: string | null | undefined): string[] {
+  const base = norm(full).replace(/[.,]/g, '');
+  if (!base) return [];
+  const stripped = base.split(' ').filter(p => !NAME_PARTICLES.has(p)).join(' ');
+  return stripped && stripped !== base ? [base, stripped] : [base];
 }
+
+/** Resolve a local contact id from a full name using loaded contacts */
+function findContactIdByName(full: string | null | undefined, contacts: any[]): string | null {
+  const keys = nameKeys(full);
+  if (!keys.length) return null;
+  for (const key of keys) {
+    const hit = contacts.find((c: any) => nameKeys(`${c.first_name || ''} ${c.last_name || ''}`).includes(key));
+    if (hit) return hit.id;
+  }
+  return null;
+}
+
 
 /** Rate-limit delay to avoid 429 errors */
 function delay(ms: number) {
