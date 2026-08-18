@@ -1530,20 +1530,25 @@ export default function InquiriesPage() {
             onChange={(e) => setTaskTitle(e.target.value)}
           />
           <div className="grid gap-1.5">
+            <Label>Datum *</Label>
+            <Input type="date" value={taskDueDate} onChange={(e) => setTaskDueDate(e.target.value)} />
+          </div>
+          <div className="grid gap-1.5">
             <Label>Verantwoordelijke *</Label>
             <TeamMemberMultiSelect value={taskAssignedTo} onChange={setTaskAssignedTo} />
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setTaskDialogInquiry(null)}>Annuleren</Button>
             <Button
-              disabled={!taskTitle.trim() || !taskAssignedTo.length}
+              disabled={!taskTitle.trim() || !taskDueDate.trim() || !taskAssignedTo.length}
               onClick={async () => {
-                if (!taskDialogInquiry || !taskTitle.trim() || !taskAssignedTo.length) return;
+                if (!taskDialogInquiry || !taskTitle.trim() || !taskDueDate.trim() || !taskAssignedTo.length) return;
                 for (const assignee of taskAssignedTo) {
                   await addTask({
                     title: taskTitle.trim(),
                     status: 'open',
                     priority: 'normal',
+                    dueDate: taskDueDate,
                     assignedTo: assignee,
                     inquiryId: taskDialogInquiry.id,
                     contactId: taskDialogInquiry.contactId || undefined,
