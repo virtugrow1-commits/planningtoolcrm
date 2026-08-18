@@ -144,7 +144,7 @@ export default function TasksSection({ tasks, defaults, showOrigin }: TasksSecti
               <PopoverTrigger asChild>
                 <Button variant="outline" size="sm" className={cn('h-8 text-xs gap-1.5', !newDueDate && 'text-muted-foreground')}>
                   <CalendarIcon size={12} />
-                  {newDueDate ? format(newDueDate, 'd MMM yyyy', { locale: nl }) : 'Datum'}
+                  {newDueDate ? format(newDueDate, 'd MMM yyyy', { locale: nl }) : 'Datum *'}
                 </Button>
               </PopoverTrigger>
               <PopoverContent className="w-auto p-0" align="start">
