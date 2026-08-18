@@ -1217,7 +1217,7 @@ export default function InquiriesPage() {
                     <div>
                       <h3 className="text-lg font-semibold text-foreground">{editInquiry.eventType}</h3>
                       <button
-                        onClick={() => { setDetailOpen(false); if (editInquiry.contactId) navigate(`/crm/${editInquiry.contactId}`); }}
+                        onClick={() => { setDetailOpen(false); if (contact) navigate(`/crm/${contact.id}`); }}
                         className="text-sm text-primary hover:underline"
                       >
                         {editInquiry.contactName}
