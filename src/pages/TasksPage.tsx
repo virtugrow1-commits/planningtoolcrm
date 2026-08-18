@@ -211,6 +211,10 @@ export default function TasksPage() {
       toast({ title: language === 'en' ? 'Choose a responsible person' : 'Kies een verantwoordelijke', variant: 'destructive' });
       return;
     }
+    if (!form.dueDate.trim()) {
+      toast({ title: language === 'en' ? 'Please provide a due date' : 'Datum is verplicht', variant: 'destructive' });
+      return;
+    }
     for (const assignee of form.assignedTo) {
       await addTask({
         title: form.title,
