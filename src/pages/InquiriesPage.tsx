@@ -678,7 +678,7 @@ export default function InquiriesPage() {
 
                     <div className="mt-2.5 space-y-1 text-xs">
                       
-                      {(() => { const contact = inq.contactId ? contacts.find(c => c.id === inq.contactId) : null; const company = contact?.companyId ? companies.find(co => co.id === contact.companyId) : null; return contact?.company ? (
+                      {(() => { const contact = resolveContact(contacts, inq.contactId, inq.contactName); const company = contact?.companyId ? companies.find(co => co.id === contact.companyId) : null; return contact?.company ? (
                         <div className="flex gap-2"><span className="text-muted-foreground w-[100px] shrink-0">Bedrijf:</span>{company ? (
                           <button className="text-card-foreground font-medium truncate hover:text-primary transition-colors text-left" onClick={(e) => { e.stopPropagation(); navigate(`/companies/${company.id}`); }}>{contact.company}</button>
                         ) : (<span className="text-card-foreground font-medium truncate">{contact.company}</span>)}</div>
