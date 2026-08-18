@@ -52,7 +52,7 @@ export default function TasksSection({ tasks, defaults, showOrigin }: TasksSecti
   const completedTasks = tasks.filter(t => t.status === 'completed');
 
   const handleAdd = async () => {
-    if (!newTitle.trim() || !newAssignedTo.length) return;
+    if (!newTitle.trim() || !newAssignedTo.length || !newDueDate) return;
     setAdding(true);
     const dueDate = newDueDate
       ? `${newDueDate.getFullYear()}-${String(newDueDate.getMonth() + 1).padStart(2, '0')}-${String(newDueDate.getDate()).padStart(2, '0')}`
