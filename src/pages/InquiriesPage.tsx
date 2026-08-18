@@ -843,7 +843,8 @@ export default function InquiriesPage() {
                   </td>
                   <td className="px-4 py-2.5 hidden md:table-cell">
                     {(() => {
-                      const contact = inq.contactId ? contacts.find(c => c.id === inq.contactId) : null;
+                      const contact = resolveContact(contacts, inq.contactId, inq.contactName);
+
                       const company = contact?.companyId ? companies.find(co => co.id === contact.companyId) : null;
                       if (company) return <button className="text-primary hover:underline text-left text-xs" onClick={(e) => { e.stopPropagation(); navigate(`/companies/${company.id}`); }}>{company.name}</button>;
                       if (contact?.company) return <span className="text-muted-foreground text-xs">{contact.company}</span>;
