@@ -312,7 +312,7 @@ export default function Dashboard() {
   };
 
   const handleFollowUp = async () => {
-    if (!followTitle.trim()) return;
+    if (!followTitle.trim() || !followDueDate.trim()) return;
     setFollowAdding(true);
     await addTask({
       title: followTitle.trim(), status: 'open', priority: followPriority,
