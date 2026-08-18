@@ -847,11 +847,19 @@ async function syncOpportunities(supabase: any, ghlHeaders: any, locationId: str
             // Auto-enrich merged inquiry
             await autoEnrichInquiry(supabase, ghlHeaders, locationId, opp.id, mergedExisting.id);
           } else {
+            // Resolve the local contact up-front: first on GHL contact id, then on name.
+            // Leaving this null caused inquiries to arrive without a clickable contact.
+            const resolvedContactId =
+              (opp.contact?.id ? lookups.contactByGhlId.get(opp.contact.id)?.id : null) ||
+              findContactIdByName(contactName, lookups.existingContacts) ||
+              null;
+
             const { data: inserted, error: insertErr } = await supabase.from('inquiries').upsert({
               user_id: userId,
               ghl_opportunity_id: opp.id,
               contact_name: contactName,
-              contact_id: null,
+              contact_id: resolvedContactId,
+
               event_type: opp.name || 'Onbekend',
               status: ghlStatus,
               guest_count: 0,
