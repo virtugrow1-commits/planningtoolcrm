@@ -275,18 +275,20 @@ export default function InquiryDetailsTab({ inquiry, editing, form, setForm, con
               {structuredFields.map((f, i) => (
                 <div key={i} className="flex items-start gap-2 text-sm">
                   <span className="font-semibold text-muted-foreground min-w-[120px] shrink-0">{f.label}:</span>
-                  <span className="text-foreground">{f.value}</span>
+                  <span className="text-foreground whitespace-pre-wrap">{f.value.trim()}</span>
                 </div>
               ))}
             </div>
           )}
-          {structuredFields.length === 0 && !inquiry.preferredDate && !inquiry.roomPreference && (
+          {structuredFields.length === 0 && !freeText && !inquiry.preferredDate && !inquiry.roomPreference && (
             <p className="text-xs text-muted-foreground">{t('inquiries.noFormData')}</p>
           )}
-          {freeText.length > 0 && (
+          {freeText && (
             <div className="pt-2 border-t border-border">
-              <p className="text-xs font-semibold text-muted-foreground mb-1">{t('inquiries.remarks')}</p>
-              <p className="text-sm text-foreground whitespace-pre-wrap">{freeText.join('\n')}</p>
+              {structuredFields.length > 0 && (
+                <p className="text-xs font-semibold text-muted-foreground mb-1">{t('inquiries.remarks')}</p>
+              )}
+              <p className="text-sm text-foreground whitespace-pre-wrap leading-relaxed">{freeText}</p>
             </div>
           )}
           {!inquiry.message && !inquiry.preferredDate && !inquiry.roomPreference && (
