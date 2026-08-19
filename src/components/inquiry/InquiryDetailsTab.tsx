@@ -19,6 +19,7 @@ import { InfoRow } from '@/components/detail/DetailPageComponents';
 import TeamMemberSelect from '@/components/TeamMemberSelect';
 import CrmCombobox from '@/components/CrmCombobox';
 import { useCompaniesContext } from '@/contexts/CompaniesContext';
+import { parseInquiryMessage } from '@/lib/inquiryMessage';
 
 const PIPELINE_COLUMNS: { key: Inquiry['status']; label: string; badgeClass: string }[] = [
   { key: 'new', label: 'Nieuwe Aanvraag', badgeClass: 'status-new' },
@@ -66,31 +67,8 @@ export default function InquiryDetailsTab({ inquiry, editing, form, setForm, con
   const [enriching, setEnriching] = useState(false);
   const col = PIPELINE_COLUMNS.find(c => c.key === inquiry.status);
 
-  // Parse message field for structured display
-  // Map cryptic GHL field IDs to readable labels
-  const FIELD_LABEL_MAP: Record<string, string> = {
-    'Saalh7jouh8kpkx4ntx9': 'Extra informatie over',
-    'V2uhrncbin2tugy7iug0': 'Contactpersoon',
-    '3kgpapaxtsha4cc3omeu': 'Aantal gasten',
-    'Joqfpmtxpjwwri15fhmo': 'Dagdeel',
-    'Dey06emx0wklhdik6ugt': 'Gewenste datum',
-    'Xuurzij60jz76tpgjqgn': 'Extra informatie',
-  };
-
-  const messageLines = inquiry.message ? inquiry.message.split('\n').filter(l => l.trim()) : [];
-  const structuredFields: { label: string; value: string }[] = [];
-  const freeText: string[] = [];
-
-  for (const line of messageLines) {
-    const colonIdx = line.indexOf(':');
-    if (colonIdx > 0 && colonIdx < 40) {
-      const rawLabel = line.substring(0, colonIdx).trim();
-      const label = FIELD_LABEL_MAP[rawLabel] || rawLabel;
-      structuredFields.push({ label, value: line.substring(colonIdx + 1).trim() });
-    } else {
-      freeText.push(line);
-    }
-  }
+  // Parse message field for structured display (velden + vrije tekst, originele volgorde)
+  const { fields: structuredFields, freeText } = parseInquiryMessage(inquiry.message);
 
   const current = editing ? form! : inquiry;
 
@@ -297,18 +275,20 @@ export default function InquiryDetailsTab({ inquiry, editing, form, setForm, con
               {structuredFields.map((f, i) => (
                 <div key={i} className="flex items-start gap-2 text-sm">
                   <span className="font-semibold text-muted-foreground min-w-[120px] shrink-0">{f.label}:</span>
-                  <span className="text-foreground">{f.value}</span>
+                  <span className="text-foreground whitespace-pre-wrap">{f.value.trim()}</span>
                 </div>
               ))}
             </div>
           )}
-          {structuredFields.length === 0 && !inquiry.preferredDate && !inquiry.roomPreference && (
+          {structuredFields.length === 0 && !freeText && !inquiry.preferredDate && !inquiry.roomPreference && (
             <p className="text-xs text-muted-foreground">{t('inquiries.noFormData')}</p>
           )}
-          {freeText.length > 0 && (
+          {freeText && (
             <div className="pt-2 border-t border-border">
-              <p className="text-xs font-semibold text-muted-foreground mb-1">{t('inquiries.remarks')}</p>
-              <p className="text-sm text-foreground whitespace-pre-wrap">{freeText.join('\n')}</p>
+              {structuredFields.length > 0 && (
+                <p className="text-xs font-semibold text-muted-foreground mb-1">{t('inquiries.remarks')}</p>
+              )}
+              <p className="text-sm text-foreground whitespace-pre-wrap leading-relaxed">{freeText}</p>
             </div>
           )}
           {!inquiry.message && !inquiry.preferredDate && !inquiry.roomPreference && (
