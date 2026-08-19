@@ -90,9 +90,12 @@ export function parseInquiryMessage(message?: string | null): ParsedInquiryMessa
   for (const rawLine of lines) {
     const line = rawLine.trimEnd();
     if (!line.trim()) {
-      // lege regel: alinea-scheiding in vrije tekst, sluit veldvervolg af
-      lastFieldIndex = -1;
-      if (freeLines.length && freeLines[freeLines.length - 1] !== '') freeLines.push('');
+      // lege regel: alinea-scheiding
+      if (lastFieldIndex >= 0) {
+        fields[lastFieldIndex].value += '\n';
+      } else if (freeLines.length && freeLines[freeLines.length - 1] !== '') {
+        freeLines.push('');
+      }
       continue;
     }
 
