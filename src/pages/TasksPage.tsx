@@ -147,6 +147,21 @@ export default function TasksPage() {
     }));
   }, [contacts, form.companyId]);
 
+  const inquiryOptions = useMemo<ComboboxOption[]>(() => {
+    const pool = form.companyId ? inquiries.filter(i => i.companyId === form.companyId) : inquiries;
+    return pool.map(i => {
+      const companyName = i.companyId ? companyMap.get(i.companyId)?.name : undefined;
+      return {
+        id: i.id,
+        label: [i.displayNumber, i.eventType].filter(Boolean).join(' · ') || 'Aanvraag',
+        secondary: [companyName || i.contactName, i.preferredDate ? formatDate(i.preferredDate) : null].filter(Boolean).join(' · ') || undefined,
+        searchText: `${i.displayNumber || ''} ${i.eventType || ''} ${i.contactName || ''} ${companyName || ''}`,
+      };
+    });
+  }, [inquiries, form.companyId, companyMap]);
+
+
+
   const filteredTasks = useMemo(() => {
     let result = tasks;
     if (statusFilter !== 'all') result = result.filter(tk => tk.status === statusFilter);
