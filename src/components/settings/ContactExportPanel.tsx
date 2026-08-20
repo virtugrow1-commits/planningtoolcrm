@@ -11,8 +11,25 @@ import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, Command
 import { useContactsContext } from '@/contexts/ContactsContext';
 import { useGhlTags } from '@/hooks/useGhlTags';
 import { exportToCSV } from '@/lib/csvExport';
+import { exportToXLSX } from '@/lib/xlsxExport';
+import { exportToPDF } from '@/lib/pdfExport';
 import { formatDate } from '@/lib/formatters';
 import { useToast } from '@/hooks/use-toast';
+
+type ExportFormat = 'xlsx' | 'csv' | 'pdf';
+
+const FORMAT_LABELS: Record<ExportFormat, string> = {
+  xlsx: 'Excel (.xlsx)',
+  csv: 'CSV (.csv)',
+  pdf: 'PDF (.pdf)',
+};
+
+const FORMAT_BUTTON: Record<ExportFormat, string> = {
+  xlsx: 'Exporteren als Excel',
+  csv: 'Exporteren als CSV',
+  pdf: 'Exporteren als PDF',
+};
+
 
 const STATUS_LABELS: Record<string, string> = {
   lead: 'Lead',
@@ -62,7 +79,9 @@ export default function ContactExportPanel() {
   const [company, setCompany] = useState('');
   const [includeDeparted, setIncludeDeparted] = useState(false);
   const [tagOpen, setTagOpen] = useState(false);
+  const [format, setFormat] = useState<ExportFormat>('xlsx');
   const [columns, setColumns] = useState<string[]>(COLUMNS.filter((c) => c.default).map((c) => c.key));
+
 
   const companies = useMemo(
     () => [...new Set(contacts.map((c) => c.company).filter(Boolean) as string[])].sort((a, b) => a.localeCompare(b)),
@@ -99,8 +118,9 @@ export default function ContactExportPanel() {
       for (const col of cols) {
         switch (col.key) {
           case 'tags':
-            row.tags = (c.tags || []).join('; ');
+            row.tags = (c.tags || []).join(', ');
             break;
+
           case 'status':
             row.status = STATUS_LABELS[c.status] || c.status;
             break;
@@ -118,11 +138,38 @@ export default function ContactExportPanel() {
     if (selectedTags.length === 1) parts.push(slug(selectedTags[0]));
     else if (selectedTags.length > 1) parts.push('tags');
     if (status) parts.push(slug(STATUS_LABELS[status] || status));
-    parts.push(formatDate(new Date(), '').replace(/-/g, '-'));
+    parts.push(formatDate(new Date(), ''));
 
-    exportToCSV(rows, cols.map((c) => ({ key: c.key, label: c.label })), parts.filter(Boolean).join('-'));
+    const filename = parts.filter(Boolean).join('-');
+    const cleanCols = cols.map((c) => ({ key: c.key, label: c.label }));
+
+    if (format === 'csv') {
+      exportToCSV(rows, cleanCols, filename);
+    } else if (format === 'xlsx') {
+      exportToXLSX(rows, cleanCols, filename, 'Contactpersonen');
+    } else {
+      const filterParts: string[] = [];
+      if (selectedTags.length) {
+        filterParts.push(
+          `Tags (${tagMode === 'all' ? 'alle' : 'minstens één'}): ${selectedTags.join(', ')}`
+        );
+      }
+      if (status) filterParts.push(`Status: ${STATUS_LABELS[status] || status}`);
+      if (company) filterParts.push(`Bedrijf: ${company}`);
+      if (includeDeparted) filterParts.push('Inclusief contactpersonen uit dienst');
+
+      exportToPDF(rows, cleanCols, filename, {
+        title: 'Contactpersonen',
+        subtitle: filterParts.length
+          ? filterParts.join('  |  ')
+          : 'Alle contactpersonen (geen filters)',
+        countLabel: `${filtered.length} contactpersonen — ${formatDate(new Date(), '')}`,
+      });
+    }
+
     toast({ title: `${filtered.length} contactpersonen geëxporteerd` });
   };
+
 
   const resetFilters = () => {
     setSelectedTags([]);
@@ -247,6 +294,21 @@ export default function ContactExportPanel() {
         </div>
       </div>
 
+      <div className="space-y-1.5 sm:max-w-xs">
+        <Label className="text-xs">Bestandsformaat</Label>
+        <Select value={format} onValueChange={(v) => setFormat(v as ExportFormat)}>
+          <SelectTrigger>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {(Object.keys(FORMAT_LABELS) as ExportFormat[]).map((f) => (
+              <SelectItem key={f} value={f}>{FORMAT_LABELS[f]}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+
+
       <div className="flex flex-wrap items-center justify-between gap-3 border-t pt-4">
         <p className="text-sm text-muted-foreground">
           {loading
@@ -258,8 +320,9 @@ export default function ContactExportPanel() {
             <Button variant="ghost" onClick={resetFilters}>Filters wissen</Button>
           )}
           <Button onClick={handleExport} disabled={loading || !filtered.length || !columns.length}>
-            <Download size={14} className="mr-1.5" /> Exporteren als CSV
+            <Download size={14} className="mr-1.5" /> {FORMAT_BUTTON[format]}
           </Button>
+
         </div>
       </div>
     </div>
