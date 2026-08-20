@@ -4,6 +4,7 @@ import LegacyTaskImport from '@/components/LegacyTaskImport';
 import MasterImport from '@/components/MasterImport';
 import OudCrmImport from '@/components/OudCrmImport';
 import SyncQueuePanel from '@/components/SyncQueuePanel';
+import ContactExportPanel from '@/components/settings/ContactExportPanel';
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
