@@ -320,8 +320,9 @@ export default function ContactExportPanel() {
             <Button variant="ghost" onClick={resetFilters}>Filters wissen</Button>
           )}
           <Button onClick={handleExport} disabled={loading || !filtered.length || !columns.length}>
-            <Download size={14} className="mr-1.5" /> Exporteren als CSV
+            <Download size={14} className="mr-1.5" /> {FORMAT_BUTTON[format]}
           </Button>
+
         </div>
       </div>
     </div>
