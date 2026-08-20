@@ -79,7 +79,9 @@ export default function ContactExportPanel() {
   const [company, setCompany] = useState('');
   const [includeDeparted, setIncludeDeparted] = useState(false);
   const [tagOpen, setTagOpen] = useState(false);
+  const [format, setFormat] = useState<ExportFormat>('xlsx');
   const [columns, setColumns] = useState<string[]>(COLUMNS.filter((c) => c.default).map((c) => c.key));
+
 
   const companies = useMemo(
     () => [...new Set(contacts.map((c) => c.company).filter(Boolean) as string[])].sort((a, b) => a.localeCompare(b)),
@@ -116,8 +118,9 @@ export default function ContactExportPanel() {
       for (const col of cols) {
         switch (col.key) {
           case 'tags':
-            row.tags = (c.tags || []).join('; ');
+            row.tags = (c.tags || []).join(', ');
             break;
+
           case 'status':
             row.status = STATUS_LABELS[c.status] || c.status;
             break;
@@ -135,11 +138,38 @@ export default function ContactExportPanel() {
     if (selectedTags.length === 1) parts.push(slug(selectedTags[0]));
     else if (selectedTags.length > 1) parts.push('tags');
     if (status) parts.push(slug(STATUS_LABELS[status] || status));
-    parts.push(formatDate(new Date(), '').replace(/-/g, '-'));
+    parts.push(formatDate(new Date(), ''));
 
-    exportToCSV(rows, cols.map((c) => ({ key: c.key, label: c.label })), parts.filter(Boolean).join('-'));
+    const filename = parts.filter(Boolean).join('-');
+    const cleanCols = cols.map((c) => ({ key: c.key, label: c.label }));
+
+    if (format === 'csv') {
+      exportToCSV(rows, cleanCols, filename);
+    } else if (format === 'xlsx') {
+      exportToXLSX(rows, cleanCols, filename, 'Contactpersonen');
+    } else {
+      const filterParts: string[] = [];
+      if (selectedTags.length) {
+        filterParts.push(
+          `Tags (${tagMode === 'all' ? 'alle' : 'minstens één'}): ${selectedTags.join(', ')}`
+        );
+      }
+      if (status) filterParts.push(`Status: ${STATUS_LABELS[status] || status}`);
+      if (company) filterParts.push(`Bedrijf: ${company}`);
+      if (includeDeparted) filterParts.push('Inclusief contactpersonen uit dienst');
+
+      exportToPDF(rows, cleanCols, filename, {
+        title: 'Contactpersonen',
+        subtitle: filterParts.length
+          ? filterParts.join('  |  ')
+          : 'Alle contactpersonen (geen filters)',
+        countLabel: `${filtered.length} contactpersonen — ${formatDate(new Date(), '')}`,
+      });
+    }
+
     toast({ title: `${filtered.length} contactpersonen geëxporteerd` });
   };
+
 
   const resetFilters = () => {
     setSelectedTags([]);
