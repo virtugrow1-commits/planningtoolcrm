@@ -554,6 +554,12 @@ export default function SettingsPage() {
           </div>
         </TabsContent>
 
+        <TabsContent value="export" className="space-y-4">
+          <ContactExportPanel />
+        </TabsContent>
+
+
+
         <TabsContent value="import" className="space-y-4">
           <div className="rounded-xl border bg-card p-6 card-shadow space-y-4">
             <div>
