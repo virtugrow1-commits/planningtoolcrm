@@ -4,6 +4,7 @@ import LegacyTaskImport from '@/components/LegacyTaskImport';
 import MasterImport from '@/components/MasterImport';
 import OudCrmImport from '@/components/OudCrmImport';
 import SyncQueuePanel from '@/components/SyncQueuePanel';
+import ContactExportPanel from '@/components/settings/ContactExportPanel';
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -12,7 +13,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Switch } from '@/components/ui/switch';
 import { useToast } from '@/hooks/use-toast';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Webhook, Key, ArrowRightLeft, CheckCircle2, AlertCircle, RefreshCw, Upload, Copy, Link2, Database, BookOpen } from 'lucide-react';
+import { Webhook, Key, ArrowRightLeft, CheckCircle2, AlertCircle, RefreshCw, Upload, Copy, Link2, Database, BookOpen, Download } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { saveEboekhoudenCredentials, loadEboekhoudenCredentials } from '@/lib/eboekhouden';
 import { supabase } from '@/integrations/supabase/client';
@@ -296,6 +297,8 @@ export default function SettingsPage() {
           <TabsTrigger value="sync-queue" className="gap-2"><RefreshCw size={14} /> Sync Status</TabsTrigger>
           <TabsTrigger value="webhooks" className="gap-2"><Webhook size={14} /> Webhooks</TabsTrigger>
           <TabsTrigger value="mapping" className="gap-2"><ArrowRightLeft size={14} /> Veld Mapping</TabsTrigger>
+          <TabsTrigger value="export" className="gap-2"><Download size={14} /> Export</TabsTrigger>
+
           <TabsTrigger value="import" className="gap-2"><Upload size={14} /> CSV Import</TabsTrigger>
           <TabsTrigger value="legacy" className="gap-2"><Database size={14} /> Legacy Import</TabsTrigger>
           <TabsTrigger value="master" className="gap-2"><Database size={14} /> Master Import</TabsTrigger>
@@ -550,6 +553,12 @@ export default function SettingsPage() {
             </p>
           </div>
         </TabsContent>
+
+        <TabsContent value="export" className="space-y-4">
+          <ContactExportPanel />
+        </TabsContent>
+
+
 
         <TabsContent value="import" className="space-y-4">
           <div className="rounded-xl border bg-card p-6 card-shadow space-y-4">
