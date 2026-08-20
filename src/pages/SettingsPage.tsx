@@ -12,7 +12,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Switch } from '@/components/ui/switch';
 import { useToast } from '@/hooks/use-toast';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Webhook, Key, ArrowRightLeft, CheckCircle2, AlertCircle, RefreshCw, Upload, Copy, Link2, Database, BookOpen } from 'lucide-react';
+import { Webhook, Key, ArrowRightLeft, CheckCircle2, AlertCircle, RefreshCw, Upload, Copy, Link2, Database, BookOpen, Download } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { saveEboekhoudenCredentials, loadEboekhoudenCredentials } from '@/lib/eboekhouden';
 import { supabase } from '@/integrations/supabase/client';
