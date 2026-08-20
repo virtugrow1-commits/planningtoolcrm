@@ -11,8 +11,25 @@ import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, Command
 import { useContactsContext } from '@/contexts/ContactsContext';
 import { useGhlTags } from '@/hooks/useGhlTags';
 import { exportToCSV } from '@/lib/csvExport';
+import { exportToXLSX } from '@/lib/xlsxExport';
+import { exportToPDF } from '@/lib/pdfExport';
 import { formatDate } from '@/lib/formatters';
 import { useToast } from '@/hooks/use-toast';
+
+type ExportFormat = 'xlsx' | 'csv' | 'pdf';
+
+const FORMAT_LABELS: Record<ExportFormat, string> = {
+  xlsx: 'Excel (.xlsx)',
+  csv: 'CSV (.csv)',
+  pdf: 'PDF (.pdf)',
+};
+
+const FORMAT_BUTTON: Record<ExportFormat, string> = {
+  xlsx: 'Exporteren als Excel',
+  csv: 'Exporteren als CSV',
+  pdf: 'Exporteren als PDF',
+};
+
 
 const STATUS_LABELS: Record<string, string> = {
   lead: 'Lead',
