@@ -593,20 +593,65 @@ export default function TasksPage() {
               <Label>{t('common.description')}</Label>
               <Textarea value={form.description} onChange={e => setForm({ ...form, description: e.target.value })} rows={3} />
             </div>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid gap-1.5">
+              <Label>Koppel taak aan *</Label>
+              <Select
+                value={form.linkType}
+                onValueChange={(v: 'inquiry' | 'company' | 'contact') =>
+                  setForm({ ...form, linkType: v, inquiryId: '', companyId: v === 'contact' ? '' : form.companyId, contactId: '' })
+                }
+              >
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="inquiry">Aanvraag</SelectItem>
+                  <SelectItem value="company">Bedrijf + contactpersoon</SelectItem>
+                  <SelectItem value="contact">Alleen contactpersoon (particulier)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            {form.linkType === 'inquiry' && (
               <div className="grid gap-1.5">
-                <Label>{t('crm.company')}</Label>
+                <Label>Aanvraag *</Label>
                 <CrmCombobox
-                  options={companyOptions}
-                  value={form.companyId}
-                  onSelect={id => setForm({ ...form, companyId: id, contactId: '' })}
-                  placeholder="Selecteer..."
-                  searchPlaceholder="Zoek bedrijf..."
+                  options={inquiryOptions}
+                  value={form.inquiryId}
+                  onSelect={id => {
+                    const inq = inquiries.find(i => i.id === id);
+                    setForm({
+                      ...form,
+                      inquiryId: id,
+                      companyId: inq?.companyId || form.companyId,
+                      contactId: inq?.contactId || '',
+                    });
+                  }}
+                  placeholder="Selecteer aanvraag..."
+                  searchPlaceholder="Zoek op nummer, bedrijf of contact..."
                   allowClear
                   clearLabel="— Geen —"
-                  popoverWidth="w-[280px]"
+                  popoverWidth="w-[380px]"
                 />
+                <p className="text-[11px] text-muted-foreground">
+                  Kies eerst een bedrijf om alleen de aanvragen van dat bedrijf te zien.
+                </p>
               </div>
+            )}
+            <div className="grid grid-cols-2 gap-3">
+              {form.linkType !== 'contact' && (
+                <div className="grid gap-1.5">
+                  <Label>{t('crm.company')}{form.linkType === 'company' ? ' *' : ''}</Label>
+                  <CrmCombobox
+                    options={companyOptions}
+                    value={form.companyId}
+                    onSelect={id => setForm({ ...form, companyId: id, contactId: '', inquiryId: '' })}
+                    placeholder="Selecteer..."
+                    searchPlaceholder="Zoek bedrijf..."
+                    allowClear
+                    clearLabel="— Geen —"
+                    popoverWidth="w-[280px]"
+                  />
+                </div>
+              )}
+
               <div className="grid gap-1.5">
                 <Label>{t('inquiries.contactPerson')}</Label>
                 <CrmCombobox
