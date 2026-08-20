@@ -203,7 +203,8 @@ export default function TasksPage() {
   };
 
   const resetForm = () =>
-    setForm({ title: '', description: '', status: 'open', priority: 'normal', dueDate: '', dueTime: '', companyId: '', contactId: '', assignedTo: [] });
+    setForm({ title: '', description: '', status: 'open', priority: 'normal', dueDate: '', dueTime: '', linkType: 'inquiry', companyId: '', contactId: '', inquiryId: '', assignedTo: [] });
+
 
   const handleSave = async () => {
     if (!form.title.trim()) {
