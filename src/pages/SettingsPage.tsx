@@ -296,6 +296,8 @@ export default function SettingsPage() {
           <TabsTrigger value="sync-queue" className="gap-2"><RefreshCw size={14} /> Sync Status</TabsTrigger>
           <TabsTrigger value="webhooks" className="gap-2"><Webhook size={14} /> Webhooks</TabsTrigger>
           <TabsTrigger value="mapping" className="gap-2"><ArrowRightLeft size={14} /> Veld Mapping</TabsTrigger>
+          <TabsTrigger value="export" className="gap-2"><Download size={14} /> Export</TabsTrigger>
+
           <TabsTrigger value="import" className="gap-2"><Upload size={14} /> CSV Import</TabsTrigger>
           <TabsTrigger value="legacy" className="gap-2"><Database size={14} /> Legacy Import</TabsTrigger>
           <TabsTrigger value="master" className="gap-2"><Database size={14} /> Master Import</TabsTrigger>
