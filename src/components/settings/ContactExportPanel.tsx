@@ -294,6 +294,21 @@ export default function ContactExportPanel() {
         </div>
       </div>
 
+      <div className="space-y-1.5 sm:max-w-xs">
+        <Label className="text-xs">Bestandsformaat</Label>
+        <Select value={format} onValueChange={(v) => setFormat(v as ExportFormat)}>
+          <SelectTrigger>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {(Object.keys(FORMAT_LABELS) as ExportFormat[]).map((f) => (
+              <SelectItem key={f} value={f}>{FORMAT_LABELS[f]}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+
+
       <div className="flex flex-wrap items-center justify-between gap-3 border-t pt-4">
         <p className="text-sm text-muted-foreground">
           {loading
