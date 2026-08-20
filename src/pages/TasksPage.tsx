@@ -85,10 +85,13 @@ export default function TasksPage() {
     priority: 'normal' as Task['priority'],
     dueDate: '',
     dueTime: '',
+    linkType: 'inquiry' as 'inquiry' | 'company' | 'contact',
     companyId: '',
     contactId: '',
+    inquiryId: '',
     assignedTo: [] as string[],
   });
+
 
   const today = new Date().toISOString().split('T')[0];
 
@@ -143,6 +146,21 @@ export default function TasksPage() {
       searchText: `${c.firstName} ${c.lastName} ${c.email || ''} ${c.company || ''} ${c.phone || ''}`,
     }));
   }, [contacts, form.companyId]);
+
+  const inquiryOptions = useMemo<ComboboxOption[]>(() => {
+    const pool = form.companyId ? inquiries.filter(i => i.companyId === form.companyId) : inquiries;
+    return pool.map(i => {
+      const companyName = i.companyId ? companyMap.get(i.companyId)?.name : undefined;
+      return {
+        id: i.id,
+        label: [i.displayNumber, i.eventType].filter(Boolean).join(' · ') || 'Aanvraag',
+        secondary: [companyName || i.contactName, i.preferredDate ? formatDate(i.preferredDate) : null].filter(Boolean).join(' · ') || undefined,
+        searchText: `${i.displayNumber || ''} ${i.eventType || ''} ${i.contactName || ''} ${companyName || ''}`,
+      };
+    });
+  }, [inquiries, form.companyId, companyMap]);
+
+
 
   const filteredTasks = useMemo(() => {
     let result = tasks;
@@ -200,7 +218,8 @@ export default function TasksPage() {
   };
 
   const resetForm = () =>
-    setForm({ title: '', description: '', status: 'open', priority: 'normal', dueDate: '', dueTime: '', companyId: '', contactId: '', assignedTo: [] });
+    setForm({ title: '', description: '', status: 'open', priority: 'normal', dueDate: '', dueTime: '', linkType: 'inquiry', companyId: '', contactId: '', inquiryId: '', assignedTo: [] });
+
 
   const handleSave = async () => {
     if (!form.title.trim()) {
@@ -215,6 +234,25 @@ export default function TasksPage() {
       toast({ title: language === 'en' ? 'Please provide a due date' : 'Datum is verplicht', variant: 'destructive' });
       return;
     }
+    if (form.linkType === 'inquiry' && !form.inquiryId) {
+      toast({ title: language === 'en' ? 'Select an inquiry' : 'Selecteer een aanvraag', variant: 'destructive' });
+      return;
+    }
+    if (form.linkType === 'company' && !form.companyId) {
+      toast({ title: language === 'en' ? 'Select a company' : 'Selecteer een bedrijf', variant: 'destructive' });
+      return;
+    }
+    if (form.linkType === 'contact' && !form.contactId) {
+      toast({ title: language === 'en' ? 'Select a contact' : 'Selecteer een contactpersoon', variant: 'destructive' });
+      return;
+    }
+    const linkedInquiry = form.linkType === 'inquiry' && form.inquiryId
+      ? inquiries.find(i => i.id === form.inquiryId)
+      : undefined;
+    const companyId = form.linkType === 'contact'
+      ? undefined
+      : (form.companyId || linkedInquiry?.companyId || undefined);
+    const contactId = form.contactId || linkedInquiry?.contactId || undefined;
     for (const assignee of form.assignedTo) {
       await addTask({
         title: form.title,
@@ -223,11 +261,13 @@ export default function TasksPage() {
         priority: 'normal',
         dueDate: form.dueDate || undefined,
         dueTime: form.dueTime || undefined,
-        companyId: form.companyId || undefined,
-        contactId: form.contactId || undefined,
+        companyId,
+        contactId,
+        inquiryId: form.linkType === 'inquiry' ? form.inquiryId || undefined : undefined,
         assignedTo: assignee,
       });
     }
+
     toast({ title: form.assignedTo.length > 1 ? `${form.assignedTo.length} ${language === 'en' ? 'tasks created' : 'taken aangemaakt'}` : t('tasks.taskCreated') });
     setNewOpen(false);
     resetForm();
@@ -553,22 +593,67 @@ export default function TasksPage() {
               <Label>{t('common.description')}</Label>
               <Textarea value={form.description} onChange={e => setForm({ ...form, description: e.target.value })} rows={3} />
             </div>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid gap-1.5">
+              <Label>Koppel taak aan *</Label>
+              <Select
+                value={form.linkType}
+                onValueChange={(v: 'inquiry' | 'company' | 'contact') =>
+                  setForm({ ...form, linkType: v, inquiryId: '', companyId: v === 'contact' ? '' : form.companyId, contactId: '' })
+                }
+              >
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="inquiry">Aanvraag</SelectItem>
+                  <SelectItem value="company">Bedrijf + contactpersoon</SelectItem>
+                  <SelectItem value="contact">Alleen contactpersoon (particulier)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            {form.linkType === 'inquiry' && (
               <div className="grid gap-1.5">
-                <Label>{t('crm.company')}</Label>
+                <Label>Aanvraag *</Label>
                 <CrmCombobox
-                  options={companyOptions}
-                  value={form.companyId}
-                  onSelect={id => setForm({ ...form, companyId: id, contactId: '' })}
-                  placeholder="Selecteer..."
-                  searchPlaceholder="Zoek bedrijf..."
+                  options={inquiryOptions}
+                  value={form.inquiryId}
+                  onSelect={id => {
+                    const inq = inquiries.find(i => i.id === id);
+                    setForm({
+                      ...form,
+                      inquiryId: id,
+                      companyId: inq?.companyId || form.companyId,
+                      contactId: inq?.contactId || '',
+                    });
+                  }}
+                  placeholder="Selecteer aanvraag..."
+                  searchPlaceholder="Zoek op nummer, bedrijf of contact..."
                   allowClear
                   clearLabel="— Geen —"
-                  popoverWidth="w-[280px]"
+                  popoverWidth="w-[380px]"
                 />
+                <p className="text-[11px] text-muted-foreground">
+                  Kies eerst een bedrijf om alleen de aanvragen van dat bedrijf te zien.
+                </p>
               </div>
+            )}
+            <div className="grid grid-cols-2 gap-3">
+              {form.linkType !== 'contact' && (
+                <div className="grid gap-1.5">
+                  <Label>{t('crm.company')}{form.linkType === 'company' ? ' *' : ''}</Label>
+                  <CrmCombobox
+                    options={companyOptions}
+                    value={form.companyId}
+                    onSelect={id => setForm({ ...form, companyId: id, contactId: '', inquiryId: '' })}
+                    placeholder="Selecteer..."
+                    searchPlaceholder="Zoek bedrijf..."
+                    allowClear
+                    clearLabel="— Geen —"
+                    popoverWidth="w-[280px]"
+                  />
+                </div>
+              )}
+
               <div className="grid gap-1.5">
-                <Label>{t('inquiries.contactPerson')}</Label>
+                <Label>{t('inquiries.contactPerson')}{form.linkType === 'contact' ? ' *' : ''}</Label>
                 <CrmCombobox
                   options={contactOptions}
                   value={form.contactId}
