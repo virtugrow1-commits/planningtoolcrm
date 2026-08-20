@@ -234,6 +234,25 @@ export default function TasksPage() {
       toast({ title: language === 'en' ? 'Please provide a due date' : 'Datum is verplicht', variant: 'destructive' });
       return;
     }
+    if (form.linkType === 'inquiry' && !form.inquiryId) {
+      toast({ title: language === 'en' ? 'Select an inquiry' : 'Selecteer een aanvraag', variant: 'destructive' });
+      return;
+    }
+    if (form.linkType === 'company' && !form.companyId) {
+      toast({ title: language === 'en' ? 'Select a company' : 'Selecteer een bedrijf', variant: 'destructive' });
+      return;
+    }
+    if (form.linkType === 'contact' && !form.contactId) {
+      toast({ title: language === 'en' ? 'Select a contact' : 'Selecteer een contactpersoon', variant: 'destructive' });
+      return;
+    }
+    const linkedInquiry = form.linkType === 'inquiry' && form.inquiryId
+      ? inquiries.find(i => i.id === form.inquiryId)
+      : undefined;
+    const companyId = form.linkType === 'contact'
+      ? undefined
+      : (form.companyId || linkedInquiry?.companyId || undefined);
+    const contactId = form.contactId || linkedInquiry?.contactId || undefined;
     for (const assignee of form.assignedTo) {
       await addTask({
         title: form.title,
@@ -242,11 +261,13 @@ export default function TasksPage() {
         priority: 'normal',
         dueDate: form.dueDate || undefined,
         dueTime: form.dueTime || undefined,
-        companyId: form.companyId || undefined,
-        contactId: form.contactId || undefined,
+        companyId,
+        contactId,
+        inquiryId: form.linkType === 'inquiry' ? form.inquiryId || undefined : undefined,
         assignedTo: assignee,
       });
     }
+
     toast({ title: form.assignedTo.length > 1 ? `${form.assignedTo.length} ${language === 'en' ? 'tasks created' : 'taken aangemaakt'}` : t('tasks.taskCreated') });
     setNewOpen(false);
     resetForm();
