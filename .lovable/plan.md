@@ -1,16 +1,21 @@
-# Export netjes in losse kolommen
+# Export in kolommen + keuze CSV / Excel / PDF
 
-Het exportbestand is technisch correct, maar Excel in Nederlandse instelling verwacht een puntkomma (`;`) als scheidingsteken in plaats van een komma. Daarom belandt elke regel in één kolom.
+Het exportbestand is technisch correct, maar Excel in Nederlandse instelling verwacht een puntkomma (`;`) als scheidingsteken in plaats van een komma. Daarom belandt alles in één kolom. We lossen dat op én voegen een keuze van bestandsformaat toe.
 
 ## Wat je krijgt
 
-- De CSV-export gebruikt een puntkomma als scheidingsteken, zodat Excel voornaam, achternaam, e-mail, telefoon enz. automatisch in aparte kolommen zet — dubbelklikken is genoeg, geen importwizard meer.
-- Blijft werken zoals nu: UTF-8 met BOM (accenten goed), tags gescheiden door `;` binnen één cel worden veilig gequoteerd zodat ze de kolommen niet breken.
-- Telefoonnummers en postcodes blijven leesbaar staan zoals ze zijn.
+In het tabblad Export een keuze **Bestandsformaat**: Excel (.xlsx), CSV (.csv) of PDF (.pdf). De knop past mee: "Exporteren als Excel / CSV / PDF".
+
+- **Excel (.xlsx)** — standaardkeuze. Echte kolommen, vetgedrukte kopregel, bevroren bovenste rij, automatische kolombreedtes en een autofilter. Telefoonnummers en postcodes blijven als tekst staan (geen verminkte nullen).
+- **CSV (.csv)** — nu met puntkomma als scheidingsteken, zodat Excel de kolommen direct goed splitst bij dubbelklikken. UTF-8 met BOM blijft behouden voor accenten.
+- **PDF (.pdf)** — nette tabel in liggende A4 met titel, gekozen filters (bijv. tag "Vrienden aan de Donge"), datum, aantal contactpersonen en paginanummers. Bedoeld om te printen of te delen; bij veel kolommen wordt de tekst kleiner zodat alles op de pagina past.
+
+Filters, kolomkeuze, de matchteller en de bestandsnaam werken precies zoals nu — alleen de extensie verschilt.
 
 ## Technisch
 
-- `src/lib/csvExport.ts`: scheidingsteken configureerbaar maken met standaard `;`, en de `escapeCSV`-check uitbreiden naar het gebruikte scheidingsteken (nu wordt alleen op `,` gecontroleerd, waardoor een tag-veld met `;` de kolommen zou breken).
-- Eerste regel van het bestand wordt `sep=;` zodat Excel het scheidingsteken expliciet overneemt, ongeacht regio-instelling.
-- Tags binnen één cel scheiden met een komma + spatie in `ContactExportPanel.tsx`, zodat ze niet met het kolomscheidingsteken conflicteren.
-- Geen wijzigingen aan filters, kolomkeuze of database.
+- `src/lib/csvExport.ts`: scheidingsteken configureerbaar met standaard `;`, en `escapeCSV` controleert op het gebruikte scheidingsteken (nu alleen op `,`, waardoor een tag-cel met `;` de kolommen zou breken).
+- Nieuw `src/lib/xlsxExport.ts` met een `exportToXLSX(rows, columns, filename)` op basis van `xlsx` (SheetJS), inclusief kolombreedtes, freeze pane en autofilter; tekstvelden geforceerd als string.
+- Nieuw `src/lib/pdfExport.ts` met `exportToPDF(rows, columns, filename, meta)` op basis van `jspdf` + `jspdf-autotable`, liggende A4, merkkleuren uit de bestaande tokens (bruin/goud), header/footer met filterbeschrijving en paginanummering.
+- `ContactExportPanel.tsx`: extra `Select` voor formaat (`xlsx` | `csv` | `pdf`), `handleExport` routeert naar de juiste helper; tags binnen één cel gescheiden met komma + spatie zodat ze niet met het CSV-scheidingsteken botsen.
+- Benodigde packages: `xlsx`, `jspdf`, `jspdf-autotable`. Geen database- of backendwijzigingen.
