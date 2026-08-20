@@ -653,7 +653,7 @@ export default function TasksPage() {
               )}
 
               <div className="grid gap-1.5">
-                <Label>{t('inquiries.contactPerson')}</Label>
+                <Label>{t('inquiries.contactPerson')}{form.linkType === 'contact' ? ' *' : ''}</Label>
                 <CrmCombobox
                   options={contactOptions}
                   value={form.contactId}
