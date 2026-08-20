@@ -295,6 +295,32 @@ export default function TaskDetailPage() {
                     clearLabel="— Geen bedrijf —"
                   />
                 </div>
+                <div>
+                  <p className="text-xs font-semibold text-muted-foreground mb-1">Aanvraag</p>
+                  <CrmCombobox
+                    options={(form!.companyId ? inquiries.filter(i => i.companyId === form!.companyId) : inquiries).map(i => ({
+                      id: i.id,
+                      label: [i.displayNumber, i.eventType].filter(Boolean).join(' · ') || 'Aanvraag',
+                      secondary: [i.contactName, i.preferredDate ? formatDate(i.preferredDate) : null].filter(Boolean).join(' · ') || undefined,
+                      searchText: `${i.displayNumber || ''} ${i.eventType || ''} ${i.contactName || ''}`,
+                    }))}
+                    value={form!.inquiryId || ''}
+                    onSelect={(id) => {
+                      const inq = inquiries.find(i => i.id === id);
+                      setForm({
+                        ...form!,
+                        inquiryId: id || undefined,
+                        companyId: inq?.companyId || form!.companyId,
+                        contactId: inq?.contactId || form!.contactId,
+                      });
+                    }}
+                    placeholder="Selecteer aanvraag..."
+                    searchPlaceholder="Zoek aanvraag..."
+                    allowClear
+                    clearLabel="— Geen aanvraag —"
+                  />
+                </div>
+
                 <Button variant="destructive" size="sm" className="w-full mt-2" onClick={() => setDeleteConfirmOpen(true)}>
                   <Trash2 size={14} className="mr-1" /> Taak verwijderen
                 </Button>
