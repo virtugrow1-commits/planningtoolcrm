@@ -85,10 +85,13 @@ export default function TasksPage() {
     priority: 'normal' as Task['priority'],
     dueDate: '',
     dueTime: '',
+    linkType: 'inquiry' as 'inquiry' | 'company' | 'contact',
     companyId: '',
     contactId: '',
+    inquiryId: '',
     assignedTo: [] as string[],
   });
+
 
   const today = new Date().toISOString().split('T')[0];
 
