@@ -574,7 +574,12 @@ async function handleOpportunityFromWebhookPayload(supabase: any, ghlHeaders: an
       if (contactName && existing.contact_name !== contactName) patch.contact_name = contactName;
       if ((existing.budget ? Number(existing.budget) : null) !== monetaryValue) patch.budget = monetaryValue;
       if (eventType && existing.event_type !== eventType) patch.event_type = eventType;
-      if (!statusLocked && existing.status !== status) patch.status = status;
+      if (!statusLocked && existing.status !== status) {
+        patch.status = status;
+        // Remote-origin change: clear the local lock so future GHL changes still apply
+        patch.local_status_changed_at = null;
+      }
+
 
       if (Object.keys(patch).length > 0) {
         await supabase.from('inquiries').update(patch).eq('id', existing.id);
