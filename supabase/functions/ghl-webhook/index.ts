@@ -1,6 +1,17 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
+import {
+  buildFieldMap,
+  buildInquiryUpdate,
+  extractInquiryFields,
+  linkContactToCompany,
+  loadFieldDefs,
+  parseFormDate,
+  parseFormTime,
+  resolveCompanyId,
+} from "../_shared/inquiryFields.ts";
 
 const GHL_API_BASE = 'https://services.leadconnectorhq.com';
+
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
