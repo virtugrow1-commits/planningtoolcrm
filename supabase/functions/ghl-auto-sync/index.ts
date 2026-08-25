@@ -621,68 +621,67 @@ async function syncCalendar(supabase: any, ghlHeaders: any, locationId: string, 
 // === AUTO-ENRICH: Fetch custom fields for a single opportunity ===
 async function autoEnrichInquiry(supabase: any, ghlHeaders: any, locationId: string, oppId: string, inquiryId: string) {
   try {
-    const oppRes = await fetch(`${GHL_API_BASE}/opportunities/${oppId}`, { headers: ghlHeaders });
-    if (!oppRes.ok) return;
+    const fieldDefs = await loadFieldDefs(ghlHeaders, locationId);
+
+    // Fetch opportunity, retrying once on a rate limit
+    let oppRes = await fetch(`${GHL_API_BASE}/opportunities/${oppId}`, { headers: ghlHeaders });
+    if (oppRes.status === 429) {
+      await oppRes.text();
+      await new Promise((r) => setTimeout(r, 3000));
+      oppRes = await fetch(`${GHL_API_BASE}/opportunities/${oppId}`, { headers: ghlHeaders });
+    }
+    if (!oppRes.ok) { await oppRes.text(); return; }
     const oppData = await oppRes.json();
     const opp = oppData.opportunity || oppData;
-    const customFields = opp.customFields || opp.custom_fields || [];
-    
-    // Also fetch contact custom fields
+
+    const sources: any[] = [opp];
+
+    // Also fetch contact custom fields — form answers usually live there
     const ghlContactId = opp.contactId || opp.contact?.id;
-    const fieldMap: Record<string, string> = {};
-    
-    for (const cf of customFields) {
-      const name = (cf.name || cf.fieldName || cf.key || cf.id || '').toLowerCase();
-      const value = cf.value || cf.fieldValue || '';
-      if (value && name) fieldMap[name] = String(value);
-    }
-    
+    let ghlContact: any = null;
     if (ghlContactId) {
       try {
         const contactRes = await fetch(`${GHL_API_BASE}/contacts/${ghlContactId}`, { headers: ghlHeaders });
         if (contactRes.ok) {
           const contactData = await contactRes.json();
-          const ghlContact = contactData.contact || contactData;
-          for (const cf of (ghlContact.customFields || ghlContact.custom_fields || [])) {
-            const name = (cf.name || cf.fieldName || cf.key || cf.id || '').toLowerCase();
-            const value = cf.value || cf.fieldValue || '';
-            if (value && name && !fieldMap[name]) fieldMap[name] = String(value);
-          }
+          ghlContact = contactData.contact || contactData;
+          sources.push(ghlContact);
+        } else {
+          await contactRes.text();
         }
       } catch { /* non-fatal */ }
     }
-    
+
+    const fieldMap = buildFieldMap(sources, fieldDefs);
     if (Object.keys(fieldMap).length === 0) return;
-    
-    // Fuzzy field lookup
-    const fuzzyFind = (...terms: string[]): string => {
-      for (const term of terms) { if (fieldMap[term]) return fieldMap[term]; }
-      for (const term of terms) { for (const [key, value] of Object.entries(fieldMap)) { if (key.includes(term) && value) return value; } }
-      return '';
-    };
-    
-    const guestCount = parseInt(fuzzyFind('aantal gasten', 'guest_count', 'guests', 'gasten') || '0', 10) || 0;
-    const preferredDate = fuzzyFind('gewenste datum', 'selecteer de gewenste datum', 'preferred_date', 'datum') || null;
-    const roomPreference = fuzzyFind('gewenste zaalopstelling', 'zaalopstelling', 'room_preference', 'zaal') || null;
-    const enrichedBudget = fuzzyFind('budget') ? Number(fuzzyFind('budget')) : (opp.monetaryValue ? Number(opp.monetaryValue) : null);
-    const enrichedEventType = fuzzyFind('type evenement', 'type gelegenheid', 'soort evenement') || opp.name || null;
-    const enrichedSource = opp.source && opp.source !== 'GHL' ? opp.source : null;
-    
-    const capitalize = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
-    const messageParts: string[] = [];
-    for (const [key, value] of Object.entries(fieldMap)) {
-      if (value) messageParts.push(`${capitalize(key)}: ${value}`);
+
+    const extracted = extractInquiryFields(fieldMap, {
+      eventType: opp.name || null,
+      budget: opp.monetaryValue ? Number(opp.monetaryValue) : null,
+    });
+
+    const updateData = buildInquiryUpdate(extracted);
+    if (opp.source && opp.source !== 'GHL') updateData.source = opp.source;
+
+    // Link the inquiry (and contact) to the submitted company
+    const companyName = extracted.companyName || ghlContact?.companyName || null;
+    if (companyName) {
+      const { data: inqRow } = await supabase
+        .from('inquiries')
+        .select('user_id, company_id, contact_id')
+        .eq('id', inquiryId)
+        .maybeSingle();
+      if (inqRow && !inqRow.company_id) {
+        const companyId = await resolveCompanyId(supabase, inqRow.user_id, companyName);
+        if (companyId) {
+          updateData.company_id = companyId;
+          if (inqRow.contact_id) {
+            await linkContactToCompany(supabase, inqRow.user_id, inqRow.contact_id, companyId, companyName);
+          }
+        }
+      }
     }
-    
-    const updateData: Record<string, any> = {};
-    if (guestCount) updateData.guest_count = guestCount;
-    if (preferredDate) updateData.preferred_date = preferredDate;
-    if (roomPreference) updateData.room_preference = roomPreference;
-    if (enrichedBudget) updateData.budget = enrichedBudget;
-    if (enrichedEventType) updateData.event_type = enrichedEventType;
-    if (enrichedSource) updateData.source = enrichedSource;
-    if (messageParts.length > 0) updateData.message = messageParts.join('\n');
-    
+
     if (Object.keys(updateData).length > 0) {
       await supabase.from('inquiries').update(updateData).eq('id', inquiryId);
       console.log(`Auto-enriched inquiry ${inquiryId} with ${Object.keys(fieldMap).length} fields from opp ${oppId}`);
@@ -691,6 +690,7 @@ async function autoEnrichInquiry(supabase: any, ghlHeaders: any, locationId: str
     console.error(`Auto-enrich failed for ${inquiryId} (non-fatal):`, e);
   }
 }
+
 
 // === OPPORTUNITIES BIDIRECTIONAL SYNC ===
 async function syncOpportunities(supabase: any, ghlHeaders: any, locationId: string, userId: string, results: any, lookups: any) {
