@@ -189,8 +189,9 @@ async function handleFormSubmission(supabase: any, userId: string, payload: any)
   const fullName = payload.full_name || payload.contact_name || payload.name || payload.Naam || payload['Volledige naam'] || '';
   const firstName = payload.first_name || payload.firstName || fullName.split(' ')[0] || 'Onbekend';
   const lastName = payload.last_name || payload.lastName || fullName.split(' ').slice(1).join(' ') || '';
-  const companyNameRaw = payload.company || payload.companyName || payload.Bedrijf || payload.Bedrijfsnaam || payload['Naam bedrijf'] || null;
+  const companyNameRaw = payload.company || payload.companyName || payload.Bedrijf || payload.Bedrijfsnaam || payload['Naam bedrijf'] || payload.Organisatie || null;
   const companyName = companyNameRaw ? String(companyNameRaw).trim() : null;
+
 
   // Extract inquiry data from Dutch form fields (shared mapping = same result as sync)
   const formFieldMap = buildFieldMap([payload]);
