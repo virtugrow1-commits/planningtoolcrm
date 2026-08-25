@@ -632,8 +632,8 @@ export default function TasksPage() {
               <Label>Koppel taak aan *</Label>
               <Select
                 value={form.linkType}
-                onValueChange={(v: 'inquiry' | 'company' | 'contact') =>
-                  setForm({ ...form, linkType: v, inquiryId: '', companyId: v === 'contact' ? '' : form.companyId, contactId: '' })
+                onValueChange={(v: 'inquiry' | 'company' | 'contact' | 'bulk') =>
+                  setForm({ ...form, linkType: v, inquiryId: '', companyId: v === 'contact' || v === 'bulk' ? '' : form.companyId, contactId: '', companyIds: [], contactIds: [] })
                 }
               >
                 <SelectTrigger><SelectValue /></SelectTrigger>
@@ -641,6 +641,7 @@ export default function TasksPage() {
                   <SelectItem value="inquiry">Aanvraag</SelectItem>
                   <SelectItem value="company">Bedrijf + contactpersoon</SelectItem>
                   <SelectItem value="contact">Alleen contactpersoon (particulier)</SelectItem>
+                  <SelectItem value="bulk">Bulk (meerdere bedrijven / contactpersonen)</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -670,6 +671,71 @@ export default function TasksPage() {
                 </p>
               </div>
             )}
+            {form.linkType === 'bulk' ? (
+              <div className="grid gap-3">
+                <div className="grid gap-1.5">
+                  <Label>Bedrijven</Label>
+                  <CrmCombobox
+                    options={companyOptions.filter(o => !form.companyIds.includes(o.id))}
+                    value=""
+                    onSelect={id => {
+                      if (id && !form.companyIds.includes(id)) setForm({ ...form, companyIds: [...form.companyIds, id] });
+                    }}
+                    placeholder="Bedrijf toevoegen..."
+                    searchPlaceholder="Zoek bedrijf..."
+                    popoverWidth="w-[380px]"
+                  />
+                  {form.companyIds.length > 0 && (
+                    <div className="flex flex-wrap gap-1.5 pt-1">
+                      {form.companyIds.map(id => (
+                        <span key={id} className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-xs">
+                          {companyMap.get(id)?.name || id}
+                          <button
+                            type="button"
+                            className="text-muted-foreground hover:text-foreground"
+                            onClick={() => setForm({ ...form, companyIds: form.companyIds.filter(x => x !== id) })}
+                          >
+                            ×
+                          </button>
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                <div className="grid gap-1.5">
+                  <Label>Contactpersonen</Label>
+                  <CrmCombobox
+                    options={bulkContactOptions.filter(o => !form.contactIds.includes(o.id))}
+                    value=""
+                    onSelect={id => {
+                      if (id && !form.contactIds.includes(id)) setForm({ ...form, contactIds: [...form.contactIds, id] });
+                    }}
+                    placeholder="Contactpersoon toevoegen..."
+                    searchPlaceholder="Zoek contact..."
+                    popoverWidth="w-[380px]"
+                  />
+                  {form.contactIds.length > 0 && (
+                    <div className="flex flex-wrap gap-1.5 pt-1">
+                      {form.contactIds.map(id => (
+                        <span key={id} className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-xs">
+                          {contactMap.get(id)?.name || id}
+                          <button
+                            type="button"
+                            className="text-muted-foreground hover:text-foreground"
+                            onClick={() => setForm({ ...form, contactIds: form.contactIds.filter(x => x !== id) })}
+                          >
+                            ×
+                          </button>
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                <p className="text-[11px] text-muted-foreground">
+                  Er worden {(form.companyIds.length + form.contactIds.length) * Math.max(form.assignedTo.length, 1)} taken aangemaakt.
+                </p>
+              </div>
+            ) : (
             <div className="grid grid-cols-2 gap-3">
               {form.linkType !== 'contact' && (
                 <div className="grid gap-1.5">
@@ -701,6 +767,8 @@ export default function TasksPage() {
                 />
               </div>
             </div>
+            )}
+
             <div className="grid grid-cols-2 gap-3">
               <div className="grid gap-1.5">
                 <Label>{t('tasks.dueDate')} *</Label>
