@@ -149,6 +149,17 @@ export default function TasksPage() {
       searchText: `${c.firstName} ${c.lastName} ${c.email || ''} ${c.company || ''} ${c.phone || ''}`,
     }));
   }, [contacts, form.companyId]);
+  const bulkContactOptions = useMemo<ComboboxOption[]>(
+    () =>
+      contacts.filter(c => !c.departed).map(c => ({
+        id: c.id,
+        label: [c.firstName, c.lastName].filter(n => n && n !== '—').join(' ') || c.email || 'Onbekend',
+        secondary: c.company || c.email || undefined,
+        searchText: `${c.firstName} ${c.lastName} ${c.email || ''} ${c.company || ''} ${c.phone || ''}`,
+      })),
+    [contacts]
+  );
+
 
   const inquiryOptions = useMemo<ComboboxOption[]>(() => {
     const pool = form.companyId ? inquiries.filter(i => i.companyId === form.companyId) : inquiries;
