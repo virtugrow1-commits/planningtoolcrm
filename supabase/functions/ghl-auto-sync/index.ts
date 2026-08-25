@@ -829,7 +829,12 @@ async function syncOpportunities(supabase: any, ghlHeaders: any, locationId: str
               if (contactName && existing.contact_name !== contactName) patch.contact_name = contactName;
               if ((existing.budget ? Number(existing.budget) : null) !== monetaryValue) patch.budget = monetaryValue;
               if (existing.event_type !== (opp.name || 'Onbekend')) patch.event_type = opp.name || 'Onbekend';
-              if (!statusLocked && existing.status !== ghlStatus) patch.status = ghlStatus;
+              if (!statusLocked && existing.status !== ghlStatus) {
+                patch.status = ghlStatus;
+                // Remote-origin change: clear the local lock
+                patch.local_status_changed_at = null;
+              }
+
 
               if (Object.keys(patch).length > 0) {
                 const { error: updateErr } = await supabase.from('inquiries').update(patch).eq('id', existing.id);
