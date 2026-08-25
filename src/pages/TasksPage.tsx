@@ -221,7 +221,8 @@ export default function TasksPage() {
   };
 
   const resetForm = () =>
-    setForm({ title: '', description: '', status: 'open', priority: 'normal', dueDate: '', dueTime: '', linkType: 'inquiry', companyId: '', contactId: '', inquiryId: '', assignedTo: [] });
+    setForm({ title: '', description: '', status: 'open', priority: 'normal', dueDate: '', dueTime: '', linkType: 'inquiry', companyId: '', contactId: '', inquiryId: '', companyIds: [], contactIds: [], assignedTo: [] });
+
 
 
   const handleSave = async () => {
