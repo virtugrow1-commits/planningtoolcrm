@@ -425,7 +425,7 @@ async function handleFormSubmission(supabase: any, userId: string, payload: any)
         budget: budget,
         message: fullMessage || null,
         status: 'new',
-        source: formSource || 'VirtuGrow',
+        source: formSource || 'CliqCRM',
         is_read: false,
       })
       .select('id')
@@ -551,25 +551,43 @@ async function handleOpportunityFromWebhookPayload(supabase: any, ghlHeaders: an
 
   if (!ghlOppId) { console.log('No GHL opportunity ID resolved'); return; }
 
-  const { data: existing } = await supabase.from('inquiries').select('id, updated_at, status').not('id', 'is', null).eq('ghl_opportunity_id', ghlOppId).maybeSingle();
+  const { data: existing } = await supabase.from('inquiries').select('id, updated_at, status, contact_name, budget, event_type, local_status_changed_at').not('id', 'is', null).eq('ghl_opportunity_id', ghlOppId).maybeSingle();
 
   if (existing) {
-    // CRM wins if its updated_at is newer than GHL's dateUpdated.
-    // This prevents webhooks (triggered by our own CRM→GHL push) from reverting CRM changes.
+    // A status picked in the CRM stays authoritative for 24h.
+    const statusLocked = existing.local_status_changed_at
+      ? Date.parse(existing.local_status_changed_at) + 24 * 60 * 60 * 1000 > Date.now()
+      : false;
+
+    // Compare as real dates: string compare mixed up "+00:00" vs "Z" formats.
     const ghlUpdatedAt = payload.dateUpdated || payload.date_updated || null;
-    const crmIsNewer = !ghlUpdatedAt || existing.updated_at >= ghlUpdatedAt;
+    const ghlMs = ghlUpdatedAt ? Date.parse(ghlUpdatedAt) : NaN;
+    const crmMs = existing.updated_at ? Date.parse(existing.updated_at) : NaN;
+    const crmIsNewer = !Number.isFinite(ghlMs) || (Number.isFinite(crmMs) && crmMs >= ghlMs);
 
     if (crmIsNewer) {
       // CRM was changed more recently than GHL → ignore this webhook (echo prevention)
       console.log(`Webhook: Skipped opp ${ghlOppId} — CRM is newer (CRM: ${existing.updated_at}, GHL: ${ghlUpdatedAt})`);
     } else {
-      // GHL change is genuinely newer → update CRM
-      await supabase.from('inquiries').update({
-        contact_name: contactName, status, budget: monetaryValue, event_type: eventType,
-      }).eq('id', existing.id);
-      console.log(`Webhook: GHL -> CRM opp ${ghlOppId} -> ${status} (GHL: ${ghlUpdatedAt})`);
+      // GHL change is genuinely newer → update only the fields that differ
+      const patch: Record<string, any> = {};
+      if (contactName && existing.contact_name !== contactName) patch.contact_name = contactName;
+      if ((existing.budget ? Number(existing.budget) : null) !== monetaryValue) patch.budget = monetaryValue;
+      if (eventType && existing.event_type !== eventType) patch.event_type = eventType;
+      if (!statusLocked && existing.status !== status) {
+        patch.status = status;
+        // Remote-origin change: clear the local lock so future GHL changes still apply
+        patch.local_status_changed_at = null;
+      }
+
+
+      if (Object.keys(patch).length > 0) {
+        await supabase.from('inquiries').update(patch).eq('id', existing.id);
+      }
+      console.log(`Webhook: GHL -> CRM opp ${ghlOppId} -> ${Object.keys(patch).join(',') || 'no-change'} (statusLocked=${statusLocked})`);
     }
   } else {
+
     // Try to link to existing contact
     let contactId = null;
     if (payload.contact_id) {

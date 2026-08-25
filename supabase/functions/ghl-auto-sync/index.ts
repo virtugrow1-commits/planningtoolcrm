@@ -216,7 +216,7 @@ Deno.serve(async (req) => {
       const [existingContacts, existingCompanies, existingInquiries, existingTasks] = await Promise.all([
         fetchAll(supabase, 'contacts', 'id, ghl_contact_id, first_name, last_name, email, phone, company, company_id, status, tags, updated_at, pending_outbound_sync, last_local_edit_at', {}),
         fetchAll(supabase, 'companies', 'id, ghl_company_id, name, email, phone, website, address, city, updated_at, pending_outbound_sync, last_local_edit_at', {}),
-        fetchAll(supabase, 'inquiries', 'id, ghl_opportunity_id, status, budget, event_type, contact_name, contact_id, updated_at', {}),
+        fetchAll(supabase, 'inquiries', 'id, ghl_opportunity_id, status, budget, event_type, contact_name, contact_id, created_at, updated_at, local_status_changed_at', {}),
         fetchAll(supabase, 'tasks', 'id, ghl_task_id, title, description, status, updated_at, contact_id, local_status_changed_at', {}),
       ]);
 
@@ -293,7 +293,7 @@ Deno.serve(async (req) => {
       // Push local inquiries without GHL opportunity ID
       await pushLocalInquiries(supabase, ghlHeaders, GHL_LOCATION_ID, userId, results);
 
-      // Inquiries can arrive from VirtuGrow before their contact is synced.
+      // Inquiries can arrive from CliqCRM before their contact is synced.
       // Link any that are still unlinked so the contact name stays clickable.
       await backfillInquiryContacts(supabase, userId, results);
 
@@ -783,18 +783,25 @@ async function syncOpportunities(supabase: any, ghlHeaders: any, locationId: str
         const existing = lookups.inquiryByGhlId.get(opp.id);
 
         if (existing) {
+          // A status the user picked in the CRM stays authoritative for 24h.
+          const statusLockedUntil = existing.local_status_changed_at
+            ? Date.parse(existing.local_status_changed_at) + 24 * 60 * 60 * 1000
+            : 0;
+          const statusLocked = statusLockedUntil > Date.now();
+
           const crmDiffers = existing.status !== ghlStatus ||
                              existing.event_type !== (opp.name || 'Onbekend') ||
                              (existing.budget ? Number(existing.budget) : null) !== monetaryValue;
 
           if (crmDiffers) {
-            // Determine who changed last using GHL's own dateUpdated timestamp.
-            // If CRM updated_at is newer than GHL's dateUpdated → CRM wins (user made a manual change).
-            // If GHL dateUpdated is newer → GHL wins (change originated in GHL).
+            // Compare timestamps as real dates (string compare mixed up "+00:00" vs "Z"
+            // formats and made GHL win, reverting manual CRM status changes).
             const ghlUpdatedAt = opp.dateUpdated || opp.dateAdded || null;
-            const crmIsNewer = !ghlUpdatedAt || existing.updated_at >= ghlUpdatedAt;
+            const ghlMs = ghlUpdatedAt ? Date.parse(ghlUpdatedAt) : NaN;
+            const crmMs = existing.updated_at ? Date.parse(existing.updated_at) : NaN;
+            const crmIsNewer = !Number.isFinite(ghlMs) || (Number.isFinite(crmMs) && crmMs >= ghlMs);
 
-            if (crmIsNewer) {
+            if (crmIsNewer || statusLocked) {
               // CRM wins → push CRM status to GHL so they stay in sync
               const targetStageId = findStageId(existing.status);
               const updatePayload: any = {
@@ -810,26 +817,35 @@ async function syncOpportunities(supabase: any, ghlHeaders: any, locationId: str
                 method: 'PUT', headers: ghlHeaders, body: JSON.stringify(updatePayload),
               });
               if (pushRes.ok) {
-                console.log(`CRM -> GHL opp ${opp.id}: ${existing.status} (CRM updated_at: ${existing.updated_at}, GHL dateUpdated: ${ghlUpdatedAt})`);
+                console.log(`CRM -> GHL opp ${opp.id}: ${existing.status} (locked=${statusLocked})`);
                 results.opportunities_pushed = (results.opportunities_pushed || 0) + 1;
               } else {
                 console.error(`Push to GHL failed for ${opp.id}: ${await pushRes.text()}`);
               }
             } else {
-              // GHL wins → GHL has a more recent change, update CRM
-              // NOTE: only overwrite status if GHL explicitly changed it (not a CRM-to-GHL echo)
-              const { error: updateErr } = await supabase.from('inquiries').update({
-                contact_name: contactName,
-                status: ghlStatus,
-                budget: monetaryValue,
-                event_type: opp.name || 'Onbekend',
-              }).eq('id', existing.id);
-              if (!updateErr) {
-                console.log(`GHL -> CRM opp ${opp.id}: ${ghlStatus} (GHL dateUpdated: ${ghlUpdatedAt}, CRM updated_at: ${existing.updated_at})`);
+              // GHL wins → GHL has a more recent change, update CRM.
+              // Only write fields that actually differ so updated_at keeps its meaning.
+              const patch: Record<string, any> = {};
+              if (contactName && existing.contact_name !== contactName) patch.contact_name = contactName;
+              if ((existing.budget ? Number(existing.budget) : null) !== monetaryValue) patch.budget = monetaryValue;
+              if (existing.event_type !== (opp.name || 'Onbekend')) patch.event_type = opp.name || 'Onbekend';
+              if (!statusLocked && existing.status !== ghlStatus) {
+                patch.status = ghlStatus;
+                // Remote-origin change: clear the local lock
+                patch.local_status_changed_at = null;
+              }
+
+
+              if (Object.keys(patch).length > 0) {
+                const { error: updateErr } = await supabase.from('inquiries').update(patch).eq('id', existing.id);
+                if (!updateErr) {
+                  console.log(`GHL -> CRM opp ${opp.id}: ${Object.keys(patch).join(',')} (statusLocked=${statusLocked})`);
+                }
               }
             }
           }
         } else {
+
           // New from GHL → check for merge candidate using in-memory lookups
           const recentMergeCutoff = new Date(Date.now() - 30 * 60 * 1000).toISOString();
           let mergedExisting = null;

@@ -560,7 +560,7 @@ export default function MasterImport() {
           )}
           <div className="pt-3 border-t mt-3">
             <p className="text-xs text-muted-foreground mb-2">
-              Stap 2: Synchroniseer met VirtuGrow om GHL-koppelingen te leggen.
+              Stap 2: Synchroniseer met CliqCRM om GHL-koppelingen te leggen.
             </p>
             <Button variant="outline" size="sm" disabled={syncingGHL} onClick={handleGHLSync}>
               {syncingGHL ? (

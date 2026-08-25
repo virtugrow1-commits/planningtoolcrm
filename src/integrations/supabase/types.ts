@@ -552,6 +552,7 @@ export type Database = {
           guest_count: number
           id: string
           is_read: boolean
+          local_status_changed_at: string | null
           message: string | null
           preferred_date: string | null
           preferred_end_time: string | null
@@ -576,6 +577,7 @@ export type Database = {
           guest_count?: number
           id?: string
           is_read?: boolean
+          local_status_changed_at?: string | null
           message?: string | null
           preferred_date?: string | null
           preferred_end_time?: string | null
@@ -600,6 +602,7 @@ export type Database = {
           guest_count?: number
           id?: string
           is_read?: boolean
+          local_status_changed_at?: string | null
           message?: string | null
           preferred_date?: string | null
           preferred_end_time?: string | null

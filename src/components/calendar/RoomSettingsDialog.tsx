@@ -120,7 +120,7 @@ export default function RoomSettingsDialog({ open, onOpenChange, settings, displ
             <span>Standaard naam</span>
             <span>Weergavenaam</span>
             <span>Max</span>
-            <span>VGW Kalender ID</span>
+            <span>CliqCRM Kalender ID</span>
             <span></span>
           </div>
           {allRooms.map((room) => {
@@ -157,7 +157,7 @@ export default function RoomSettingsDialog({ open, onOpenChange, settings, displ
                 />
                 <Input
                   className="h-8 text-xs font-mono"
-                  placeholder="VGW calendar ID"
+                  placeholder="CliqCRM calendar ID"
                   value={localSettings[room]?.ghlCalendarId ?? ''}
                   onChange={(e) => setLocalSettings((prev) => ({
                     ...prev,
@@ -190,7 +190,7 @@ export default function RoomSettingsDialog({ open, onOpenChange, settings, displ
           </div>
 
           <p className="text-xs text-muted-foreground mt-2">
-            💡 Je vindt de VGW Kalender ID in VirtuGrow → Calendars → klik op een kalender → de ID staat in de URL.
+            💡 Je vindt de CliqCRM Kalender ID in CliqCRM → Calendars → klik op een kalender → de ID staat in de URL.
           </p>
         </div>
         <DialogFooter>

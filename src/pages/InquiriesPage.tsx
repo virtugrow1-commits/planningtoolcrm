@@ -685,7 +685,7 @@ export default function InquiriesPage() {
                           <button className="text-card-foreground font-medium truncate hover:text-primary transition-colors text-left" onClick={(e) => { e.stopPropagation(); navigate(`/companies/${company.id}`); }}>{contact.company}</button>
                         ) : (<span className="text-card-foreground font-medium truncate">{contact.company}</span>)}</div>
                       ) : null; })()}
-                      <div className="flex gap-2"><span className="text-muted-foreground w-[100px] shrink-0">Bron:</span><span className="text-card-foreground truncate">{inq.source === 'GHL' ? 'VirtuGrow' : inq.source}</span></div>
+                      <div className="flex gap-2"><span className="text-muted-foreground w-[100px] shrink-0">Bron:</span><span className="text-card-foreground truncate">{inq.source === 'GHL' ? 'CliqCRM' : inq.source}</span></div>
                       {inq.guestCount > 0 && <div className="flex gap-2"><span className="text-muted-foreground w-[100px] shrink-0">Personen:</span><span className="text-card-foreground">{inq.guestCount}</span></div>}
                       {inq.roomPreference && <div className="flex gap-2"><span className="text-muted-foreground w-[100px] shrink-0">Ruimte:</span><span className="text-card-foreground truncate">{inq.roomPreference}</span></div>}
                       {inq.preferredDate && <div className="flex gap-2"><span className="text-muted-foreground w-[100px] shrink-0">Datum:</span><span className="text-card-foreground">{formatDate(inq.preferredDate)}</span></div>}
@@ -857,7 +857,7 @@ export default function InquiriesPage() {
                   <td className="px-4 py-2.5">
                     <span className={cn('inline-block rounded-full px-2.5 py-0.5 text-[11px] font-semibold', col?.badgeClass)}>{col?.label}</span>
                   </td>
-                  <td className="px-4 py-2.5 text-muted-foreground hidden lg:table-cell">{inq.source === 'GHL' ? 'VirtuGrow' : inq.source}</td>
+                  <td className="px-4 py-2.5 text-muted-foreground hidden lg:table-cell">{inq.source === 'GHL' ? 'CliqCRM' : inq.source}</td>
                   <td className="px-4 py-2.5 text-right">
                     <Button
                       variant="ghost"
@@ -1237,7 +1237,7 @@ export default function InquiriesPage() {
                     <div className="flex justify-between"><span className="text-muted-foreground">Aantal gasten:</span><span className="font-medium text-foreground">{editInquiry.guestCount}</span></div>
                     <div className="flex justify-between"><span className="text-muted-foreground">Ruimte:</span><span className="font-medium text-foreground">{editInquiry.roomPreference || '—'}</span></div>
                     <div className="flex justify-between"><span className="text-muted-foreground">Budget:</span><span className="font-medium text-foreground">{editInquiry.budget ? `€${editInquiry.budget.toLocaleString('nl-NL', { minimumFractionDigits: 2 })}` : '—'}</span></div>
-                    <div className="flex justify-between"><span className="text-muted-foreground">Bron:</span><span className="font-medium text-foreground">{editInquiry.source === 'GHL' ? 'VirtuGrow' : editInquiry.source}</span></div>
+                    <div className="flex justify-between"><span className="text-muted-foreground">Bron:</span><span className="font-medium text-foreground">{editInquiry.source === 'GHL' ? 'CliqCRM' : editInquiry.source}</span></div>
                     <div className="flex justify-between"><span className="text-muted-foreground">Aangemaakt:</span><span className="font-medium text-foreground">{formatDate(editInquiry.createdAt)}</span></div>
                   </div>
                 </div>
@@ -1432,7 +1432,7 @@ export default function InquiriesPage() {
                       <SelectItem value="Website">Website</SelectItem>
                       <SelectItem value="Telefoon">Telefoon</SelectItem>
                       <SelectItem value="Email">Email</SelectItem>
-                      <SelectItem value="GHL">VirtuGrow</SelectItem>
+                      <SelectItem value="GHL">CliqCRM</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>

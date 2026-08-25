@@ -483,7 +483,7 @@ export default function NewInquiryDialog({ open, onOpenChange, contacts, compani
                 <SelectItem value="Website">Website</SelectItem>
                 <SelectItem value="Telefoon">Telefoon</SelectItem>
                 <SelectItem value="Email">Email</SelectItem>
-                <SelectItem value="GHL">VirtuGrow</SelectItem>
+                <SelectItem value="GHL">CliqCRM</SelectItem>
               </SelectContent>
             </Select>
           </div>

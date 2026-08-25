@@ -149,7 +149,7 @@ export default function QuotesPage() {
         <div>
           <h1 className="text-2xl md:text-3xl font-bold text-foreground tracking-tight">Documenten</h1>
           <p className="text-sm text-muted-foreground mt-1">
-            Offertes, facturen en VirtuGrow documenten — alles overzichtelijk op één plek
+            Offertes, facturen en CliqCRM documenten — alles overzichtelijk op één plek
           </p>
         </div>
         <div className="flex gap-2 flex-wrap">
