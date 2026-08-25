@@ -370,10 +370,12 @@ async function handleFormSubmission(supabase: any, userId: string, payload: any)
     if (existingByContact) {
       await supabase.from('inquiries').update({
         preferred_date: preferredDate, room_preference: roomPreference,
+        preferred_start_time: preferredStartTime, preferred_end_time: preferredEndTime,
         guest_count: guestCount, budget: budget,
         message: fullMessage || null,
         company_id: submittedCompanyId,
       }).eq('id', existingByContact.id);
+
       duplicateFound = true;
       inquiryAction = 'update-4a';
       inquiryId = existingByContact.id;
