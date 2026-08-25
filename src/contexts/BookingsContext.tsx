@@ -259,7 +259,7 @@ export function BookingsProvider({ children }: { children: ReactNode }) {
           if (syncErr) throw syncErr;
           await logSync('push_booking', data.id, { room: booking.roomName, ghl_status: 'success' }, 'success');
         } catch (err: any) {
-          console.warn('[VGW Sync] push-booking failed, queuing:', err);
+          console.warn('[CliqCRM Sync] push-booking failed, queuing:', err);
           await queueFailedSync(data.id, 'create', data, err?.message || 'Unknown error');
           await logSync('push_booking', data.id, { room: booking.roomName, error: err?.message }, 'error');
         }
@@ -317,7 +317,7 @@ export function BookingsProvider({ children }: { children: ReactNode }) {
           if (syncErr) throw syncErr;
           await logSync('push_booking', booking.id, { ghl_status: 'success' }, 'success');
         } catch (err: any) {
-          console.warn('[VGW Sync] push-booking failed, queuing:', err);
+          console.warn('[CliqCRM Sync] push-booking failed, queuing:', err);
           await queueFailedSync(booking.id, 'create', booking, err?.message || 'Unknown error');
           await logSync('push_booking', booking.id, { error: err?.message }, 'error');
         }
@@ -376,7 +376,7 @@ export function BookingsProvider({ children }: { children: ReactNode }) {
           if (syncErr) throw syncErr;
           await logSync('update_booking', data.id, { ghl_status: 'success' }, 'success');
         } catch (err: any) {
-          console.warn('[VGW Sync] push-booking failed, queuing:', err);
+          console.warn('[CliqCRM Sync] push-booking failed, queuing:', err);
           await queueFailedSync(data.id, 'update', data, err?.message || 'Unknown error');
           await logSync('update_booking', data.id, { error: err?.message }, 'error');
         }
@@ -403,7 +403,7 @@ export function BookingsProvider({ children }: { children: ReactNode }) {
         if (syncErr) throw syncErr;
         await logSync('delete_booking', id, { ghl_event_id: ghlEventId, ghl_status: 'success' }, 'success');
       } catch (err: any) {
-        console.warn('[VGW Sync] delete-booking failed, queuing:', err);
+        console.warn('[CliqCRM Sync] delete-booking failed, queuing:', err);
         await queueFailedSync(id, 'delete', { ghl_event_id: ghlEventId }, err?.message || 'Unknown error');
         await logSync('delete_booking', id, { ghl_event_id: ghlEventId, error: err?.message }, 'error');
       }

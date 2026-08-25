@@ -1,4 +1,4 @@
-// Shared inquiry field mapping for VirtuGrow/GHL ingestion.
+// Shared inquiry field mapping for CliqCRM/GHL ingestion.
 // Used by ghl-webhook, ghl-auto-sync and ghl-enrich-inquiry so that a form
 // submission always lands in the same CRM fields, regardless of entry point.
 

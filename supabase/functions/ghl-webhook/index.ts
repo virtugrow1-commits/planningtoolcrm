@@ -425,7 +425,7 @@ async function handleFormSubmission(supabase: any, userId: string, payload: any)
         budget: budget,
         message: fullMessage || null,
         status: 'new',
-        source: formSource || 'VirtuGrow',
+        source: formSource || 'CliqCRM',
         is_read: false,
       })
       .select('id')

@@ -160,7 +160,7 @@ export default function InquiryDetailsTab({ inquiry, editing, form, setForm, con
               <InfoRow icon={<Users size={14} />} label={t('inquiries.guestCount')} value={`${inquiry.guestCount}`} />
               <InfoRow icon={<Euro size={14} />} label={t('inquiries.budget')} value={inquiry.budget ? `€${inquiry.budget.toLocaleString('nl-NL', { minimumFractionDigits: 2 })}` : '—'} />
               <InfoRow icon={<MapPin size={14} />} label={t('inquiries.roomPreference')} value={inquiry.roomPreference || '—'} />
-              <InfoRow icon={<FileText size={14} />} label={t('common.source')} value={inquiry.source === 'GHL' ? 'VirtuGrow' : inquiry.source} />
+              <InfoRow icon={<FileText size={14} />} label={t('common.source')} value={inquiry.source === 'GHL' ? 'CliqCRM' : inquiry.source} />
               {inquiry.assignedTo && <InfoRow icon={<UserCheck size={14} />} label={t('tasks.assignedTo')} value={inquiry.assignedTo} />}
               
               <p className="text-xs text-muted-foreground pt-2">{t('common.createdAt')}: {formatDate(inquiry.createdAt)}</p>
@@ -206,7 +206,7 @@ export default function InquiryDetailsTab({ inquiry, editing, form, setForm, con
                 await refetch();
                 const fieldsCount = (data?.fieldsFound || []).length;
                 if (data?.rateLimited && fieldsCount === 0) {
-                  toast({ title: 'VirtuGrow API tijdelijk niet beschikbaar', description: 'De API is even overbelast. Probeer het over een paar minuten opnieuw.', variant: 'destructive' });
+                  toast({ title: 'CliqCRM API tijdelijk niet beschikbaar', description: 'De API is even overbelast. Probeer het over een paar minuten opnieuw.', variant: 'destructive' });
                 } else {
                   toast({ title: 'Formuliergegevens opgehaald', description: `${fieldsCount} velden gevonden` });
                 }
@@ -218,7 +218,7 @@ export default function InquiryDetailsTab({ inquiry, editing, form, setForm, con
             }}
           >
             <RefreshCw size={14} className={cn("mr-1", enriching && "animate-spin")} />
-            {enriching ? (language === 'en' ? 'Fetching...' : 'Ophalen...') : (language === 'en' ? 'Fetch form data from VirtuGrow' : 'Formuliergegevens ophalen uit VirtuGrow')}
+            {enriching ? (language === 'en' ? 'Fetching...' : 'Ophalen...') : (language === 'en' ? 'Fetch form data from CliqCRM' : 'Formuliergegevens ophalen uit CliqCRM')}
           </Button>
         )}
 

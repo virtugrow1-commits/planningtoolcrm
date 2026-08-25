@@ -162,9 +162,9 @@ export default function CompanyDetailPage() {
     setEditing(false);
     setForm(null);
     if (outcome === 'success' || outcome === 'inactive') {
-      toast({ title: 'Bedrijf bijgewerkt', description: 'Wijziging gesynchroniseerd met VirtuGrow.' });
+      toast({ title: 'Bedrijf bijgewerkt', description: 'Wijziging gesynchroniseerd met CliqCRM.' });
     } else if (outcome === 'queued') {
-      toast({ title: 'Bedrijf lokaal opgeslagen', description: 'VirtuGrow is tijdelijk niet bereikbaar — wijziging staat in de wachtrij en wordt automatisch opnieuw verstuurd.' });
+      toast({ title: 'Bedrijf lokaal opgeslagen', description: 'CliqCRM is tijdelijk niet bereikbaar — wijziging staat in de wachtrij en wordt automatisch opnieuw verstuurd.' });
     } else if (outcome === 'error') {
       toast({ title: 'Opslaan mislukt', description: 'De wijziging kon niet worden opgeslagen.', variant: 'destructive' });
     } else {

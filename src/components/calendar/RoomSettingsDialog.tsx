@@ -190,7 +190,7 @@ export default function RoomSettingsDialog({ open, onOpenChange, settings, displ
           </div>
 
           <p className="text-xs text-muted-foreground mt-2">
-            💡 Je vindt de VGW Kalender ID in VirtuGrow → Calendars → klik op een kalender → de ID staat in de URL.
+            💡 Je vindt de VGW Kalender ID in CliqCRM → Calendars → klik op een kalender → de ID staat in de URL.
           </p>
         </div>
         <DialogFooter>

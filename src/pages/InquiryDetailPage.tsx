@@ -68,7 +68,7 @@ export default function InquiryDetailPage() {
       const byId = contacts.find(c => c.id === inquiry.contactId);
       if (byId) return byId;
     }
-    // Fallback: an inquiry can arrive from VirtuGrow before it is linked to a
+    // Fallback: an inquiry can arrive from CliqCRM before it is linked to a
     // contact. Match on name so the contact stays clickable.
     const nameKey = (s?: string) => (s || '').toLowerCase().trim().replace(/\s+/g, ' ');
     const target = nameKey(inquiry.contactName);
@@ -450,7 +450,7 @@ export default function InquiryDetailPage() {
           <AlertDialogHeader>
             <AlertDialogTitle>Aanvraag verwijderen?</AlertDialogTitle>
             <AlertDialogDescription>
-              Weet je zeker dat je <strong>{inquiry.eventType}</strong> van {inquiry.contactName} wilt verwijderen? De aanvraag wordt ook verwijderd uit VirtuGrow en kan niet worden teruggehaald.
+              Weet je zeker dat je <strong>{inquiry.eventType}</strong> van {inquiry.contactName} wilt verwijderen? De aanvraag wordt ook verwijderd uit CliqCRM en kan niet worden teruggehaald.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

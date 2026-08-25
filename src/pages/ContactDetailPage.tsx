@@ -182,9 +182,9 @@ export default function ContactDetailPage() {
     setEditing(false);
     setForm(null);
     if (outcome === 'success' || outcome === 'inactive') {
-      toast({ title: 'Contact bijgewerkt', description: 'Wijziging gesynchroniseerd met VirtuGrow.' });
+      toast({ title: 'Contact bijgewerkt', description: 'Wijziging gesynchroniseerd met CliqCRM.' });
     } else if (outcome === 'queued') {
-      toast({ title: 'Contact lokaal opgeslagen', description: 'VirtuGrow is tijdelijk niet bereikbaar — wijziging staat in de wachtrij en wordt automatisch opnieuw verstuurd.' });
+      toast({ title: 'Contact lokaal opgeslagen', description: 'CliqCRM is tijdelijk niet bereikbaar — wijziging staat in de wachtrij en wordt automatisch opnieuw verstuurd.' });
     } else if (outcome === 'error') {
       toast({ title: 'Opslaan mislukt', description: 'De wijziging kon niet worden opgeslagen.', variant: 'destructive' });
     } else {
@@ -489,7 +489,7 @@ export default function ContactDetailPage() {
                       {inq.guestCount > 0 && <span>{inq.guestCount} gasten</span>}
                       {inq.roomPreference && <span>{inq.roomPreference}</span>}
                       {inq.source && inq.source !== 'Handmatig' && inq.source !== 'CRM' && (
-                        <span className="text-primary">Bron: {inq.source === 'GHL' ? 'VirtuGrow' : inq.source}</span>
+                        <span className="text-primary">Bron: {inq.source === 'GHL' ? 'CliqCRM' : inq.source}</span>
                       )}
                     </div>
                     {inq.message && (

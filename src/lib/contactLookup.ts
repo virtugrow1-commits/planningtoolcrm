@@ -1,6 +1,6 @@
 /**
  * Resolve a contact from an inquiry/booking that may not be linked yet.
- * Records synced from VirtuGrow can arrive before their contact exists locally,
+ * Records synced from CliqCRM can arrive before their contact exists locally,
  * leaving contactId empty. Falling back to a normalized name match keeps the
  * contact clickable in the UI.
  */

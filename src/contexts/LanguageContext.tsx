@@ -75,17 +75,17 @@ const translations: Record<string, Record<Language, string>> = {
 
   // Settings
   'settings.title': { nl: 'Instellingen', en: 'Settings' },
-  'settings.subtitle': { nl: 'VirtuGrow integratie & configuratie', en: 'VirtuGrow integration & configuration' },
-  'settings.ghlConnection': { nl: 'VGW Verbinding', en: 'VGW Connection' },
+  'settings.subtitle': { nl: 'CliqCRM integratie & configuratie', en: 'CliqCRM integration & configuration' },
+  'settings.ghlConnection': { nl: 'CliqCRM Verbinding', en: 'CliqCRM Connection' },
   'settings.webhooks': { nl: 'Webhooks', en: 'Webhooks' },
   'settings.fieldMapping': { nl: 'Veld Mapping', en: 'Field Mapping' },
   'settings.csvImport': { nl: 'CSV Import', en: 'CSV Import' },
-  'settings.connected': { nl: 'Verbonden met VirtuGrow', en: 'Connected to VirtuGrow' },
+  'settings.connected': { nl: 'Verbonden met CliqCRM', en: 'Connected to CliqCRM' },
   'settings.notConnected': { nl: 'Niet verbonden', en: 'Not connected' },
   'settings.sync': { nl: 'Synchronisatie', en: 'Synchronization' },
   'settings.fullSync': { nl: 'Volledige Sync', en: 'Full Sync' },
   'settings.webhookUrl': { nl: 'Webhook URL', en: 'Webhook URL' },
-  'settings.webhookUrlDesc': { nl: 'Plak deze URL in VirtuGrow → Settings → Webhooks om realtime data te ontvangen.', en: 'Paste this URL in VirtuGrow → Settings → Webhooks to receive realtime data.' },
+  'settings.webhookUrlDesc': { nl: 'Plak deze URL in CliqCRM → Settings → Webhooks om realtime data te ontvangen.', en: 'Paste this URL in CliqCRM → Settings → Webhooks to receive realtime data.' },
   'settings.webhookUrlCopied': { nl: 'Webhook URL gekopieerd!', en: 'Webhook URL copied!' },
   'settings.connect': { nl: 'Verbinden', en: 'Connect' },
 
@@ -230,7 +230,7 @@ const translations: Record<string, Record<Language, string>> = {
   'inquiries.remarks': { nl: 'Opmerkingen', en: 'Remarks' },
   'inquiries.addNote': { nl: 'Notitie toevoegen', en: 'Add note' },
   'inquiries.addTask': { nl: 'Taak toevoegen', en: 'Add task' },
-  'inquiries.enrichFromVGW': { nl: 'Formuliergegevens ophalen uit VirtuGrow', en: 'Fetch form data from VirtuGrow' },
+  'inquiries.enrichFromVGW': { nl: 'Formuliergegevens ophalen uit CliqCRM', en: 'Fetch form data from CliqCRM' },
   'inquiries.fetching': { nl: 'Ophalen...', en: 'Fetching...' },
   'inquiries.kanbanView': { nl: 'Kanban', en: 'Kanban' },
   'inquiries.listView': { nl: 'Lijst', en: 'List' },
@@ -308,10 +308,10 @@ const translations: Record<string, Record<Language, string>> = {
 
   // Documents
   'documents.title': { nl: 'Documenten', en: 'Documents' },
-  'documents.subtitle': { nl: 'documenten · Voorstellen, contracten en facturen vanuit VirtuGrow', en: 'documents · Proposals, contracts and invoices from VirtuGrow' },
+  'documents.subtitle': { nl: 'documenten · Voorstellen, contracten en facturen vanuit CliqCRM', en: 'documents · Proposals, contracts and invoices from CliqCRM' },
   'documents.noDocuments': { nl: 'Geen documenten', en: 'No documents' },
   'documents.noDocumentsYet': { nl: 'Nog geen documenten', en: 'No documents yet' },
-  'documents.noDocumentsHint': { nl: 'Documenten die vanuit VirtuGrow worden verstuurd verschijnen hier automatisch.', en: 'Documents sent from VirtuGrow will appear here automatically.' },
+  'documents.noDocumentsHint': { nl: 'Documenten die vanuit CliqCRM worden verstuurd verschijnen hier automatisch.', en: 'Documents sent from CliqCRM will appear here automatically.' },
   'documents.number': { nl: 'Nummer', en: 'Number' },
   'documents.document': { nl: 'Document', en: 'Document' },
   'documents.type': { nl: 'Type', en: 'Type' },
@@ -356,7 +356,7 @@ const translations: Record<string, Record<Language, string>> = {
   'source.website': { nl: 'Website', en: 'Website' },
   'source.phone': { nl: 'Telefoon', en: 'Phone' },
   'source.email': { nl: 'Email', en: 'Email' },
-  'source.ghl': { nl: 'VirtuGrow', en: 'VirtuGrow' },
+  'source.ghl': { nl: 'CliqCRM', en: 'CliqCRM' },
 
   // Invoices
   'invoices.title': { nl: 'Facturen', en: 'Invoices' },

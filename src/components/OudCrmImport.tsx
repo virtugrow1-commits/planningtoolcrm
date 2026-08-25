@@ -608,7 +608,7 @@ export default function OudCrmImport() {
           ))}
           <div className="pt-3 border-t mt-3">
             <p className="text-xs text-muted-foreground mb-2">
-              Stap 3: Synchroniseer met VirtuGrow om contacten en bedrijven naar GHL te pushen.
+              Stap 3: Synchroniseer met CliqCRM om contacten en bedrijven naar GHL te pushen.
             </p>
             <Button variant="outline" size="sm" disabled={syncingGHL} onClick={handleGHLSync}>
               {syncingGHL ? (

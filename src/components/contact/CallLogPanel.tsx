@@ -164,7 +164,7 @@ export default function CallLogPanel({
     }
     setText('');
     setDate(new Date());
-    toast({ title: 'Gespreksverslag opgeslagen', description: 'Wordt gesynchroniseerd met VirtuGrow…' });
+    toast({ title: 'Gespreksverslag opgeslagen', description: 'Wordt gesynchroniseerd met CliqCRM…' });
     fetchLogs();
     if (inserted?.id) pushToGhl(inserted.id);
   };
@@ -180,7 +180,7 @@ export default function CallLogPanel({
       toast({ title: 'Fout bij bijwerken', description: error.message, variant: 'destructive' });
       return;
     }
-    toast({ title: 'Verslag bijgewerkt', description: 'Wijziging wordt doorgezet naar VirtuGrow…' });
+    toast({ title: 'Verslag bijgewerkt', description: 'Wijziging wordt doorgezet naar CliqCRM…' });
     setEditingId(null);
     fetchLogs();
     // Push update to GHL — push-call-log uses PUT when ghl_note_id is present
@@ -219,7 +219,7 @@ export default function CallLogPanel({
         <div className="min-w-0">
           <h3 className="text-base font-bold text-foreground leading-tight">Gespreksverslagen</h3>
           <p className="text-[11px] text-muted-foreground leading-tight">
-            Telefoongesprekken — synchroniseert met VirtuGrow
+            Telefoongesprekken — synchroniseert met CliqCRM
           </p>
         </div>
       </div>
@@ -342,7 +342,7 @@ export default function CallLogPanel({
                             'inline-flex items-center gap-0.5 text-[10px]',
                             log.ghlNoteId ? 'text-muted-foreground' : 'text-amber-600'
                           )}
-                          title={log.ghlNoteId ? 'Gesynchroniseerd met VirtuGrow' : 'Nog niet gesynchroniseerd'}
+                          title={log.ghlNoteId ? 'Gesynchroniseerd met CliqCRM' : 'Nog niet gesynchroniseerd'}
                         >
                           {log.ghlNoteId ? <Cloud size={10} /> : <CloudOff size={10} />}
                         </span>

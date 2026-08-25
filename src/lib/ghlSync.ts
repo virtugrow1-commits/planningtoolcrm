@@ -20,7 +20,7 @@ export interface SyncResult {
 }
 
 /**
- * Push to VirtuGrow via edge function.
+ * Push to CliqCRM via edge function.
  * Awaits the response so GHL is always updated BEFORE the local CRM marks itself as synced.
  * On failure: queues to sync_queue for automatic retry, logs to sync_log,
  * AND updates the originating record's sync-status fields when entity tracking is provided.
@@ -37,14 +37,14 @@ export async function pushToGHL(
     if (error) {
       const msg = error?.message || 'Edge function error';
       if (isCalendarInactive(msg)) {
-        console.info(`[VGW Sync] ${action} skipped: calendar inactive`);
+        console.info(`[CliqCRM Sync] ${action} skipped: calendar inactive`);
         if (options?.entityType && options?.entityId) {
           logSyncResult(options.entityType, options.entityId, action, { info: 'calendar_inactive' }, 'success').catch(() => {});
           markEntitySynced(options.entityType, options.entityId).catch(() => {});
         }
         return { outcome: 'inactive' };
       }
-      console.warn(`[VGW Sync] ${action} failed:`, error);
+      console.warn(`[CliqCRM Sync] ${action} failed:`, error);
       await handleSyncFailure(action, data, options, msg);
       return { outcome: 'queued', error: msg };
     }
@@ -52,7 +52,7 @@ export async function pushToGHL(
     if (result && typeof result === 'object' && (result.error || result.status === 'inactive')) {
       const text = JSON.stringify(result);
       if (isCalendarInactive(text)) {
-        console.info(`[VGW Sync] ${action} skipped: calendar inactive (response)`);
+        console.info(`[CliqCRM Sync] ${action} skipped: calendar inactive (response)`);
         if (options?.entityType && options?.entityId) {
           logSyncResult(options.entityType, options.entityId, action, { info: 'calendar_inactive' }, 'success').catch(() => {});
           markEntitySynced(options.entityType, options.entityId).catch(() => {});
@@ -75,13 +75,13 @@ export async function pushToGHL(
   } catch (err: any) {
     const msg = err?.message || 'Unknown error';
     if (isCalendarInactive(msg)) {
-      console.info(`[VGW Sync] ${action} skipped: calendar inactive`);
+      console.info(`[CliqCRM Sync] ${action} skipped: calendar inactive`);
       if (options?.entityType && options?.entityId) {
         markEntitySynced(options.entityType, options.entityId).catch(() => {});
       }
       return { outcome: 'inactive' };
     }
-    console.warn(`[VGW Sync] ${action} failed:`, err);
+    console.warn(`[CliqCRM Sync] ${action} failed:`, err);
     await handleSyncFailure(action, data, options, msg);
     return { outcome: 'queued', error: msg };
   }
