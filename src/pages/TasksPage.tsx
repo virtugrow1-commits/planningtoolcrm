@@ -85,11 +85,14 @@ export default function TasksPage() {
     priority: 'normal' as Task['priority'],
     dueDate: '',
     dueTime: '',
-    linkType: 'inquiry' as 'inquiry' | 'company' | 'contact',
+    linkType: 'inquiry' as 'inquiry' | 'company' | 'contact' | 'bulk',
     companyId: '',
     contactId: '',
     inquiryId: '',
+    companyIds: [] as string[],
+    contactIds: [] as string[],
     assignedTo: [] as string[],
+
   });
 
 
@@ -146,6 +149,17 @@ export default function TasksPage() {
       searchText: `${c.firstName} ${c.lastName} ${c.email || ''} ${c.company || ''} ${c.phone || ''}`,
     }));
   }, [contacts, form.companyId]);
+  const bulkContactOptions = useMemo<ComboboxOption[]>(
+    () =>
+      contacts.filter(c => !c.departed).map(c => ({
+        id: c.id,
+        label: [c.firstName, c.lastName].filter(n => n && n !== '—').join(' ') || c.email || 'Onbekend',
+        secondary: c.company || c.email || undefined,
+        searchText: `${c.firstName} ${c.lastName} ${c.email || ''} ${c.company || ''} ${c.phone || ''}`,
+      })),
+    [contacts]
+  );
+
 
   const inquiryOptions = useMemo<ComboboxOption[]>(() => {
     const pool = form.companyId ? inquiries.filter(i => i.companyId === form.companyId) : inquiries;
@@ -218,7 +232,8 @@ export default function TasksPage() {
   };
 
   const resetForm = () =>
-    setForm({ title: '', description: '', status: 'open', priority: 'normal', dueDate: '', dueTime: '', linkType: 'inquiry', companyId: '', contactId: '', inquiryId: '', assignedTo: [] });
+    setForm({ title: '', description: '', status: 'open', priority: 'normal', dueDate: '', dueTime: '', linkType: 'inquiry', companyId: '', contactId: '', inquiryId: '', companyIds: [], contactIds: [], assignedTo: [] });
+
 
 
   const handleSave = async () => {
@@ -246,6 +261,41 @@ export default function TasksPage() {
       toast({ title: language === 'en' ? 'Select a contact' : 'Selecteer een contactpersoon', variant: 'destructive' });
       return;
     }
+    if (form.linkType === 'bulk' && !form.companyIds.length && !form.contactIds.length) {
+      toast({ title: language === 'en' ? 'Select at least one company or contact' : 'Selecteer minimaal één bedrijf of contactpersoon', variant: 'destructive' });
+      return;
+    }
+
+    const base = {
+      title: form.title,
+      description: form.description || undefined,
+      status: 'open' as const,
+      priority: 'normal' as const,
+      dueDate: form.dueDate || undefined,
+      dueTime: form.dueTime || undefined,
+    };
+
+    if (form.linkType === 'bulk') {
+      const links: { companyId?: string; contactId?: string }[] = [
+        ...form.companyIds.map(id => ({ companyId: id })),
+        ...form.contactIds.map(id => ({
+          contactId: id,
+          companyId: contactCompanyMap.get(id) || undefined,
+        })),
+      ];
+      let created = 0;
+      for (const link of links) {
+        for (const assignee of form.assignedTo) {
+          await addTask({ ...base, ...link, assignedTo: assignee });
+          created++;
+        }
+      }
+      toast({ title: `${created} ${language === 'en' ? 'tasks created' : 'taken aangemaakt'}` });
+      setNewOpen(false);
+      resetForm();
+      return;
+    }
+
     const linkedInquiry = form.linkType === 'inquiry' && form.inquiryId
       ? inquiries.find(i => i.id === form.inquiryId)
       : undefined;
@@ -255,12 +305,7 @@ export default function TasksPage() {
     const contactId = form.contactId || linkedInquiry?.contactId || undefined;
     for (const assignee of form.assignedTo) {
       await addTask({
-        title: form.title,
-        description: form.description || undefined,
-        status: 'open',
-        priority: 'normal',
-        dueDate: form.dueDate || undefined,
-        dueTime: form.dueTime || undefined,
+        ...base,
         companyId,
         contactId,
         inquiryId: form.linkType === 'inquiry' ? form.inquiryId || undefined : undefined,
@@ -271,6 +316,7 @@ export default function TasksPage() {
     toast({ title: form.assignedTo.length > 1 ? `${form.assignedTo.length} ${language === 'en' ? 'tasks created' : 'taken aangemaakt'}` : t('tasks.taskCreated') });
     setNewOpen(false);
     resetForm();
+
   };
 
   const handleDelete = async (id: string) => {
@@ -597,8 +643,8 @@ export default function TasksPage() {
               <Label>Koppel taak aan *</Label>
               <Select
                 value={form.linkType}
-                onValueChange={(v: 'inquiry' | 'company' | 'contact') =>
-                  setForm({ ...form, linkType: v, inquiryId: '', companyId: v === 'contact' ? '' : form.companyId, contactId: '' })
+                onValueChange={(v: 'inquiry' | 'company' | 'contact' | 'bulk') =>
+                  setForm({ ...form, linkType: v, inquiryId: '', companyId: v === 'contact' || v === 'bulk' ? '' : form.companyId, contactId: '', companyIds: [], contactIds: [] })
                 }
               >
                 <SelectTrigger><SelectValue /></SelectTrigger>
@@ -606,6 +652,7 @@ export default function TasksPage() {
                   <SelectItem value="inquiry">Aanvraag</SelectItem>
                   <SelectItem value="company">Bedrijf + contactpersoon</SelectItem>
                   <SelectItem value="contact">Alleen contactpersoon (particulier)</SelectItem>
+                  <SelectItem value="bulk">Bulk (meerdere bedrijven / contactpersonen)</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -635,6 +682,71 @@ export default function TasksPage() {
                 </p>
               </div>
             )}
+            {form.linkType === 'bulk' ? (
+              <div className="grid gap-3">
+                <div className="grid gap-1.5">
+                  <Label>Bedrijven</Label>
+                  <CrmCombobox
+                    options={companyOptions.filter(o => !form.companyIds.includes(o.id))}
+                    value=""
+                    onSelect={id => {
+                      if (id && !form.companyIds.includes(id)) setForm({ ...form, companyIds: [...form.companyIds, id] });
+                    }}
+                    placeholder="Bedrijf toevoegen..."
+                    searchPlaceholder="Zoek bedrijf..."
+                    popoverWidth="w-[380px]"
+                  />
+                  {form.companyIds.length > 0 && (
+                    <div className="flex flex-wrap gap-1.5 pt-1">
+                      {form.companyIds.map(id => (
+                        <span key={id} className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-xs">
+                          {companyMap.get(id)?.name || id}
+                          <button
+                            type="button"
+                            className="text-muted-foreground hover:text-foreground"
+                            onClick={() => setForm({ ...form, companyIds: form.companyIds.filter(x => x !== id) })}
+                          >
+                            ×
+                          </button>
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                <div className="grid gap-1.5">
+                  <Label>Contactpersonen</Label>
+                  <CrmCombobox
+                    options={bulkContactOptions.filter(o => !form.contactIds.includes(o.id))}
+                    value=""
+                    onSelect={id => {
+                      if (id && !form.contactIds.includes(id)) setForm({ ...form, contactIds: [...form.contactIds, id] });
+                    }}
+                    placeholder="Contactpersoon toevoegen..."
+                    searchPlaceholder="Zoek contact..."
+                    popoverWidth="w-[380px]"
+                  />
+                  {form.contactIds.length > 0 && (
+                    <div className="flex flex-wrap gap-1.5 pt-1">
+                      {form.contactIds.map(id => (
+                        <span key={id} className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-xs">
+                          {contactMap.get(id)?.name || id}
+                          <button
+                            type="button"
+                            className="text-muted-foreground hover:text-foreground"
+                            onClick={() => setForm({ ...form, contactIds: form.contactIds.filter(x => x !== id) })}
+                          >
+                            ×
+                          </button>
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                <p className="text-[11px] text-muted-foreground">
+                  Er worden {(form.companyIds.length + form.contactIds.length) * Math.max(form.assignedTo.length, 1)} taken aangemaakt.
+                </p>
+              </div>
+            ) : (
             <div className="grid grid-cols-2 gap-3">
               {form.linkType !== 'contact' && (
                 <div className="grid gap-1.5">
@@ -666,6 +778,8 @@ export default function TasksPage() {
                 />
               </div>
             </div>
+            )}
+
             <div className="grid grid-cols-2 gap-3">
               <div className="grid gap-1.5">
                 <Label>{t('tasks.dueDate')} *</Label>
