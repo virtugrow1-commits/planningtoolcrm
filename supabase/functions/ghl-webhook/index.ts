@@ -192,16 +192,22 @@ async function handleFormSubmission(supabase: any, userId: string, payload: any)
   const companyNameRaw = payload.company || payload.companyName || payload.Bedrijf || payload.Bedrijfsnaam || payload['Naam bedrijf'] || null;
   const companyName = companyNameRaw ? String(companyNameRaw).trim() : null;
 
-  // Extract inquiry data from Dutch form fields
-  const eventType = payload['Type Evenement'] || payload.event_type || payload['Soort evenement'] || 'Aanvraag via formulier';
-  const guestCount = parseInt(payload['Aantal gasten'] || payload.guest_count || '0', 10) || 0;
-  const preferredDate = payload['Selecteer de gewenste datum'] || payload.preferred_date || null;
+  // Extract inquiry data from Dutch form fields (shared mapping = same result as sync)
+  const formFieldMap = buildFieldMap([payload]);
+  const extracted = extractInquiryFields(formFieldMap);
+
+  const eventType = payload['Type Evenement'] || payload.event_type || payload['Soort evenement'] || extracted.eventType || 'Aanvraag via formulier';
+  const guestCount = extracted.guestCount ?? (parseInt(payload['Aantal gasten'] || payload.guest_count || '0', 10) || 0);
+  const preferredDate = parseFormDate(payload['Selecteer de gewenste datum'] || payload.preferred_date || null) || extracted.preferredDate;
+  const preferredStartTime = extracted.preferredStartTime || parseFormTime(payload['Starttijd'] || payload.start_time || null);
+  const preferredEndTime = extracted.preferredEndTime || parseFormTime(payload['Eindtijd'] || payload.end_time || null);
   const dagdeel = payload['Kies je dagdeel'] || '';
-  const roomPreference = payload['Gewenste zaalopstelling'] || payload.room_preference || null;
+  const roomPreference = payload['Gewenste zaalopstelling'] || payload.room_preference || extracted.roomPreference || null;
   const message = payload['Extra informatie'] || payload.message || payload.Opmerkingen || '';
-  const budget = payload.budget || payload.Budget ? Number(payload.budget || payload.Budget) : null;
+  const budget = payload.budget || payload.Budget ? Number(payload.budget || payload.Budget) : extracted.budget;
   const ghlContactId = payload.contact_id || payload.contactId || null;
   const formSource = payload.form_name || payload.formName || payload.workflow_name || payload.workflowName || payload['Form Name'] || payload.source || null;
+
 
   const fullMessage = [
     message,
