@@ -85,11 +85,14 @@ export default function TasksPage() {
     priority: 'normal' as Task['priority'],
     dueDate: '',
     dueTime: '',
-    linkType: 'inquiry' as 'inquiry' | 'company' | 'contact',
+    linkType: 'inquiry' as 'inquiry' | 'company' | 'contact' | 'bulk',
     companyId: '',
     contactId: '',
     inquiryId: '',
+    companyIds: [] as string[],
+    contactIds: [] as string[],
     assignedTo: [] as string[],
+
   });
 
 
