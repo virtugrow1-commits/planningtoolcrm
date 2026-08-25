@@ -1,6 +1,17 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
+import {
+  buildFieldMap,
+  buildInquiryUpdate,
+  extractInquiryFields,
+  linkContactToCompany,
+  loadFieldDefs,
+  parseFormDate,
+  parseFormTime,
+  resolveCompanyId,
+} from "../_shared/inquiryFields.ts";
 
 const GHL_API_BASE = 'https://services.leadconnectorhq.com';
+
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -178,19 +189,26 @@ async function handleFormSubmission(supabase: any, userId: string, payload: any)
   const fullName = payload.full_name || payload.contact_name || payload.name || payload.Naam || payload['Volledige naam'] || '';
   const firstName = payload.first_name || payload.firstName || fullName.split(' ')[0] || 'Onbekend';
   const lastName = payload.last_name || payload.lastName || fullName.split(' ').slice(1).join(' ') || '';
-  const companyNameRaw = payload.company || payload.companyName || payload.Bedrijf || payload.Bedrijfsnaam || payload['Naam bedrijf'] || null;
+  const companyNameRaw = payload.company || payload.companyName || payload.Bedrijf || payload.Bedrijfsnaam || payload['Naam bedrijf'] || payload.Organisatie || null;
   const companyName = companyNameRaw ? String(companyNameRaw).trim() : null;
 
-  // Extract inquiry data from Dutch form fields
-  const eventType = payload['Type Evenement'] || payload.event_type || payload['Soort evenement'] || 'Aanvraag via formulier';
-  const guestCount = parseInt(payload['Aantal gasten'] || payload.guest_count || '0', 10) || 0;
-  const preferredDate = payload['Selecteer de gewenste datum'] || payload.preferred_date || null;
+
+  // Extract inquiry data from Dutch form fields (shared mapping = same result as sync)
+  const formFieldMap = buildFieldMap([payload]);
+  const extracted = extractInquiryFields(formFieldMap);
+
+  const eventType = payload['Type Evenement'] || payload.event_type || payload['Soort evenement'] || extracted.eventType || 'Aanvraag via formulier';
+  const guestCount = extracted.guestCount ?? (parseInt(payload['Aantal gasten'] || payload.guest_count || '0', 10) || 0);
+  const preferredDate = parseFormDate(payload['Selecteer de gewenste datum'] || payload.preferred_date || null) || extracted.preferredDate;
+  const preferredStartTime = extracted.preferredStartTime || parseFormTime(payload['Starttijd'] || payload.start_time || null);
+  const preferredEndTime = extracted.preferredEndTime || parseFormTime(payload['Eindtijd'] || payload.end_time || null);
   const dagdeel = payload['Kies je dagdeel'] || '';
-  const roomPreference = payload['Gewenste zaalopstelling'] || payload.room_preference || null;
+  const roomPreference = payload['Gewenste zaalopstelling'] || payload.room_preference || extracted.roomPreference || null;
   const message = payload['Extra informatie'] || payload.message || payload.Opmerkingen || '';
-  const budget = payload.budget || payload.Budget ? Number(payload.budget || payload.Budget) : null;
+  const budget = payload.budget || payload.Budget ? Number(payload.budget || payload.Budget) : extracted.budget;
   const ghlContactId = payload.contact_id || payload.contactId || null;
   const formSource = payload.form_name || payload.formName || payload.workflow_name || payload.workflowName || payload['Form Name'] || payload.source || null;
+
 
   const fullMessage = [
     message,
@@ -353,10 +371,12 @@ async function handleFormSubmission(supabase: any, userId: string, payload: any)
     if (existingByContact) {
       await supabase.from('inquiries').update({
         preferred_date: preferredDate, room_preference: roomPreference,
+        preferred_start_time: preferredStartTime, preferred_end_time: preferredEndTime,
         guest_count: guestCount, budget: budget,
         message: fullMessage || null,
         company_id: submittedCompanyId,
       }).eq('id', existingByContact.id);
+
       duplicateFound = true;
       inquiryAction = 'update-4a';
       inquiryId = existingByContact.id;
@@ -375,10 +395,12 @@ async function handleFormSubmission(supabase: any, userId: string, payload: any)
     if (existingByName) {
       await supabase.from('inquiries').update({
         contact_id: contactId, preferred_date: preferredDate, room_preference: roomPreference,
+        preferred_start_time: preferredStartTime, preferred_end_time: preferredEndTime,
         guest_count: guestCount, budget: budget,
         message: fullMessage || null,
         company_id: submittedCompanyId,
       }).eq('id', existingByName.id);
+
       duplicateFound = true;
       inquiryAction = 'update-4b';
       inquiryId = existingByName.id;
@@ -395,8 +417,11 @@ async function handleFormSubmission(supabase: any, userId: string, payload: any)
         company_id: submittedCompanyId,
         event_type: eventType,
         preferred_date: preferredDate,
+        preferred_start_time: preferredStartTime,
+        preferred_end_time: preferredEndTime,
         room_preference: roomPreference,
         guest_count: guestCount,
+
         budget: budget,
         message: fullMessage || null,
         status: 'new',
@@ -628,68 +653,57 @@ async function handleOpportunityFromWebhookPayload(supabase: any, ghlHeaders: an
       mergedExisting = newInq; // use for auto-enrich below
     }
 
-    // Auto-enrich: extract custom fields from webhook payload directly (no API call needed)
+    // Auto-enrich: shared field mapping, payload first and the GHL contact as fallback
     const enrichTargetId = mergedExisting?.id;
     if (enrichTargetId) {
       try {
-        const fieldMap: Record<string, string> = {};
-        
-        // 1. Extract form fields directly from the webhook payload (top-level keys)
-        const knownFormKeys = [
-          'Type Evenement', 'Type gelegenheid', 'Soort evenement',
-          'Aantal gasten', 'Selecteer de gewenste datum', 'Gewenste datum',
-          'Kies je dagdeel', 'Gewenste zaalopstelling', 'Gewenste catering',
-          'Extra informatie', 'Speciale Benodigdheden', 'Na-zit gewenst?',
-          'Service Type', 'Bedrijfsnaam', 'Budget', 'Opmerkingen',
-          'Selecteer dagdeel',
-        ];
-        
-        // Check both direct payload and formFieldsPayload
-        const sources = [payload, formFieldsPayload].filter(Boolean);
-        for (const src of sources) {
-          for (const key of knownFormKeys) {
-            const val = src[key];
-            if (val && String(val).trim()) {
-              fieldMap[key.toLowerCase()] = String(val).trim();
-            }
-          }
-          // Also check customFields array if present
-          const customFields = src.customFields || src.custom_fields || [];
-          for (const cf of customFields) {
-            const name = (cf.name || cf.fieldName || cf.key || '').toLowerCase();
-            const value = cf.value || cf.fieldValue || '';
-            if (value && name) fieldMap[name] = String(value);
+        const fieldDefs = await loadFieldDefs(ghlHeaders, locationId);
+        const sources: any[] = [payload, formFieldsPayload].filter(Boolean);
+
+        let fieldMap = buildFieldMap(sources, fieldDefs);
+
+        // Nothing usable in the payload: pull the contact's custom fields once
+        const ghlContactIdForEnrich = payload.contactId || payload.contact_id || payload.contact?.id || null;
+        let ghlContact: any = null;
+        if (Object.keys(fieldMap).length === 0 && ghlContactIdForEnrich) {
+          const res = await ghlFetch(`${GHL_API_BASE}/contacts/${ghlContactIdForEnrich}`, { headers: ghlHeaders });
+          if (res && res.ok) {
+            const data = await res.json();
+            ghlContact = data.contact || data;
+            fieldMap = buildFieldMap([...sources, ghlContact], fieldDefs);
           }
         }
 
         if (Object.keys(fieldMap).length > 0) {
-          const fuzzyFind = (...terms: string[]): string => {
-            for (const term of terms) { if (fieldMap[term]) return fieldMap[term]; }
-            for (const term of terms) { for (const [key, value] of Object.entries(fieldMap)) { if (key.includes(term) && value) return value; } }
-            return '';
-          };
+          const extracted = extractInquiryFields(fieldMap, {
+            eventType: eventType,
+            budget: monetaryValue || null,
+          });
+          const update = buildInquiryUpdate(extracted);
 
-          const guestCount = parseInt(fuzzyFind('aantal gasten', 'guest_count', 'guests', 'gasten') || '0', 10) || 0;
-          const preferredDate = fuzzyFind('gewenste datum', 'selecteer de gewenste datum', 'preferred_date', 'datum') || null;
-          const roomPreference = fuzzyFind('gewenste zaalopstelling', 'zaalopstelling', 'room_preference', 'zaal') || null;
-          const enrichedBudget = fuzzyFind('budget') ? Number(fuzzyFind('budget')) : (monetaryValue || null);
-          const enrichedEventType = fuzzyFind('type evenement', 'type gelegenheid', 'soort evenement') || eventType;
-
-          const messageParts: string[] = [];
-          const capitalize = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
-          for (const [key, value] of Object.entries(fieldMap)) {
-            if (value) messageParts.push(`${capitalize(key)}: ${value}`);
+          // Company from the form: link inquiry and contact
+          const submittedCompany = extracted.companyName || ghlContact?.companyName || null;
+          if (submittedCompany) {
+            const { data: inqRow } = await supabase
+              .from('inquiries')
+              .select('company_id, contact_id')
+              .eq('id', enrichTargetId)
+              .maybeSingle();
+            if (inqRow && !inqRow.company_id) {
+              const companyId = await resolveCompanyId(supabase, userId, submittedCompany);
+              if (companyId) {
+                update.company_id = companyId;
+                if (inqRow.contact_id) {
+                  await linkContactToCompany(supabase, userId, inqRow.contact_id, companyId, submittedCompany);
+                }
+              }
+            }
           }
 
-          await supabase.from('inquiries').update({
-            event_type: enrichedEventType,
-            guest_count: guestCount || 0,
-            preferred_date: preferredDate,
-            room_preference: roomPreference,
-            budget: enrichedBudget,
-            message: messageParts.join('\n') || null,
-          }).eq('id', enrichTargetId);
-          console.log(`Webhook: Auto-enriched opp ${ghlOppId} with ${Object.keys(fieldMap).length} fields from payload (no API call)`);
+          if (Object.keys(update).length > 0) {
+            await supabase.from('inquiries').update(update).eq('id', enrichTargetId);
+          }
+          console.log(`Webhook: Auto-enriched opp ${ghlOppId} with ${Object.keys(fieldMap).length} fields`);
         } else {
           console.log(`Webhook: No form fields found in payload for opp ${ghlOppId}`);
         }
@@ -697,6 +711,7 @@ async function handleOpportunityFromWebhookPayload(supabase: any, ghlHeaders: an
         console.error('Webhook: Auto-enrich failed (non-fatal):', enrichErr);
       }
     }
+
   }
 }
 
