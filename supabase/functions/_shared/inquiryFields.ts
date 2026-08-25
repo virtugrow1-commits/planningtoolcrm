@@ -179,10 +179,10 @@ const MESSAGE_SKIP = /^(bedrijfsnaam|bedrijf|naam bedrijf|organisatie|kvk|btw|e-
 export function extractInquiryFields(fieldMap: FieldMap, fallbacks: { eventType?: string | null; budget?: number | null } = {}): ExtractedInquiry {
   const find = makeFuzzyFind(fieldMap);
 
-  const guestRaw = find('aantal gasten', 'aantal personen', 'aantal deelnemers', 'guest_count', 'guests', 'gasten', 'personen');
+  const guestRaw = find('aantal gasten', 'aantal personen', 'aantal deelnemers', 'aantal gasten (indicatie)', 'guest_count', 'guests', 'gasten', 'personen', 'aantal');
   const guestCount = parseInt(String(guestRaw).replace(/\D+/g, ''), 10);
 
-  const eventTypeField = find('type evenement', 'type gelegenheid', 'soort evenement', 'soort bijeenkomst', 'event_type');
+  const eventTypeField = find('type evenement', 'type gelegenheid', 'soort evenement', 'soort bijeenkomst', 'type bijeenkomst', 'wat is de gelegenheid?', 'gelegenheid', 'aanleiding', 'event_type');
   const eventType = eventTypeField || (isGenericEventType(fallbacks.eventType) ? null : fallbacks.eventType) || fallbacks.eventType || null;
 
   const budgetRaw = find('budget');
@@ -195,15 +195,24 @@ export function extractInquiryFields(fieldMap: FieldMap, fallbacks: { eventType?
     messageParts.push(`${capitalize(key)}: ${value}`);
   }
 
+  // A form that only offers a "dagdeel" (part of day) still needs usable times.
+  const dagdeel = find('kies je dagdeel', 'selecteer dagdeel', 'dagdeel').toLowerCase();
+  const dagdeelTimes = dagdeel.includes('ochtend') ? ['09:00', '12:00']
+    : dagdeel.includes('middag') ? ['13:00', '17:00']
+    : dagdeel.includes('avond') ? ['18:00', '22:00']
+    : dagdeel.includes('hele dag') || dagdeel.includes('dag') ? ['09:00', '17:00']
+    : null;
+
   return {
     eventType,
     guestCount: isNaN(guestCount) || guestCount <= 0 ? null : guestCount,
-    preferredDate: parseFormDate(find('gewenste datum', 'selecteer de gewenste datum', 'voorkeursdatum', 'preferred_date', 'datum')),
-    preferredStartTime: parseFormTime(find('starttijd', 'begintijd', 'aanvangstijd', 'start_time', 'van')),
-    preferredEndTime: parseFormTime(find('eindtijd', 'end_time', 'tot')),
-    roomPreference: find('gewenste zaalopstelling', 'zaalopstelling', 'gewenste ruimte', 'room_preference', 'zaal') || null,
+    preferredDate: parseFormDate(find('gewenste datum', 'selecteer de gewenste datum', 'voorkeursdatum', 'datum bijeenkomst', 'preferred_date', 'datum')),
+    preferredStartTime: parseFormTime(find('gewenste starttijd', 'starttijd', 'begintijd', 'aanvangstijd', 'aanvang', 'start_time', 'van')) || (dagdeelTimes?.[0] ?? null),
+    preferredEndTime: parseFormTime(find('gewenste eindtijd', 'eindtijd', 'end_time', 'tot')) || (dagdeelTimes?.[1] ?? null),
+    roomPreference: find('gewenste zaalopstelling', 'zaalopstelling', 'gewenste ruimte', 'type ruimte', 'room_preference', 'zaal', 'ruimte') || null,
     budget: isNaN(budgetParsed) || budgetParsed <= 0 ? (fallbacks.budget ?? null) : budgetParsed,
-    companyName: find('bedrijfsnaam', 'naam bedrijf', 'bedrijf', 'organisatie', 'company') || null,
+    companyName: find('bedrijfsnaam', 'naam bedrijf', 'naam organisatie', 'bedrijf', 'organisatie', 'company') || null,
+
     message: messageParts.length ? messageParts.join('\n') : null,
   };
 }
