@@ -250,6 +250,41 @@ export default function TasksPage() {
       toast({ title: language === 'en' ? 'Select a contact' : 'Selecteer een contactpersoon', variant: 'destructive' });
       return;
     }
+    if (form.linkType === 'bulk' && !form.companyIds.length && !form.contactIds.length) {
+      toast({ title: language === 'en' ? 'Select at least one company or contact' : 'Selecteer minimaal één bedrijf of contactpersoon', variant: 'destructive' });
+      return;
+    }
+
+    const base = {
+      title: form.title,
+      description: form.description || undefined,
+      status: 'open' as const,
+      priority: 'normal' as const,
+      dueDate: form.dueDate || undefined,
+      dueTime: form.dueTime || undefined,
+    };
+
+    if (form.linkType === 'bulk') {
+      const links: { companyId?: string; contactId?: string }[] = [
+        ...form.companyIds.map(id => ({ companyId: id })),
+        ...form.contactIds.map(id => ({
+          contactId: id,
+          companyId: contactCompanyMap.get(id) || undefined,
+        })),
+      ];
+      let created = 0;
+      for (const link of links) {
+        for (const assignee of form.assignedTo) {
+          await addTask({ ...base, ...link, assignedTo: assignee });
+          created++;
+        }
+      }
+      toast({ title: `${created} ${language === 'en' ? 'tasks created' : 'taken aangemaakt'}` });
+      setNewOpen(false);
+      resetForm();
+      return;
+    }
+
     const linkedInquiry = form.linkType === 'inquiry' && form.inquiryId
       ? inquiries.find(i => i.id === form.inquiryId)
       : undefined;
@@ -259,12 +294,7 @@ export default function TasksPage() {
     const contactId = form.contactId || linkedInquiry?.contactId || undefined;
     for (const assignee of form.assignedTo) {
       await addTask({
-        title: form.title,
-        description: form.description || undefined,
-        status: 'open',
-        priority: 'normal',
-        dueDate: form.dueDate || undefined,
-        dueTime: form.dueTime || undefined,
+        ...base,
         companyId,
         contactId,
         inquiryId: form.linkType === 'inquiry' ? form.inquiryId || undefined : undefined,
@@ -275,6 +305,7 @@ export default function TasksPage() {
     toast({ title: form.assignedTo.length > 1 ? `${form.assignedTo.length} ${language === 'en' ? 'tasks created' : 'taken aangemaakt'}` : t('tasks.taskCreated') });
     setNewOpen(false);
     resetForm();
+
   };
 
   const handleDelete = async (id: string) => {
