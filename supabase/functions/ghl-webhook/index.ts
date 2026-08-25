@@ -416,8 +416,11 @@ async function handleFormSubmission(supabase: any, userId: string, payload: any)
         company_id: submittedCompanyId,
         event_type: eventType,
         preferred_date: preferredDate,
+        preferred_start_time: preferredStartTime,
+        preferred_end_time: preferredEndTime,
         room_preference: roomPreference,
         guest_count: guestCount,
+
         budget: budget,
         message: fullMessage || null,
         status: 'new',
