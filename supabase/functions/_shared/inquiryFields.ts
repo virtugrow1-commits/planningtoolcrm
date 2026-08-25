@@ -7,17 +7,20 @@ export const GHL_API_BASE = 'https://services.leadconnectorhq.com';
 /** Known form/custom field labels that may show up as top-level payload keys */
 export const KNOWN_FORM_KEYS = [
   'Type Evenement', 'Type evenement', 'Type gelegenheid', 'Soort evenement', 'Soort bijeenkomst',
-  'Aantal gasten', 'Aantal personen', 'Aantal deelnemers',
-  'Selecteer de gewenste datum', 'Gewenste datum', 'Datum', 'Voorkeursdatum',
+  'Wat is de gelegenheid?', 'Gelegenheid', 'Type bijeenkomst', 'Aanleiding',
+  'Aantal gasten', 'Aantal personen', 'Aantal deelnemers', 'Aantal gasten (indicatie)', 'Aantal',
+  'Selecteer de gewenste datum', 'Gewenste datum', 'Datum', 'Voorkeursdatum', 'Datum bijeenkomst',
   'Kies je dagdeel', 'Selecteer dagdeel', 'Dagdeel',
-  'Starttijd', 'Begintijd', 'Aanvangstijd', 'Van', 'Eindtijd', 'Tot',
-  'Gewenste zaalopstelling', 'Zaalopstelling', 'Gewenste ruimte', 'Zaal',
-  'Gewenste catering', 'Catering',
-  'Extra informatie', 'Opmerkingen', 'Toelichting', 'Vraag', 'Bericht',
+  'Starttijd', 'Begintijd', 'Aanvangstijd', 'Aanvang', 'Gewenste starttijd', 'Van',
+  'Eindtijd', 'Gewenste eindtijd', 'Tot',
+  'Gewenste zaalopstelling', 'Zaalopstelling', 'Gewenste ruimte', 'Zaal', 'Ruimte', 'Type ruimte', 'Locatie',
+  'Gewenste catering', 'Catering', 'Dieetwensen', 'Allergieën',
+  'Extra informatie', 'Opmerkingen', 'Opmerking', 'Toelichting', 'Vraag', 'Bericht', 'Wensen',
   'Speciale Benodigdheden', 'Na-zit gewenst?', 'Service Type',
-  'Bedrijfsnaam', 'Bedrijf', 'Naam bedrijf', 'Organisatie',
-  'Budget', 'KVK', 'BTW',
+  'Bedrijfsnaam', 'Bedrijf', 'Naam bedrijf', 'Organisatie', 'Naam organisatie',
+  'Budget', 'KVK', 'BTW', 'Website', 'Adres', 'Postcode', 'Woonplaats', 'Plaats',
 ];
+
 
 export type FieldMap = Record<string, string>;
 
