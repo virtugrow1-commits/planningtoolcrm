@@ -564,6 +564,8 @@ export type Database = {
           is_read: boolean
           local_status_changed_at: string | null
           message: string | null
+          offerte_gestaged_op: string | null
+          offerte_revisie: number
           preferred_date: string | null
           preferred_end_time: string | null
           preferred_start_time: string | null
@@ -589,6 +591,8 @@ export type Database = {
           is_read?: boolean
           local_status_changed_at?: string | null
           message?: string | null
+          offerte_gestaged_op?: string | null
+          offerte_revisie?: number
           preferred_date?: string | null
           preferred_end_time?: string | null
           preferred_start_time?: string | null
@@ -614,6 +618,8 @@ export type Database = {
           is_read?: boolean
           local_status_changed_at?: string | null
           message?: string | null
+          offerte_gestaged_op?: string | null
+          offerte_revisie?: number
           preferred_date?: string | null
           preferred_end_time?: string | null
           preferred_start_time?: string | null
@@ -1366,6 +1372,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      bump_offerte_revisie: { Args: { p_inquiry_id: string }; Returns: number }
       get_public_quote: { Args: { _token: string }; Returns: Json }
       normalize_dutch_name_particles: {
         Args: { input_text: string }
