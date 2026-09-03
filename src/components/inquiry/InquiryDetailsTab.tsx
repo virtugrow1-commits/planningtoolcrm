@@ -207,6 +207,40 @@ export default function InquiryDetailsTab({ inquiry, editing, form, setForm, con
                   <CalendarPlus size={14} className="mr-1" /> Maak optie
                 </Button>
               )}
+
+              <AlertDialog open={stageDialogOpen} onOpenChange={(o) => { if (!staging) setStageDialogOpen(o); }}>
+                <AlertDialogTrigger asChild>
+                  <Button variant="outline" size="sm" className="w-full" disabled={staging}>
+                    <FileText size={14} className="mr-1" /> {staging ? 'Bezig…' : 'Offerte klaarzetten'}
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Offerte klaarzetten</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      {revisie === 0
+                        ? 'Offerte klaarzetten in CliqCRM als eerste offerte?'
+                        : `Offerte klaarzetten als revisie ${nextRevisie}?`}
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel disabled={staging}>Annuleren</AlertDialogCancel>
+                    <AlertDialogAction
+                      disabled={staging}
+                      onClick={(e) => { e.preventDefault(); handleStageOfferte(); }}
+                    >
+                      {staging ? 'Bezig…' : 'Klaarzetten'}
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+
+              {revisie > 0 && (
+                <p className="text-xs text-muted-foreground">
+                  Offerte klaargezet: revisie {String(revisie).padStart(2, '0')}
+                  {inquiry.offerteGestagedOp ? ` op ${formatDateTime(inquiry.offerteGestagedOp)}` : ''}
+                </p>
+              )}
             </div>
           )}
         </div>
