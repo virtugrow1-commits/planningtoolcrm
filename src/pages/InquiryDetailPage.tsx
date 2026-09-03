@@ -28,6 +28,7 @@ import InquiryStatusChangeDialog from '@/components/inquiry/InquiryStatusChangeD
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import ConflictAlertDialog from '@/components/calendar/ConflictAlertDialog';
 import { Booking } from '@/types/crm';
+import { bookingsForInquiry } from '@/lib/inquiryBookings';
 
 
 export default function InquiryDetailPage() {
@@ -99,11 +100,7 @@ export default function InquiryDetailPage() {
   }, [bookings, inquiry]);
   const inquiryOptionBookings = useMemo(() => {
     if (!inquiry) return [] as Booking[];
-    return bookings.filter(b => b.status === 'option' && (
-      (inquiry.contactId && b.contactId === inquiry.contactId) ||
-      (inquiry.companyId && b.companyId === inquiry.companyId) ||
-      (inquiry.contactName && b.contactName?.toLowerCase() === inquiry.contactName.toLowerCase())
-    ));
+    return bookingsForInquiry(bookings, inquiry).filter(b => b.status === 'option');
   }, [bookings, inquiry]);
   const companyBookings = useMemo(() => company?.id ? bookings.filter(b => {
     const bc = contacts.find(c => c.id === b.contactId);
@@ -411,6 +408,7 @@ export default function InquiryDetailPage() {
             contactName: resForm.contactName,
             contactId: resForm.contactId || undefined,
             companyId: resForm.companyId || inquiry.companyId || undefined,
+            inquiryId: inquiry.id,
             status: resForm.status,
             notes: resForm.notes || undefined,
             guestCount: resForm.guestCount,

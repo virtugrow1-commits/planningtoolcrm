@@ -33,6 +33,7 @@ import { cn } from '@/lib/utils';
 import ConflictAlertDialog from '@/components/calendar/ConflictAlertDialog';
 import { exportToCSV } from '@/lib/csvExport';
 import { SortableHeader, useSortState } from '@/components/SortableHeader';
+import { bookingsForInquiry } from '@/lib/inquiryBookings';
 
 const PIPELINE_COLUMNS: { key: Inquiry['status']; label: string; colorClass: string; badgeClass: string }[] = [
   { key: 'new', label: 'Nieuwe Aanvraag', colorClass: 'border-t-info bg-info/5', badgeClass: 'status-new' },
@@ -142,10 +143,7 @@ export default function InquiriesPage() {
   const pastOnlyInquiryIds = useMemo(() => {
     const ids = new Set<string>();
     for (const inq of inquiries) {
-      const related = bookings.filter(b =>
-        (inq.contactId && b.contactId === inq.contactId && b.title === inq.eventType) ||
-        (b.contactName === inq.contactName && b.title === inq.eventType)
-      );
+      const related = bookingsForInquiry(bookings, inq);
       // Has bookings and ALL are in the past
       if (related.length > 0 && related.every(b => b.date < todayStr)) {
         ids.add(inq.id);
@@ -193,10 +191,7 @@ export default function InquiriesPage() {
   const nearestBookingByInquiry = useMemo(() => {
     const map: Record<string, string> = {};
     for (const inq of inquiries) {
-      const related = bookings.filter(b =>
-        (inq.contactId && b.contactId === inq.contactId && b.title === inq.eventType) ||
-        (b.contactName === inq.contactName && b.title === inq.eventType)
-      );
+      const related = bookingsForInquiry(bookings, inq);
       // Find nearest upcoming, or fallback to nearest past
       const upcoming = related.filter(b => b.date >= todayStr).sort((a, b) => a.date.localeCompare(b.date));
       const past = related.filter(b => b.date < todayStr).sort((a, b) => b.date.localeCompare(a.date));
@@ -413,6 +408,7 @@ export default function InquiriesPage() {
           contactName: selectedInquiry.contactName,
           contactId: selectedInquiry.contactId || undefined,
           companyId: selectedInquiry.companyId || undefined,
+          inquiryId: selectedInquiry.id,
           status: opt.status,
         });
       }
@@ -630,10 +626,7 @@ export default function InquiriesPage() {
               ) : null}
               <div className="space-y-2">
                 {items.map((inq) => {
-                  const relatedBookings = bookings.filter(b =>
-                    (inq.contactId && b.contactId === inq.contactId) ||
-                    (!inq.contactId && b.contactName === inq.contactName)
-                  ).sort((a, b) => a.date.localeCompare(b.date));
+                  const relatedBookings = bookingsForInquiry(bookings, inq);
                   const firstBooking = relatedBookings.length > 0 ? relatedBookings[0] : null;
                   const inquiryTaskCount = taskCountByInquiry[inq.id] || 0;
                   const hasMessage = inq.message && inq.message.trim().length > 0;
@@ -1195,7 +1188,7 @@ export default function InquiriesPage() {
             const companyContactIds = companyContacts.map(c => c.id);
             const companyInquiries = company ? inquiries.filter(i => i.contactId && companyContactIds.includes(i.contactId)) : [];
             const companyBookings = company ? bookings.filter(b => b.contactId && companyContactIds.includes(b.contactId)) : [];
-            const relatedBookings = bookings.filter(b => (editInquiry.contactId && b.contactId === editInquiry.contactId) || (!editInquiry.contactId && b.contactName === editInquiry.contactName));
+            const relatedBookings = bookingsForInquiry(bookings, editInquiry);
             const inquiryTasks = tasks.filter(t => t.inquiryId === editInquiry.id);
             const col = PIPELINE_COLUMNS.find(c => c.key === editInquiry.status);
 

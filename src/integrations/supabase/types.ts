@@ -27,6 +27,7 @@ export type Database = {
           ghl_event_id: string | null
           guest_count: number
           id: string
+          inquiry_id: string | null
           notes: string | null
           preparation_status: string
           requirements: string | null
@@ -53,6 +54,7 @@ export type Database = {
           ghl_event_id?: string | null
           guest_count?: number
           id?: string
+          inquiry_id?: string | null
           notes?: string | null
           preparation_status?: string
           requirements?: string | null
@@ -79,6 +81,7 @@ export type Database = {
           ghl_event_id?: string | null
           guest_count?: number
           id?: string
+          inquiry_id?: string | null
           notes?: string | null
           preparation_status?: string
           requirements?: string | null
@@ -106,6 +109,13 @@ export type Database = {
             columns: ["contact_id"]
             isOneToOne: false
             referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bookings_inquiry_id_fkey"
+            columns: ["inquiry_id"]
+            isOneToOne: false
+            referencedRelation: "inquiries"
             referencedColumns: ["id"]
           },
         ]
