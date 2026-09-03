@@ -1,26 +1,47 @@
-# Meerdere bedrijven/contactpersonen direct bij elke nieuwe taak
+# Echte koppeling tussen reserveringen en aanvragen
 
-## Doel
-Bij het aanmaken van een nieuwe taak kun je meteen meerdere bedrijven en/of contactpersonen kiezen, zonder eerst een aparte "Bulk"-optie te selecteren.
+Nu wordt per aanvraagkaart geraden welke reserveringen erbij horen (op basis van contact en soms ook titel). Dat gebeurt op drie plekken met drie verschillende regels, dus je ziet niet overal hetzelfde. We leggen de koppeling echt vast.
 
-## Wat er verandert
+## Wat er gebeurt
 
-### Taken-pagina, dialoog "Nieuwe taak"
-- De aparte keuze **Bulk (meerdere bedrijven / contactpersonen)** verdwijnt uit "Koppel taak aan". De keuzes blijven: Aanvraag, Bedrijf + contactpersoon, Alleen contactpersoon.
-- Bij **Bedrijf + contactpersoon** en **Alleen contactpersoon** worden de velden altijd meervoudig: je kunt bedrijf na bedrijf en contactpersoon na contactpersoon toevoegen. Gekozen items staan als verwijderbare labels onder het veld.
-- Kies je één bedrijf, dan blijft de contactpersonenlijst gefilterd op dat bedrijf; kies je meerdere bedrijven, dan zijn alle actieve contactpersonen selecteerbaar (uit dienst blijft verborgen).
-- Onder de velden staat een teller: "Er worden X taken aangemaakt" (koppelingen × verantwoordelijken). Bij precies één koppeling en één verantwoordelijke blijft de teller weg.
-- Bij opslaan krijgt elke koppeling zijn eigen taak, met dezelfde titel, omschrijving, datum, tijd en verantwoordelijke(n). Bij een contactpersoon wordt het bijbehorende bedrijf automatisch meegekoppeld.
-- Eén bedrijf + één contactpersoon samen blijft één taak (huidige gedrag), zodat bestaande werkwijze niet verandert.
+1. Reserveringen krijgen een echt veld "hoort bij aanvraag" (leeg toegestaan).
+2. Maak je een reservering/optie aan vanuit een aanvraag, dan wordt die koppeling direct opgeslagen.
+3. De drie verschillende manieren van tonen worden gelijkgetrokken: is er een echte koppeling, dan is die leidend; is die er niet, dan blijft de huidige contact-match werken.
+4. Bestaande reserveringen worden in deze stap niet omgezet — die blijven werken via de contact-match.
 
-### Aanvraag-modus
-Blijft ongewijzigd: één aanvraag per taak.
+## Technisch
 
-### Overige pagina's
-Nieuwe taak vanuit Bedrijf, Contactpersoon of Aanvraag blijft ongewijzigd — daar is de koppeling al bekend.
+**Migratie**
+- `ALTER TABLE public.bookings ADD COLUMN inquiry_id uuid NULL REFERENCES public.inquiries(id) ON DELETE SET NULL;`
+- `CREATE INDEX idx_bookings_inquiry_id ON public.bookings(inquiry_id);`
+- Geen backfill, geen RLS-wijziging (bestaande policies op `bookings` blijven ongewijzigd).
 
-## Technische details
-- `src/pages/TasksPage.tsx`: `linkType` terug naar `'inquiry' | 'company' | 'contact'`; `companyIds`/`contactIds` blijven de bron voor de koppelvelden in beide niet-aanvraag modi.
-- Koppelingenlijst in `handleSave`: bij precies 1 bedrijf én 1 contactpersoon → één taak met beide id's; anders één taak per bedrijf en per contactpersoon (contactpersoon erft `company_id`).
-- Multi-select met de bestaande `CrmCombobox` (selectie voegt toe aan de array) plus badges met verwijder-knop; contactopties uit `bulkContactOptions` wanneer meerdere of geen bedrijven gekozen zijn.
-- Geen databasewijziging nodig.
+**Types en data-laag**
+- `src/types/crm.ts`: `Booking.inquiryId?: string`.
+- `src/contexts/BookingsContext.tsx`: `inquiry_id` meenemen in de row-mapping (fetch, realtime, insert-return) en in `addBooking`, `addBookings`, `updateBooking` payloads (`inquiry_id: booking.inquiryId || null`).
+
+**Aanmaken vanuit aanvraag**
+- `NewReservationDialog`: `ReservationPrefill` uitbreiden met `inquiryId?`, meenemen in de form-state en teruggeven in de submit-payload (of doorgeven door de aanroeper).
+- `src/pages/InquiryDetailPage.tsx` (regel ~397-440): `prefill.inquiryId = inquiry.id` en `inquiryId: inquiry.id` in de `addBooking`-call.
+- Andere plekken waar vanuit een aanvraag een optie wordt gemaakt (statuswijziging naar optie / tegel-flow in `InquiriesPage.tsx`) idem: `inquiryId` meesturen.
+
+**Filters gelijktrekken**
+- Eén helper, bv. `src/lib/inquiryBookings.ts`:
+  ```ts
+  export const bookingsForInquiry = (bookings: Booking[], inq: Inquiry) => {
+    const linked = bookings.filter(b => b.inquiryId === inq.id);
+    if (linked.length) return sortByDate(linked);
+    return sortByDate(bookings.filter(b =>
+      !b.inquiryId && (
+        (inq.contactId && b.contactId === inq.contactId) ||
+        (!inq.contactId && b.contactName === inq.contactName)
+      )
+    ));
+  };
+  ```
+- Vervangen in `src/pages/InquiriesPage.tsx` op regel ~146, ~197 (filter/sortering, waar nu ook `b.title === inq.eventType` meedoet) en ~633 en ~1198 (kaart en detailpaneel), zodat alle vier dezelfde uitkomst geven.
+- `InquiryDetailPage.tsx` (`inquiryOptionBookings`, ~100) gebruikt dezelfde helper.
+
+**Randvoorwaarden**
+- Reserveringen zonder koppeling gedragen zich exact als nu.
+- Een latere backfill-stap kan de bestaande 269 reserveringen alsnog koppelen; die valt buiten deze wijziging.
