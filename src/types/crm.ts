@@ -74,6 +74,7 @@ export interface Booking {
   contactName: string;
   contactId?: string;
   companyId?: string;
+  inquiryId?: string;
   status: 'confirmed' | 'option' | 'cancelled' | 'expired';
   statusReason?: string;
   notes?: string;
