@@ -170,7 +170,7 @@ Deno.serve(async (req) => {
 
     // 7. Velden wegschrijven
     const customFields = [
-      { id: F.nummer,    value: String(contact.display_number ?? "") },
+      { id: F.nummer,    value: stripCon(contact.display_number) },
       { id: F.revisie,   value: revisieStr },
       { id: F.datum,     value: datum },
       { id: F.start,     value: start },
@@ -194,7 +194,7 @@ Deno.serve(async (req) => {
     return json({
       ok: true,
       revisie: revisieStr,
-      offertenummer: `OFF-${contact.display_number}-${revisieStr}`,
+      offertenummer: `OFF-${stripCon(contact.display_number)}-${revisieStr}`,
       bron: booking ? "reservering" : "voorkeur",
       datum,
       tijd: start && eind ? `${start} tot ${eind}` : "",
