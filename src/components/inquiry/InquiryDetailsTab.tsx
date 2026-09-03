@@ -1,4 +1,15 @@
-import { formatDate } from '@/lib/formatters';
+import { formatDate, formatDateTime } from '@/lib/formatters';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
 import { format } from 'date-fns';
 import { nl } from 'date-fns/locale';
 import { useNavigate } from 'react-router-dom';
@@ -65,6 +76,28 @@ export default function InquiryDetailsTab({ inquiry, editing, form, setForm, con
   const { t, language } = useLanguage();
   const { companies } = useCompaniesContext();
   const [enriching, setEnriching] = useState(false);
+  const [staging, setStaging] = useState(false);
+  const [stageDialogOpen, setStageDialogOpen] = useState(false);
+  const revisie = inquiry.offerteRevisie ?? 0;
+  const nextRevisie = String(revisie + 1).padStart(2, '0');
+
+  const handleStageOfferte = async () => {
+    setStaging(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('stage-offerte', {
+        body: { inquiry_id: inquiry.id },
+      });
+      if (error) throw error;
+      if (data?.ok === false) throw new Error(data?.error || 'Onbekende fout');
+      toast({ title: `Klaargezet als ${data?.offertenummer ?? ''}`.trim() });
+      await refetch();
+    } catch (e: any) {
+      toast({ title: 'Offerte klaarzetten mislukt', description: e?.message, variant: 'destructive' });
+    } finally {
+      setStaging(false);
+      setStageDialogOpen(false);
+    }
+  };
   const col = PIPELINE_COLUMNS.find(c => c.key === inquiry.status);
 
   // Parse message field for structured display (velden + vrije tekst, originele volgorde)
@@ -184,6 +217,40 @@ export default function InquiryDetailsTab({ inquiry, editing, form, setForm, con
                 <Button variant="secondary" size="sm" className="w-full" onClick={onCreateOption}>
                   <CalendarPlus size={14} className="mr-1" /> Maak optie
                 </Button>
+              )}
+
+              <AlertDialog open={stageDialogOpen} onOpenChange={(o) => { if (!staging) setStageDialogOpen(o); }}>
+                <AlertDialogTrigger asChild>
+                  <Button variant="outline" size="sm" className="w-full" disabled={staging}>
+                    <FileText size={14} className="mr-1" /> {staging ? 'Bezig…' : 'Offerte klaarzetten'}
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Offerte klaarzetten</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      {revisie === 0
+                        ? 'Offerte klaarzetten in CliqCRM als eerste offerte?'
+                        : `Offerte klaarzetten als revisie ${nextRevisie}?`}
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel disabled={staging}>Annuleren</AlertDialogCancel>
+                    <AlertDialogAction
+                      disabled={staging}
+                      onClick={(e) => { e.preventDefault(); handleStageOfferte(); }}
+                    >
+                      {staging ? 'Bezig…' : 'Klaarzetten'}
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+
+              {revisie > 0 && (
+                <p className="text-xs text-muted-foreground">
+                  Offerte klaargezet: revisie {String(revisie).padStart(2, '0')}
+                  {inquiry.offerteGestagedOp ? ` op ${formatDateTime(inquiry.offerteGestagedOp)}` : ''}
+                </p>
               )}
             </div>
           )}

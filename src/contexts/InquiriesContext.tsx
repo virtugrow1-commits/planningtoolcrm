@@ -73,6 +73,8 @@ export function InquiriesProvider({ children }: { children: ReactNode }) {
         preferredStartTime: (i as any).preferred_start_time || undefined,
         preferredEndTime: (i as any).preferred_end_time || undefined,
         statusReason: (i as any).status_reason || undefined,
+        offerteRevisie: (i as any).offerte_revisie ?? 0,
+        offerteGestagedOp: (i as any).offerte_gestaged_op || undefined,
       })));
     setLoading(false);
   }, [user, toast]);
