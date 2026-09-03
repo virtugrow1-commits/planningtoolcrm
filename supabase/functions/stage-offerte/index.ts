@@ -59,6 +59,11 @@ function stripRes(n?: string | null): string {
   return n ? String(n).replace(/^RES-/i, "") : "";
 }
 
+/** "CON-444151" -> "444151" */
+function stripCon(n?: string | null): string {
+  return n ? String(n).replace(/^CON-/i, "") : "";
+}
+
 function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
     status,
