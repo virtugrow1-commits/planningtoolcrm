@@ -65,6 +65,28 @@ export default function InquiryDetailsTab({ inquiry, editing, form, setForm, con
   const { t, language } = useLanguage();
   const { companies } = useCompaniesContext();
   const [enriching, setEnriching] = useState(false);
+  const [staging, setStaging] = useState(false);
+  const [stageDialogOpen, setStageDialogOpen] = useState(false);
+  const revisie = inquiry.offerteRevisie ?? 0;
+  const nextRevisie = String(revisie + 1).padStart(2, '0');
+
+  const handleStageOfferte = async () => {
+    setStaging(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('stage-offerte', {
+        body: { inquiry_id: inquiry.id },
+      });
+      if (error) throw error;
+      if (data?.ok === false) throw new Error(data?.error || 'Onbekende fout');
+      toast({ title: `Klaargezet als ${data?.offertenummer ?? ''}`.trim() });
+      await refetch();
+    } catch (e: any) {
+      toast({ title: 'Offerte klaarzetten mislukt', description: e?.message, variant: 'destructive' });
+    } finally {
+      setStaging(false);
+      setStageDialogOpen(false);
+    }
+  };
   const col = PIPELINE_COLUMNS.find(c => c.key === inquiry.status);
 
   // Parse message field for structured display (velden + vrije tekst, originele volgorde)
