@@ -45,6 +45,8 @@ export interface Inquiry {
   preferredStartTime?: string;
   preferredEndTime?: string;
   statusReason?: string;
+  offerteRevisie?: number;
+  offerteGestagedOp?: string;
 }
 
 
