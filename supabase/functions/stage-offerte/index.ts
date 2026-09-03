@@ -59,6 +59,11 @@ function stripRes(n?: string | null): string {
   return n ? String(n).replace(/^RES-/i, "") : "";
 }
 
+/** "CON-444151" -> "444151" */
+function stripCon(n?: string | null): string {
+  return n ? String(n).replace(/^CON-/i, "") : "";
+}
+
 function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
     status,
@@ -165,7 +170,7 @@ Deno.serve(async (req) => {
 
     // 7. Velden wegschrijven
     const customFields = [
-      { id: F.nummer,    value: String(contact.display_number ?? "") },
+      { id: F.nummer,    value: stripCon(contact.display_number) },
       { id: F.revisie,   value: revisieStr },
       { id: F.datum,     value: datum },
       { id: F.start,     value: start },
@@ -189,7 +194,7 @@ Deno.serve(async (req) => {
     return json({
       ok: true,
       revisie: revisieStr,
-      offertenummer: `OFF-${contact.display_number}-${revisieStr}`,
+      offertenummer: `OFF-${stripCon(contact.display_number)}-${revisieStr}`,
       bron: booking ? "reservering" : "voorkeur",
       datum,
       tijd: start && eind ? `${start} tot ${eind}` : "",
