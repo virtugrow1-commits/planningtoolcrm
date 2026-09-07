@@ -138,8 +138,11 @@ Deno.serve(async (req) => {
       );
     }
 
-    // 4. Bedrijfsnaam: gekoppeld bedrijf wint van het vrije tekstveld
-    const bedrijf = (inq.companies as any)?.name ?? contact.company ?? "";
+    // 4. Bedrijfsnaam: gekoppeld bedrijf wint van het vrije tekstveld,
+    //    anders de volledige naam van het contact (particulier)
+    const volledigeNaam = `${contact.first_name ?? ""} ${contact.last_name ?? ""}`.trim();
+    const bedrijf =
+      (inq.companies as any)?.name || contact.company || volledigeNaam || "—";
 
     // 5. Revisienummer ophogen (atomair in Postgres)
     const { data: revisie, error: revErr } = await db
@@ -169,16 +172,22 @@ Deno.serve(async (req) => {
     }
 
     // 7. Velden wegschrijven
+    /** Lege of ontbrekende waarde -> em dash, zodat GHL nooit {{token}} toont */
+    const dash = (v?: string | null): string => {
+      const s = v === null || v === undefined ? "" : String(v).trim();
+      return s === "" ? "—" : s;
+    };
+
     const customFields = [
-      { id: F.nummer,    value: stripCon(contact.display_number) },
-      { id: F.revisie,   value: revisieStr },
-      { id: F.datum,     value: datum },
-      { id: F.start,     value: start },
-      { id: F.eind,      value: eind },
+      { id: F.nummer,    value: dash(stripCon(contact.display_number)) },
+      { id: F.revisie,   value: dash(revisieStr) },
+      { id: F.datum,     value: dash(datum) },
+      { id: F.start,     value: dash(start) },
+      { id: F.eind,      value: dash(eind) },
       { id: F.bedrijf,   value: bedrijf },
-      { id: F.type,      value: inq.event_type ?? "" },
-      { id: F.gasten,    value: inq.guest_count ? String(inq.guest_count) : "" },
-      { id: F.resnummer, value: stripRes(booking?.reservation_number) },
+      { id: F.type,      value: dash(inq.event_type) },
+      { id: F.gasten,    value: String(inq.guest_count ?? 0) },
+      { id: F.resnummer, value: dash(stripRes(booking?.reservation_number)) },
     ];
 
     const put = await fetch(`${GHL}/contacts/${ghlId}`, {
