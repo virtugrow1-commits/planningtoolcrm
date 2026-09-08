@@ -5,6 +5,8 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { capitalizeWords } from '@/lib/utils';
 import { parseCrmGroup } from '@/lib/formatters';
+import { fetchAllRows, debounce } from '@/lib/fetchAllRows';
+
 
 export interface Company {
   id: string;

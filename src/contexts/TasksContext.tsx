@@ -4,6 +4,8 @@ import { useAuth } from '@/contexts/AuthContext';
 import { pushToGHL } from '@/lib/ghlSync';
 import { Task } from '@/types/task';
 import { useToast } from '@/hooks/use-toast';
+import { fetchAllRows, debounce } from '@/lib/fetchAllRows';
+
 
 interface TasksContextType {
   tasks: Task[];

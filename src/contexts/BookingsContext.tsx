@@ -5,6 +5,8 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useRoomConflicts } from '@/hooks/useRoomConflicts';
 import { useToast } from '@/hooks/use-toast';
+import { fetchAllRows, debounce } from '@/lib/fetchAllRows';
+
 
 export interface BookingConflict {
   booking: Booking;

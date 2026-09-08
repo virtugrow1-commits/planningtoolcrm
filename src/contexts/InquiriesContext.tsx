@@ -4,6 +4,8 @@ import { useAuth } from '@/contexts/AuthContext';
 import { Inquiry } from '@/types/crm';
 import { pushToGHL } from '@/lib/ghlSync';
 import { useToast } from '@/hooks/use-toast';
+import { fetchAllRows, debounce } from '@/lib/fetchAllRows';
+
 
 interface InquiriesContextType {
   inquiries: Inquiry[];
