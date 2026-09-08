@@ -75,20 +75,29 @@ export function TasksProvider({ children }: { children: ReactNode }) {
     setLoading(false);
   }, [user, toast]);
 
+  const loadAllTasks = useCallback(async () => {
+    if (allLoadedRef.current) return;
+    allLoadedRef.current = true;
+    setAllLoaded(true);
+    await fetchTasks();
+  }, [fetchTasks]);
+
   useEffect(() => {
     fetchTasks();
   }, [fetchTasks]);
 
   useEffect(() => {
     if (!user) return;
+    const debouncedRefetch = debounce(() => { fetchTasks(); }, 400);
     const channel = supabase
       .channel('tasks-realtime')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'tasks' }, () => {
-        fetchTasks();
+        debouncedRefetch();
       })
       .subscribe();
-    return () => { supabase.removeChannel(channel); };
+    return () => { debouncedRefetch.cancel(); supabase.removeChannel(channel); };
   }, [user, fetchTasks]);
+
 
   const addTask = useCallback(async (task: Omit<Task, 'id' | 'createdAt'>) => {
     if (!user) return;
