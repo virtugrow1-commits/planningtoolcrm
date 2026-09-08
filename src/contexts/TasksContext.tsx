@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
+import { createContext, useContext, useState, useEffect, useCallback, useRef, ReactNode } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { pushToGHL } from '@/lib/ghlSync';
@@ -10,6 +10,10 @@ import { fetchAllRows, debounce } from '@/lib/fetchAllRows';
 interface TasksContextType {
   tasks: Task[];
   loading: boolean;
+  /** False while only open + recent tasks are loaded. */
+  allLoaded: boolean;
+  /** Loads the complete task archive (older completed tasks). */
+  loadAllTasks: () => Promise<void>;
   addTask: (task: Omit<Task, 'id' | 'createdAt'>) => Promise<void>;
   updateTask: (task: Task) => Promise<void>;
   deleteTask: (id: string) => Promise<void>;
@@ -22,8 +26,11 @@ const TasksContext = createContext<TasksContextType | null>(null);
 export function TasksProvider({ children }: { children: ReactNode }) {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
+  const [allLoaded, setAllLoaded] = useState(false);
+  const allLoadedRef = useRef(false);
   const { user } = useAuth();
   const { toast } = useToast();
+
 
   const fetchTasks = useCallback(async () => {
     if (!user) return;
