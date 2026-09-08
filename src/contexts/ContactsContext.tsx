@@ -5,6 +5,8 @@ import { pushToGHL } from '@/lib/ghlSync';
 import { Contact } from '@/types/crm';
 import { useToast } from '@/hooks/use-toast';
 import { capitalizeWords } from '@/lib/utils';
+import { fetchAllRows, debounce } from '@/lib/fetchAllRows';
+
 
 import type { SyncOutcome } from '@/lib/ghlSync';
 

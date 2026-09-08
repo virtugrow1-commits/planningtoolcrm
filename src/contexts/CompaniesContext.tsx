@@ -52,31 +52,17 @@ export function CompaniesProvider({ children }: { children: ReactNode }) {
 
   const fetchCompanies = useCallback(async () => {
     if (!user) return;
-    const allRows: any[] = [];
-    const PAGE_SIZE = 1000;
-    let from = 0;
-    let hasMore = true;
-
-    while (hasMore) {
-      const { data, error } = await (supabase as any)
-        .from('companies')
-        .select('*')
-        .order('name')
-        .range(from, from + PAGE_SIZE - 1);
-
-      if (error) {
-        toast({ title: 'Fout bij laden bedrijven', description: error.message, variant: 'destructive' });
-        setLoading(false);
-        return;
-      }
-      if (data) {
-        allRows.push(...data);
-        hasMore = data.length === PAGE_SIZE;
-        from += PAGE_SIZE;
-      } else {
-        hasMore = false;
-      }
+    const { rows: allRows, error } = await fetchAllRows({
+      table: 'companies',
+      columns: 'id, display_number, name, email, phone, website, address, notes, ghl_company_id, kvk, city, postcode, country, customer_number, crm_group, btw_number, created_at',
+      orderBy: 'name',
+    });
+    if (error) {
+      toast({ title: 'Fout bij laden bedrijven', description: error.message, variant: 'destructive' });
+      setLoading(false);
+      return;
     }
+
 
     setCompanies(allRows.map((c: any) => ({
         id: c.id,
