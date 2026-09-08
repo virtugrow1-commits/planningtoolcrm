@@ -27,31 +27,25 @@ export function TasksProvider({ children }: { children: ReactNode }) {
 
   const fetchTasks = useCallback(async () => {
     if (!user) return;
-    const allRows: any[] = [];
-    const PAGE_SIZE = 1000;
-    let from = 0;
-    let hasMore = true;
+    // Default: open tasks + everything from the last 90 days. The full archive
+    // (2800+ completed tasks) is only loaded on demand via loadAllTasks().
+    const cutoff = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString();
+    const { rows: allRows, error } = await fetchAllRows({
+      table: 'tasks',
+      columns: 'id, title, description, status, priority, due_date, due_time, assigned_to, company_id, contact_id, inquiry_id, booking_id, ghl_task_id, completed_at, local_status_changed_at, created_at',
+      orderBy: 'created_at',
+      ascending: false,
+      or: allLoadedRef.current
+        ? undefined
+        : `status.eq.open,completed_at.gte.${cutoff},created_at.gte.${cutoff}`,
+    });
 
-    while (hasMore) {
-      const { data, error } = await (supabase as any)
-        .from('tasks')
-        .select('*')
-        .order('created_at', { ascending: false })
-        .range(from, from + PAGE_SIZE - 1);
-
-      if (error) {
-        toast({ title: 'Fout bij laden taken', description: error.message, variant: 'destructive' });
-        setLoading(false);
-        return;
-      }
-      if (data) {
-        allRows.push(...data);
-        hasMore = data.length === PAGE_SIZE;
-        from += PAGE_SIZE;
-      } else {
-        hasMore = false;
-      }
+    if (error) {
+      toast({ title: 'Fout bij laden taken', description: error.message, variant: 'destructive' });
+      setLoading(false);
+      return;
     }
+
 
     setTasks(allRows.map((t: any) => ({
         id: t.id,
