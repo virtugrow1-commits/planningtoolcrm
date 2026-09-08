@@ -36,7 +36,7 @@ import { nl } from 'date-fns/locale';
 type SortKey = 'dueDate' | 'createdAt' | 'title';
 
 export default function TasksPage() {
-  const { tasks, loading, addTask, updateTask, deleteTask, deleteTasks } = useTasksContext();
+  const { tasks, loading, allLoaded, loadAllTasks, addTask, updateTask, deleteTask, deleteTasks } = useTasksContext();
   const { contacts } = useContactsContext();
   const { companies } = useCompaniesContext();
   const { inquiries } = useInquiriesContext();
@@ -49,6 +49,16 @@ export default function TasksPage() {
   const [userFilter, setUserFilter] = useState<string>('__all__');
   const userFilterTouched = useRef(false);
   const { user } = useAuth();
+
+  // Only open + recent tasks are loaded initially; pull in the full archive
+  // as soon as someone searches or looks at completed/all tasks.
+  useEffect(() => {
+    if (allLoaded) return;
+    if (statusFilter !== 'open' || search.trim().length > 0) {
+      loadAllTasks();
+    }
+  }, [allLoaded, statusFilter, search, loadAllTasks]);
+
 
   // Default user filter to the logged-in user (if they map to Sjors/Iris)
   useEffect(() => {
