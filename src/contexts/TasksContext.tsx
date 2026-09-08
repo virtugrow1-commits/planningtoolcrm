@@ -196,7 +196,7 @@ export function TasksProvider({ children }: { children: ReactNode }) {
   }, [deleteTask]);
 
   return (
-    <TasksContext.Provider value={{ tasks, loading, addTask, updateTask, deleteTask, deleteTasks, refetch: fetchTasks }}>
+    <TasksContext.Provider value={{ tasks, loading, allLoaded, loadAllTasks, addTask, updateTask, deleteTask, deleteTasks, refetch: fetchTasks }}>
       {children}
     </TasksContext.Provider>
   );
