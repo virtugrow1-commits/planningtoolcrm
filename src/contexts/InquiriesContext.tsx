@@ -4,6 +4,8 @@ import { useAuth } from '@/contexts/AuthContext';
 import { Inquiry } from '@/types/crm';
 import { pushToGHL } from '@/lib/ghlSync';
 import { useToast } from '@/hooks/use-toast';
+import { fetchAllRows, debounce } from '@/lib/fetchAllRows';
+
 
 interface InquiriesContextType {
   inquiries: Inquiry[];
@@ -26,31 +28,18 @@ export function InquiriesProvider({ children }: { children: ReactNode }) {
 
   const fetchInquiries = useCallback(async () => {
     if (!user) return;
-    const allRows: any[] = [];
-    const PAGE_SIZE = 1000;
-    let from = 0;
-    let hasMore = true;
-
-    while (hasMore) {
-      const { data, error } = await supabase
-        .from('inquiries')
-        .select('*')
-        .order('created_at', { ascending: false })
-        .range(from, from + PAGE_SIZE - 1);
-
-      if (error) {
-        toast({ title: 'Fout bij laden aanvragen', description: error.message, variant: 'destructive' });
-        setLoading(false);
-        return;
-      }
-      if (data) {
-        allRows.push(...data);
-        hasMore = data.length === PAGE_SIZE;
-        from += PAGE_SIZE;
-      } else {
-        hasMore = false;
-      }
+    const { rows: allRows, error } = await fetchAllRows({
+      table: 'inquiries',
+      columns: 'id, display_number, contact_id, contact_name, company_id, event_type, preferred_date, room_preference, guest_count, budget, message, status, created_at, source, ghl_opportunity_id, is_read, assigned_to, preferred_start_time, preferred_end_time, status_reason, offerte_revisie, offerte_gestaged_op',
+      orderBy: 'created_at',
+      ascending: false,
+    });
+    if (error) {
+      toast({ title: 'Fout bij laden aanvragen', description: error.message, variant: 'destructive' });
+      setLoading(false);
+      return;
     }
+
 
     setInquiries(allRows.map((i) => ({
         id: i.id,
@@ -85,14 +74,16 @@ export function InquiriesProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (!user) return;
+    const debouncedRefetch = debounce(() => { fetchInquiries(); }, 400);
     const channel = supabase
       .channel('inquiries-realtime')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'inquiries' }, () => {
-        fetchInquiries();
+        debouncedRefetch();
       })
       .subscribe();
-    return () => { supabase.removeChannel(channel); };
+    return () => { debouncedRefetch.cancel(); supabase.removeChannel(channel); };
   }, [user, fetchInquiries]);
+
 
   const addInquiry = useCallback(async (inquiry: Omit<Inquiry, 'id' | 'createdAt'>) => {
     if (!user) return;

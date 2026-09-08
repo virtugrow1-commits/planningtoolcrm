@@ -5,6 +5,8 @@ import { pushToGHL } from '@/lib/ghlSync';
 import { Contact } from '@/types/crm';
 import { useToast } from '@/hooks/use-toast';
 import { capitalizeWords } from '@/lib/utils';
+import { fetchAllRows, debounce } from '@/lib/fetchAllRows';
+
 
 import type { SyncOutcome } from '@/lib/ghlSync';
 
@@ -27,32 +29,17 @@ export function ContactsProvider({ children }: { children: ReactNode }) {
 
   const fetchContacts = useCallback(async () => {
     if (!user) return;
-    // Fetch all contacts with pagination to avoid 1000-row limit
-    const allRows: any[] = [];
-    const PAGE_SIZE = 1000;
-    let from = 0;
-    let hasMore = true;
-
-    while (hasMore) {
-      const { data, error } = await supabase
-        .from('contacts')
-        .select('*')
-        .order('first_name')
-        .range(from, from + PAGE_SIZE - 1);
-
-      if (error) {
-        toast({ title: 'Fout bij laden contacten', description: error.message, variant: 'destructive' });
-        setLoading(false);
-        return;
-      }
-      if (data) {
-        allRows.push(...data);
-        hasMore = data.length === PAGE_SIZE;
-        from += PAGE_SIZE;
-      } else {
-        hasMore = false;
-      }
+    const { rows: allRows, error } = await fetchAllRows({
+      table: 'contacts',
+      columns: 'id, display_number, first_name, last_name, email, phone, company, company_id, status, created_at, notes, ghl_contact_id, departed, department, dmu, function_group, job_title, address, postcode, city, country, birth_date, tags',
+      orderBy: 'first_name',
+    });
+    if (error) {
+      toast({ title: 'Fout bij laden contacten', description: error.message, variant: 'destructive' });
+      setLoading(false);
+      return;
     }
+
 
     setContacts(allRows.map((c) => ({
       id: c.id,
@@ -88,14 +75,16 @@ export function ContactsProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (!user) return;
+    const debouncedRefetch = debounce(() => { fetchContacts(); }, 400);
     const channel = supabase
       .channel('contacts-realtime')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'contacts' }, () => {
-        fetchContacts();
+        debouncedRefetch();
       })
       .subscribe();
-    return () => { supabase.removeChannel(channel); };
+    return () => { debouncedRefetch.cancel(); supabase.removeChannel(channel); };
   }, [user, fetchContacts]);
+
 
   const addContact = useCallback(async (contact: Omit<Contact, 'id' | 'createdAt'>): Promise<SyncOutcome | null> => {
     if (!user) return null;

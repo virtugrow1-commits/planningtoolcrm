@@ -5,6 +5,8 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useRoomConflicts } from '@/hooks/useRoomConflicts';
 import { useToast } from '@/hooks/use-toast';
+import { fetchAllRows, debounce } from '@/lib/fetchAllRows';
+
 
 export interface BookingConflict {
   booking: Booking;
@@ -32,25 +34,18 @@ export function BookingsProvider({ children }: { children: ReactNode }) {
 
   const fetchBookings = useCallback(async () => {
     if (!user) return;
-    let allData: any[] = [];
-    let from = 0;
-    const PAGE_SIZE = 1000;
-    while (true) {
-      const { data, error } = await supabase
-        .from('bookings')
-        .select('*')
-        .order('date', { ascending: true })
-        .range(from, from + PAGE_SIZE - 1);
-      if (error) {
-        toast({ title: 'Fout bij laden boekingen', description: error.message, variant: 'destructive' });
-        break;
-      }
-      if (!data || data.length === 0) break;
-      allData = allData.concat(data);
-      if (data.length < PAGE_SIZE) break;
-      from += PAGE_SIZE;
+    const { rows: allData, error } = await fetchAllRows({
+      table: 'bookings',
+      columns: 'id, reservation_number, room_name, date, start_hour, start_minute, end_hour, end_minute, title, contact_name, contact_id, company_id, inquiry_id, status, status_reason, notes, guest_count, room_setup, requirements, preparation_status, assigned_to, ghl_event_id',
+      orderBy: 'date',
+    });
+    if (error) {
+      toast({ title: 'Fout bij laden boekingen', description: error.message, variant: 'destructive' });
+      setLoading(false);
+      return;
     }
     setBookings(allData.map((b) => ({
+
       id: b.id,
       reservationNumber: (b as any).reservation_number ? (b as any).reservation_number.replace(/^RES-/, '#') : undefined,
       roomName: b.room_name as RoomName,
@@ -83,14 +78,16 @@ export function BookingsProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (!user) return;
+    const debouncedRefetch = debounce(() => { fetchBookings(); }, 400);
     const channel = supabase
       .channel('bookings-realtime')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'bookings' }, () => {
-        fetchBookings();
+        debouncedRefetch();
       })
       .subscribe();
-    return () => { supabase.removeChannel(channel); };
+    return () => { debouncedRefetch.cancel(); supabase.removeChannel(channel); };
   }, [user, fetchBookings]);
+
 
   // Check conflicts including combined room rules
   // Options may overlap with other options; confirmed bookings block everything

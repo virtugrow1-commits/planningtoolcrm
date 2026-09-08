@@ -333,17 +333,8 @@ export default function Dashboard() {
     return null;
   };
 
-  const loading = bookingsLoading || inquiriesLoading || tasksLoading || quotesLoading || invoicesLoading;
-
-  if (loading) {
-    return (
-      <div className="flex min-h-[50vh] items-center justify-center">
-        <div className="text-muted-foreground">{t('common.loading')}</div>
-      </div>
-    );
-  }
-
   const fmtMoney = (n: number) => new Intl.NumberFormat('nl-NL', { style: 'currency', currency: 'EUR' }).format(n);
+
 
   return (
     <div className="p-6 lg:p-8 space-y-6 max-w-7xl mx-auto">
@@ -356,30 +347,31 @@ export default function Dashboard() {
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
         <KpiCard
-          title={t('dashboard.openTasks')} value={String(openTaskCount)} icon={<CheckSquare size={20} />}
+          title={t('dashboard.openTasks')} value={tasksLoading ? '…' : String(openTaskCount)} icon={<CheckSquare size={20} />}
           subtitle={`${tasks.filter((t) => t.status === 'open').length} ${t('dashboard.open')} · ${tasks.filter((t) => t.status === 'completed').length} ${t('dashboard.completed')}`}
           onClick={() => setKpiDialog({ open: true, type: 'tasks' })}
         />
         <KpiCard
-          title={t('dashboard.inquiries')} value={String(openInquiries.length)} icon={<InboxIcon size={20} />}
+          title={t('dashboard.inquiries')} value={inquiriesLoading ? '…' : String(openInquiries.length)} icon={<InboxIcon size={20} />}
           subtitle={t('dashboard.newAndContacted')}
           onClick={() => setKpiDialog({ open: true, type: 'inquiries' })}
         />
         <KpiCard
-          title={t('dashboard.bookingsToday')} value={String(todayBookings.length)} icon={<CalendarCheck size={20} />}
+          title={t('dashboard.bookingsToday')} value={bookingsLoading ? '…' : String(todayBookings.length)} icon={<CalendarCheck size={20} />}
           subtitle={`${todayBookings.filter((b) => b.status === 'confirmed').length} ${t('dashboard.confirmed')} · ${todayBookings.filter((b) => b.status === 'option').length} ${t('dashboard.inOption')}`}
           onClick={() => setKpiDialog({ open: true, type: 'bookings' })}
         />
         <KpiCard
-          title="Openstaande offertes" value={String(openQuotes.length)} icon={<FileText size={20} />}
+          title="Openstaande offertes" value={quotesLoading ? '…' : String(openQuotes.length)} icon={<FileText size={20} />}
           subtitle={`${quotes.filter((q) => q.status === 'sent' || q.status === 'viewed').length} verzonden · ${quotes.filter((q) => q.status === 'draft').length} concept`}
           onClick={() => navigate('/quotes')}
         />
         <KpiCard
-          title="Openstaande facturen" value={String(openInvoices.length)} icon={<Receipt size={20} />}
+          title="Openstaande facturen" value={invoicesLoading ? '…' : String(openInvoices.length)} icon={<Receipt size={20} />}
           subtitle={`${invoices.filter((i) => i.status === 'overdue').length} verlopen · ${fmtMoney(openInvoices.reduce((s, i) => s + (i.total || 0), 0))}`}
           onClick={() => navigate('/quotes')}
         />
+
       </div>
 
       {/* Reserveringen vandaag */}
@@ -391,6 +383,8 @@ export default function Dashboard() {
         viewAllHref="/calendar"
         emptyMessage="Geen reserveringen vandaag"
         isEmpty={todayBookings.length === 0}
+        loading={bookingsLoading}
+
       >
         {todayBookings.slice(0, 5).map((booking) => (
           <Link
@@ -436,6 +430,8 @@ export default function Dashboard() {
         viewAllHref="/inquiries"
         emptyMessage="Geen openstaande aanvragen"
         isEmpty={openInquiries.length === 0}
+        loading={inquiriesLoading}
+
       >
         {openInquiries.slice(0, 5).map((inq) => (
           <Link
@@ -474,6 +470,8 @@ export default function Dashboard() {
         viewAllHref="/tasks"
         emptyMessage={filter === 'all' ? t('dashboard.noTasksYet') : t('common.noResults')}
         isEmpty={filteredTasks.length === 0}
+        loading={tasksLoading}
+
         headerAction={
           <>
             <Select
@@ -619,6 +617,8 @@ export default function Dashboard() {
         viewAllHref="/quotes"
         emptyMessage="Geen openstaande offertes"
         isEmpty={openQuotes.length === 0}
+        loading={quotesLoading}
+
       >
         {openQuotes.slice(0, 5).map((q) => (
           <Link
@@ -657,6 +657,8 @@ export default function Dashboard() {
         viewAllHref="/quotes"
         emptyMessage="Geen openstaande facturen"
         isEmpty={openInvoices.length === 0}
+        loading={invoicesLoading}
+
       >
         {openInvoices.slice(0, 5).map((inv) => (
           <Link
