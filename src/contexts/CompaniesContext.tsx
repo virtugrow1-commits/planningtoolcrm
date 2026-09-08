@@ -92,14 +92,16 @@ export function CompaniesProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (!user) return;
+    const debouncedRefetch = debounce(() => { fetchCompanies(); }, 400);
     const channel = supabase
       .channel('companies-realtime')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'companies' }, () => {
-        fetchCompanies();
+        debouncedRefetch();
       })
       .subscribe();
-    return () => { supabase.removeChannel(channel); };
+    return () => { debouncedRefetch.cancel(); supabase.removeChannel(channel); };
   }, [user, fetchCompanies]);
+
 
   const addCompany = useCallback(async (company: Omit<Company, 'id' | 'createdAt'>): Promise<AddCompanyResult> => {
     if (!user) return { outcome: null, companyId: null };

@@ -78,14 +78,16 @@ export function BookingsProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (!user) return;
+    const debouncedRefetch = debounce(() => { fetchBookings(); }, 400);
     const channel = supabase
       .channel('bookings-realtime')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'bookings' }, () => {
-        fetchBookings();
+        debouncedRefetch();
       })
       .subscribe();
-    return () => { supabase.removeChannel(channel); };
+    return () => { debouncedRefetch.cancel(); supabase.removeChannel(channel); };
   }, [user, fetchBookings]);
+
 
   // Check conflicts including combined room rules
   // Options may overlap with other options; confirmed bookings block everything

@@ -74,14 +74,16 @@ export function InquiriesProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (!user) return;
+    const debouncedRefetch = debounce(() => { fetchInquiries(); }, 400);
     const channel = supabase
       .channel('inquiries-realtime')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'inquiries' }, () => {
-        fetchInquiries();
+        debouncedRefetch();
       })
       .subscribe();
-    return () => { supabase.removeChannel(channel); };
+    return () => { debouncedRefetch.cancel(); supabase.removeChannel(channel); };
   }, [user, fetchInquiries]);
+
 
   const addInquiry = useCallback(async (inquiry: Omit<Inquiry, 'id' | 'createdAt'>) => {
     if (!user) return;

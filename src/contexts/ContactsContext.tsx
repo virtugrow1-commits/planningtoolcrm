@@ -75,14 +75,16 @@ export function ContactsProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (!user) return;
+    const debouncedRefetch = debounce(() => { fetchContacts(); }, 400);
     const channel = supabase
       .channel('contacts-realtime')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'contacts' }, () => {
-        fetchContacts();
+        debouncedRefetch();
       })
       .subscribe();
-    return () => { supabase.removeChannel(channel); };
+    return () => { debouncedRefetch.cancel(); supabase.removeChannel(channel); };
   }, [user, fetchContacts]);
+
 
   const addContact = useCallback(async (contact: Omit<Contact, 'id' | 'createdAt'>): Promise<SyncOutcome | null> => {
     if (!user) return null;
