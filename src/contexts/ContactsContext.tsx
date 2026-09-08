@@ -27,32 +27,17 @@ export function ContactsProvider({ children }: { children: ReactNode }) {
 
   const fetchContacts = useCallback(async () => {
     if (!user) return;
-    // Fetch all contacts with pagination to avoid 1000-row limit
-    const allRows: any[] = [];
-    const PAGE_SIZE = 1000;
-    let from = 0;
-    let hasMore = true;
-
-    while (hasMore) {
-      const { data, error } = await supabase
-        .from('contacts')
-        .select('*')
-        .order('first_name')
-        .range(from, from + PAGE_SIZE - 1);
-
-      if (error) {
-        toast({ title: 'Fout bij laden contacten', description: error.message, variant: 'destructive' });
-        setLoading(false);
-        return;
-      }
-      if (data) {
-        allRows.push(...data);
-        hasMore = data.length === PAGE_SIZE;
-        from += PAGE_SIZE;
-      } else {
-        hasMore = false;
-      }
+    const { rows: allRows, error } = await fetchAllRows({
+      table: 'contacts',
+      columns: 'id, display_number, first_name, last_name, email, phone, company, company_id, status, created_at, notes, ghl_contact_id, departed, department, dmu, function_group, job_title, address, postcode, city, country, birth_date, tags',
+      orderBy: 'first_name',
+    });
+    if (error) {
+      toast({ title: 'Fout bij laden contacten', description: error.message, variant: 'destructive' });
+      setLoading(false);
+      return;
     }
+
 
     setContacts(allRows.map((c) => ({
       id: c.id,
