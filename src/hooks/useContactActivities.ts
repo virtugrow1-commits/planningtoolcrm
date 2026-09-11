@@ -137,7 +137,7 @@ export function useTaskCallLogs(taskId: string | undefined) {
     }
     const { data, error } = await (supabase as any)
       .from('contact_activities')
-      .select('*')
+      .select(ACTIVITY_COLUMNS)
       .eq('related_task_id', taskId)
       .order('created_at', { ascending: false });
     if (error) {
@@ -147,6 +147,8 @@ export function useTaskCallLogs(taskId: string | undefined) {
       setLogs(data.map((a: any) => ({
         id: a.id,
         contactId: a.contact_id,
+        companyId: a.company_id ?? null,
+
         type: a.type,
         subject: a.subject,
         body: a.body,
