@@ -64,7 +64,10 @@ export function useContactCompanies() {
       company_id: companyId,
       is_primary: isPrimary,
       user_id: user.id,
+      // Re-hired at the same company: the contact is current again
+      departed_at: null,
     } as any, { onConflict: 'contact_id,company_id' } as any);
+
     await fetchLinks();
   }, [user, fetchLinks]);
 
