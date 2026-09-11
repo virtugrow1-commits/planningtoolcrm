@@ -154,17 +154,38 @@
     background: linear-gradient(135deg, hsl(15 46% 44%) 0%, hsl(15 46% 36%) 100%);
   }
 
+  /* Softer, flatter cards for the 2.0 look */
   .card-shadow {
     box-shadow:
-      0 1px 2px 0 hsl(15 30% 18% / 0.04),
-      0 1px 3px 0 hsl(15 30% 18% / 0.06);
+      0 1px 2px 0 hsl(15 30% 18% / 0.03),
+      0 1px 2px 0 hsl(15 30% 18% / 0.04);
   }
 
   .card-shadow-hover {
     box-shadow:
-      0 4px 16px 0 hsl(15 30% 18% / 0.08),
-      0 2px 6px -1px hsl(15 30% 18% / 0.04);
+      0 6px 20px -6px hsl(15 30% 18% / 0.10),
+      0 2px 6px -2px hsl(15 30% 18% / 0.05);
   }
+
+  /* Sticky search/filter row on list pages */
+  .page-toolbar {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    padding: 0.5rem 0;
+    background: linear-gradient(hsl(var(--background)) 70%, hsl(var(--background) / 0));
+  }
+
+  /* Column headers stay visible while scrolling a long table */
+  .sticky-head thead th,
+  .sticky-head [data-slot='table-header'] th {
+    position: sticky;
+    top: 0;
+    z-index: 5;
+    background: hsl(var(--muted) / 0.9);
+    backdrop-filter: blur(6px);
+  }
+
 
   .glass {
     background: hsl(var(--card) / 0.7);

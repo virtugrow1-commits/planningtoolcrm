@@ -17,6 +17,8 @@ import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { useNavigate, Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
+import ListSkeleton from '@/components/ListSkeleton';
+
 import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -404,11 +406,13 @@ export default function TasksPage() {
 
   if (loading) {
     return (
-      <div className="flex min-h-[50vh] items-center justify-center">
-        <div className="text-muted-foreground">{t('common.loading')}</div>
+      <div className="p-6 lg:p-8 space-y-4 max-w-7xl mx-auto">
+        <div className="h-8 w-40 rounded-lg bg-muted animate-pulse" />
+        <ListSkeleton rows={9} />
       </div>
     );
   }
+
 
   return (
     <div className="p-6 lg:p-8 space-y-6 max-w-7xl mx-auto">

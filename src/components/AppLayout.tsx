@@ -35,12 +35,10 @@ const navItemDefs = [
   { to: '/', icon: LayoutDashboard, key: 'nav.dashboard' },
   { to: '/tasks', icon: CheckSquare, key: 'nav.tasks' },
   { to: '/crm', icon: Users, key: 'nav.crm' },
-  
   { to: '/inquiries', icon: InboxIcon, key: 'nav.inquiries' },
-  { to: '/documents', icon: FileText, key: 'nav.documents' },
-  { to: '/reserveringen', icon: ClipboardList, key: 'nav.reserveringen' },
   { to: '/calendar', icon: CalendarDays, key: 'nav.calendar' },
 ];
+
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const location = useLocation();

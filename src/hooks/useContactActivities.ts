@@ -6,6 +6,8 @@ import { useToast } from '@/hooks/use-toast';
 export interface ContactActivity {
   id: string;
   contactId: string;
+  /** Employer the activity was recorded for; keeps history with the old company. */
+  companyId?: string | null;
   type: 'note' | 'call' | 'email' | 'meeting';
   subject: string | null;
   body: string | null;
@@ -13,13 +15,18 @@ export interface ContactActivity {
   relatedTaskId?: string | null;
 }
 
+const ACTIVITY_COLUMNS =
+  'id, contact_id, company_id, type, subject, body, created_at, related_task_id';
+
 export interface AddActivityInput {
   type: string;
   subject?: string;
   body?: string;
   relatedTaskId?: string | null;
+  companyId?: string | null;
   createdAt?: string; // ISO; if omitted, server uses now()
 }
+
 
 export function useContactActivities(contactId: string | undefined) {
   const [activities, setActivities] = useState<ContactActivity[]>([]);
@@ -31,7 +38,7 @@ export function useContactActivities(contactId: string | undefined) {
     if (!user || !contactId) return;
     const { data, error } = await supabase
       .from('contact_activities')
-      .select('*')
+      .select(ACTIVITY_COLUMNS)
       .eq('contact_id', contactId)
       .order('created_at', { ascending: false });
 
@@ -42,6 +49,7 @@ export function useContactActivities(contactId: string | undefined) {
       setActivities(data.map((a: any) => ({
         id: a.id,
         contactId: a.contact_id,
+        companyId: a.company_id ?? null,
         type: a.type,
         subject: a.subject,
         body: a.body,
@@ -49,6 +57,7 @@ export function useContactActivities(contactId: string | undefined) {
         relatedTaskId: a.related_task_id ?? null,
       })));
     }
+
     setLoading(false);
   }, [user, contactId, toast]);
 
@@ -64,7 +73,15 @@ export function useContactActivities(contactId: string | undefined) {
       body: activity.body || null,
       related_task_id: activity.relatedTaskId || null,
     };
+    // Snapshot the employer so the activity stays with this company later on
+    if (activity.companyId) {
+      payload.company_id = activity.companyId;
+    } else {
+      const { data: c } = await supabase.from('contacts').select('company_id').eq('id', contactId).maybeSingle();
+      if (c?.company_id) payload.company_id = c.company_id;
+    }
     if (activity.createdAt) payload.created_at = activity.createdAt;
+
     const { error } = await supabase.from('contact_activities').insert(payload);
     if (error) {
       toast({ title: 'Fout bij toevoegen activiteit', description: error.message, variant: 'destructive' });
@@ -120,7 +137,7 @@ export function useTaskCallLogs(taskId: string | undefined) {
     }
     const { data, error } = await (supabase as any)
       .from('contact_activities')
-      .select('*')
+      .select(ACTIVITY_COLUMNS)
       .eq('related_task_id', taskId)
       .order('created_at', { ascending: false });
     if (error) {
@@ -130,6 +147,8 @@ export function useTaskCallLogs(taskId: string | undefined) {
       setLogs(data.map((a: any) => ({
         id: a.id,
         contactId: a.contact_id,
+        companyId: a.company_id ?? null,
+
         type: a.type,
         subject: a.subject,
         body: a.body,

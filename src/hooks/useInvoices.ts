@@ -60,7 +60,8 @@ export function useInvoices() {
     if (!user) { setLoading(false); return; }
     const { data, error } = await supabase
       .from('invoices')
-      .select('*')
+      .select('id, display_number, user_id, quote_id, contact_id, company_id, contact_name, company_name, client_email, client_address, title, subtotal, vat_amount, discount_amount, total, status, due_date, sent_at, paid_at, payment_method, stripe_payment_link, stripe_invoice_id, ghl_invoice_id, eboekhouden_mutation_id, created_at, updated_at')
+
       .order('created_at', { ascending: false });
     if (error) {
       toast({ title: 'Fout bij laden facturen', description: error.message, variant: 'destructive' });

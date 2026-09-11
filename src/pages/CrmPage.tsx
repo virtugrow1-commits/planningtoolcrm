@@ -26,6 +26,9 @@ import CrmCombobox from '@/components/CrmCombobox';
 import { Calendar } from '@/components/ui/calendar';
 import { CalendarIcon } from 'lucide-react';
 import { DMU_OPTIONS, FUNCTION_GROUP_OPTIONS } from '@/lib/contactOptions';
+import PageHeader from '@/components/PageHeader';
+import ListSkeleton from '@/components/ListSkeleton';
+
 
 const STATUS_LABELS: Record<string, string> = {
   lead: 'Lead',
@@ -227,8 +230,14 @@ export default function CrmPage() {
   };
 
   if (loading || companiesLoading) {
-    return <div className="flex min-h-[50vh] items-center justify-center"><div className="text-muted-foreground">{t('common.loading')}</div></div>;
+    return (
+      <div className="p-6 lg:p-8 space-y-4">
+        <div className="h-8 w-40 rounded-lg bg-muted animate-pulse" />
+        <ListSkeleton rows={10} />
+      </div>
+    );
   }
+
 
   const allPageSelected = activeTab === 'contacts'
     ? paginated.length > 0 && paginated.every(c => selected.has(c.id))
@@ -239,7 +248,14 @@ export default function CrmPage() {
 
   return (
     <div className="p-6 lg:p-8 space-y-4">
-      <div className="flex flex-wrap items-center justify-end gap-4">
+      <PageHeader
+        title="CRM"
+        description={activeTab === 'contacts'
+          ? `${sortedFiltered.length} contactpersonen`
+          : `${sortedCompanies.length} bedrijven`}
+      />
+      <div className="page-toolbar flex flex-wrap items-center justify-end gap-4">
+
         <div className="flex items-center gap-2">
           <div className="relative w-64">
             <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
@@ -308,7 +324,7 @@ export default function CrmPage() {
       )}
 
       {activeTab === 'contacts' ? (
-      <div className="overflow-x-auto rounded-xl border bg-card card-shadow">
+      <div className="sticky-head max-h-[68vh] overflow-auto rounded-xl border bg-card card-shadow">
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b bg-muted/50">
@@ -359,7 +375,7 @@ export default function CrmPage() {
         </table>
       </div>
       ) : (
-      <div className="overflow-x-auto rounded-xl border bg-card card-shadow">
+      <div className="sticky-head max-h-[68vh] overflow-auto rounded-xl border bg-card card-shadow">
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b bg-muted/50">
