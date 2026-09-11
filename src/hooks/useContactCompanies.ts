@@ -7,6 +7,8 @@ export interface ContactCompanyLink {
   contactId: string;
   companyId: string;
   isPrimary: boolean;
+  /** Set when the contact left this employer; history stays with this company. */
+  departedAt?: string | null;
 }
 
 export function useContactCompanies() {
