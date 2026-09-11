@@ -58,7 +58,7 @@ export function CompaniesProvider({ children }: { children: ReactNode }) {
     if (!user) return;
     const { rows: allRows, error } = await fetchAllRows({
       table: 'companies',
-      columns: 'id, display_number, name, email, phone, website, address, notes, ghl_company_id, kvk, city, postcode, country, customer_number, crm_group, btw_number, created_at',
+      columns: 'id, display_number, name, email, phone, website, address, notes, ghl_company_id, kvk, city, postcode, country, customer_number, crm_group, btw_number, is_private, created_at',
       orderBy: 'name',
     });
     if (error) {
