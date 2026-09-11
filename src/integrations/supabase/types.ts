@@ -133,6 +133,7 @@ export type Database = {
           email: string | null
           ghl_company_id: string | null
           id: string
+          is_private: boolean
           kvk: string | null
           last_local_edit_at: string | null
           last_sync_error: string | null
@@ -158,6 +159,7 @@ export type Database = {
           email?: string | null
           ghl_company_id?: string | null
           id?: string
+          is_private?: boolean
           kvk?: string | null
           last_local_edit_at?: string | null
           last_sync_error?: string | null
@@ -183,6 +185,7 @@ export type Database = {
           email?: string | null
           ghl_company_id?: string | null
           id?: string
+          is_private?: boolean
           kvk?: string | null
           last_local_edit_at?: string | null
           last_sync_error?: string | null
@@ -201,6 +204,7 @@ export type Database = {
       contact_activities: {
         Row: {
           body: string | null
+          company_id: string | null
           contact_id: string
           created_at: string
           ghl_note_id: string | null
@@ -213,6 +217,7 @@ export type Database = {
         }
         Insert: {
           body?: string | null
+          company_id?: string | null
           contact_id: string
           created_at?: string
           ghl_note_id?: string | null
@@ -225,6 +230,7 @@ export type Database = {
         }
         Update: {
           body?: string | null
+          company_id?: string | null
           contact_id?: string
           created_at?: string
           ghl_note_id?: string | null
@@ -236,6 +242,13 @@ export type Database = {
           user_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "contact_activities_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "contact_activities_contact_id_fkey"
             columns: ["contact_id"]
@@ -250,6 +263,7 @@ export type Database = {
           company_id: string
           contact_id: string
           created_at: string
+          departed_at: string | null
           id: string
           is_primary: boolean
           user_id: string
@@ -258,6 +272,7 @@ export type Database = {
           company_id: string
           contact_id: string
           created_at?: string
+          departed_at?: string | null
           id?: string
           is_primary?: boolean
           user_id: string
@@ -266,6 +281,7 @@ export type Database = {
           company_id?: string
           contact_id?: string
           created_at?: string
+          departed_at?: string | null
           id?: string
           is_primary?: boolean
           user_id?: string
