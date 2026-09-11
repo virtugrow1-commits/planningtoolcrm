@@ -50,6 +50,8 @@ export default function ContactDetailPage() {
   const { toast } = useToast();
 
   const contact = contacts.find((c) => c.id === id);
+  const breadcrumbCompany = contact?.companyId ? companies.find((c) => c.id === contact.companyId) : undefined;
+
   const [editing, setEditing] = useState(false);
   const [form, setForm] = useState<Contact | null>(null);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
