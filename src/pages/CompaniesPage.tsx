@@ -14,6 +14,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { useCompaniesContext, Company } from '@/contexts/CompaniesContext';
 import PostCompanyContactFlow from '@/components/company/PostCompanyContactFlow';
 import { cn } from '@/lib/utils';
+import PageHeader from '@/components/PageHeader';
+import ListSkeleton from '@/components/ListSkeleton';
+
 
 const PAGE_SIZES = [20, 50, 100] as const;
 
@@ -108,30 +111,35 @@ export default function CompaniesPage() {
   };
 
   if (loading) {
-    return <div className="flex min-h-[50vh] items-center justify-center"><div className="text-muted-foreground">Bedrijven laden...</div></div>;
+    return (
+      <div className="p-6 lg:p-8 space-y-4">
+        <div className="h-8 w-48 rounded-lg bg-muted animate-pulse" />
+        <ListSkeleton rows={10} />
+      </div>
+    );
   }
 
   const allPageSelected = paginated.length > 0 && paginated.every(c => selected.has(c.id));
 
   return (
     <div className="p-6 lg:p-8 space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-foreground">Bedrijven</h1>
-        </div>
-        <div className="flex items-center gap-2">
-          <div className="relative w-64">
+      <PageHeader
+        title="Bedrijven"
+        description={`${filtered.length} van ${companies.length} bedrijven`}
+        actions={<Button size="sm" onClick={openNew}><Plus size={14} className="mr-1" /> Nieuw Bedrijf</Button>}
+        toolbar={
+          <div className="relative w-full max-w-sm">
             <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-            <Input placeholder="Zoeken..." className="pl-9" value={search} onChange={(e) => handleSearch(e.target.value)} />
+            <Input placeholder="Zoeken..." className="pl-9 bg-card" value={search} onChange={(e) => handleSearch(e.target.value)} />
           </div>
-          <Button size="sm" onClick={openNew}><Plus size={14} className="mr-1" /> Nieuw Bedrijf</Button>
-        </div>
-      </div>
+        }
+      />
 
       <BulkActionBar selectedCount={selected.size} onClear={() => setSelected(new Set())} onDelete={handleBulkDelete} />
 
-      <div className="overflow-x-auto rounded-xl border bg-card card-shadow">
+      <div className="sticky-head overflow-auto max-h-[68vh] rounded-xl border bg-card card-shadow">
         <table className="w-full text-sm">
+
           <thead>
             <tr className="border-b bg-muted/50">
               <th className="px-4 py-3 w-[40px]"><Checkbox checked={allPageSelected} onCheckedChange={toggleSelectAll} /></th>
