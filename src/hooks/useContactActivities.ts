@@ -38,7 +38,7 @@ export function useContactActivities(contactId: string | undefined) {
     if (!user || !contactId) return;
     const { data, error } = await supabase
       .from('contact_activities')
-      .select('*')
+      .select(ACTIVITY_COLUMNS)
       .eq('contact_id', contactId)
       .order('created_at', { ascending: false });
 
@@ -49,6 +49,7 @@ export function useContactActivities(contactId: string | undefined) {
       setActivities(data.map((a: any) => ({
         id: a.id,
         contactId: a.contact_id,
+        companyId: a.company_id ?? null,
         type: a.type,
         subject: a.subject,
         body: a.body,
@@ -56,6 +57,7 @@ export function useContactActivities(contactId: string | undefined) {
         relatedTaskId: a.related_task_id ?? null,
       })));
     }
+
     setLoading(false);
   }, [user, contactId, toast]);
 
