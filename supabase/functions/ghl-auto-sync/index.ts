@@ -1542,6 +1542,24 @@ async function syncTasks(supabase: any, ghlHeaders: any, locationId: string, use
     const recentThreshold = new Date(Date.now() - 2 * 60 * 1000).toISOString();
     const seenGhlTaskIds = new Set<string>();
 
+    // Bookings used to attribute each task to its own reservation
+    const linkBookings: LinkableBooking[] = [];
+    {
+      const PAGE = 1000;
+      for (let from = 0; ; from += PAGE) {
+        const { data } = await supabase
+          .from('bookings')
+          .select('id, date, contact_id, company_id, inquiry_id')
+          .range(from, from + PAGE - 1);
+        if (!data?.length) break;
+        linkBookings.push(...data);
+        if (data.length < PAGE) break;
+      }
+    }
+    const contactCompanyById = new Map<string, string | null>(
+      (lookups.existingContacts || []).map((c: any) => [c.id, c.company_id ?? null]),
+    );
+
     // Batch: fetch tasks for multiple contacts in parallel (chunks of 5 to avoid rate limits)
     const TASK_CHUNK = 5;
     for (let i = 0; i < contactsWithGhl.length; i += TASK_CHUNK) {
