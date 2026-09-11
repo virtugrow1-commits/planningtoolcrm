@@ -447,7 +447,17 @@ export default function InquiriesPage() {
     }
   };
 
+  if (inquiriesLoading) {
+    return (
+      <div className="p-6 lg:p-8 space-y-4">
+        <div className="h-8 w-64 rounded-lg bg-muted animate-pulse" />
+        <ListSkeleton rows={8} />
+      </div>
+    );
+  }
+
   return (
+
     <div className="p-6 lg:p-8 space-y-4">
       <PageHeader
         title="Aanvragen Pipeline"
