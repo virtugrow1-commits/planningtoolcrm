@@ -29,6 +29,8 @@ import NewReservationDialog from '@/components/calendar/NewReservationDialog';
 import { useContacts } from '@/hooks/useContacts';
 import { useAuth } from '@/contexts/AuthContext';
 import { useRoomSettings } from '@/hooks/useRoomSettings';
+import ListSkeleton from '@/components/ListSkeleton';
+
 
 type EnrichedBooking = Booking & { company: string; isPast: boolean };
 
@@ -336,11 +338,13 @@ export default function ReserveringenPage() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <p className="text-muted-foreground animate-pulse">Laden...</p>
+      <div className="p-6 lg:p-8 space-y-4">
+        <div className="h-8 w-56 rounded-lg bg-muted animate-pulse" />
+        <ListSkeleton rows={10} />
       </div>
     );
   }
+
 
   return (
     <div className="p-6 lg:p-8 space-y-6 animate-fade-in">
