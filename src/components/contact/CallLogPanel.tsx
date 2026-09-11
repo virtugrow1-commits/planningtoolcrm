@@ -134,7 +134,7 @@ export default function CallLogPanel({
       }))
     );
     setLoading(false);
-  }, [user, contactIds, toast]);
+  }, [user, contactIds, companyId, toast]);
 
   useEffect(() => {
     fetchLogs();
