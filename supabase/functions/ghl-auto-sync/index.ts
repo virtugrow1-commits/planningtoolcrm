@@ -8,6 +8,7 @@ import {
   loadFieldDefs,
   resolveCompanyId,
 } from "../_shared/inquiryFields.ts";
+import { pickBookingForTask, type LinkableBooking } from "../_shared/taskBookingLink.ts";
 
 const GHL_API_BASE = 'https://services.leadconnectorhq.com';
 
@@ -242,9 +243,16 @@ Deno.serve(async (req) => {
       }
 
       const taskByGhlId = new Map<string, any>();
+      // Only tasks that were never linked to GHL may adopt an incoming GHL task
+      // by title. Tasks that already carry a ghl_task_id must never be reused,
+      // otherwise a repeat series ("Factuur sturen") for the same contact is
+      // swallowed instead of being created as its own task.
       const taskByContactAndTitle = new Map<string, any>();
       for (const t of existingTasks) {
-        if (t.ghl_task_id) taskByGhlId.set(t.ghl_task_id, t);
+        if (t.ghl_task_id) {
+          taskByGhlId.set(t.ghl_task_id, t);
+          continue;
+        }
         const taskKey = `${t.contact_id || ''}|${norm(t.title)}`;
         if (!taskByContactAndTitle.has(taskKey)) taskByContactAndTitle.set(taskKey, t);
       }
