@@ -324,7 +324,7 @@ export default function CrmPage() {
       )}
 
       {activeTab === 'contacts' ? (
-      <div className="overflow-x-auto rounded-xl border bg-card card-shadow">
+      <div className="sticky-head max-h-[68vh] overflow-auto rounded-xl border bg-card card-shadow">
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b bg-muted/50">
@@ -375,7 +375,7 @@ export default function CrmPage() {
         </table>
       </div>
       ) : (
-      <div className="overflow-x-auto rounded-xl border bg-card card-shadow">
+      <div className="sticky-head max-h-[68vh] overflow-auto rounded-xl border bg-card card-shadow">
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b bg-muted/50">
