@@ -21,7 +21,7 @@ import { useToast } from '@/hooks/use-toast';
 import { InfoField, SectionCard } from '@/components/detail/DetailPageComponents';
 import CallLogPanel from '@/components/contact/CallLogPanel';
 import TasksSection from '@/components/detail/TasksSection';
-import HistorySection from '@/components/detail/HistorySection';
+import { Checkbox } from '@/components/ui/checkbox';
 
 const BOOKING_STATUS: Record<string, string> = {
   confirmed: 'Bevestigd',
