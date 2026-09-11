@@ -782,7 +782,7 @@ export default function InquiriesPage() {
       </div>
       ) : (
       /* List view */
-      <div className="rounded-xl border border-border bg-card overflow-hidden">
+      <div className="sticky-head rounded-xl border border-border bg-card overflow-auto max-h-[70vh]">
         <table className="w-full text-sm">
           <thead>
              <tr className="border-b border-border bg-muted/30">
