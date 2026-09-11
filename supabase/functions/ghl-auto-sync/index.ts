@@ -8,6 +8,7 @@ import {
   loadFieldDefs,
   resolveCompanyId,
 } from "../_shared/inquiryFields.ts";
+import { pickBookingForTask, type LinkableBooking } from "../_shared/taskBookingLink.ts";
 
 const GHL_API_BASE = 'https://services.leadconnectorhq.com';
 
@@ -217,7 +218,7 @@ Deno.serve(async (req) => {
         fetchAll(supabase, 'contacts', 'id, ghl_contact_id, first_name, last_name, email, phone, company, company_id, status, tags, updated_at, pending_outbound_sync, last_local_edit_at', {}),
         fetchAll(supabase, 'companies', 'id, ghl_company_id, name, email, phone, website, address, city, updated_at, pending_outbound_sync, last_local_edit_at', {}),
         fetchAll(supabase, 'inquiries', 'id, ghl_opportunity_id, status, budget, event_type, contact_name, contact_id, created_at, updated_at, local_status_changed_at', {}),
-        fetchAll(supabase, 'tasks', 'id, ghl_task_id, title, description, status, updated_at, contact_id, local_status_changed_at', {}),
+        fetchAll(supabase, 'tasks', 'id, ghl_task_id, title, description, status, updated_at, contact_id, booking_id, inquiry_id, local_status_changed_at', {}),
       ]);
 
       // Build lookup maps
@@ -242,9 +243,16 @@ Deno.serve(async (req) => {
       }
 
       const taskByGhlId = new Map<string, any>();
+      // Only tasks that were never linked to GHL may adopt an incoming GHL task
+      // by title. Tasks that already carry a ghl_task_id must never be reused,
+      // otherwise a repeat series ("Factuur sturen") for the same contact is
+      // swallowed instead of being created as its own task.
       const taskByContactAndTitle = new Map<string, any>();
       for (const t of existingTasks) {
-        if (t.ghl_task_id) taskByGhlId.set(t.ghl_task_id, t);
+        if (t.ghl_task_id) {
+          taskByGhlId.set(t.ghl_task_id, t);
+          continue;
+        }
         const taskKey = `${t.contact_id || ''}|${norm(t.title)}`;
         if (!taskByContactAndTitle.has(taskKey)) taskByContactAndTitle.set(taskKey, t);
       }
@@ -1534,6 +1542,24 @@ async function syncTasks(supabase: any, ghlHeaders: any, locationId: string, use
     const recentThreshold = new Date(Date.now() - 2 * 60 * 1000).toISOString();
     const seenGhlTaskIds = new Set<string>();
 
+    // Bookings used to attribute each task to its own reservation
+    const linkBookings: LinkableBooking[] = [];
+    {
+      const PAGE = 1000;
+      for (let from = 0; ; from += PAGE) {
+        const { data } = await supabase
+          .from('bookings')
+          .select('id, date, contact_id, company_id, inquiry_id')
+          .range(from, from + PAGE - 1);
+        if (!data?.length) break;
+        linkBookings.push(...data);
+        if (data.length < PAGE) break;
+      }
+    }
+    const contactCompanyById = new Map<string, string | null>(
+      (lookups.existingContacts || []).map((c: any) => [c.id, c.company_id ?? null]),
+    );
+
     // Batch: fetch tasks for multiple contacts in parallel (chunks of 5 to avoid rate limits)
     const TASK_CHUNK = 5;
     for (let i = 0; i < contactsWithGhl.length; i += TASK_CHUNK) {
@@ -1569,7 +1595,21 @@ async function syncTasks(supabase: any, ghlHeaders: any, locationId: string, use
         // In-memory lookup
         const existing = lookups.taskByGhlId.get(ghlTask.id);
 
+        const taskLink = pickBookingForTask(linkBookings, {
+          contactId: ghlTask._localContactId,
+          companyId: contactCompanyById.get(ghlTask._localContactId) ?? null,
+          dueDate: ghlDueDate,
+        });
+
         if (existing) {
+          // Backfill the reservation link for tasks that don't have one yet
+          if (taskLink.booking_id && !existing.booking_id) {
+            await supabase.from('tasks').update({
+              booking_id: taskLink.booking_id,
+              inquiry_id: existing.inquiry_id || taskLink.inquiry_id,
+            }).eq('id', existing.id);
+            existing.booking_id = taskLink.booking_id;
+          }
           const crmRecentlyUpdated = existing.updated_at > recentThreshold;
           const crmDiffers = existing.status !== ghlStatus || existing.title !== ghlTitle;
           const localStatusIsAuthoritative = Boolean(existing.local_status_changed_at) && existing.status !== ghlStatus;
@@ -1615,8 +1655,14 @@ async function syncTasks(supabase: any, ghlHeaders: any, locationId: string, use
           const titleDup = lookups.taskByContactAndTitle.get(titleKey);
 
           if (titleDup) {
-            await supabase.from('tasks').update({ ghl_task_id: ghlTask.id }).eq('id', titleDup.id);
+            await supabase.from('tasks').update({
+              ghl_task_id: ghlTask.id,
+              ...(taskLink.booking_id && !titleDup.booking_id
+                ? { booking_id: taskLink.booking_id, inquiry_id: titleDup.inquiry_id || taskLink.inquiry_id }
+                : {}),
+            }).eq('id', titleDup.id);
             lookups.taskByGhlId.set(ghlTask.id, titleDup);
+            lookups.taskByContactAndTitle.delete(titleKey);
           } else {
             const { data: inserted } = await supabase.from('tasks').insert({
               user_id: userId,
@@ -1626,13 +1672,14 @@ async function syncTasks(supabase: any, ghlHeaders: any, locationId: string, use
               priority: 'normal',
               due_date: ghlDueDate,
               contact_id: ghlTask._localContactId,
+              booking_id: taskLink.booking_id,
+              inquiry_id: taskLink.inquiry_id,
               ghl_task_id: ghlTask.id,
               completed_at: ghlTask.completed ? (ghlTask.completedDate || new Date().toISOString()) : null,
             }).select('id').maybeSingle();
             if (inserted) {
-              const newTask = { id: inserted.id, ghl_task_id: ghlTask.id, title: ghlTitle };
+              const newTask = { id: inserted.id, ghl_task_id: ghlTask.id, title: ghlTitle, booking_id: taskLink.booking_id };
               lookups.taskByGhlId.set(ghlTask.id, newTask);
-              lookups.taskByContactAndTitle.set(titleKey, newTask);
             }
             results.tasks_pulled++;
           }
