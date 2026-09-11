@@ -19,6 +19,8 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
 import { ArrowLeft, ChevronRight, Pencil, MapPin, Calendar as CalendarIcon, Clock, Users, ClipboardList, Package, User, Building2, FileText, CheckSquare, Trash2, History, Send, Eye, CheckCircle2, UserCheck } from 'lucide-react';
+import Breadcrumbs from '@/components/Breadcrumbs';
+
 import { cn } from '@/lib/utils';
 import { InfoRow } from '@/components/detail/DetailPageComponents';
 import TasksSection from '@/components/detail/TasksSection';
@@ -44,7 +46,9 @@ export default function BookingDetailPage() {
   const [optionDialogOpen, setOptionDialogOpen] = useState(false);
 
   const contact = useMemo(() => booking?.contactId ? contacts.find(c => c.id === booking.contactId) : null, [booking, contacts]);
-  const company = useMemo(() => contact?.companyId ? companies.find(co => co.id === contact.companyId) : null, [contact, companies]);
+  const company = useMemo(() => contact?.companyId ? companies.find(co => co.id === contact.companyId) : (booking?.companyId ? companies.find(co => co.id === booking.companyId) : null), [contact, companies, booking]);
+  const linkedInquiry = useMemo(() => booking?.inquiryId ? inquiries.find(i => i.id === booking.inquiryId) : null, [booking, inquiries]);
+
 
   const contactBookings = useMemo(() => contact ? bookings.filter(b => b.contactId === contact.id && b.id !== id) : [], [bookings, contact, id]);
   const contactInquiries = useMemo(() => contact ? inquiries.filter(i => i.contactId === contact.id) : [], [inquiries, contact]);
