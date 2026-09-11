@@ -33,6 +33,11 @@ interface Props {
   readOnly?: boolean;
   /** Optional empty-state hint to show the user when nothing is logged yet. */
   emptyHint?: string;
+  /**
+   * Company the panel belongs to. New logs record this employer so the report
+   * keeps belonging to this company after the contact leaves.
+   */
+  companyId?: string;
 }
 
 interface LogRow {
