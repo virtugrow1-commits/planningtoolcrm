@@ -191,11 +191,19 @@ export default function CompanyDetailPage() {
 
   if (companiesLoading || contactsLoading || bookingsLoading) {
     return (
-      <div className="flex min-h-[50vh] items-center justify-center">
-        <div className="text-muted-foreground">Laden...</div>
+      <div className="p-6 lg:p-8 space-y-4">
+        <div className="h-4 w-32 rounded bg-muted animate-pulse" />
+        <div className="h-9 w-72 rounded-lg bg-muted animate-pulse" />
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+          {[...Array(4)].map((_, i) => <div key={i} className="h-20 rounded-xl bg-muted animate-pulse" />)}
+        </div>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          {[...Array(4)].map((_, i) => <div key={i} className="h-48 rounded-xl bg-muted animate-pulse" />)}
+        </div>
       </div>
     );
   }
+
 
   if (!company) {
     return (
