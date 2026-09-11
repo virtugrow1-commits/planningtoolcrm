@@ -67,7 +67,9 @@ export function useQuotes() {
     if (!user) { setLoading(false); return; }
     const { data, error } = await supabase
       .from('quotes')
-      .select('*')
+      // List view: skip the heavy blobs (content_blocks, overlay_fields, signature_data)
+      .select('id, display_number, user_id, contact_id, company_id, template_id, contact_name, company_name, client_email, client_address, title, subtotal, vat_amount, discount_amount, total, status, valid_until, sent_at, viewed_at, accepted_at, declined_at, signed_pdf_url, public_token, ghl_opportunity_id, pdf_url, created_at, updated_at')
+
       .order('created_at', { ascending: false });
     if (error) {
       toast({ title: 'Fout bij laden offertes', description: error.message, variant: 'destructive' });
