@@ -41,6 +41,15 @@ Meld je een contactpersoon uit dienst, dan blijft alles bij de oude werkgever st
 - Staat dat vinkje aan, dan tonen we op de kaart naam + verjaardag van de persoon. De verjaardag komt uit het bestaande geboortedatumveld van de contactpersoon, dus je vult hem één keer in.
 - Bij particulieren verbergen we velden die er niet horen (KvK, btw-nummer).
 
+## Extra verbeteringen die ik voorstel
+
+- **Kopregel met kerncijfers**: bovenaan de kaart het aantal lopende aanvragen, openstaande taken en de eerstvolgende datum, zodat je in één blik weet waar de klant staat.
+- **Actieknoppen op de kaart**: direct een aanvraag, optie, taak of gespreksverslag toevoegen zonder eerst naar een andere pagina te gaan.
+- **Klant zonder contactpersoon of aanvraag zonder contactpersoon** krijgt een zichtbare melding op de kaart, zodat ontbrekende koppelingen opvallen in plaats van stil te blijven.
+- **Verjaardagen bij particulieren**: een subtiele markering als de verjaardag binnen 14 dagen valt.
+- **Alles doorklikbaar**: elke regel (aanvraag, optie, taak, contactpersoon) opent het bijbehorende detail, ook de subtitels.
+- **Skeletweergave per blok** in plaats van één laadtekst, zodat de kaart net zo snel voelt als het dashboard.
+
 ## Technische uitwerking
 
 Database (één migratie):
