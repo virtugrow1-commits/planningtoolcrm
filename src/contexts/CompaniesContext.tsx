@@ -85,6 +85,7 @@ export function CompaniesProvider({ children }: { children: ReactNode }) {
         customerNumber: c.customer_number || undefined,
         crmGroup: parseCrmGroup(c.crm_group) || undefined,
         btwNumber: c.btw_number || undefined,
+        isPrivate: c.is_private === true,
         createdAt: c.created_at?.split('T')[0] || '',
       })));
     setLoading(false);
