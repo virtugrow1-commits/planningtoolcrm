@@ -20,6 +20,9 @@ import UnifiedDocumentTable from '@/components/documents/UnifiedDocumentTable';
 import { useToast } from '@/hooks/use-toast';
 import { formatDate } from '@/components/quotation/DocumentMetadata';
 import { cn } from '@/lib/utils';
+import PageHeader from '@/components/PageHeader';
+import ListSkeleton from '@/components/ListSkeleton';
+
 
 type QuoteFilter = 'all' | 'draft' | 'sent' | 'viewed' | 'accepted' | 'declined';
 type InvoiceFilter = 'all' | 'draft' | 'sent' | 'overdue' | 'paid';
@@ -185,15 +188,18 @@ export default function QuotesPage() {
       </div>
 
       {/* Search */}
-      <div className="relative max-w-md">
-        <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-        <Input
-          placeholder="Zoek op nummer, klant, bedrijf of titel..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="pl-9 h-10 bg-card border-border/70"
-        />
+      <div className="page-toolbar">
+        <div className="relative max-w-md">
+          <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            placeholder="Zoek op nummer, klant, bedrijf of titel..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="pl-9 h-10 bg-card border-border/70"
+          />
+        </div>
       </div>
+
 
       {/* Tabs */}
       <Tabs value={tab} onValueChange={setTab}>
