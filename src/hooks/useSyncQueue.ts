@@ -37,7 +37,7 @@ export function useSyncQueue() {
     if (!user) return;
     const { data } = await supabase
       .from('sync_queue')
-      .select('*')
+      .select('id, entity_type, entity_id, action_type, payload, status, retry_count, max_retries, last_error, last_attempt_at, created_at, completed_at')
       .in('status', ['pending', 'retrying', 'failed'])
       .order('created_at', { ascending: false })
       .limit(100);
@@ -48,7 +48,8 @@ export function useSyncQueue() {
     if (!user) return;
     const { data } = await supabase
       .from('sync_log')
-      .select('*')
+      .select('id, entity_type, entity_id, action, details, status, created_at')
+
       .order('created_at', { ascending: false })
       .limit(200);
     setLogs((data as any) || []);
