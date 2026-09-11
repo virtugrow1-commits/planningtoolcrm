@@ -1357,12 +1357,24 @@ Deno.serve(async (req) => {
           }
           const { data: existing } = await supabase
             .from('tasks')
-            .select('id, status, title, description, due_date, local_status_changed_at')
+            .select('id, status, title, description, due_date, booking_id, inquiry_id, local_status_changed_at')
             .in('user_id', orgUserIds)
             .eq('ghl_task_id', ghlTask.id)
             .maybeSingle();
 
+          const taskLink = pickBookingForTask(linkBookings, {
+            contactId: contact.id,
+            companyId: contact.company_id ?? null,
+            dueDate: ghlTask.dueDate ? String(ghlTask.dueDate).split('T')[0] : null,
+          });
+
           if (existing) {
+            if (taskLink.booking_id && !existing.booking_id) {
+              await supabase.from('tasks').update({
+                booking_id: taskLink.booking_id,
+                inquiry_id: existing.inquiry_id || taskLink.inquiry_id,
+              }).eq('id', existing.id);
+            }
             const externalStatus = ghlTask.completed ? 'completed' : 'open';
             if (existing.local_status_changed_at && existing.status !== externalStatus) {
               const protectedPayload: Record<string, any> = {
@@ -1398,6 +1410,8 @@ Deno.serve(async (req) => {
               user_id: primaryUserId,
               ghl_task_id: ghlTask.id,
               contact_id: contact.id,
+              booking_id: taskLink.booking_id,
+              inquiry_id: taskLink.inquiry_id,
               title: ghlTask.title || 'Taak',
               description: ghlTask.body || null,
               status: ghlTask.completed ? 'completed' : 'open',
