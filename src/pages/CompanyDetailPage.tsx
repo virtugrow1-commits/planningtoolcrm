@@ -491,8 +491,112 @@ export default function CompanyDetailPage() {
                   : 'Nog geen gespreksverslagen — leg het eerste gesprek vast.'
               }
               readOnly={companyContacts.length === 0}
+              companyId={company.id}
             />
           </div>
+
+          {/* Taken — met de aanvraag als ondertitel wanneer die er is */}
+          <TasksSection
+            tasks={companyTasks}
+            defaults={{ companyId: company.id }}
+            inquiryLabels={inquiryLabels}
+          />
+
+          {/* Aanvragen */}
+          <SectionCard title="Aanvragen" count={activeInquiries.length} linkLabel="Bekijk alle aanvragen" onLink={() => navigate('/inquiries')} onAdd={() => navigate('/inquiries?new=true')}>
+            {activeInquiries.length === 0 ? (
+              <p className="text-xs text-muted-foreground">Geen lopende aanvragen</p>
+            ) : (
+              <div className="space-y-3">
+                {activeInquiries.slice(0, 8).map((inq) => (
+                  <button
+                    key={inq.id}
+                    onClick={() => navigate(`/inquiries/${inq.id}`)}
+                    className="w-full text-left rounded-lg border border-border/50 p-3 hover:bg-muted/30 transition-colors space-y-1.5"
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-xs font-medium text-foreground">{inq.eventType}</span>
+                      <div className="flex items-center gap-2">
+                        {!inq.isRead && <span className="inline-flex rounded-md px-1.5 py-0.5 text-[10px] font-bold bg-destructive text-destructive-foreground">New</span>}
+                        <Badge variant="outline" className="text-[10px]">{INQUIRY_STATUS[inq.status] || inq.status}</Badge>
+                      </div>
+                    </div>
+                    <div className="flex flex-wrap gap-x-4 gap-y-0.5 text-[11px] text-muted-foreground">
+                      <span>{formatDate(inq.createdAt)}</span>
+                      <span>{inq.contactName}</span>
+                      {inq.guestCount > 0 && <span>{inq.guestCount} gasten</span>}
+                      {inq.roomPreference && <span>{inq.roomPreference}</span>}
+                    </div>
+                    {!inq.companyId && (
+                      <p className="text-[11px] text-warning">Nog niet aan dit bedrijf gekoppeld</p>
+                    )}
+                  </button>
+                ))}
+              </div>
+            )}
+          </SectionCard>
+
+          {/* Opties */}
+          <SectionCard title="Opties" count={optionBookings.length} linkLabel="Bekijk agenda" onLink={() => navigate('/calendar')} onAdd={() => navigate('/calendar?new=true')}>
+            {optionBookings.length === 0 ? (
+              <p className="text-xs text-muted-foreground">Geen opties</p>
+            ) : (
+              <div className="space-y-1">
+                {optionBookings.slice(0, 10).map((b) => (
+                  <div key={b.id} className="rounded-md px-2 py-1.5 hover:bg-muted/50 transition-colors text-xs">
+                    <button onClick={() => navigate(`/reserveringen/${b.id}`)} className="w-full flex items-center justify-between text-left gap-2">
+                      <div className="flex-1 min-w-0">
+                        <span className="font-medium text-foreground">{b.title}</span>
+                        <span className="text-muted-foreground ml-2">{b.roomName}</span>
+                      </div>
+                      <span className="text-muted-foreground shrink-0">
+                        {formatDate(b.date)} · {String(b.startHour).padStart(2, '0')}:{String(b.startMinute).padStart(2, '0')} – {String(b.endHour).padStart(2, '0')}:{String(b.endMinute).padStart(2, '0')}
+                      </span>
+                    </button>
+                    {b.inquiryId && inquiryLabels[b.inquiryId] ? (
+                      <button
+                        onClick={() => navigate(`/inquiries/${b.inquiryId}`)}
+                        className="text-[11px] text-primary hover:underline"
+                      >
+                        {inquiryLabels[b.inquiryId]}
+                      </button>
+                    ) : (
+                      <p className="text-[11px] text-warning">Nog niet aan een aanvraag gekoppeld</p>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </SectionCard>
+
+          {/* Eerdere aanvragen */}
+          <SectionCard title="Eerdere aanvragen" count={pastInquiries.length}>
+            {pastInquiries.length === 0 ? (
+              <p className="text-xs text-muted-foreground">Geen eerdere aanvragen</p>
+            ) : (
+              <div className="space-y-1">
+                {(showAllPastInquiries ? pastInquiries : pastInquiries.slice(0, 5)).map((inq) => (
+                  <button
+                    key={inq.id}
+                    onClick={() => navigate(`/inquiries/${inq.id}`)}
+                    className="w-full flex items-center justify-between gap-2 py-1.5 px-2 rounded-md hover:bg-muted/50 transition-colors text-left text-xs"
+                  >
+                    <span className="flex-1 min-w-0 truncate text-foreground">{inq.eventType}</span>
+                    <span className="text-muted-foreground shrink-0">{formatDate(inq.createdAt)}</span>
+                    <Badge variant="secondary" className="text-[10px] shrink-0">{INQUIRY_STATUS[inq.status] || inq.status}</Badge>
+                  </button>
+                ))}
+                {pastInquiries.length > 5 && (
+                  <button
+                    onClick={() => setShowAllPastInquiries(!showAllPastInquiries)}
+                    className="w-full text-center py-2 text-xs text-primary hover:text-primary/80 font-medium transition-colors"
+                  >
+                    {showAllPastInquiries ? 'Minder tonen' : `${pastInquiries.length} eerdere aanvragen — meer tonen`}
+                  </button>
+                )}
+              </div>
+            )}
+          </SectionCard>
         </div>
       </div>
 
