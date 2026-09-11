@@ -66,6 +66,7 @@ export default function CompanyDetailPage() {
   const [editing, setEditing] = useState(false);
   const [form, setForm] = useState<Company | null>(null);
   const [showAllContacts, setShowAllContacts] = useState(false);
+  const [showAllPastInquiries, setShowAllPastInquiries] = useState(false);
   const [addContactOpen, setAddContactOpen] = useState(false);
   const [addContactTab, setAddContactTab] = useState<string>('link');
   const [linkSearch, setLinkSearch] = useState('');
