@@ -103,12 +103,23 @@ export default function CompanyDetailPage() {
   }, [bookings, contactIds, company, companyContacts]);
   const optionBookings = useMemo(() => relatedBookings.filter((b) => b.status === 'option' && b.date >= todayStr).sort((a, b) => a.date.localeCompare(b.date)), [relatedBookings, todayStr]);
 
+  /** Wanneer een contactpersoon deze werkgever verliet (leeg = nog in dienst). */
+  const departedAtByContact = useMemo(() => {
+    if (!company) return {} as Record<string, string | null>;
+    return Object.fromEntries(getCompanyContacts(company.id).map((l) => [l.contactId, l.departedAt ?? null]));
+  }, [company, getCompanyContacts]);
+
   const companyInquiries = useMemo(
-    () => inquiries.filter((i) =>
-      i.companyId === company?.id || (!i.companyId && i.contactId && contactIds.has(i.contactId))
-    ),
-    [inquiries, contactIds, company]
+    () => inquiries.filter((i) => {
+      if (i.companyId === company?.id) return true;
+      if (i.companyId || !i.contactId || !contactIds.has(i.contactId)) return false;
+      // Alleen meenemen zolang de contactpersoon hier in dienst was
+      const departedAt = departedAtByContact[i.contactId];
+      return !departedAt || i.createdAt <= departedAt;
+    }),
+    [inquiries, contactIds, company, departedAtByContact]
   );
+
   /** Aanvragen die nog lopen versus afgeronde/verloren aanvragen. */
   const CLOSED_INQUIRY_STATUSES = ['lost', 'converted', 'invoiced', 'after_sales'];
   const activeInquiries = useMemo(
