@@ -25,6 +25,8 @@ export interface Company {
   customerNumber?: string;
   crmGroup?: string;
   btwNumber?: string;
+  /** Particulier: dit "bedrijf" is een privépersoon. */
+  isPrivate?: boolean;
   createdAt: string;
 }
 
