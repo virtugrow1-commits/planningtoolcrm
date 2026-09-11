@@ -100,12 +100,68 @@ export default function CompanyDetailPage() {
       return false;
     });
   }, [bookings, contactIds, company, companyContacts]);
-  const confirmedBookings = useMemo(() => relatedBookings.filter((b) => b.status !== 'option' && b.date >= todayStr).sort((a, b) => a.date.localeCompare(b.date)), [relatedBookings, todayStr]);
   const optionBookings = useMemo(() => relatedBookings.filter((b) => b.status === 'option' && b.date >= todayStr).sort((a, b) => a.date.localeCompare(b.date)), [relatedBookings, todayStr]);
-  const companyInquiries = useMemo(() => inquiries.filter((i) => i.companyId === company?.id || (i.contactId && contactIds.has(i.contactId))), [inquiries, contactIds, company]);
-  const companyTasks = useMemo(() => tasks.filter((t) => (t.contactId && contactIds.has(t.contactId)) || (t.companyId === company?.id)), [tasks, contactIds, company]);
 
-  const visibleContacts = showAllContacts ? companyContacts : companyContacts.slice(0, 4);
+  const companyInquiries = useMemo(
+    () => inquiries.filter((i) =>
+      i.companyId === company?.id || (!i.companyId && i.contactId && contactIds.has(i.contactId))
+    ),
+    [inquiries, contactIds, company]
+  );
+  /** Aanvragen die nog lopen versus afgeronde/verloren aanvragen. */
+  const CLOSED_INQUIRY_STATUSES = ['lost', 'converted', 'invoiced', 'after_sales'];
+  const activeInquiries = useMemo(
+    () => companyInquiries.filter((i) => !CLOSED_INQUIRY_STATUSES.includes(i.status)).sort((a, b) => b.createdAt.localeCompare(a.createdAt)),
+    [companyInquiries]
+  );
+  const pastInquiries = useMemo(
+    () => companyInquiries.filter((i) => CLOSED_INQUIRY_STATUSES.includes(i.status)).sort((a, b) => b.createdAt.localeCompare(a.createdAt)),
+    [companyInquiries]
+  );
+  /** Aanvragen die alleen via de contactpersoon te vinden zijn — koppeling ontbreekt. */
+  const unlinkedInquiryCount = useMemo(() => companyInquiries.filter((i) => !i.companyId).length, [companyInquiries]);
+
+  const inquiryIds = useMemo(() => new Set(companyInquiries.map((i) => i.id)), [companyInquiries]);
+  const inquiryLabels = useMemo(
+    () => Object.fromEntries(companyInquiries.map((i) => [i.id, `${i.eventType}${i.preferredDate ? ` · ${formatDate(i.preferredDate)}` : ''}`])),
+    [companyInquiries]
+  );
+  const companyTasks = useMemo(
+    () => tasks.filter((t) =>
+      (t.inquiryId && inquiryIds.has(t.inquiryId)) ||
+      (t.contactId && contactIds.has(t.contactId)) ||
+      t.companyId === company?.id
+    ),
+    [tasks, contactIds, inquiryIds, company]
+  );
+  const openTaskCount = useMemo(() => companyTasks.filter((t) => t.status !== 'completed').length, [companyTasks]);
+
+  /** Verjaardagen binnen 14 dagen worden gemarkeerd. */
+  const upcomingBirthdays = useMemo(() => {
+    const now = new Date();
+    return companyContacts
+      .filter((c) => c.birthDate && !c.departed)
+      .map((c) => {
+        const bd = new Date(c.birthDate!);
+        const next = new Date(now.getFullYear(), bd.getMonth(), bd.getDate());
+        if (next < new Date(now.getFullYear(), now.getMonth(), now.getDate())) next.setFullYear(now.getFullYear() + 1);
+        const days = Math.round((next.getTime() - new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime()) / 86400000);
+        return { contact: c, next, days };
+      })
+      .filter((b) => b.days <= 14)
+      .sort((a, b) => a.days - b.days);
+  }, [companyContacts]);
+
+  /** Actieve contactpersonen eerst, mensen uit dienst onderaan. */
+  const sortedContacts = useMemo(
+    () => [...companyContacts].sort((a, b) =>
+      Number(!!a.departed) - Number(!!b.departed) || `${a.firstName} ${a.lastName}`.localeCompare(`${b.firstName} ${b.lastName}`)
+    ),
+    [companyContacts]
+  );
+  const activeContacts = useMemo(() => sortedContacts.filter((c) => !c.departed), [sortedContacts]);
+
+  const visibleContacts = showAllContacts ? sortedContacts : sortedContacts.slice(0, 4);
 
   const linkableContacts = useMemo(() => {
     const idSet = new Set(companyContacts.map((c) => c.id));
