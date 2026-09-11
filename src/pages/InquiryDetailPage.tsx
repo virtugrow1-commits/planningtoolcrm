@@ -107,7 +107,9 @@ export default function InquiryDetailPage() {
     return bc?.companyId === company.id;
   }) : [], [bookings, company, contacts]);
   const contactInquiries = useMemo(() => inquiry?.contactId ? inquiries.filter(i => i.contactId === inquiry.contactId && i.id !== id) : [], [inquiries, inquiry, id]);
-  const inquiryTasks = useMemo(() => inquiry ? tasks.filter(t => t.inquiryId === inquiry.id || (!t.inquiryId && inquiry.contactId && t.contactId === inquiry.contactId)) : [], [tasks, inquiry]);
+  // Strictly tasks belonging to this inquiry — no contact-wide fallback, so tasks
+  // of another reservation of the same client no longer show up here.
+  const inquiryTasks = useMemo(() => inquiry ? tasks.filter(t => t.inquiryId === inquiry.id) : [], [tasks, inquiry]);
   const inquiryDocuments = useMemo(() => inquiry ? documents.filter(d => d.inquiryId === inquiry.id || (d.contactId && d.contactId === inquiry.contactId)) : [], [documents, inquiry]);
   const col = useMemo(() => inquiry ? PIPELINE_COLUMNS.find(c => c.key === inquiry.status) : null, [inquiry]);
 
