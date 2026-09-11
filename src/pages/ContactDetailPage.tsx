@@ -43,7 +43,7 @@ export default function ContactDetailPage() {
   const { companies } = useCompaniesContext();
   const { bookings } = useBookings();
   const { tasks } = useTasksContext();
-  const { getContactCompanies, linkContact, unlinkContact } = useContactCompanies();
+  const { getContactCompanies, linkContact, unlinkContact, markDeparted } = useContactCompanies();
   const { documents } = useDocuments();
   const { toast } = useToast();
 
