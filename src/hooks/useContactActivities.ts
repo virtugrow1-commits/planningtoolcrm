@@ -6,6 +6,8 @@ import { useToast } from '@/hooks/use-toast';
 export interface ContactActivity {
   id: string;
   contactId: string;
+  /** Employer the activity was recorded for; keeps history with the old company. */
+  companyId?: string | null;
   type: 'note' | 'call' | 'email' | 'meeting';
   subject: string | null;
   body: string | null;
@@ -13,13 +15,18 @@ export interface ContactActivity {
   relatedTaskId?: string | null;
 }
 
+const ACTIVITY_COLUMNS =
+  'id, contact_id, company_id, type, subject, body, created_at, related_task_id';
+
 export interface AddActivityInput {
   type: string;
   subject?: string;
   body?: string;
   relatedTaskId?: string | null;
+  companyId?: string | null;
   createdAt?: string; // ISO; if omitted, server uses now()
 }
+
 
 export function useContactActivities(contactId: string | undefined) {
   const [activities, setActivities] = useState<ContactActivity[]>([]);

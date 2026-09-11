@@ -29,7 +29,7 @@ export function useDocuments() {
     if (!user) return;
     const { data, error } = await supabase
       .from('documents')
-      .select('*')
+      .select('id, contact_id, inquiry_id, company_id, ghl_document_id, title, document_type, status, sent_at, viewed_at, signed_at, amount, external_url, contact_name, created_at')
       .order('created_at', { ascending: false });
 
     if (error) {
