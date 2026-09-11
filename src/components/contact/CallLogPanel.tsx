@@ -101,17 +101,24 @@ export default function CallLogPanel({
   }, [defaultContactId]);
 
   const fetchLogs = useCallback(async () => {
-    if (!user || contactIds.length === 0) {
+    if (!user || (contactIds.length === 0 && !companyId)) {
       setLogs([]);
       setLoading(false);
       return;
     }
-    const { data, error } = await supabase
+    let query = supabase
       .from('contact_activities')
-      .select('id, contact_id, body, created_at, ghl_note_id, type, subject')
-      .in('contact_id', contactIds)
+      .select('id, contact_id, body, created_at, ghl_note_id, type, subject, company_id')
       .eq('type', 'call')
-      .eq('subject', 'Gespreksverslag')
+      .eq('subject', 'Gespreksverslag');
+    if (companyId) {
+      // Company view: show everything recorded for this employer, including
+      // reports of contacts who have since left.
+      query = query.eq('company_id', companyId);
+    } else {
+      query = query.in('contact_id', contactIds);
+    }
+    const { data, error } = await query
       .order('created_at', { ascending: false })
       .limit(100);
     if (error) {
