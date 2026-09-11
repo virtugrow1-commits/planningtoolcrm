@@ -37,6 +37,7 @@ export function useContactCompanies() {
       contactId: r.contact_id,
       companyId: r.company_id,
       isPrimary: r.is_primary,
+      departedAt: r.departed_at ?? null,
     })));
     setLoading(false);
   }, [user]);
