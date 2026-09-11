@@ -11,8 +11,7 @@ import {
   Flag,
   CheckCircle2,
   CalendarIcon,
-  FileText,
-  Receipt,
+
 } from 'lucide-react';
 import KpiCard from '@/components/KpiCard';
 import KpiDetailDialog from '@/components/dashboard/KpiDetailDialog';
@@ -25,8 +24,6 @@ import { useCompaniesContext } from '@/contexts/CompaniesContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTeamMembers } from '@/hooks/useTeamMembers';
 import { useLanguage } from '@/contexts/LanguageContext';
-import { useQuotes } from '@/hooks/useQuotes';
-import { useInvoices } from '@/hooks/useInvoices';
 import { useMemo, useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -46,25 +43,6 @@ import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
 import { nl } from 'date-fns/locale';
 
-const QUOTE_STATUS_LABEL: Record<string, string> = {
-  draft: 'Concept', sent: 'Verzonden', viewed: 'Bekeken', accepted: 'Geaccepteerd', declined: 'Afgewezen',
-};
-const QUOTE_STATUS_COLOR: Record<string, string> = {
-  draft: 'bg-muted text-muted-foreground',
-  sent: 'bg-primary/15 text-primary',
-  viewed: 'bg-warning/15 text-warning',
-  accepted: 'bg-success/15 text-success',
-  declined: 'bg-destructive/15 text-destructive',
-};
-const INVOICE_STATUS_LABEL: Record<string, string> = {
-  draft: 'Concept', sent: 'Verzonden', overdue: 'Verlopen', paid: 'Betaald',
-};
-const INVOICE_STATUS_COLOR: Record<string, string> = {
-  draft: 'bg-muted text-muted-foreground',
-  sent: 'bg-primary/15 text-primary',
-  overdue: 'bg-destructive/15 text-destructive',
-  paid: 'bg-success/15 text-success',
-};
 
 export default function Dashboard() {
   const { bookings, loading: bookingsLoading } = useBookings();
@@ -72,8 +50,6 @@ export default function Dashboard() {
   const { contacts } = useContactsContext();
   const { companies } = useCompaniesContext();
   const { tasks, loading: tasksLoading, addTask, updateTask, deleteTask, deleteTasks } = useTasksContext();
-  const { quotes, loading: quotesLoading } = useQuotes();
-  const { invoices, loading: invoicesLoading } = useInvoices();
   const { user } = useAuth();
   const { members } = useTeamMembers();
   const { t, language } = useLanguage();
@@ -139,24 +115,6 @@ export default function Dashboard() {
     [bookings, today]);
   const openInquiries = useMemo(() => inquiries.filter((i) => i.status === 'new' || i.status === 'contacted'), [inquiries]);
 
-  // Quotes that need attention: not yet accepted/declined
-  const openQuotes = useMemo(() =>
-    quotes
-      .filter(q => q.status === 'draft' || q.status === 'sent' || q.status === 'viewed')
-      .sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || '')),
-    [quotes]);
-
-  // Invoices that need attention: not yet paid
-  const openInvoices = useMemo(() =>
-    invoices
-      .filter(i => i.status !== 'paid')
-      .sort((a, b) => {
-        // Overdue first, then by due date asc
-        if (a.status === 'overdue' && b.status !== 'overdue') return -1;
-        if (b.status === 'overdue' && a.status !== 'overdue') return 1;
-        return (a.dueDate || '9999').localeCompare(b.dueDate || '9999');
-      }),
-    [invoices]);
 
   const contactMap = useMemo(() => {
     const m = new Map<string, { name: string; id: string }>();
@@ -345,7 +303,7 @@ export default function Dashboard() {
         </p>
       </div>
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <KpiCard
           title={t('dashboard.openTasks')} value={tasksLoading ? '…' : String(openTaskCount)} icon={<CheckSquare size={20} />}
           subtitle={`${tasks.filter((t) => t.status === 'open').length} ${t('dashboard.open')} · ${tasks.filter((t) => t.status === 'completed').length} ${t('dashboard.completed')}`}
@@ -361,18 +319,8 @@ export default function Dashboard() {
           subtitle={`${todayBookings.filter((b) => b.status === 'confirmed').length} ${t('dashboard.confirmed')} · ${todayBookings.filter((b) => b.status === 'option').length} ${t('dashboard.inOption')}`}
           onClick={() => setKpiDialog({ open: true, type: 'bookings' })}
         />
-        <KpiCard
-          title="Openstaande offertes" value={quotesLoading ? '…' : String(openQuotes.length)} icon={<FileText size={20} />}
-          subtitle={`${quotes.filter((q) => q.status === 'sent' || q.status === 'viewed').length} verzonden · ${quotes.filter((q) => q.status === 'draft').length} concept`}
-          onClick={() => navigate('/quotes')}
-        />
-        <KpiCard
-          title="Openstaande facturen" value={invoicesLoading ? '…' : String(openInvoices.length)} icon={<Receipt size={20} />}
-          subtitle={`${invoices.filter((i) => i.status === 'overdue').length} verlopen · ${fmtMoney(openInvoices.reduce((s, i) => s + (i.total || 0), 0))}`}
-          onClick={() => navigate('/quotes')}
-        />
-
       </div>
+
 
       {/* Reserveringen vandaag */}
       <DashboardSection
@@ -608,92 +556,7 @@ export default function Dashboard() {
         )}
       </DashboardSection>
 
-      {/* Offertes */}
-      <DashboardSection
-        title="Offertes"
-        icon={<FileText size={16} />}
-        count={openQuotes.length}
-        viewAllLabel="Alle"
-        viewAllHref="/quotes"
-        emptyMessage="Geen openstaande offertes"
-        isEmpty={openQuotes.length === 0}
-        loading={quotesLoading}
 
-      >
-        {openQuotes.slice(0, 5).map((q) => (
-          <Link
-            key={q.id} to={`/quotes/${q.id}`}
-            className="flex items-center gap-3 px-5 py-3 hover:bg-muted/30 transition-colors"
-          >
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2">
-                <p className="text-sm font-medium text-card-foreground truncate">{q.displayNumber || 'OFF-?'}</p>
-                <span className="text-xs text-muted-foreground truncate">· {q.title}</span>
-              </div>
-              <div className="flex items-center gap-2 text-xs text-muted-foreground flex-wrap">
-                <span className="truncate max-w-[180px]">{q.companyName || q.contactName}</span>
-                {q.validUntil && <><span>·</span><span>geldig tot {formatDate(q.validUntil)}</span></>}
-              </div>
-            </div>
-            <span className="text-sm font-medium tabular-nums text-card-foreground shrink-0">{fmtMoney(q.total)}</span>
-            <span className={cn('shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium', QUOTE_STATUS_COLOR[q.status] || 'bg-muted')}>
-              {QUOTE_STATUS_LABEL[q.status] || q.status}
-            </span>
-          </Link>
-        ))}
-        {openQuotes.length > 5 && (
-          <div className="px-5 py-2 text-center text-xs text-muted-foreground">
-            +{openQuotes.length - 5} meer
-          </div>
-        )}
-      </DashboardSection>
-
-      {/* Facturen */}
-      <DashboardSection
-        title="Facturen"
-        icon={<Receipt size={16} />}
-        count={openInvoices.length}
-        viewAllLabel="Alle"
-        viewAllHref="/quotes"
-        emptyMessage="Geen openstaande facturen"
-        isEmpty={openInvoices.length === 0}
-        loading={invoicesLoading}
-
-      >
-        {openInvoices.slice(0, 5).map((inv) => (
-          <Link
-            key={inv.id} to={`/invoices/${inv.id}`}
-            className="flex items-center gap-3 px-5 py-3 hover:bg-muted/30 transition-colors"
-          >
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2">
-                <p className="text-sm font-medium text-card-foreground truncate">{inv.displayNumber || 'FAC-?'}</p>
-                <span className="text-xs text-muted-foreground truncate">· {inv.title}</span>
-              </div>
-              <div className="flex items-center gap-2 text-xs text-muted-foreground flex-wrap">
-                <span className="truncate max-w-[180px]">{inv.companyName || inv.contactName}</span>
-                {inv.dueDate && (
-                  <>
-                    <span>·</span>
-                    <span className={inv.status === 'overdue' ? 'text-destructive font-medium' : ''}>
-                      vervalt {formatDate(inv.dueDate)}
-                    </span>
-                  </>
-                )}
-              </div>
-            </div>
-            <span className="text-sm font-medium tabular-nums text-card-foreground shrink-0">{fmtMoney(inv.total)}</span>
-            <span className={cn('shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium', INVOICE_STATUS_COLOR[inv.status] || 'bg-muted')}>
-              {INVOICE_STATUS_LABEL[inv.status] || inv.status}
-            </span>
-          </Link>
-        ))}
-        {openInvoices.length > 5 && (
-          <div className="px-5 py-2 text-center text-xs text-muted-foreground">
-            +{openInvoices.length - 5} meer
-          </div>
-        )}
-      </DashboardSection>
 
       {/* KPI Detail Dialog */}
       <KpiDetailDialog
