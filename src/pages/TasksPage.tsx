@@ -18,6 +18,8 @@ import { supabase } from '@/integrations/supabase/client';
 import { useNavigate, Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import ListSkeleton from '@/components/ListSkeleton';
+import PageHeader from '@/components/PageHeader';
+
 
 import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
@@ -416,63 +418,58 @@ export default function TasksPage() {
 
   return (
     <div className="p-6 lg:p-8 space-y-6 max-w-7xl mx-auto">
-      <div className="animate-fade-in flex items-start justify-between flex-wrap gap-3">
-        <div>
-          <h1 className="text-2xl font-bold text-foreground tracking-tight flex items-center gap-2">
-            <CheckSquare size={22} /> {t('nav.tasks')}
-          </h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            {counts.open} {t('dashboard.open')} · {counts.completed} {t('dashboard.completed')}
-            {counts.overdue > 0 && (
-              <span className="ml-2 text-destructive font-medium">
-                · {counts.overdue} {language === 'en' ? 'overdue' : 'achterstallig'}
-              </span>
-            )}
-          </p>
-        </div>
-        <Button size="sm" onClick={() => { resetForm(); setNewOpen(true); }}>
-          <Plus size={14} className="mr-1" /> {t('dashboard.newTask')}
-        </Button>
-      </div>
+      <PageHeader
+        title={t('nav.tasks')}
+        description={
+          `${counts.open} ${t('dashboard.open')} · ${counts.completed} ${t('dashboard.completed')}` +
+          (counts.overdue > 0 ? ` · ${counts.overdue} ${language === 'en' ? 'overdue' : 'achterstallig'}` : '')
+        }
+        actions={
+          <Button size="sm" onClick={() => { resetForm(); setNewOpen(true); }}>
+            <Plus size={14} className="mr-1" /> {t('dashboard.newTask')}
+          </Button>
+        }
+        toolbar={
+          <>
+            <div className="relative flex-1 min-w-[220px]">
+              <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+                placeholder={language === 'en' ? 'Search tasks...' : 'Zoek taken...'}
+                className="pl-8 h-9 bg-card"
+              />
+            </div>
 
-      {/* Filters */}
-      <div className="rounded-xl bg-card card-shadow p-4 flex flex-wrap items-center gap-3 animate-fade-in-up">
-        <div className="relative flex-1 min-w-[220px]">
-          <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            placeholder={language === 'en' ? 'Search tasks...' : 'Zoek taken...'}
-            className="pl-8 h-9"
-          />
-        </div>
+            <Select value={statusFilter} onValueChange={v => setStatusFilter(v as any)}>
+              <SelectTrigger className="h-9 w-36 text-xs bg-card"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">{t('dashboard.all')}</SelectItem>
+                {TASK_STATUSES.map(s => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}
+              </SelectContent>
+            </Select>
 
-        <Select value={statusFilter} onValueChange={v => setStatusFilter(v as any)}>
-          <SelectTrigger className="h-9 w-36 text-xs"><SelectValue /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">{t('dashboard.all')}</SelectItem>
-            {TASK_STATUSES.map(s => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}
-          </SelectContent>
-        </Select>
+            <Select value={userFilter} onValueChange={handleUserFilterChange}>
+              <SelectTrigger className="h-9 w-44 text-xs bg-card"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__all__">{t('dashboard.allUsers')}</SelectItem>
+                <SelectItem value="Sjors Jochems">Sjors Jochems</SelectItem>
+                <SelectItem value="Iris Machielse">Iris Machielse</SelectItem>
+              </SelectContent>
+            </Select>
 
-        <Select value={userFilter} onValueChange={handleUserFilterChange}>
-          <SelectTrigger className="h-9 w-44 text-xs"><SelectValue /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="__all__">{t('dashboard.allUsers')}</SelectItem>
-            <SelectItem value="Sjors Jochems">Sjors Jochems</SelectItem>
-            <SelectItem value="Iris Machielse">Iris Machielse</SelectItem>
-          </SelectContent>
-        </Select>
+            <Select value={sortKey} onValueChange={v => setSortKey(v as SortKey)}>
+              <SelectTrigger className="h-9 w-44 text-xs bg-card"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="dueDate">{language === 'en' ? 'Sort: Due date' : 'Sorteer: Vervaldatum'}</SelectItem>
+                <SelectItem value="createdAt">{language === 'en' ? 'Sort: Created' : 'Sorteer: Aangemaakt'}</SelectItem>
+                <SelectItem value="title">{language === 'en' ? 'Sort: Title' : 'Sorteer: Titel'}</SelectItem>
+              </SelectContent>
+            </Select>
+          </>
+        }
+      />
 
-        <Select value={sortKey} onValueChange={v => setSortKey(v as SortKey)}>
-          <SelectTrigger className="h-9 w-44 text-xs"><SelectValue /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="dueDate">{language === 'en' ? 'Sort: Due date' : 'Sorteer: Vervaldatum'}</SelectItem>
-            <SelectItem value="createdAt">{language === 'en' ? 'Sort: Created' : 'Sorteer: Aangemaakt'}</SelectItem>
-            <SelectItem value="title">{language === 'en' ? 'Sort: Title' : 'Sorteer: Titel'}</SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
 
       {/* Bulk actions */}
       {selected.size > 0 && (

@@ -20,6 +20,9 @@ import UnifiedDocumentTable from '@/components/documents/UnifiedDocumentTable';
 import { useToast } from '@/hooks/use-toast';
 import { formatDate } from '@/components/quotation/DocumentMetadata';
 import { cn } from '@/lib/utils';
+import PageHeader from '@/components/PageHeader';
+import ListSkeleton from '@/components/ListSkeleton';
+
 
 type QuoteFilter = 'all' | 'draft' | 'sent' | 'viewed' | 'accepted' | 'declined';
 type InvoiceFilter = 'all' | 'draft' | 'sent' | 'overdue' | 'paid';
@@ -144,23 +147,21 @@ export default function QuotesPage() {
 
   return (
     <div className="p-4 md:p-6 lg:p-8 space-y-6 max-w-7xl mx-auto">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4 pb-2 border-b border-accent/30">
-        <div>
-          <h1 className="text-2xl md:text-3xl font-bold text-foreground tracking-tight">Documenten</h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            Offertes, facturen en CliqCRM documenten — alles overzichtelijk op één plek
-          </p>
-        </div>
-        <div className="flex gap-2 flex-wrap">
-          <Button variant="outline" onClick={() => navigate('/templates/new')} className="gap-1.5">
-            <LayoutTemplate size={16} /> Nieuw sjabloon
-          </Button>
-          <Button onClick={() => navigate('/quotes/new')} className="gap-1.5 shadow-sm">
-            <Plus size={16} /> Nieuwe offerte
-          </Button>
-        </div>
-      </div>
+      <PageHeader
+        title="Documenten"
+        description="Offertes, facturen en CliqCRM documenten — alles overzichtelijk op één plek"
+        actions={
+          <>
+            <Button variant="outline" onClick={() => navigate('/templates/new')} className="gap-1.5">
+              <LayoutTemplate size={16} /> Nieuw sjabloon
+            </Button>
+            <Button onClick={() => navigate('/quotes/new')} className="gap-1.5 shadow-sm">
+              <Plus size={16} /> Nieuwe offerte
+            </Button>
+          </>
+        }
+      />
+
 
       {/* KPI cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
@@ -187,15 +188,18 @@ export default function QuotesPage() {
       </div>
 
       {/* Search */}
-      <div className="relative max-w-md">
-        <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-        <Input
-          placeholder="Zoek op nummer, klant, bedrijf of titel..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="pl-9 h-10 bg-card border-border/70"
-        />
+      <div className="page-toolbar">
+        <div className="relative max-w-md">
+          <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            placeholder="Zoek op nummer, klant, bedrijf of titel..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="pl-9 h-10 bg-card border-border/70"
+          />
+        </div>
       </div>
+
 
       {/* Tabs */}
       <Tabs value={tab} onValueChange={setTab}>

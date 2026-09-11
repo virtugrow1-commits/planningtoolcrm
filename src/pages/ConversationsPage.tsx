@@ -61,7 +61,8 @@ export default function ConversationsPage() {
     try {
       let query = supabase
         .from('conversations')
-        .select('*')
+        .select('id, contact_id, ghl_conversation_id, contact_name, last_message_body, last_message_date, last_message_direction, unread, channel, phone, email, updated_at')
+
         .not('ghl_conversation_id', 'is', null)
         .order('last_message_date', { ascending: false, nullsFirst: false });
 
@@ -133,7 +134,7 @@ export default function ConversationsPage() {
     try {
       const { data, error } = await supabase
         .from('messages')
-        .select('*')
+        .select('id, body, direction, date_added, message_type, status, created_at')
         .eq('conversation_id', conversationId)
         .order('date_added', { ascending: true });
 

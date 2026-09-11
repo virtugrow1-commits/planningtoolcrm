@@ -3,9 +3,7 @@ import {
   LayoutDashboard,
   Users,
   InboxIcon,
-  FileText,
   CalendarDays,
-  ClipboardList,
   Settings,
   LogOut,
   Menu,
@@ -13,9 +11,9 @@ import {
   Globe,
   ChevronDown,
   RefreshCw,
-  Building2,
   CheckSquare,
 } from 'lucide-react';
+
 import { useState, useEffect } from 'react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';

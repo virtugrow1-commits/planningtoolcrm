@@ -34,6 +34,9 @@ import ConflictAlertDialog from '@/components/calendar/ConflictAlertDialog';
 import { exportToCSV } from '@/lib/csvExport';
 import { SortableHeader, useSortState } from '@/components/SortableHeader';
 import { bookingsForInquiry } from '@/lib/inquiryBookings';
+import PageHeader from '@/components/PageHeader';
+import ListSkeleton from '@/components/ListSkeleton';
+
 
 const PIPELINE_COLUMNS: { key: Inquiry['status']; label: string; colorClass: string; badgeClass: string }[] = [
   { key: 'new', label: 'Nieuwe Aanvraag', colorClass: 'border-t-info bg-info/5', badgeClass: 'status-new' },
@@ -444,109 +447,126 @@ export default function InquiriesPage() {
     }
   };
 
-  return (
-    <div className="p-6 lg:p-8 space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-foreground">Aanvragen Pipeline</h1>
-          <p className="text-sm text-muted-foreground">{filteredInquiries.length} van {activeInquiries.length} actief · {lostInquiries.length} verloren · {completedInquiries.length} afgerond · Sleep om status te wijzigen</p>
-        </div>
-        <div className="flex items-center gap-2">
-          <div className="flex items-center gap-1.5">
-            <button
-              onClick={() => setHidePast(!hidePast)}
-              className={cn(
-                'flex items-center gap-1.5 h-8 px-3 rounded-md border text-xs font-medium transition-colors',
-                hidePast ? 'bg-primary text-primary-foreground border-primary' : 'bg-background text-muted-foreground border-border hover:text-foreground'
-              )}
-              title={hidePast ? 'Verlopen aanvragen zijn verborgen' : 'Verlopen aanvragen verbergen'}
-            >
-              <EyeOff size={12} />
-              Verlopen
-            </button>
-            <button
-              onClick={() => {
-                const next = archivedSection === 'verloren' ? null : 'verloren';
-                setArchivedSection(next);
-                if (next) setTimeout(() => archiveRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50);
-              }}
-              className={cn(
-                'flex items-center gap-1.5 h-8 px-3 rounded-md border text-xs font-medium transition-colors',
-                archivedSection === 'verloren' ? 'bg-destructive/10 text-destructive border-destructive/30' : 'bg-background text-muted-foreground border-border hover:text-foreground'
-              )}
-            >
-              <FolderX size={12} />
-              Verloren ({lostInquiries.length})
-            </button>
-            <button
-              onClick={() => {
-                const next = archivedSection === 'afgerond' ? null : 'afgerond';
-                setArchivedSection(next);
-                if (next) setTimeout(() => archiveRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50);
-              }}
-              className={cn(
-                'flex items-center gap-1.5 h-8 px-3 rounded-md border text-xs font-medium transition-colors',
-                archivedSection === 'afgerond' ? 'bg-success/10 text-success border-success/30' : 'bg-background text-muted-foreground border-border hover:text-foreground'
-              )}
-            >
-              <FolderCheck size={12} />
-              Afgerond ({completedInquiries.length})
-            </button>
-          </div>
-          <div className="relative">
-            <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              placeholder="Zoeken..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-8 h-8 w-[200px] text-xs"
-            />
-            {searchQuery && (
-              <button onClick={() => setSearchQuery('')} className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
-                <X size={12} />
-              </button>
-            )}
-          </div>
-          {viewMode === 'cards' && (
-            <Select value={kanbanSort} onValueChange={(v: any) => setKanbanSort(v)}>
-              <SelectTrigger className="h-8 w-[160px] text-xs">
-                <ArrowUpDown size={12} className="mr-1" />
-                <SelectValue placeholder="Sorteren" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="booking-nearest" className="text-xs">Reservering dichtbij</SelectItem>
-                <SelectItem value="created-desc" className="text-xs">Nieuwste eerst</SelectItem>
-                <SelectItem value="created-asc" className="text-xs">Oudste eerst</SelectItem>
-                <SelectItem value="date-asc" className="text-xs">Datum ↑</SelectItem>
-                <SelectItem value="date-desc" className="text-xs">Datum ↓</SelectItem>
-                <SelectItem value="alpha-asc" className="text-xs">A → Z</SelectItem>
-                <SelectItem value="alpha-desc" className="text-xs">Z → A</SelectItem>
-              </SelectContent>
-            </Select>
-          )}
-          <div className="flex rounded-lg border border-border overflow-hidden">
-            <button
-              onClick={() => setViewMode('cards')}
-              className={cn(
-                'flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium transition-colors',
-                viewMode === 'cards' ? 'bg-primary text-primary-foreground' : 'bg-background text-muted-foreground hover:text-foreground'
-              )}
-            >
-              <LayoutGrid size={14} /> Cards
-            </button>
-            <button
-              onClick={() => setViewMode('list')}
-              className={cn(
-                'flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium transition-colors',
-                viewMode === 'list' ? 'bg-primary text-primary-foreground' : 'bg-background text-muted-foreground hover:text-foreground'
-              )}
-            >
-              <List size={14} /> {t('inquiries.listView')}
-            </button>
-          </div>
-          <Button onClick={() => setNewOpen(true)} size="sm"><Plus size={14} className="mr-1" /> {t('inquiries.newInquiry')}</Button>
-        </div>
+  if (inquiriesLoading) {
+    return (
+      <div className="p-6 lg:p-8 space-y-4">
+        <div className="h-8 w-64 rounded-lg bg-muted animate-pulse" />
+        <ListSkeleton rows={8} />
       </div>
+    );
+  }
+
+  return (
+
+    <div className="p-6 lg:p-8 space-y-4">
+      <PageHeader
+        title="Aanvragen Pipeline"
+        description={`${filteredInquiries.length} van ${activeInquiries.length} actief · ${lostInquiries.length} verloren · ${completedInquiries.length} afgerond · Sleep om status te wijzigen`}
+        actions={
+          <>
+            <div className="flex rounded-lg border border-border overflow-hidden">
+              <button
+                onClick={() => setViewMode('cards')}
+                className={cn(
+                  'flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium transition-colors',
+                  viewMode === 'cards' ? 'bg-primary text-primary-foreground' : 'bg-background text-muted-foreground hover:text-foreground'
+                )}
+              >
+                <LayoutGrid size={14} /> Cards
+              </button>
+              <button
+                onClick={() => setViewMode('list')}
+                className={cn(
+                  'flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium transition-colors',
+                  viewMode === 'list' ? 'bg-primary text-primary-foreground' : 'bg-background text-muted-foreground hover:text-foreground'
+                )}
+              >
+                <List size={14} /> {t('inquiries.listView')}
+              </button>
+            </div>
+            <Button onClick={() => setNewOpen(true)} size="sm"><Plus size={14} className="mr-1" /> {t('inquiries.newInquiry')}</Button>
+          </>
+        }
+        toolbar={
+          <>
+            <div className="relative">
+              <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                placeholder="Zoeken..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-8 h-8 w-[220px] text-xs bg-card"
+              />
+              {searchQuery && (
+                <button onClick={() => setSearchQuery('')} className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
+                  <X size={12} />
+                </button>
+              )}
+            </div>
+
+            {viewMode === 'cards' && (
+              <Select value={kanbanSort} onValueChange={(v: any) => setKanbanSort(v)}>
+                <SelectTrigger className="h-8 w-[160px] text-xs bg-card">
+                  <ArrowUpDown size={12} className="mr-1" />
+                  <SelectValue placeholder="Sorteren" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="booking-nearest" className="text-xs">Reservering dichtbij</SelectItem>
+                  <SelectItem value="created-desc" className="text-xs">Nieuwste eerst</SelectItem>
+                  <SelectItem value="created-asc" className="text-xs">Oudste eerst</SelectItem>
+                  <SelectItem value="date-asc" className="text-xs">Datum ↑</SelectItem>
+                  <SelectItem value="date-desc" className="text-xs">Datum ↓</SelectItem>
+                  <SelectItem value="alpha-asc" className="text-xs">A → Z</SelectItem>
+                  <SelectItem value="alpha-desc" className="text-xs">Z → A</SelectItem>
+                </SelectContent>
+              </Select>
+            )}
+
+            <div className="flex items-center gap-1.5 ml-auto">
+              <button
+                onClick={() => setHidePast(!hidePast)}
+                className={cn(
+                  'flex items-center gap-1.5 h-8 px-3 rounded-md border text-xs font-medium transition-colors',
+                  hidePast ? 'bg-primary text-primary-foreground border-primary' : 'bg-card text-muted-foreground border-border hover:text-foreground'
+                )}
+                title={hidePast ? 'Verlopen aanvragen zijn verborgen' : 'Verlopen aanvragen verbergen'}
+              >
+                <EyeOff size={12} />
+                Verlopen
+              </button>
+              <button
+                onClick={() => {
+                  const next = archivedSection === 'verloren' ? null : 'verloren';
+                  setArchivedSection(next);
+                  if (next) setTimeout(() => archiveRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50);
+                }}
+                className={cn(
+                  'flex items-center gap-1.5 h-8 px-3 rounded-md border text-xs font-medium transition-colors',
+                  archivedSection === 'verloren' ? 'bg-destructive/10 text-destructive border-destructive/30' : 'bg-card text-muted-foreground border-border hover:text-foreground'
+                )}
+              >
+                <FolderX size={12} />
+                Verloren ({lostInquiries.length})
+              </button>
+              <button
+                onClick={() => {
+                  const next = archivedSection === 'afgerond' ? null : 'afgerond';
+                  setArchivedSection(next);
+                  if (next) setTimeout(() => archiveRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50);
+                }}
+                className={cn(
+                  'flex items-center gap-1.5 h-8 px-3 rounded-md border text-xs font-medium transition-colors',
+                  archivedSection === 'afgerond' ? 'bg-success/10 text-success border-success/30' : 'bg-card text-muted-foreground border-border hover:text-foreground'
+                )}
+              >
+                <FolderCheck size={12} />
+                Afgerond ({completedInquiries.length})
+              </button>
+            </div>
+          </>
+        }
+      />
+
 
       {/* Bulk action bar */}
       {selected.size > 0 && (
@@ -772,7 +792,7 @@ export default function InquiriesPage() {
       </div>
       ) : (
       /* List view */
-      <div className="rounded-xl border border-border bg-card overflow-hidden">
+      <div className="sticky-head rounded-xl border border-border bg-card overflow-auto max-h-[70vh]">
         <table className="w-full text-sm">
           <thead>
              <tr className="border-b border-border bg-muted/30">
