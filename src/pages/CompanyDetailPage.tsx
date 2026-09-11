@@ -335,6 +335,28 @@ export default function CompanyDetailPage() {
 
             {/* Fields */}
             <div className="space-y-3">
+              {editing ? (
+                <div className="flex items-center gap-2">
+                  <Checkbox
+                    id="is-private"
+                    checked={form?.isPrivate === true}
+                    onCheckedChange={(checked) => setForm({ ...form!, isPrivate: checked === true })}
+                  />
+                  <label htmlFor="is-private" className="text-sm text-foreground cursor-pointer">Particulier</label>
+                </div>
+              ) : current.isPrivate ? (
+                <Badge variant="secondary" className="text-[10px]">Particulier</Badge>
+              ) : null}
+              {current.isPrivate && companyContacts.some((c) => c.birthDate) && (
+                <div>
+                  <p className="text-xs font-semibold text-muted-foreground mb-0.5">Verjaardag</p>
+                  {companyContacts.filter((c) => c.birthDate).map((c) => (
+                    <p key={c.id} className="text-sm text-foreground">
+                      {c.firstName} {c.lastName} — {formatDate(c.birthDate!)}
+                    </p>
+                  ))}
+                </div>
+              )}
               <InfoField label="KVK" value={current.kvk} editing={editing} onChange={(v) => setForm({ ...form!, kvk: v })} />
               <InfoField label="BTW nummer" value={current.btwNumber} editing={editing} onChange={(v) => setForm({ ...form!, btwNumber: v })} />
               <InfoField label="Klantnummer" value={current.customerNumber} editing={editing} onChange={(v) => setForm({ ...form!, customerNumber: v })} />
