@@ -24,7 +24,7 @@ export function useContactCompanies() {
     for (let from = 0; ; from += PAGE_SIZE) {
       const { data, error } = await supabase
         .from('contact_companies' as any)
-        .select('id, contact_id, company_id, is_primary')
+        .select('id, contact_id, company_id, is_primary, departed_at')
         .order('is_primary', { ascending: false })
         .range(from, from + PAGE_SIZE - 1);
       if (error || !data) break;
