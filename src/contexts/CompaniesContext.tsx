@@ -166,6 +166,7 @@ export function CompaniesProvider({ children }: { children: ReactNode }) {
       customer_number: company.customerNumber || null,
       crm_group: company.crmGroup || null,
       btw_number: company.btwNumber || null,
+      is_private: company.isPrivate === true,
       pending_outbound_sync: true,
       last_local_edit_at: nowIso,
       last_sync_error: null,
