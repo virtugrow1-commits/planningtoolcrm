@@ -14,6 +14,8 @@ import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { ArrowLeft, Pencil, Check, X, Plus, ChevronRight, Calendar, FileText, Mail, Phone, Building2, User, CheckSquare, Send, Eye, CheckCircle2, MapPin } from 'lucide-react';
+import Breadcrumbs from '@/components/Breadcrumbs';
+
 import { Checkbox } from '@/components/ui/checkbox';
 import ActivityTimeline from '@/components/contact/ActivityTimeline';
 import CallLogPanel from '@/components/contact/CallLogPanel';
@@ -48,6 +50,8 @@ export default function ContactDetailPage() {
   const { toast } = useToast();
 
   const contact = contacts.find((c) => c.id === id);
+  const breadcrumbCompany = contact?.companyId ? companies.find((c) => c.id === contact.companyId) : undefined;
+
   const [editing, setEditing] = useState(false);
   const [form, setForm] = useState<Contact | null>(null);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
@@ -242,11 +246,19 @@ export default function ContactDetailPage() {
   return (
     <div className="p-6 lg:p-8 space-y-4">
       {/* Breadcrumb */}
-      <div className="flex items-center gap-2 text-sm text-muted-foreground">
-        <button onClick={() => navigate('/crm')} className="hover:text-foreground transition-colors">CRM</button>
-        <ChevronRight size={14} />
-        <span className="text-foreground font-medium">{contact.displayNumber && <span className="font-mono text-xs text-muted-foreground mr-2">{contact.displayNumber}</span>}{contact.firstName} {contact.lastName}</span>
-      </div>
+      <Breadcrumbs
+        items={[
+          ...(breadcrumbCompany
+            ? [
+                { label: 'Bedrijven', to: '/companies' },
+                { label: breadcrumbCompany.name, to: `/companies/${breadcrumbCompany.id}` },
+              ]
+            : [{ label: 'CRM', to: '/crm' }]),
+          { label: `${contact.firstName} ${contact.lastName}`.trim() },
+        ]}
+        missing={breadcrumbCompany ? null : 'Deze contactpersoon is nog niet aan een bedrijf gekoppeld.'}
+      />
+
 
       <div className="flex flex-col lg:flex-row gap-6">
         {/* LEFT SIDEBAR — Contact Info */}
@@ -554,7 +566,7 @@ export default function ContactDetailPage() {
 
 
           {/* Documenten */}
-          <SectionCard title="Documenten" linkLabel="Alle documenten" onLink={() => navigate('/documents')}>
+          <SectionCard title="Documenten">
             {contactDocuments.length === 0 ? (
               <p className="text-xs text-muted-foreground">Geen documenten</p>
             ) : (

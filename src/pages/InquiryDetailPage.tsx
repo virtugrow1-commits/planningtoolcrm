@@ -16,6 +16,8 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
 import { ArrowLeft, ChevronRight, History, CheckSquare, FileText, Send, Eye, CheckCircle2, MessageSquare } from 'lucide-react';
+import Breadcrumbs from '@/components/Breadcrumbs';
+
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
@@ -183,14 +185,28 @@ export default function InquiryDetailPage() {
   return (
     <div className="p-6 lg:p-8 space-y-6 animate-fade-in">
       {/* Breadcrumb */}
-      <div className="flex items-center gap-2 text-sm text-muted-foreground">
-        <button onClick={() => navigate('/inquiries')} className="hover:text-foreground transition-colors">Aanvragen</button>
-        <ChevronRight size={14} />
-        <span className="text-foreground font-medium">
-          {inquiry.displayNumber && <span className="font-mono text-xs text-muted-foreground mr-2">{inquiry.displayNumber}</span>}
-          {inquiry.eventType}
-        </span>
-      </div>
+      <Breadcrumbs
+        items={[
+          ...(company
+            ? [
+                { label: 'Bedrijven', to: '/companies' },
+                { label: company.name, to: `/companies/${company.id}` },
+              ]
+            : [{ label: 'Aanvragen', to: '/inquiries' }]),
+          ...(contact
+            ? [{ label: `${contact.firstName} ${contact.lastName}`.trim(), to: `/crm/${contact.id}` }]
+            : []),
+          { label: inquiry.displayNumber ? `${inquiry.displayNumber} · ${inquiry.eventType}` : inquiry.eventType },
+        ]}
+        missing={
+          !company
+            ? 'Deze aanvraag is nog niet aan een bedrijf gekoppeld.'
+            : !contact
+              ? 'Deze aanvraag is nog niet aan een contactpersoon gekoppeld.'
+              : null
+        }
+      />
+
 
       {/* Header */}
       <div className="flex items-center gap-3 flex-wrap">

@@ -2,6 +2,8 @@ import { formatDate } from '@/lib/formatters';
 import { useState, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Building2, ChevronRight, Plus, Pencil, Check, X, Search, UserPlus, Unlink, Trash2 } from 'lucide-react';
+import Breadcrumbs from '@/components/Breadcrumbs';
+
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -294,14 +296,13 @@ export default function CompanyDetailPage() {
   return (
     <div className="p-6 lg:p-8 space-y-6">
       {/* Breadcrumb */}
-      <div className="flex items-center gap-2 text-sm text-muted-foreground">
-        <button onClick={() => navigate('/companies')} className="hover:text-foreground transition-colors">Bedrijven</button>
-        <ChevronRight size={14} />
-        <span className="text-foreground font-medium">
-          {company.displayNumber && <span className="font-mono text-xs text-muted-foreground mr-2">{company.displayNumber}</span>}
-          {company.name}
-        </span>
-      </div>
+      <Breadcrumbs
+        items={[
+          { label: 'Bedrijven', to: '/companies' },
+          { label: company.isPrivate ? `${company.name} (particulier)` : company.name },
+        ]}
+      />
+
 
       <div className="flex flex-col lg:flex-row gap-6">
         {/* LEFT SIDEBAR — Company Info */}

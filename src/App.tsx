@@ -22,12 +22,8 @@ import NotFound from "./pages/NotFound";
 // Heavy, rarely-visited screens load on demand so the first screen paints faster
 const CalendarPage = lazy(() => import("@/pages/CalendarPage"));
 const SettingsPage = lazy(() => import("@/pages/SettingsPage"));
-const QuotesPage = lazy(() => import("@/pages/QuotesPage"));
-const NewQuotePage = lazy(() => import("@/pages/NewQuotePage"));
-const QuoteDetailPage = lazy(() => import("@/pages/QuoteDetailPage"));
-const InvoiceDetailPage = lazy(() => import("@/pages/InvoiceDetailPage"));
-const TemplateEditorPage = lazy(() => import("@/pages/TemplateEditorPage"));
 const PublicQuotePage = lazy(() => import("@/pages/PublicQuotePage"));
+
 import { BookingsProvider } from "@/contexts/BookingsContext";
 import { ContactsProvider } from "@/contexts/ContactsContext";
 import { CompaniesProvider } from "@/contexts/CompaniesContext";
@@ -82,13 +78,11 @@ function ProtectedRoutes() {
                     <Route path="/inquiries" element={<InquiriesPage />} />
                     <Route path="/inquiries/:id" element={<InquiryDetailPage />} />
                     <Route path="/tasks/:id" element={<TaskDetailPage />} />
-                    <Route path="/documents" element={<QuotesPage />} />
-                    <Route path="/quotes" element={<QuotesPage />} />
-                    <Route path="/quotes/new" element={<NewQuotePage />} />
-                    <Route path="/quotes/:id" element={<QuoteDetailPage />} />
-                    <Route path="/invoices/:id" element={<InvoiceDetailPage />} />
-                    <Route path="/templates/new" element={<TemplateEditorPage />} />
-                    <Route path="/templates/:id" element={<TemplateEditorPage />} />
+                    <Route path="/documents" element={<Navigate to="/" replace />} />
+                    <Route path="/quotes/*" element={<Navigate to="/" replace />} />
+                    <Route path="/invoices/*" element={<Navigate to="/" replace />} />
+                    <Route path="/templates/*" element={<Navigate to="/" replace />} />
+
                     <Route path="/reserveringen" element={<ReserveringenPage />} />
                     <Route path="/reserveringen/:id" element={<BookingDetailPage />} />
                     <Route path="/calendar" element={<CalendarPage />} />
