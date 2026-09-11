@@ -75,6 +75,7 @@ export default function CallLogPanel({
   requireContactSelection,
   readOnly,
   emptyHint,
+  companyId,
 }: Props) {
   const { user } = useAuth();
   const { toast } = useToast();
