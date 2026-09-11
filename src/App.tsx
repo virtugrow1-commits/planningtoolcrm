@@ -71,32 +71,32 @@ function ProtectedRoutes() {
           <BookingsProvider>
             <TasksProvider>
               <AppLayout>
-                <Routes>
-                  <Route path="/" element={<Dashboard />} />
-                  <Route path="/tasks" element={<TasksPage />} />
-                  <Route path="/crm" element={<CrmPage />} />
-                  <Route path="/crm/:id" element={<ContactDetailPage />} />
-                  <Route path="/companies" element={<CompaniesPage />} />
-                  <Route path="/companies/:id" element={<CompanyDetailPage />} />
-                  <Route path="/inquiries" element={<InquiriesPage />} />
-                  <Route path="/inquiries/:id" element={<InquiryDetailPage />} />
-                  <Route path="/tasks/:id" element={<TaskDetailPage />} />
-                  <Route path="/documents" element={<QuotesPage />} />
-                  <Route path="/quotes" element={<QuotesPage />} />
-                  <Route path="/quotes/new" element={<NewQuotePage />} />
-                  <Route path="/quotes/:id" element={<QuoteDetailPage />} />
-                  <Route path="/invoices/:id" element={<InvoiceDetailPage />} />
-                  <Route path="/templates/new" element={<TemplateEditorPage />} />
-                  <Route path="/templates/:id" element={<TemplateEditorPage />} />
-                  <Route path="/reserveringen" element={<ReserveringenPage />} />
-                  <Route path="/reserveringen/:id" element={<BookingDetailPage />} />
-                  
-                  
-                  
-                  <Route path="/calendar" element={<CalendarPage />} />
-                  <Route path="/settings" element={<SettingsPage />} />
-                  <Route path="*" element={<NotFound />} />
-                </Routes>
+                <Suspense fallback={<RouteFallback />}>
+                  <Routes>
+                    <Route path="/" element={<Dashboard />} />
+                    <Route path="/tasks" element={<TasksPage />} />
+                    <Route path="/crm" element={<CrmPage />} />
+                    <Route path="/crm/:id" element={<ContactDetailPage />} />
+                    <Route path="/companies" element={<CompaniesPage />} />
+                    <Route path="/companies/:id" element={<CompanyDetailPage />} />
+                    <Route path="/inquiries" element={<InquiriesPage />} />
+                    <Route path="/inquiries/:id" element={<InquiryDetailPage />} />
+                    <Route path="/tasks/:id" element={<TaskDetailPage />} />
+                    <Route path="/documents" element={<QuotesPage />} />
+                    <Route path="/quotes" element={<QuotesPage />} />
+                    <Route path="/quotes/new" element={<NewQuotePage />} />
+                    <Route path="/quotes/:id" element={<QuoteDetailPage />} />
+                    <Route path="/invoices/:id" element={<InvoiceDetailPage />} />
+                    <Route path="/templates/new" element={<TemplateEditorPage />} />
+                    <Route path="/templates/:id" element={<TemplateEditorPage />} />
+                    <Route path="/reserveringen" element={<ReserveringenPage />} />
+                    <Route path="/reserveringen/:id" element={<BookingDetailPage />} />
+                    <Route path="/calendar" element={<CalendarPage />} />
+                    <Route path="/settings" element={<SettingsPage />} />
+                    <Route path="*" element={<NotFound />} />
+                  </Routes>
+                </Suspense>
+
               </AppLayout>
             </TasksProvider>
           </BookingsProvider>
