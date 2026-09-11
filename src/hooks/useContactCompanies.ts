@@ -94,5 +94,5 @@ export function useContactCompanies() {
     return links.filter((l) => l.contactId === contactId);
   }, [links]);
 
-  return { links, loading, linkContact, unlinkContact, getCompanyContacts, getContactCompanies, refetch: fetchLinks };
+  return { links, loading, linkContact, unlinkContact, markDeparted, getCompanyContacts, getContactCompanies, refetch: fetchLinks };
 }
