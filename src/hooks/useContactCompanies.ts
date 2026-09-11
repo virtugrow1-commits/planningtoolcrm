@@ -73,6 +73,19 @@ export function useContactCompanies() {
     await fetchLinks();
   }, [fetchLinks]);
 
+  /**
+   * Mark every current employer link of a contact as departed. The history
+   * (gespreksverslagen, aanvragen, reserveringen) stays with the old employer.
+   */
+  const markDeparted = useCallback(async (contactId: string) => {
+    await (supabase as any)
+      .from('contact_companies')
+      .update({ departed_at: new Date().toISOString() })
+      .eq('contact_id', contactId)
+      .is('departed_at', null);
+    await fetchLinks();
+  }, [fetchLinks]);
+
   const getCompanyContacts = useCallback((companyId: string) => {
     return links.filter((l) => l.companyId === companyId);
   }, [links]);
