@@ -1312,9 +1312,21 @@ Deno.serve(async (req) => {
       // Fetch contacts with ghl_contact_id to get tasks per contact
       const { data: linkedContacts } = await supabase
         .from('contacts')
-        .select('id, ghl_contact_id')
+        .select('id, ghl_contact_id, company_id')
         .in('user_id', orgUserIds)
         .not('ghl_contact_id', 'is', null);
+
+      // Bookings used to attribute each task to its own reservation
+      const linkBookings: LinkableBooking[] = [];
+      for (let from = 0; ; from += 1000) {
+        const { data: bkPage } = await supabase
+          .from('bookings')
+          .select('id, date, contact_id, company_id, inquiry_id')
+          .range(from, from + 999);
+        if (!bkPage?.length) break;
+        linkBookings.push(...bkPage);
+        if (bkPage.length < 1000) break;
+      }
 
       let synced = 0;
       for (const contact of linkedContacts || []) {
