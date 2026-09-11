@@ -121,12 +121,15 @@ const App = () => (
           <Toaster />
           <Sonner />
           <BrowserRouter>
-            <Routes>
-              <Route path="/login" element={<AuthRoute />} />
-              <Route path="/quote/view/:token" element={<PublicQuotePage />} />
-              <Route path="/*" element={<ProtectedRoutes />} />
-            </Routes>
+            <Suspense fallback={<RouteFallback />}>
+              <Routes>
+                <Route path="/login" element={<AuthRoute />} />
+                <Route path="/quote/view/:token" element={<PublicQuotePage />} />
+                <Route path="/*" element={<ProtectedRoutes />} />
+              </Routes>
+            </Suspense>
           </BrowserRouter>
+
         </AuthProvider>
       </LanguageProvider>
     </TooltipProvider>
