@@ -3,30 +3,31 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { Suspense, lazy } from "react";
 import AppLayout from "@/components/AppLayout";
 import Dashboard from "@/pages/Dashboard";
-import CalendarPage from "@/pages/CalendarPage";
 import CrmPage from "@/pages/CrmPage";
 import CompaniesPage from "@/pages/CompaniesPage";
 import CompanyDetailPage from "@/pages/CompanyDetailPage";
 import ContactDetailPage from "@/pages/ContactDetailPage";
 import InquiriesPage from "@/pages/InquiriesPage";
 import TasksPage from "@/pages/TasksPage";
-
-
 import ReserveringenPage from "@/pages/ReserveringenPage";
-import SettingsPage from "@/pages/SettingsPage";
 import BookingDetailPage from "@/pages/BookingDetailPage";
 import InquiryDetailPage from "@/pages/InquiryDetailPage";
 import TaskDetailPage from "@/pages/TaskDetailPage";
-import QuotesPage from "@/pages/QuotesPage";
-import NewQuotePage from "@/pages/NewQuotePage";
-import QuoteDetailPage from "@/pages/QuoteDetailPage";
-import InvoiceDetailPage from "@/pages/InvoiceDetailPage";
-import TemplateEditorPage from "@/pages/TemplateEditorPage";
 import AuthPage from "@/pages/AuthPage";
-import PublicQuotePage from "@/pages/PublicQuotePage";
 import NotFound from "./pages/NotFound";
+
+// Heavy, rarely-visited screens load on demand so the first screen paints faster
+const CalendarPage = lazy(() => import("@/pages/CalendarPage"));
+const SettingsPage = lazy(() => import("@/pages/SettingsPage"));
+const QuotesPage = lazy(() => import("@/pages/QuotesPage"));
+const NewQuotePage = lazy(() => import("@/pages/NewQuotePage"));
+const QuoteDetailPage = lazy(() => import("@/pages/QuoteDetailPage"));
+const InvoiceDetailPage = lazy(() => import("@/pages/InvoiceDetailPage"));
+const TemplateEditorPage = lazy(() => import("@/pages/TemplateEditorPage"));
+const PublicQuotePage = lazy(() => import("@/pages/PublicQuotePage"));
 import { BookingsProvider } from "@/contexts/BookingsContext";
 import { ContactsProvider } from "@/contexts/ContactsContext";
 import { CompaniesProvider } from "@/contexts/CompaniesContext";
@@ -34,6 +35,17 @@ import { InquiriesProvider } from "@/contexts/InquiriesContext";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { TasksProvider } from "@/contexts/TasksContext";
 import { LanguageProvider } from "@/contexts/LanguageContext";
+
+function RouteFallback() {
+  return (
+    <div className="p-6 space-y-4">
+      <div className="h-8 w-48 rounded-lg bg-muted animate-pulse" />
+      <div className="h-32 rounded-xl bg-muted animate-pulse" />
+      <div className="h-32 rounded-xl bg-muted animate-pulse" />
+    </div>
+  );
+}
+
 
 const queryClient = new QueryClient();
 
