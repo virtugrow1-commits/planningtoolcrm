@@ -73,7 +73,15 @@ export function useContactActivities(contactId: string | undefined) {
       body: activity.body || null,
       related_task_id: activity.relatedTaskId || null,
     };
+    // Snapshot the employer so the activity stays with this company later on
+    if (activity.companyId) {
+      payload.company_id = activity.companyId;
+    } else {
+      const { data: c } = await supabase.from('contacts').select('company_id').eq('id', contactId).maybeSingle();
+      if (c?.company_id) payload.company_id = c.company_id;
+    }
     if (activity.createdAt) payload.created_at = activity.createdAt;
+
     const { error } = await supabase.from('contact_activities').insert(payload);
     if (error) {
       toast({ title: 'Fout bij toevoegen activiteit', description: error.message, variant: 'destructive' });
