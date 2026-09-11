@@ -78,13 +78,11 @@ function ProtectedRoutes() {
                     <Route path="/inquiries" element={<InquiriesPage />} />
                     <Route path="/inquiries/:id" element={<InquiryDetailPage />} />
                     <Route path="/tasks/:id" element={<TaskDetailPage />} />
-                    <Route path="/documents" element={<QuotesPage />} />
-                    <Route path="/quotes" element={<QuotesPage />} />
-                    <Route path="/quotes/new" element={<NewQuotePage />} />
-                    <Route path="/quotes/:id" element={<QuoteDetailPage />} />
-                    <Route path="/invoices/:id" element={<InvoiceDetailPage />} />
-                    <Route path="/templates/new" element={<TemplateEditorPage />} />
-                    <Route path="/templates/:id" element={<TemplateEditorPage />} />
+                    <Route path="/documents" element={<Navigate to="/" replace />} />
+                    <Route path="/quotes/*" element={<Navigate to="/" replace />} />
+                    <Route path="/invoices/*" element={<Navigate to="/" replace />} />
+                    <Route path="/templates/*" element={<Navigate to="/" replace />} />
+
                     <Route path="/reserveringen" element={<ReserveringenPage />} />
                     <Route path="/reserveringen/:id" element={<BookingDetailPage />} />
                     <Route path="/calendar" element={<CalendarPage />} />
