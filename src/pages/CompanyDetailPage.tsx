@@ -358,109 +358,71 @@ export default function CompanyDetailPage() {
           </div>
         </div>
 
-        {/* RIGHT CONTENT */}
+        {/* RIGHT CONTENT — klantenkaart */}
         <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-4">
-          {/* Aanvragen */}
-          <SectionCard title="Aanvragen" count={companyInquiries.length} linkLabel="Bekijk alle aanvragen" onLink={() => navigate('/inquiries')} onAdd={() => navigate('/inquiries?new=true')}>
-            {companyInquiries.length === 0 ? (
-              <p className="text-xs text-muted-foreground">Geen aanvragen</p>
-            ) : (
-              <div className="space-y-3">
-                {companyInquiries.slice(0, 8).map((inq) => (
+          {/* Kerncijfers + directe acties */}
+          <div className="md:col-span-2 rounded-xl bg-card p-5 card-shadow space-y-4">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              {[
+                { label: 'Contactpersonen', value: activeContacts.length, onClick: undefined },
+                { label: 'Lopende aanvragen', value: activeInquiries.length, onClick: () => navigate('/inquiries') },
+                { label: 'Opties', value: optionBookings.length, onClick: () => navigate('/calendar') },
+                { label: 'Open taken', value: openTaskCount, onClick: () => navigate('/tasks') },
+              ].map((kpi) => (
+                <button
+                  key={kpi.label}
+                  onClick={kpi.onClick}
+                  disabled={!kpi.onClick}
+                  className="rounded-lg border border-border/50 p-3 text-left hover:bg-muted/30 transition-colors disabled:hover:bg-transparent"
+                >
+                  <p className="text-xl font-bold text-foreground leading-none">{kpi.value}</p>
+                  <p className="text-[11px] text-muted-foreground mt-1">{kpi.label}</p>
+                </button>
+              ))}
+            </div>
+
+            <div className="flex flex-wrap gap-2">
+              <Button size="sm" variant="outline" className="h-8 text-xs" onClick={() => navigate('/inquiries?new=true')}>
+                <Plus size={12} className="mr-1" /> Nieuwe aanvraag
+              </Button>
+              <Button size="sm" variant="outline" className="h-8 text-xs" onClick={() => navigate('/calendar?new=true')}>
+                <Plus size={12} className="mr-1" /> Nieuwe optie
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-8 text-xs"
+                onClick={() => { setAddContactOpen(true); setAddContactTab('new'); }}
+              >
+                <UserPlus size={12} className="mr-1" /> Contactpersoon
+              </Button>
+            </div>
+
+            {(unlinkedInquiryCount > 0 || companyContacts.length === 0 || upcomingBirthdays.length > 0) && (
+              <div className="space-y-1.5">
+                {companyContacts.length === 0 && (
+                  <p className="text-xs text-warning">Er is nog geen contactpersoon gekoppeld aan dit bedrijf.</p>
+                )}
+                {unlinkedInquiryCount > 0 && (
+                  <p className="text-xs text-warning">
+                    {unlinkedInquiryCount} {unlinkedInquiryCount === 1 ? 'aanvraag hangt' : 'aanvragen hangen'} alleen aan de contactpersoon en nog niet aan dit bedrijf.
+                  </p>
+                )}
+                {upcomingBirthdays.map((b) => (
                   <button
-                    key={inq.id}
-                    onClick={() => navigate(`/inquiries/${inq.id}`)}
-                    className="w-full text-left rounded-lg border border-border/50 p-3 hover:bg-muted/30 transition-colors space-y-1.5"
+                    key={b.contact.id}
+                    onClick={() => navigate(`/crm/${b.contact.id}`)}
+                    className="block text-xs text-primary hover:underline"
                   >
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="text-xs font-medium text-foreground">{inq.eventType}</span>
-                      <div className="flex items-center gap-2">
-                        {!inq.isRead && <span className="inline-flex rounded-md px-1.5 py-0.5 text-[10px] font-bold bg-destructive text-destructive-foreground">New</span>}
-                        <Badge variant="outline" className="text-[10px]">{INQUIRY_STATUS[inq.status] || inq.status}</Badge>
-                      </div>
-                    </div>
-                    <div className="flex flex-wrap gap-x-4 gap-y-0.5 text-[11px] text-muted-foreground">
-                      <span>{formatDate(inq.createdAt)}</span>
-                      <span>{inq.contactName}</span>
-                      {inq.guestCount > 0 && <span>{inq.guestCount} gasten</span>}
-                      {inq.roomPreference && <span>{inq.roomPreference}</span>}
-                    </div>
-                    {inq.message && (
-                      <p className="text-[11px] text-muted-foreground line-clamp-2 whitespace-pre-wrap">{inq.message}</p>
-                    )}
+                    Verjaardag {b.contact.firstName} {b.contact.lastName}: {formatDate(b.next.toISOString().split('T')[0])}
+                    {b.days === 0 ? ' (vandaag)' : ` (over ${b.days} ${b.days === 1 ? 'dag' : 'dagen'})`}
                   </button>
                 ))}
               </div>
             )}
-          </SectionCard>
+          </div>
 
-          {/* Reserveringen */}
-          <SectionCard title="Reserveringen" count={confirmedBookings.length} linkLabel="Bekijk agenda" onLink={() => navigate('/calendar')} onAdd={() => navigate('/calendar?new=true')}>
-            {confirmedBookings.length === 0 ? (
-              <p className="text-xs text-muted-foreground">Geen reserveringen</p>
-            ) : (
-              <div className="space-y-1">
-                {confirmedBookings
-                  .sort((a, b) => b.date.localeCompare(a.date))
-                  .slice(0, 8)
-                  .map((b) => (
-                    <button
-                      key={b.id}
-                      onClick={() => navigate(`/reserveringen/${b.id}`)}
-                      className="w-full flex items-center justify-between py-1.5 px-2 rounded-md hover:bg-muted/50 transition-colors text-left text-xs"
-                    >
-                      <div className="flex-1 min-w-0">
-                        <span className="font-medium text-foreground">{b.title}</span>
-                        <span className="text-muted-foreground ml-2">{b.roomName}</span>
-                      </div>
-                      <div className="flex items-center gap-2 shrink-0">
-                        <span className="text-muted-foreground">{b.date} · {String(b.startHour).padStart(2, '0')}:{String(b.startMinute).padStart(2, '0')}–{String(b.endHour).padStart(2, '0')}:{String(b.endMinute).padStart(2, '0')}</span>
-                        <Badge variant={b.date < new Date().toISOString().split('T')[0] ? 'secondary' : b.status === 'confirmed' ? 'default' : 'outline'} className="text-[10px]">
-                          {b.date < new Date().toISOString().split('T')[0] ? 'Afgelopen' : BOOKING_STATUS[b.status] || b.status}
-                        </Badge>
-                      </div>
-                    </button>
-                  ))}
-              </div>
-            )}
-          </SectionCard>
 
-          {/* Opties */}
-          <SectionCard title="Opties" count={optionBookings.length} linkLabel="Bekijk agenda" onLink={() => navigate('/calendar')} onAdd={() => navigate('/calendar?new=true')}>
-            {optionBookings.length === 0 ? (
-              <p className="text-xs text-muted-foreground">Geen opties</p>
-            ) : (
-              <div className="space-y-1">
-                {optionBookings
-                  .sort((a, b) => b.date.localeCompare(a.date))
-                  .slice(0, 8)
-                  .map((b) => (
-                    <button
-                      key={b.id}
-                      onClick={() => navigate(`/reserveringen/${b.id}`)}
-                      className="w-full flex items-center justify-between py-1.5 px-2 rounded-md hover:bg-muted/50 transition-colors text-left text-xs"
-                    >
-                      <div className="flex-1 min-w-0">
-                        <span className="font-medium text-foreground">{b.title}</span>
-                        <span className="text-muted-foreground ml-2">{b.roomName}</span>
-                      </div>
-                      <span className="text-muted-foreground shrink-0">{b.date} · {String(b.startHour).padStart(2, '0')}:{String(b.startMinute).padStart(2, '0')} – {String(b.endHour).padStart(2, '0')}:{String(b.endMinute).padStart(2, '0')}</span>
-                    </button>
-                  ))}
-              </div>
-            )}
-          </SectionCard>
-
-          {/* Taken */}
-          <TasksSection tasks={companyTasks} defaults={{ companyId: company.id }} />
-
-          {/* Historie */}
-          <HistorySection
-            bookings={relatedBookings}
-            inquiries={companyInquiries}
-            inquiriesLabel="Aanvragen"
-            inquiriesEmptyText="Geen aanvragen van dit bedrijf."
-          />
 
           {/* Contactpersonen */}
           <SectionCard
