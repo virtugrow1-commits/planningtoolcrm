@@ -22,6 +22,8 @@ import TeamMemberSelect from '@/components/TeamMemberSelect';
 import TeamMemberMultiSelect from '@/components/TeamMemberMultiSelect';
 import CrmCombobox from '@/components/CrmCombobox';
 import { ArrowLeft, ChevronRight, Pencil, Check, X, CalendarIcon, User, Building2, FileText, Bookmark, CheckCircle2, Plus, Trash2, Phone } from 'lucide-react';
+import Breadcrumbs from '@/components/Breadcrumbs';
+
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
 import { nl } from 'date-fns/locale';
@@ -182,11 +184,38 @@ export default function TaskDetailPage() {
   return (
     <div className="p-6 lg:p-8 space-y-6 animate-fade-in">
       {/* Breadcrumb */}
-      <div className="flex items-center gap-2 text-sm text-muted-foreground">
-        <button onClick={() => navigate(-1)} className="hover:text-foreground transition-colors">Taken</button>
-        <ChevronRight size={14} />
-        <span className="text-foreground font-medium truncate">{task.title}</span>
-      </div>
+      <Breadcrumbs
+        items={[
+          ...(company
+            ? [
+                { label: 'Bedrijven', to: '/companies' },
+                { label: company.name, to: `/companies/${company.id}` },
+              ]
+            : [{ label: 'Taken', to: '/tasks' }]),
+          ...(contact
+            ? [{ label: `${contact.firstName} ${contact.lastName}`.trim(), to: `/crm/${contact.id}` }]
+            : []),
+          ...(inquiry
+            ? [{
+                label: inquiry.displayNumber ? `${inquiry.displayNumber} · ${inquiry.eventType}` : inquiry.eventType,
+                to: `/inquiries/${inquiry.id}`,
+              }]
+            : []),
+          ...(booking
+            ? [{
+                label: `${booking.status === 'option' ? 'Optie' : 'Reservering'}${booking.reservationNumber ? ` ${booking.reservationNumber}` : ''}`,
+                to: `/reserveringen/${booking.id}`,
+              }]
+            : []),
+          { label: task.title },
+        ]}
+        missing={
+          !contact && !inquiry && !company
+            ? 'Deze taak is nog niet aan een bedrijf, contactpersoon of aanvraag gekoppeld.'
+            : null
+        }
+      />
+
 
       {/* Header */}
       <div className="flex items-center gap-3 flex-wrap">

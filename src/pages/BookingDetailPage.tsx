@@ -136,14 +136,34 @@ export default function BookingDetailPage() {
   return (
     <div className="p-6 lg:p-8 space-y-6 animate-fade-in">
       {/* Breadcrumb */}
-      <div className="flex items-center gap-2 text-sm text-muted-foreground">
-        <button onClick={() => navigate('/reserveringen')} className="hover:text-foreground transition-colors">Reserveringen</button>
-        <ChevronRight size={14} />
-        <span className="text-foreground font-medium">
-          {booking.reservationNumber && <span className="font-mono text-xs text-muted-foreground mr-2">{booking.reservationNumber}</span>}
-          {booking.contactName}
-        </span>
-      </div>
+      <Breadcrumbs
+        items={[
+          ...(company
+            ? [
+                { label: 'Bedrijven', to: '/companies' },
+                { label: company.name, to: `/companies/${company.id}` },
+              ]
+            : [{ label: 'Reserveringen', to: '/reserveringen' }]),
+          ...(contact
+            ? [{ label: `${contact.firstName} ${contact.lastName}`.trim(), to: `/crm/${contact.id}` }]
+            : []),
+          ...(linkedInquiry
+            ? [{
+                label: linkedInquiry.displayNumber ? `${linkedInquiry.displayNumber} · ${linkedInquiry.eventType}` : linkedInquiry.eventType,
+                to: `/inquiries/${linkedInquiry.id}`,
+              }]
+            : []),
+          {
+            label: `${booking.status === 'option' ? 'Optie' : 'Reservering'}${booking.reservationNumber ? ` ${booking.reservationNumber}` : ''}`,
+          },
+        ]}
+        missing={
+          !linkedInquiry && booking.status !== 'option'
+            ? 'Deze reservering is nog niet aan een aanvraag gekoppeld.'
+            : null
+        }
+      />
+
 
       {/* Header - like InquiryDetailPage */}
       <div className="flex items-center gap-3 flex-wrap">
