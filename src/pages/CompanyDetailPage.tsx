@@ -21,7 +21,7 @@ import { useToast } from '@/hooks/use-toast';
 import { InfoField, SectionCard } from '@/components/detail/DetailPageComponents';
 import CallLogPanel from '@/components/contact/CallLogPanel';
 import TasksSection from '@/components/detail/TasksSection';
-import HistorySection from '@/components/detail/HistorySection';
+import { Checkbox } from '@/components/ui/checkbox';
 
 const BOOKING_STATUS: Record<string, string> = {
   confirmed: 'Bevestigd',
@@ -66,6 +66,7 @@ export default function CompanyDetailPage() {
   const [editing, setEditing] = useState(false);
   const [form, setForm] = useState<Company | null>(null);
   const [showAllContacts, setShowAllContacts] = useState(false);
+  const [showAllPastInquiries, setShowAllPastInquiries] = useState(false);
   const [addContactOpen, setAddContactOpen] = useState(false);
   const [addContactTab, setAddContactTab] = useState<string>('link');
   const [linkSearch, setLinkSearch] = useState('');
@@ -100,12 +101,68 @@ export default function CompanyDetailPage() {
       return false;
     });
   }, [bookings, contactIds, company, companyContacts]);
-  const confirmedBookings = useMemo(() => relatedBookings.filter((b) => b.status !== 'option' && b.date >= todayStr).sort((a, b) => a.date.localeCompare(b.date)), [relatedBookings, todayStr]);
   const optionBookings = useMemo(() => relatedBookings.filter((b) => b.status === 'option' && b.date >= todayStr).sort((a, b) => a.date.localeCompare(b.date)), [relatedBookings, todayStr]);
-  const companyInquiries = useMemo(() => inquiries.filter((i) => i.companyId === company?.id || (i.contactId && contactIds.has(i.contactId))), [inquiries, contactIds, company]);
-  const companyTasks = useMemo(() => tasks.filter((t) => (t.contactId && contactIds.has(t.contactId)) || (t.companyId === company?.id)), [tasks, contactIds, company]);
 
-  const visibleContacts = showAllContacts ? companyContacts : companyContacts.slice(0, 4);
+  const companyInquiries = useMemo(
+    () => inquiries.filter((i) =>
+      i.companyId === company?.id || (!i.companyId && i.contactId && contactIds.has(i.contactId))
+    ),
+    [inquiries, contactIds, company]
+  );
+  /** Aanvragen die nog lopen versus afgeronde/verloren aanvragen. */
+  const CLOSED_INQUIRY_STATUSES = ['lost', 'converted', 'invoiced', 'after_sales'];
+  const activeInquiries = useMemo(
+    () => companyInquiries.filter((i) => !CLOSED_INQUIRY_STATUSES.includes(i.status)).sort((a, b) => b.createdAt.localeCompare(a.createdAt)),
+    [companyInquiries]
+  );
+  const pastInquiries = useMemo(
+    () => companyInquiries.filter((i) => CLOSED_INQUIRY_STATUSES.includes(i.status)).sort((a, b) => b.createdAt.localeCompare(a.createdAt)),
+    [companyInquiries]
+  );
+  /** Aanvragen die alleen via de contactpersoon te vinden zijn — koppeling ontbreekt. */
+  const unlinkedInquiryCount = useMemo(() => companyInquiries.filter((i) => !i.companyId).length, [companyInquiries]);
+
+  const inquiryIds = useMemo(() => new Set(companyInquiries.map((i) => i.id)), [companyInquiries]);
+  const inquiryLabels = useMemo(
+    () => Object.fromEntries(companyInquiries.map((i) => [i.id, `${i.eventType}${i.preferredDate ? ` · ${formatDate(i.preferredDate)}` : ''}`])),
+    [companyInquiries]
+  );
+  const companyTasks = useMemo(
+    () => tasks.filter((t) =>
+      (t.inquiryId && inquiryIds.has(t.inquiryId)) ||
+      (t.contactId && contactIds.has(t.contactId)) ||
+      t.companyId === company?.id
+    ),
+    [tasks, contactIds, inquiryIds, company]
+  );
+  const openTaskCount = useMemo(() => companyTasks.filter((t) => t.status !== 'completed').length, [companyTasks]);
+
+  /** Verjaardagen binnen 14 dagen worden gemarkeerd. */
+  const upcomingBirthdays = useMemo(() => {
+    const now = new Date();
+    return companyContacts
+      .filter((c) => c.birthDate && !c.departed)
+      .map((c) => {
+        const bd = new Date(c.birthDate!);
+        const next = new Date(now.getFullYear(), bd.getMonth(), bd.getDate());
+        if (next < new Date(now.getFullYear(), now.getMonth(), now.getDate())) next.setFullYear(now.getFullYear() + 1);
+        const days = Math.round((next.getTime() - new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime()) / 86400000);
+        return { contact: c, next, days };
+      })
+      .filter((b) => b.days <= 14)
+      .sort((a, b) => a.days - b.days);
+  }, [companyContacts]);
+
+  /** Actieve contactpersonen eerst, mensen uit dienst onderaan. */
+  const sortedContacts = useMemo(
+    () => [...companyContacts].sort((a, b) =>
+      Number(!!a.departed) - Number(!!b.departed) || `${a.firstName} ${a.lastName}`.localeCompare(`${b.firstName} ${b.lastName}`)
+    ),
+    [companyContacts]
+  );
+  const activeContacts = useMemo(() => sortedContacts.filter((c) => !c.departed), [sortedContacts]);
+
+  const visibleContacts = showAllContacts ? sortedContacts : sortedContacts.slice(0, 4);
 
   const linkableContacts = useMemo(() => {
     const idSet = new Set(companyContacts.map((c) => c.id));
@@ -278,6 +335,28 @@ export default function CompanyDetailPage() {
 
             {/* Fields */}
             <div className="space-y-3">
+              {editing ? (
+                <div className="flex items-center gap-2">
+                  <Checkbox
+                    id="is-private"
+                    checked={form?.isPrivate === true}
+                    onCheckedChange={(checked) => setForm({ ...form!, isPrivate: checked === true })}
+                  />
+                  <label htmlFor="is-private" className="text-sm text-foreground cursor-pointer">Particulier</label>
+                </div>
+              ) : current.isPrivate ? (
+                <Badge variant="secondary" className="text-[10px]">Particulier</Badge>
+              ) : null}
+              {current.isPrivate && companyContacts.some((c) => c.birthDate) && (
+                <div>
+                  <p className="text-xs font-semibold text-muted-foreground mb-0.5">Verjaardag</p>
+                  {companyContacts.filter((c) => c.birthDate).map((c) => (
+                    <p key={c.id} className="text-sm text-foreground">
+                      {c.firstName} {c.lastName} — {formatDate(c.birthDate!)}
+                    </p>
+                  ))}
+                </div>
+              )}
               <InfoField label="KVK" value={current.kvk} editing={editing} onChange={(v) => setForm({ ...form!, kvk: v })} />
               <InfoField label="BTW nummer" value={current.btwNumber} editing={editing} onChange={(v) => setForm({ ...form!, btwNumber: v })} />
               <InfoField label="Klantnummer" value={current.customerNumber} editing={editing} onChange={(v) => setForm({ ...form!, customerNumber: v })} />
@@ -302,109 +381,71 @@ export default function CompanyDetailPage() {
           </div>
         </div>
 
-        {/* RIGHT CONTENT */}
+        {/* RIGHT CONTENT — klantenkaart */}
         <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-4">
-          {/* Aanvragen */}
-          <SectionCard title="Aanvragen" count={companyInquiries.length} linkLabel="Bekijk alle aanvragen" onLink={() => navigate('/inquiries')} onAdd={() => navigate('/inquiries?new=true')}>
-            {companyInquiries.length === 0 ? (
-              <p className="text-xs text-muted-foreground">Geen aanvragen</p>
-            ) : (
-              <div className="space-y-3">
-                {companyInquiries.slice(0, 8).map((inq) => (
+          {/* Kerncijfers + directe acties */}
+          <div className="md:col-span-2 rounded-xl bg-card p-5 card-shadow space-y-4">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              {[
+                { label: 'Contactpersonen', value: activeContacts.length, onClick: undefined },
+                { label: 'Lopende aanvragen', value: activeInquiries.length, onClick: () => navigate('/inquiries') },
+                { label: 'Opties', value: optionBookings.length, onClick: () => navigate('/calendar') },
+                { label: 'Open taken', value: openTaskCount, onClick: () => navigate('/tasks') },
+              ].map((kpi) => (
+                <button
+                  key={kpi.label}
+                  onClick={kpi.onClick}
+                  disabled={!kpi.onClick}
+                  className="rounded-lg border border-border/50 p-3 text-left hover:bg-muted/30 transition-colors disabled:hover:bg-transparent"
+                >
+                  <p className="text-xl font-bold text-foreground leading-none">{kpi.value}</p>
+                  <p className="text-[11px] text-muted-foreground mt-1">{kpi.label}</p>
+                </button>
+              ))}
+            </div>
+
+            <div className="flex flex-wrap gap-2">
+              <Button size="sm" variant="outline" className="h-8 text-xs" onClick={() => navigate('/inquiries?new=true')}>
+                <Plus size={12} className="mr-1" /> Nieuwe aanvraag
+              </Button>
+              <Button size="sm" variant="outline" className="h-8 text-xs" onClick={() => navigate('/calendar?new=true')}>
+                <Plus size={12} className="mr-1" /> Nieuwe optie
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-8 text-xs"
+                onClick={() => { setAddContactOpen(true); setAddContactTab('new'); }}
+              >
+                <UserPlus size={12} className="mr-1" /> Contactpersoon
+              </Button>
+            </div>
+
+            {(unlinkedInquiryCount > 0 || companyContacts.length === 0 || upcomingBirthdays.length > 0) && (
+              <div className="space-y-1.5">
+                {companyContacts.length === 0 && (
+                  <p className="text-xs text-warning">Er is nog geen contactpersoon gekoppeld aan dit bedrijf.</p>
+                )}
+                {unlinkedInquiryCount > 0 && (
+                  <p className="text-xs text-warning">
+                    {unlinkedInquiryCount} {unlinkedInquiryCount === 1 ? 'aanvraag hangt' : 'aanvragen hangen'} alleen aan de contactpersoon en nog niet aan dit bedrijf.
+                  </p>
+                )}
+                {upcomingBirthdays.map((b) => (
                   <button
-                    key={inq.id}
-                    onClick={() => navigate(`/inquiries/${inq.id}`)}
-                    className="w-full text-left rounded-lg border border-border/50 p-3 hover:bg-muted/30 transition-colors space-y-1.5"
+                    key={b.contact.id}
+                    onClick={() => navigate(`/crm/${b.contact.id}`)}
+                    className="block text-xs text-primary hover:underline"
                   >
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="text-xs font-medium text-foreground">{inq.eventType}</span>
-                      <div className="flex items-center gap-2">
-                        {!inq.isRead && <span className="inline-flex rounded-md px-1.5 py-0.5 text-[10px] font-bold bg-destructive text-destructive-foreground">New</span>}
-                        <Badge variant="outline" className="text-[10px]">{INQUIRY_STATUS[inq.status] || inq.status}</Badge>
-                      </div>
-                    </div>
-                    <div className="flex flex-wrap gap-x-4 gap-y-0.5 text-[11px] text-muted-foreground">
-                      <span>{formatDate(inq.createdAt)}</span>
-                      <span>{inq.contactName}</span>
-                      {inq.guestCount > 0 && <span>{inq.guestCount} gasten</span>}
-                      {inq.roomPreference && <span>{inq.roomPreference}</span>}
-                    </div>
-                    {inq.message && (
-                      <p className="text-[11px] text-muted-foreground line-clamp-2 whitespace-pre-wrap">{inq.message}</p>
-                    )}
+                    Verjaardag {b.contact.firstName} {b.contact.lastName}: {formatDate(b.next.toISOString().split('T')[0])}
+                    {b.days === 0 ? ' (vandaag)' : ` (over ${b.days} ${b.days === 1 ? 'dag' : 'dagen'})`}
                   </button>
                 ))}
               </div>
             )}
-          </SectionCard>
+          </div>
 
-          {/* Reserveringen */}
-          <SectionCard title="Reserveringen" count={confirmedBookings.length} linkLabel="Bekijk agenda" onLink={() => navigate('/calendar')} onAdd={() => navigate('/calendar?new=true')}>
-            {confirmedBookings.length === 0 ? (
-              <p className="text-xs text-muted-foreground">Geen reserveringen</p>
-            ) : (
-              <div className="space-y-1">
-                {confirmedBookings
-                  .sort((a, b) => b.date.localeCompare(a.date))
-                  .slice(0, 8)
-                  .map((b) => (
-                    <button
-                      key={b.id}
-                      onClick={() => navigate(`/reserveringen/${b.id}`)}
-                      className="w-full flex items-center justify-between py-1.5 px-2 rounded-md hover:bg-muted/50 transition-colors text-left text-xs"
-                    >
-                      <div className="flex-1 min-w-0">
-                        <span className="font-medium text-foreground">{b.title}</span>
-                        <span className="text-muted-foreground ml-2">{b.roomName}</span>
-                      </div>
-                      <div className="flex items-center gap-2 shrink-0">
-                        <span className="text-muted-foreground">{b.date} · {String(b.startHour).padStart(2, '0')}:{String(b.startMinute).padStart(2, '0')}–{String(b.endHour).padStart(2, '0')}:{String(b.endMinute).padStart(2, '0')}</span>
-                        <Badge variant={b.date < new Date().toISOString().split('T')[0] ? 'secondary' : b.status === 'confirmed' ? 'default' : 'outline'} className="text-[10px]">
-                          {b.date < new Date().toISOString().split('T')[0] ? 'Afgelopen' : BOOKING_STATUS[b.status] || b.status}
-                        </Badge>
-                      </div>
-                    </button>
-                  ))}
-              </div>
-            )}
-          </SectionCard>
 
-          {/* Opties */}
-          <SectionCard title="Opties" count={optionBookings.length} linkLabel="Bekijk agenda" onLink={() => navigate('/calendar')} onAdd={() => navigate('/calendar?new=true')}>
-            {optionBookings.length === 0 ? (
-              <p className="text-xs text-muted-foreground">Geen opties</p>
-            ) : (
-              <div className="space-y-1">
-                {optionBookings
-                  .sort((a, b) => b.date.localeCompare(a.date))
-                  .slice(0, 8)
-                  .map((b) => (
-                    <button
-                      key={b.id}
-                      onClick={() => navigate(`/reserveringen/${b.id}`)}
-                      className="w-full flex items-center justify-between py-1.5 px-2 rounded-md hover:bg-muted/50 transition-colors text-left text-xs"
-                    >
-                      <div className="flex-1 min-w-0">
-                        <span className="font-medium text-foreground">{b.title}</span>
-                        <span className="text-muted-foreground ml-2">{b.roomName}</span>
-                      </div>
-                      <span className="text-muted-foreground shrink-0">{b.date} · {String(b.startHour).padStart(2, '0')}:{String(b.startMinute).padStart(2, '0')} – {String(b.endHour).padStart(2, '0')}:{String(b.endMinute).padStart(2, '0')}</span>
-                    </button>
-                  ))}
-              </div>
-            )}
-          </SectionCard>
-
-          {/* Taken */}
-          <TasksSection tasks={companyTasks} defaults={{ companyId: company.id }} />
-
-          {/* Historie */}
-          <HistorySection
-            bookings={relatedBookings}
-            inquiries={companyInquiries}
-            inquiriesLabel="Aanvragen"
-            inquiriesEmptyText="Geen aanvragen van dit bedrijf."
-          />
 
           {/* Contactpersonen */}
           <SectionCard
@@ -473,8 +514,112 @@ export default function CompanyDetailPage() {
                   : 'Nog geen gespreksverslagen — leg het eerste gesprek vast.'
               }
               readOnly={companyContacts.length === 0}
+              companyId={company.id}
             />
           </div>
+
+          {/* Taken — met de aanvraag als ondertitel wanneer die er is */}
+          <TasksSection
+            tasks={companyTasks}
+            defaults={{ companyId: company.id }}
+            inquiryLabels={inquiryLabels}
+          />
+
+          {/* Aanvragen */}
+          <SectionCard title="Aanvragen" count={activeInquiries.length} linkLabel="Bekijk alle aanvragen" onLink={() => navigate('/inquiries')} onAdd={() => navigate('/inquiries?new=true')}>
+            {activeInquiries.length === 0 ? (
+              <p className="text-xs text-muted-foreground">Geen lopende aanvragen</p>
+            ) : (
+              <div className="space-y-3">
+                {activeInquiries.slice(0, 8).map((inq) => (
+                  <button
+                    key={inq.id}
+                    onClick={() => navigate(`/inquiries/${inq.id}`)}
+                    className="w-full text-left rounded-lg border border-border/50 p-3 hover:bg-muted/30 transition-colors space-y-1.5"
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-xs font-medium text-foreground">{inq.eventType}</span>
+                      <div className="flex items-center gap-2">
+                        {!inq.isRead && <span className="inline-flex rounded-md px-1.5 py-0.5 text-[10px] font-bold bg-destructive text-destructive-foreground">New</span>}
+                        <Badge variant="outline" className="text-[10px]">{INQUIRY_STATUS[inq.status] || inq.status}</Badge>
+                      </div>
+                    </div>
+                    <div className="flex flex-wrap gap-x-4 gap-y-0.5 text-[11px] text-muted-foreground">
+                      <span>{formatDate(inq.createdAt)}</span>
+                      <span>{inq.contactName}</span>
+                      {inq.guestCount > 0 && <span>{inq.guestCount} gasten</span>}
+                      {inq.roomPreference && <span>{inq.roomPreference}</span>}
+                    </div>
+                    {!inq.companyId && (
+                      <p className="text-[11px] text-warning">Nog niet aan dit bedrijf gekoppeld</p>
+                    )}
+                  </button>
+                ))}
+              </div>
+            )}
+          </SectionCard>
+
+          {/* Opties */}
+          <SectionCard title="Opties" count={optionBookings.length} linkLabel="Bekijk agenda" onLink={() => navigate('/calendar')} onAdd={() => navigate('/calendar?new=true')}>
+            {optionBookings.length === 0 ? (
+              <p className="text-xs text-muted-foreground">Geen opties</p>
+            ) : (
+              <div className="space-y-1">
+                {optionBookings.slice(0, 10).map((b) => (
+                  <div key={b.id} className="rounded-md px-2 py-1.5 hover:bg-muted/50 transition-colors text-xs">
+                    <button onClick={() => navigate(`/reserveringen/${b.id}`)} className="w-full flex items-center justify-between text-left gap-2">
+                      <div className="flex-1 min-w-0">
+                        <span className="font-medium text-foreground">{b.title}</span>
+                        <span className="text-muted-foreground ml-2">{b.roomName}</span>
+                      </div>
+                      <span className="text-muted-foreground shrink-0">
+                        {formatDate(b.date)} · {String(b.startHour).padStart(2, '0')}:{String(b.startMinute).padStart(2, '0')} – {String(b.endHour).padStart(2, '0')}:{String(b.endMinute).padStart(2, '0')}
+                      </span>
+                    </button>
+                    {b.inquiryId && inquiryLabels[b.inquiryId] ? (
+                      <button
+                        onClick={() => navigate(`/inquiries/${b.inquiryId}`)}
+                        className="text-[11px] text-primary hover:underline"
+                      >
+                        {inquiryLabels[b.inquiryId]}
+                      </button>
+                    ) : (
+                      <p className="text-[11px] text-warning">Nog niet aan een aanvraag gekoppeld</p>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </SectionCard>
+
+          {/* Eerdere aanvragen */}
+          <SectionCard title="Eerdere aanvragen" count={pastInquiries.length}>
+            {pastInquiries.length === 0 ? (
+              <p className="text-xs text-muted-foreground">Geen eerdere aanvragen</p>
+            ) : (
+              <div className="space-y-1">
+                {(showAllPastInquiries ? pastInquiries : pastInquiries.slice(0, 5)).map((inq) => (
+                  <button
+                    key={inq.id}
+                    onClick={() => navigate(`/inquiries/${inq.id}`)}
+                    className="w-full flex items-center justify-between gap-2 py-1.5 px-2 rounded-md hover:bg-muted/50 transition-colors text-left text-xs"
+                  >
+                    <span className="flex-1 min-w-0 truncate text-foreground">{inq.eventType}</span>
+                    <span className="text-muted-foreground shrink-0">{formatDate(inq.createdAt)}</span>
+                    <Badge variant="secondary" className="text-[10px] shrink-0">{INQUIRY_STATUS[inq.status] || inq.status}</Badge>
+                  </button>
+                ))}
+                {pastInquiries.length > 5 && (
+                  <button
+                    onClick={() => setShowAllPastInquiries(!showAllPastInquiries)}
+                    className="w-full text-center py-2 text-xs text-primary hover:text-primary/80 font-medium transition-colors"
+                  >
+                    {showAllPastInquiries ? 'Minder tonen' : `${pastInquiries.length} eerdere aanvragen — meer tonen`}
+                  </button>
+                )}
+              </div>
+            )}
+          </SectionCard>
         </div>
       </div>
 

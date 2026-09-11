@@ -25,6 +25,8 @@ export interface Company {
   customerNumber?: string;
   crmGroup?: string;
   btwNumber?: string;
+  /** Particulier: dit "bedrijf" is een privépersoon. */
+  isPrivate?: boolean;
   createdAt: string;
 }
 
@@ -56,7 +58,7 @@ export function CompaniesProvider({ children }: { children: ReactNode }) {
     if (!user) return;
     const { rows: allRows, error } = await fetchAllRows({
       table: 'companies',
-      columns: 'id, display_number, name, email, phone, website, address, notes, ghl_company_id, kvk, city, postcode, country, customer_number, crm_group, btw_number, created_at',
+      columns: 'id, display_number, name, email, phone, website, address, notes, ghl_company_id, kvk, city, postcode, country, customer_number, crm_group, btw_number, is_private, created_at',
       orderBy: 'name',
     });
     if (error) {
@@ -83,6 +85,7 @@ export function CompaniesProvider({ children }: { children: ReactNode }) {
         customerNumber: c.customer_number || undefined,
         crmGroup: parseCrmGroup(c.crm_group) || undefined,
         btwNumber: c.btw_number || undefined,
+        isPrivate: c.is_private === true,
         createdAt: c.created_at?.split('T')[0] || '',
       })));
     setLoading(false);
@@ -121,6 +124,7 @@ export function CompaniesProvider({ children }: { children: ReactNode }) {
       customer_number: company.customerNumber || null,
       crm_group: company.crmGroup || null,
       btw_number: company.btwNumber || null,
+      is_private: company.isPrivate === true,
       pending_outbound_sync: true,
       last_local_edit_at: new Date().toISOString(),
     }).select().single();
@@ -162,6 +166,7 @@ export function CompaniesProvider({ children }: { children: ReactNode }) {
       customer_number: company.customerNumber || null,
       crm_group: company.crmGroup || null,
       btw_number: company.btwNumber || null,
+      is_private: company.isPrivate === true,
       pending_outbound_sync: true,
       last_local_edit_at: nowIso,
       last_sync_error: null,

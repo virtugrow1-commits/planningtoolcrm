@@ -43,7 +43,7 @@ export default function ContactDetailPage() {
   const { companies } = useCompaniesContext();
   const { bookings } = useBookings();
   const { tasks } = useTasksContext();
-  const { getContactCompanies, linkContact, unlinkContact } = useContactCompanies();
+  const { getContactCompanies, linkContact, unlinkContact, markDeparted } = useContactCompanies();
   const { documents } = useDocuments();
   const { toast } = useToast();
 
@@ -178,7 +178,12 @@ export default function ContactDetailPage() {
     } else {
       companyId = undefined;
     }
+    const justDeparted = form.departed === true && contact?.departed !== true;
     const outcome = await updateContact({ ...form, companyId });
+    if (justDeparted) {
+      // Keep the history with the old employer, so a new employer starts clean
+      await markDeparted(form.id);
+    }
     setEditing(false);
     setForm(null);
     if (outcome === 'success' || outcome === 'inactive') {

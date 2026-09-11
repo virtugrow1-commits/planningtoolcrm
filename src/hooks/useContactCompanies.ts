@@ -7,6 +7,8 @@ export interface ContactCompanyLink {
   contactId: string;
   companyId: string;
   isPrimary: boolean;
+  /** Set when the contact left this employer; history stays with this company. */
+  departedAt?: string | null;
 }
 
 export function useContactCompanies() {
@@ -22,7 +24,7 @@ export function useContactCompanies() {
     for (let from = 0; ; from += PAGE_SIZE) {
       const { data, error } = await supabase
         .from('contact_companies' as any)
-        .select('id, contact_id, company_id, is_primary')
+        .select('id, contact_id, company_id, is_primary, departed_at')
         .order('is_primary', { ascending: false })
         .range(from, from + PAGE_SIZE - 1);
       if (error || !data) break;
@@ -35,6 +37,7 @@ export function useContactCompanies() {
       contactId: r.contact_id,
       companyId: r.company_id,
       isPrimary: r.is_primary,
+      departedAt: r.departed_at ?? null,
     })));
     setLoading(false);
   }, [user]);
@@ -70,6 +73,19 @@ export function useContactCompanies() {
     await fetchLinks();
   }, [fetchLinks]);
 
+  /**
+   * Mark every current employer link of a contact as departed. The history
+   * (gespreksverslagen, aanvragen, reserveringen) stays with the old employer.
+   */
+  const markDeparted = useCallback(async (contactId: string) => {
+    await (supabase as any)
+      .from('contact_companies')
+      .update({ departed_at: new Date().toISOString() })
+      .eq('contact_id', contactId)
+      .is('departed_at', null);
+    await fetchLinks();
+  }, [fetchLinks]);
+
   const getCompanyContacts = useCallback((companyId: string) => {
     return links.filter((l) => l.companyId === companyId);
   }, [links]);
@@ -78,5 +94,5 @@ export function useContactCompanies() {
     return links.filter((l) => l.contactId === contactId);
   }, [links]);
 
-  return { links, loading, linkContact, unlinkContact, getCompanyContacts, getContactCompanies, refetch: fetchLinks };
+  return { links, loading, linkContact, unlinkContact, markDeparted, getCompanyContacts, getContactCompanies, refetch: fetchLinks };
 }

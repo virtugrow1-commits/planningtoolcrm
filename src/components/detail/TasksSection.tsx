@@ -24,6 +24,8 @@ import { useToast } from '@/hooks/use-toast';
 interface TasksSectionProps {
   tasks: Task[];
   showOrigin?: boolean;
+  /** Map inquiry id → inquiry label, shown as clickable subtitle under the task. */
+  inquiryLabels?: Record<string, string>;
   defaults: {
     contactId?: string;
     companyId?: string;
@@ -32,7 +34,7 @@ interface TasksSectionProps {
   };
 }
 
-export default function TasksSection({ tasks, defaults, showOrigin }: TasksSectionProps) {
+export default function TasksSection({ tasks, defaults, showOrigin, inquiryLabels }: TasksSectionProps) {
   const { addTask, updateTask } = useTasksContext();
   const { contacts } = useContactsContext();
   const { companies } = useCompaniesContext();
@@ -215,7 +217,17 @@ export default function TasksSection({ tasks, defaults, showOrigin }: TasksSecti
                   onClick={(e) => toggleComplete(t, e as any)}
                   className="shrink-0"
                 />
-                <span className="flex-1 text-sm text-foreground min-w-0 truncate">{t.title}</span>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm text-foreground truncate">{t.title}</p>
+                  {t.inquiryId && inquiryLabels?.[t.inquiryId] && (
+                    <button
+                      onClick={(e) => { e.stopPropagation(); navigate(`/inquiries/${t.inquiryId}`); }}
+                      className="text-[11px] text-primary hover:underline truncate max-w-full block text-left"
+                    >
+                      {inquiryLabels[t.inquiryId]}
+                    </button>
+                  )}
+                </div>
                 {originLabel(t) && (
                   <Badge variant="outline" className="text-[10px] shrink-0 text-muted-foreground">({originLabel(t)})</Badge>
                 )}
