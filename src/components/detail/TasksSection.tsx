@@ -24,6 +24,8 @@ import { useToast } from '@/hooks/use-toast';
 interface TasksSectionProps {
   tasks: Task[];
   showOrigin?: boolean;
+  /** Map inquiry id → inquiry label, shown as clickable subtitle under the task. */
+  inquiryLabels?: Record<string, string>;
   defaults: {
     contactId?: string;
     companyId?: string;
