@@ -34,7 +34,7 @@ interface TasksSectionProps {
   };
 }
 
-export default function TasksSection({ tasks, defaults, showOrigin }: TasksSectionProps) {
+export default function TasksSection({ tasks, defaults, showOrigin, inquiryLabels }: TasksSectionProps) {
   const { addTask, updateTask } = useTasksContext();
   const { contacts } = useContactsContext();
   const { companies } = useCompaniesContext();
