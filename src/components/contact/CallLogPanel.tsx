@@ -164,6 +164,13 @@ export default function CallLogPanel({
     };
     if (relatedTaskId) payload.related_task_id = relatedTaskId;
     if (date) payload.created_at = date.toISOString();
+    // Snapshot the employer so the report stays with this company later on
+    if (companyId) {
+      payload.company_id = companyId;
+    } else {
+      const { data: c } = await supabase.from('contacts').select('company_id').eq('id', contactId).single();
+      if (c?.company_id) payload.company_id = c.company_id;
+    }
 
     const { data: inserted, error } = await supabase
       .from('contact_activities')
