@@ -554,7 +554,7 @@ export default function ContactDetailPage() {
 
 
           {/* Documenten */}
-          <SectionCard title="Documenten" linkLabel="Alle documenten" onLink={() => navigate('/documents')}>
+          <SectionCard title="Documenten">
             {contactDocuments.length === 0 ? (
               <p className="text-xs text-muted-foreground">Geen documenten</p>
             ) : (
