@@ -344,13 +344,14 @@ export default function ReserveringenPage() {
 
   return (
     <div className="p-6 lg:p-8 space-y-6 animate-fade-in">
-      <div className="flex flex-wrap items-center justify-between gap-4">
+      <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-foreground">Reserveringen</h1>
-          <p className="text-sm text-muted-foreground">
+          <h1 className="text-2xl font-bold tracking-tight text-foreground">Reserveringen</h1>
+          <p className="mt-1 text-sm text-muted-foreground">
             {confirmedCount} reserveringen · {optionCount} opties · {past.length} afgelopen
           </p>
         </div>
+
         <div className="flex items-center gap-2">
           <span className="text-xs text-muted-foreground">Per pagina:</span>
           <div className="flex rounded-lg border border-border overflow-hidden">
@@ -408,7 +409,7 @@ export default function ReserveringenPage() {
         </Button>
       </BulkActionBar>
 
-      <div className="flex flex-wrap items-center gap-3">
+      <div className="page-toolbar flex flex-wrap items-center gap-3">
         <Tabs value={tab} onValueChange={(v) => setTab(v as any)} className="flex-1">
           <TabsList className="bg-muted/50">
             <TabsTrigger value="all">Alles <Badge variant="secondary" className="ml-1.5 text-[10px]">{upcoming.length + past.length}</Badge></TabsTrigger>
