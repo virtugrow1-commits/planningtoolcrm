@@ -26,7 +26,7 @@ export default function CompaniesPage() {
   const [search, setSearch] = useState('');
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<Company | null>(null);
-  const [form, setForm] = useState({ name: '', email: '', phone: '', website: '', address: '', notes: '' });
+  const [form, setForm] = useState({ name: '', email: '', phone: '', website: '', address: '', notes: '', isPrivate: false });
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState<number>(20);
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -67,13 +67,13 @@ export default function CompaniesPage() {
 
   const openNew = () => {
     setEditing(null);
-    setForm({ name: '', email: '', phone: '', website: '', address: '', notes: '' });
+    setForm({ name: '', email: '', phone: '', website: '', address: '', notes: '', isPrivate: false });
     setDialogOpen(true);
   };
 
   const openEdit = (c: Company) => {
     setEditing(c);
-    setForm({ name: c.name, email: c.email || '', phone: c.phone || '', website: c.website || '', address: c.address || '', notes: c.notes || '' });
+    setForm({ name: c.name, email: c.email || '', phone: c.phone || '', website: c.website || '', address: c.address || '', notes: c.notes || '', isPrivate: c.isPrivate === true });
     setDialogOpen(true);
   };
 
@@ -209,6 +209,10 @@ export default function CompaniesPage() {
             <div className="grid gap-1.5"><Label>Website</Label><Input value={form.website} onChange={(e) => setForm({ ...form, website: e.target.value })} /></div>
             <div className="grid gap-1.5"><Label>Adres</Label><Input value={form.address} onChange={(e) => setForm({ ...form, address: e.target.value })} /></div>
             <div className="grid gap-1.5"><Label>Notities</Label><Textarea value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} rows={3} /></div>
+            <div className="flex items-center gap-2">
+              <Checkbox id="new-is-private" checked={form.isPrivate} onCheckedChange={(checked) => setForm({ ...form, isPrivate: checked === true })} />
+              <Label htmlFor="new-is-private" className="cursor-pointer font-normal">Particulier (klantenkaart op persoonsnaam)</Label>
+            </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setDialogOpen(false)}>Annuleren</Button>
