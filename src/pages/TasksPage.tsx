@@ -565,12 +565,22 @@ export default function TasksPage() {
 
       {/* List */}
       <div className="rounded-xl bg-card card-shadow overflow-hidden animate-fade-in-up">
-        {filteredTasks.length === 0 ? (
+        {loading ? (
+          <ListSkeleton rows={9} />
+        ) : filteredTasks.length === 0 ? (
           <div className="p-10 text-center">
-            <Check size={32} className="mx-auto text-success mb-2" />
-            <p className="text-sm text-muted-foreground">
-              {tasks.length === 0 ? t('dashboard.noTasksYet') : t('common.noResults')}
-            </p>
+            {archiveLoading ? (
+              <p className="text-sm text-muted-foreground">
+                {language === 'en' ? 'Loading archive…' : 'Archief laden…'}
+              </p>
+            ) : (
+              <>
+                <Check size={32} className="mx-auto text-success mb-2" />
+                <p className="text-sm text-muted-foreground">
+                  {tasks.length === 0 ? t('dashboard.noTasksYet') : t('common.noResults')}
+                </p>
+              </>
+            )}
           </div>
         ) : (
           <div className="divide-y">
@@ -582,9 +592,13 @@ export default function TasksPage() {
               <span className="text-xs text-muted-foreground">
                 {language === 'en' ? 'Select all' : 'Alles selecteren'}
               </span>
+              <span className="ml-auto text-xs text-muted-foreground">
+                {visibleTasks.length} / {filteredTasks.length}
+                {archiveLoading && ` · ${language === 'en' ? 'loading archive…' : 'archief laden…'}`}
+              </span>
             </div>
 
-            {filteredTasks.map(task => {
+            {visibleTasks.map(task => {
               const statusInfo = TASK_STATUSES.find(s => s.value === task.status);
               const contact = task.contactId ? contactMap.get(task.contactId) : null;
               const effectiveCompanyId = task.companyId || (task.contactId ? contactCompanyMap.get(task.contactId) : undefined);
@@ -593,7 +607,12 @@ export default function TasksPage() {
               const overdue = task.status === 'open' && task.dueDate && task.dueDate < today;
 
               return (
-                <div key={task.id} className="flex items-center gap-3 px-5 py-3 hover:bg-muted/20 transition-colors group">
+                <div
+                  key={task.id}
+                  className="flex items-center gap-3 px-5 py-3 hover:bg-muted/20 transition-colors group"
+                  onMouseEnter={() => setHoveredId(task.id)}
+                  onFocus={() => setHoveredId(task.id)}
+                >
                   <div onClick={e => e.stopPropagation()}>
                     <Checkbox checked={selected.has(task.id)} onCheckedChange={() => toggleSelect(task.id)} />
                   </div>
@@ -646,14 +665,18 @@ export default function TasksPage() {
                   <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium ${statusInfo?.color || ''}`}>
                     {statusInfo?.label}
                   </span>
-                  <Select value={task.status} onValueChange={v => handleStatusChange(task, v as Task['status'])}>
-                    <SelectTrigger className="h-7 w-32 text-xs shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {TASK_STATUSES.map(s => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
+                  {hoveredId === task.id ? (
+                    <Select value={task.status} onValueChange={v => handleStatusChange(task, v as Task['status'])}>
+                      <SelectTrigger className="h-7 w-32 text-xs shrink-0">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {TASK_STATUSES.map(s => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  ) : (
+                    <div className="h-7 w-32 shrink-0" aria-hidden />
+                  )}
                   <Button
                     variant="ghost"
                     size="icon"
@@ -665,9 +688,18 @@ export default function TasksPage() {
                 </div>
               );
             })}
+
+            {hasMore && (
+              <div ref={sentinelRef} className="p-4 text-center">
+                <Button variant="outline" size="sm" onClick={() => setVisibleCount(c => c + 50)}>
+                  {language === 'en' ? 'Load more' : 'Meer laden'}
+                </Button>
+              </div>
+            )}
           </div>
         )}
       </div>
+
 
       {/* New Task dialog */}
       <Dialog open={newOpen} onOpenChange={setNewOpen}>
