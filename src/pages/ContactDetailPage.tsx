@@ -372,7 +372,7 @@ export default function ContactDetailPage() {
               ) : <p className="text-sm text-foreground">{current.functionGroup || '—'}</p>}
             </div>
             <InfoField icon={<User size={14} />} label="Functie" value={current.jobTitle || ''} editing={editing} onChange={(v) => setForm({ ...form!, jobTitle: v || undefined })} />
-            <InfoField icon={<Calendar size={14} />} label="Geboortedatum" value={current.birthDate || ''} editing={editing} type="date" onChange={(v) => setForm({ ...form!, birthDate: v || undefined })} />
+            <InfoField icon={<Calendar size={14} />} label={breadcrumbCompany?.isPrivate ? 'Verjaardag' : 'Geboortedatum'} value={current.birthDate || ''} editing={editing} type="date" onChange={(v) => setForm({ ...form!, birthDate: v || undefined })} />
             <CompanyField
               current={current}
               editing={editing}
