@@ -219,14 +219,16 @@ export default function TasksSection({ tasks, defaults, showOrigin, inquiryLabel
                 />
                 <div className="flex-1 min-w-0">
                   <p className="text-sm text-foreground truncate">{t.title}</p>
-                  {t.inquiryId && inquiryLabels?.[t.inquiryId] && (
+                  {t.inquiryId && inquiryLabels?.[t.inquiryId] ? (
                     <button
                       onClick={(e) => { e.stopPropagation(); navigate(`/inquiries/${t.inquiryId}`); }}
                       className="text-[11px] text-primary hover:underline truncate max-w-full block text-left"
                     >
                       {inquiryLabels[t.inquiryId]}
                     </button>
-                  )}
+                  ) : !t.inquiryId && !t.contactId ? (
+                    <p className="text-[11px] text-warning">Nog niet aan een aanvraag of contactpersoon gekoppeld</p>
+                  ) : null}
                 </div>
                 {originLabel(t) && (
                   <Badge variant="outline" className="text-[10px] shrink-0 text-muted-foreground">({originLabel(t)})</Badge>
