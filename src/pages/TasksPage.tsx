@@ -49,19 +49,31 @@ export default function TasksPage() {
   const { toast } = useToast();
 
   const [search, setSearch] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'open' | 'completed'>('open');
   const [userFilter, setUserFilter] = useState<string>('__all__');
+  const [visibleCount, setVisibleCount] = useState(50);
+  const [archiveLoading, setArchiveLoading] = useState(false);
+  const [hoveredId, setHoveredId] = useState<string | null>(null);
+  const sentinelRef = useRef<HTMLDivElement | null>(null);
   const userFilterTouched = useRef(false);
   const { user } = useAuth();
+
+  // Typing shouldn't filter (or pull the archive) on every keystroke.
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSearch(search), 300);
+    return () => clearTimeout(timer);
+  }, [search]);
 
   // Only open + recent tasks are loaded initially; pull in the full archive
   // as soon as someone searches or looks at completed/all tasks.
   useEffect(() => {
     if (allLoaded) return;
-    if (statusFilter !== 'open' || search.trim().length > 0) {
-      loadAllTasks();
+    if (statusFilter !== 'open' || debouncedSearch.trim().length > 0) {
+      setArchiveLoading(true);
+      loadAllTasks().finally(() => setArchiveLoading(false));
     }
-  }, [allLoaded, statusFilter, search, loadAllTasks]);
+  }, [allLoaded, statusFilter, debouncedSearch, loadAllTasks]);
 
 
   // Default user filter to the logged-in user (if they map to Sjors/Iris)
@@ -143,18 +155,21 @@ export default function TasksPage() {
     return m;
   }, [contacts]);
 
+  // Option lists cover 1200+ companies / 1300+ contacts; only build them when
+  // the dialog that uses them is actually open.
   const companyOptions = useMemo<ComboboxOption[]>(
     () =>
-      companies.map(c => ({
+      !newOpen ? [] : companies.map(c => ({
         id: c.id,
         label: c.name,
         secondary: [c.email, c.city].filter(Boolean).join(' · ') || undefined,
         searchText: `${c.name} ${c.email || ''} ${c.phone || ''} ${c.city || ''}`,
       })),
-    [companies]
+    [companies, newOpen]
   );
 
   const contactOptions = useMemo<ComboboxOption[]>(() => {
+    if (!newOpen) return [];
     const pool = (form.companyId ? contacts.filter(c => c.companyId === form.companyId) : contacts).filter(c => !c.departed);
     return pool.map(c => ({
       id: c.id,
@@ -162,20 +177,21 @@ export default function TasksPage() {
       secondary: c.company || c.email || undefined,
       searchText: `${c.firstName} ${c.lastName} ${c.email || ''} ${c.company || ''} ${c.phone || ''}`,
     }));
-  }, [contacts, form.companyId]);
+  }, [contacts, form.companyId, newOpen]);
   const bulkContactOptions = useMemo<ComboboxOption[]>(
     () =>
-      contacts.filter(c => !c.departed).map(c => ({
+      !newOpen ? [] : contacts.filter(c => !c.departed).map(c => ({
         id: c.id,
         label: [c.firstName, c.lastName].filter(n => n && n !== '—').join(' ') || c.email || 'Onbekend',
         secondary: c.company || c.email || undefined,
         searchText: `${c.firstName} ${c.lastName} ${c.email || ''} ${c.company || ''} ${c.phone || ''}`,
       })),
-    [contacts]
+    [contacts, newOpen]
   );
 
 
   const inquiryOptions = useMemo<ComboboxOption[]>(() => {
+    if (!newOpen) return [];
     const pool = form.companyId ? inquiries.filter(i => i.companyId === form.companyId) : inquiries;
     return pool.map(i => {
       const companyName = i.companyId ? companyMap.get(i.companyId)?.name : undefined;
@@ -186,32 +202,46 @@ export default function TasksPage() {
         searchText: `${i.displayNumber || ''} ${i.eventType || ''} ${i.contactName || ''} ${companyName || ''}`,
       };
     });
-  }, [inquiries, form.companyId, companyMap]);
+  }, [inquiries, form.companyId, companyMap, newOpen]);
 
 
 
-  const filteredTasks = useMemo(() => {
-    let result = tasks;
-    if (statusFilter !== 'all') result = result.filter(tk => tk.status === statusFilter);
-    if (userFilter !== '__all__') {
-      result = result.filter(tk => tk.assignedTo === userFilter);
+  // One pass over the tasks: counts + filtering together.
+  const { filteredTasks, counts } = useMemo(() => {
+    const q = debouncedSearch.trim().toLowerCase();
+    const result: Task[] = [];
+    let open = 0;
+    let completed = 0;
+    let overdue = 0;
+
+    for (const tk of tasks) {
+      if (tk.status === 'open') {
+        open++;
+        if (tk.dueDate && tk.dueDate < today) overdue++;
+      } else if (tk.status === 'completed') {
+        completed++;
+      }
+
+      if (statusFilter !== 'all' && tk.status !== statusFilter) continue;
+      if (userFilter !== '__all__' && tk.assignedTo !== userFilter) continue;
+      if (q) {
+        const hit =
+          tk.title.toLowerCase().includes(q) ||
+          (tk.description || '').toLowerCase().includes(q) ||
+          (tk.assignedTo || '').toLowerCase().includes(q);
+        if (!hit) continue;
+      }
+      result.push(tk);
     }
-    if (search.trim()) {
-      const q = search.toLowerCase();
-      result = result.filter(tk =>
-        tk.title.toLowerCase().includes(q) ||
-        (tk.description || '').toLowerCase().includes(q) ||
-        (tk.assignedTo || '').toLowerCase().includes(q)
-      );
-    }
-    result = [...result].sort((a, b) => {
+
+    result.sort((a, b) => {
       switch (sortKey) {
         case 'createdAt':
           return (b.createdAt || '').localeCompare(a.createdAt || '');
         case 'title':
           return a.title.localeCompare(b.title);
         case 'dueDate':
-        default:
+        default: {
           if (!a.dueDate && !b.dueDate) return 0;
           if (!a.dueDate) return 1;
           if (!b.dueDate) return -1;
@@ -221,16 +251,31 @@ export default function TasksPage() {
           if (!a.dueTime) return 1;
           if (!b.dueTime) return -1;
           return a.dueTime.localeCompare(b.dueTime);
+        }
       }
     });
-    return result;
-  }, [tasks, statusFilter, userFilter, search, sortKey]);
 
-  const counts = useMemo(() => ({
-    open: tasks.filter(tk => tk.status === 'open').length,
-    completed: tasks.filter(tk => tk.status === 'completed').length,
-    overdue: tasks.filter(tk => tk.status === 'open' && tk.dueDate && tk.dueDate < today).length,
-  }), [tasks, today]);
+    return { filteredTasks: result, counts: { open, completed, overdue } };
+  }, [tasks, statusFilter, userFilter, debouncedSearch, sortKey, today]);
+
+  // Render in chunks; more rows load as the sentinel scrolls into view.
+  useEffect(() => {
+    setVisibleCount(50);
+  }, [debouncedSearch, statusFilter, userFilter, sortKey]);
+
+  const visibleTasks = useMemo(() => filteredTasks.slice(0, visibleCount), [filteredTasks, visibleCount]);
+  const hasMore = filteredTasks.length > visibleTasks.length;
+
+  useEffect(() => {
+    if (!hasMore) return;
+    const node = sentinelRef.current;
+    if (!node) return;
+    const observer = new IntersectionObserver(entries => {
+      if (entries.some(e => e.isIntersecting)) setVisibleCount(c => c + 50);
+    }, { rootMargin: '400px' });
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [hasMore, visibleTasks.length]);
 
   const toggleSelect = (id: string) => {
     setSelected(prev => {
