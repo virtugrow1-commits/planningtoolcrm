@@ -451,14 +451,6 @@ export default function TasksPage() {
     await updateTask({ ...task, status: newStatus });
   };
 
-  if (loading) {
-    return (
-      <div className="p-6 lg:p-8 space-y-4 max-w-7xl mx-auto">
-        <div className="h-8 w-40 rounded-lg bg-muted animate-pulse" />
-        <ListSkeleton rows={9} />
-      </div>
-    );
-  }
 
 
   return (
