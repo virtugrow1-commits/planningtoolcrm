@@ -49,19 +49,31 @@ export default function TasksPage() {
   const { toast } = useToast();
 
   const [search, setSearch] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'open' | 'completed'>('open');
   const [userFilter, setUserFilter] = useState<string>('__all__');
+  const [visibleCount, setVisibleCount] = useState(50);
+  const [archiveLoading, setArchiveLoading] = useState(false);
+  const [hoveredId, setHoveredId] = useState<string | null>(null);
+  const sentinelRef = useRef<HTMLDivElement | null>(null);
   const userFilterTouched = useRef(false);
   const { user } = useAuth();
+
+  // Typing shouldn't filter (or pull the archive) on every keystroke.
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSearch(search), 300);
+    return () => clearTimeout(timer);
+  }, [search]);
 
   // Only open + recent tasks are loaded initially; pull in the full archive
   // as soon as someone searches or looks at completed/all tasks.
   useEffect(() => {
     if (allLoaded) return;
-    if (statusFilter !== 'open' || search.trim().length > 0) {
-      loadAllTasks();
+    if (statusFilter !== 'open' || debouncedSearch.trim().length > 0) {
+      setArchiveLoading(true);
+      loadAllTasks().finally(() => setArchiveLoading(false));
     }
-  }, [allLoaded, statusFilter, search, loadAllTasks]);
+  }, [allLoaded, statusFilter, debouncedSearch, loadAllTasks]);
 
 
   // Default user filter to the logged-in user (if they map to Sjors/Iris)
@@ -143,18 +155,21 @@ export default function TasksPage() {
     return m;
   }, [contacts]);
 
+  // Option lists cover 1200+ companies / 1300+ contacts; only build them when
+  // the dialog that uses them is actually open.
   const companyOptions = useMemo<ComboboxOption[]>(
     () =>
-      companies.map(c => ({
+      !newOpen ? [] : companies.map(c => ({
         id: c.id,
         label: c.name,
         secondary: [c.email, c.city].filter(Boolean).join(' · ') || undefined,
         searchText: `${c.name} ${c.email || ''} ${c.phone || ''} ${c.city || ''}`,
       })),
-    [companies]
+    [companies, newOpen]
   );
 
   const contactOptions = useMemo<ComboboxOption[]>(() => {
+    if (!newOpen) return [];
     const pool = (form.companyId ? contacts.filter(c => c.companyId === form.companyId) : contacts).filter(c => !c.departed);
     return pool.map(c => ({
       id: c.id,
@@ -162,20 +177,21 @@ export default function TasksPage() {
       secondary: c.company || c.email || undefined,
       searchText: `${c.firstName} ${c.lastName} ${c.email || ''} ${c.company || ''} ${c.phone || ''}`,
     }));
-  }, [contacts, form.companyId]);
+  }, [contacts, form.companyId, newOpen]);
   const bulkContactOptions = useMemo<ComboboxOption[]>(
     () =>
-      contacts.filter(c => !c.departed).map(c => ({
+      !newOpen ? [] : contacts.filter(c => !c.departed).map(c => ({
         id: c.id,
         label: [c.firstName, c.lastName].filter(n => n && n !== '—').join(' ') || c.email || 'Onbekend',
         secondary: c.company || c.email || undefined,
         searchText: `${c.firstName} ${c.lastName} ${c.email || ''} ${c.company || ''} ${c.phone || ''}`,
       })),
-    [contacts]
+    [contacts, newOpen]
   );
 
 
   const inquiryOptions = useMemo<ComboboxOption[]>(() => {
+    if (!newOpen) return [];
     const pool = form.companyId ? inquiries.filter(i => i.companyId === form.companyId) : inquiries;
     return pool.map(i => {
       const companyName = i.companyId ? companyMap.get(i.companyId)?.name : undefined;
@@ -186,32 +202,46 @@ export default function TasksPage() {
         searchText: `${i.displayNumber || ''} ${i.eventType || ''} ${i.contactName || ''} ${companyName || ''}`,
       };
     });
-  }, [inquiries, form.companyId, companyMap]);
+  }, [inquiries, form.companyId, companyMap, newOpen]);
 
 
 
-  const filteredTasks = useMemo(() => {
-    let result = tasks;
-    if (statusFilter !== 'all') result = result.filter(tk => tk.status === statusFilter);
-    if (userFilter !== '__all__') {
-      result = result.filter(tk => tk.assignedTo === userFilter);
+  // One pass over the tasks: counts + filtering together.
+  const { filteredTasks, counts } = useMemo(() => {
+    const q = debouncedSearch.trim().toLowerCase();
+    const result: Task[] = [];
+    let open = 0;
+    let completed = 0;
+    let overdue = 0;
+
+    for (const tk of tasks) {
+      if (tk.status === 'open') {
+        open++;
+        if (tk.dueDate && tk.dueDate < today) overdue++;
+      } else if (tk.status === 'completed') {
+        completed++;
+      }
+
+      if (statusFilter !== 'all' && tk.status !== statusFilter) continue;
+      if (userFilter !== '__all__' && tk.assignedTo !== userFilter) continue;
+      if (q) {
+        const hit =
+          tk.title.toLowerCase().includes(q) ||
+          (tk.description || '').toLowerCase().includes(q) ||
+          (tk.assignedTo || '').toLowerCase().includes(q);
+        if (!hit) continue;
+      }
+      result.push(tk);
     }
-    if (search.trim()) {
-      const q = search.toLowerCase();
-      result = result.filter(tk =>
-        tk.title.toLowerCase().includes(q) ||
-        (tk.description || '').toLowerCase().includes(q) ||
-        (tk.assignedTo || '').toLowerCase().includes(q)
-      );
-    }
-    result = [...result].sort((a, b) => {
+
+    result.sort((a, b) => {
       switch (sortKey) {
         case 'createdAt':
           return (b.createdAt || '').localeCompare(a.createdAt || '');
         case 'title':
           return a.title.localeCompare(b.title);
         case 'dueDate':
-        default:
+        default: {
           if (!a.dueDate && !b.dueDate) return 0;
           if (!a.dueDate) return 1;
           if (!b.dueDate) return -1;
@@ -221,16 +251,31 @@ export default function TasksPage() {
           if (!a.dueTime) return 1;
           if (!b.dueTime) return -1;
           return a.dueTime.localeCompare(b.dueTime);
+        }
       }
     });
-    return result;
-  }, [tasks, statusFilter, userFilter, search, sortKey]);
 
-  const counts = useMemo(() => ({
-    open: tasks.filter(tk => tk.status === 'open').length,
-    completed: tasks.filter(tk => tk.status === 'completed').length,
-    overdue: tasks.filter(tk => tk.status === 'open' && tk.dueDate && tk.dueDate < today).length,
-  }), [tasks, today]);
+    return { filteredTasks: result, counts: { open, completed, overdue } };
+  }, [tasks, statusFilter, userFilter, debouncedSearch, sortKey, today]);
+
+  // Render in chunks; more rows load as the sentinel scrolls into view.
+  useEffect(() => {
+    setVisibleCount(50);
+  }, [debouncedSearch, statusFilter, userFilter, sortKey]);
+
+  const visibleTasks = useMemo(() => filteredTasks.slice(0, visibleCount), [filteredTasks, visibleCount]);
+  const hasMore = filteredTasks.length > visibleTasks.length;
+
+  useEffect(() => {
+    if (!hasMore) return;
+    const node = sentinelRef.current;
+    if (!node) return;
+    const observer = new IntersectionObserver(entries => {
+      if (entries.some(e => e.isIntersecting)) setVisibleCount(c => c + 50);
+    }, { rootMargin: '400px' });
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [hasMore, visibleTasks.length]);
 
   const toggleSelect = (id: string) => {
     setSelected(prev => {
@@ -406,14 +451,6 @@ export default function TasksPage() {
     await updateTask({ ...task, status: newStatus });
   };
 
-  if (loading) {
-    return (
-      <div className="p-6 lg:p-8 space-y-4 max-w-7xl mx-auto">
-        <div className="h-8 w-40 rounded-lg bg-muted animate-pulse" />
-        <ListSkeleton rows={9} />
-      </div>
-    );
-  }
 
 
   return (
@@ -528,12 +565,22 @@ export default function TasksPage() {
 
       {/* List */}
       <div className="rounded-xl bg-card card-shadow overflow-hidden animate-fade-in-up">
-        {filteredTasks.length === 0 ? (
+        {loading ? (
+          <ListSkeleton rows={9} />
+        ) : filteredTasks.length === 0 ? (
           <div className="p-10 text-center">
-            <Check size={32} className="mx-auto text-success mb-2" />
-            <p className="text-sm text-muted-foreground">
-              {tasks.length === 0 ? t('dashboard.noTasksYet') : t('common.noResults')}
-            </p>
+            {archiveLoading ? (
+              <p className="text-sm text-muted-foreground">
+                {language === 'en' ? 'Loading archive…' : 'Archief laden…'}
+              </p>
+            ) : (
+              <>
+                <Check size={32} className="mx-auto text-success mb-2" />
+                <p className="text-sm text-muted-foreground">
+                  {tasks.length === 0 ? t('dashboard.noTasksYet') : t('common.noResults')}
+                </p>
+              </>
+            )}
           </div>
         ) : (
           <div className="divide-y">
@@ -545,9 +592,13 @@ export default function TasksPage() {
               <span className="text-xs text-muted-foreground">
                 {language === 'en' ? 'Select all' : 'Alles selecteren'}
               </span>
+              <span className="ml-auto text-xs text-muted-foreground">
+                {visibleTasks.length} / {filteredTasks.length}
+                {archiveLoading && ` · ${language === 'en' ? 'loading archive…' : 'archief laden…'}`}
+              </span>
             </div>
 
-            {filteredTasks.map(task => {
+            {visibleTasks.map(task => {
               const statusInfo = TASK_STATUSES.find(s => s.value === task.status);
               const contact = task.contactId ? contactMap.get(task.contactId) : null;
               const effectiveCompanyId = task.companyId || (task.contactId ? contactCompanyMap.get(task.contactId) : undefined);
@@ -556,7 +607,12 @@ export default function TasksPage() {
               const overdue = task.status === 'open' && task.dueDate && task.dueDate < today;
 
               return (
-                <div key={task.id} className="flex items-center gap-3 px-5 py-3 hover:bg-muted/20 transition-colors group">
+                <div
+                  key={task.id}
+                  className="flex items-center gap-3 px-5 py-3 hover:bg-muted/20 transition-colors group"
+                  onMouseEnter={() => setHoveredId(task.id)}
+                  onFocus={() => setHoveredId(task.id)}
+                >
                   <div onClick={e => e.stopPropagation()}>
                     <Checkbox checked={selected.has(task.id)} onCheckedChange={() => toggleSelect(task.id)} />
                   </div>
@@ -609,14 +665,18 @@ export default function TasksPage() {
                   <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium ${statusInfo?.color || ''}`}>
                     {statusInfo?.label}
                   </span>
-                  <Select value={task.status} onValueChange={v => handleStatusChange(task, v as Task['status'])}>
-                    <SelectTrigger className="h-7 w-32 text-xs shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {TASK_STATUSES.map(s => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
+                  {hoveredId === task.id ? (
+                    <Select value={task.status} onValueChange={v => handleStatusChange(task, v as Task['status'])}>
+                      <SelectTrigger className="h-7 w-32 text-xs shrink-0">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {TASK_STATUSES.map(s => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  ) : (
+                    <div className="h-7 w-32 shrink-0" aria-hidden />
+                  )}
                   <Button
                     variant="ghost"
                     size="icon"
@@ -628,9 +688,18 @@ export default function TasksPage() {
                 </div>
               );
             })}
+
+            {hasMore && (
+              <div ref={sentinelRef} className="p-4 text-center">
+                <Button variant="outline" size="sm" onClick={() => setVisibleCount(c => c + 50)}>
+                  {language === 'en' ? 'Load more' : 'Meer laden'}
+                </Button>
+              </div>
+            )}
           </div>
         )}
       </div>
+
 
       {/* New Task dialog */}
       <Dialog open={newOpen} onOpenChange={setNewOpen}>
