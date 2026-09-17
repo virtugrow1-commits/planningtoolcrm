@@ -313,6 +313,10 @@ export default function SettingsPage() {
           <SyncQueuePanel />
         </TabsContent>
 
+        <TabsContent value="task-automation">
+          <TaskAutomationPanel />
+        </TabsContent>
+
         <TabsContent value="vgw" className="space-y-4">
           <div className="rounded-xl border bg-card p-6 card-shadow space-y-4">
             <div className="flex items-center gap-3">
