@@ -1606,6 +1606,9 @@ async function syncTasks(supabase: any, ghlHeaders: any, locationId: string, use
 
       for (const ghlTask of allTasks) {
         seenGhlTaskIds.add(ghlTask.id);
+        // Earlier ignored copies (duplicate series or a task type switched off)
+        // must never come back into the CRM.
+        if (lookups.suppressedGhlTaskIds?.has(ghlTask.id)) continue;
         if (lookups.deletedGhlTaskIds.has(ghlTask.id)) {
           const deleteRes = await fetch(`${GHL_API_BASE}/contacts/${ghlTask._ghlContactId}/tasks/${ghlTask.id}`, {
             method: 'DELETE', headers: ghlHeaders,
