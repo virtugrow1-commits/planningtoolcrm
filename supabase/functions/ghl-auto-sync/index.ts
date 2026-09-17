@@ -9,6 +9,7 @@ import {
   resolveCompanyId,
 } from "../_shared/inquiryFields.ts";
 import { pickBookingForTask, type LinkableBooking } from "../_shared/taskBookingLink.ts";
+import { suppressGhlTask, taskRuleKey, taskRuleLabel } from "../_shared/taskAutomation.ts";
 
 const GHL_API_BASE = 'https://services.leadconnectorhq.com';
 
@@ -209,7 +210,7 @@ Deno.serve(async (req) => {
 
   // Run heavy sync in background using EdgeRuntime.waitUntil
   const backgroundSync = async () => {
-    const results: any = { scope: syncScope, bookings_pulled: 0, bookings_pushed: 0, contacts: 0, opportunities: 0, contacts_pushed: 0, companies_synced: 0, companies_pushed: 0, tasks_pulled: 0, tasks_pushed: 0, conversations_synced: 0, documents_synced: 0, errors: [] };
+    const results: any = { scope: syncScope, bookings_pulled: 0, bookings_pushed: 0, contacts: 0, opportunities: 0, contacts_pushed: 0, companies_synced: 0, companies_pushed: 0, tasks_pulled: 0, tasks_pushed: 0, tasks_suppressed: 0, conversations_synced: 0, documents_synced: 0, errors: [] };
 
     try {
       // PRE-LOAD: Fetch all existing CRM records into lookup Maps ONCE
@@ -218,7 +219,7 @@ Deno.serve(async (req) => {
         fetchAll(supabase, 'contacts', 'id, ghl_contact_id, first_name, last_name, email, phone, company, company_id, status, tags, updated_at, pending_outbound_sync, last_local_edit_at', {}),
         fetchAll(supabase, 'companies', 'id, ghl_company_id, name, email, phone, website, address, city, updated_at, pending_outbound_sync, last_local_edit_at', {}),
         fetchAll(supabase, 'inquiries', 'id, ghl_opportunity_id, status, budget, event_type, contact_name, contact_id, created_at, updated_at, local_status_changed_at', {}),
-        fetchAll(supabase, 'tasks', 'id, ghl_task_id, title, description, status, updated_at, contact_id, booking_id, inquiry_id, local_status_changed_at', {}),
+        fetchAll(supabase, 'tasks', 'id, ghl_task_id, title, description, status, due_date, updated_at, contact_id, booking_id, inquiry_id, local_status_changed_at', {}),
       ]);
 
       // Build lookup maps
@@ -268,7 +269,33 @@ Deno.serve(async (req) => {
         if (deletedId) deletedGhlTaskIds.add(deletedId);
       }
 
-      const lookups = { contactByGhlId, contactByNameEmail, companyByGhlId, companyByName, inquiryByGhlId, taskByGhlId, taskByContactAndTitle, deletedGhlTaskIds, existingContacts, existingCompanies, existingInquiries };
+      // Task automation: rules (per task type on/off) and suppressed GHL tasks
+      // (duplicates or tasks of a disabled type) must never be re-imported.
+      const suppressedGhlTaskIds = new Set<string>();
+      {
+        const PAGE = 1000;
+        for (let from = 0; ; from += PAGE) {
+          const { data } = await supabase.from('ghl_task_suppressions').select('ghl_task_id').range(from, from + PAGE - 1);
+          if (!data?.length) break;
+          for (const row of data) suppressedGhlTaskIds.add(row.ghl_task_id);
+          if (data.length < PAGE) break;
+        }
+      }
+      const { data: ruleRows } = await supabase
+        .from('task_automation_rules')
+        .select('match_key, enabled')
+        .eq('user_id', userId);
+      const taskRules = new Map<string, boolean>((ruleRows || []).map((r: any) => [r.match_key, r.enabled !== false]));
+
+      // Existing tasks keyed by contact + task type + due date, used to collapse
+      // the duplicate series GoHighLevel creates for the same reservation.
+      const taskByContactKeyDate = new Map<string, any>();
+      for (const t of existingTasks) {
+        const dedupeKey = `${t.contact_id || ''}|${taskRuleKey(t.title || '')}|${t.due_date || ''}`;
+        if (!taskByContactKeyDate.has(dedupeKey)) taskByContactKeyDate.set(dedupeKey, t);
+      }
+
+      const lookups = { contactByGhlId, contactByNameEmail, companyByGhlId, companyByName, inquiryByGhlId, taskByGhlId, taskByContactAndTitle, taskByContactKeyDate, deletedGhlTaskIds, suppressedGhlTaskIds, taskRules, existingContacts, existingCompanies, existingInquiries };
 
       // Apply outbound creates, updates and deletes before reading external state.
       // Otherwise a pending task deletion can be pulled back into the CRM first.
@@ -1579,6 +1606,9 @@ async function syncTasks(supabase: any, ghlHeaders: any, locationId: string, use
 
       for (const ghlTask of allTasks) {
         seenGhlTaskIds.add(ghlTask.id);
+        // Earlier ignored copies (duplicate series or a task type switched off)
+        // must never come back into the CRM.
+        if (lookups.suppressedGhlTaskIds?.has(ghlTask.id)) continue;
         if (lookups.deletedGhlTaskIds.has(ghlTask.id)) {
           const deleteRes = await fetch(`${GHL_API_BASE}/contacts/${ghlTask._ghlContactId}/tasks/${ghlTask.id}`, {
             method: 'DELETE', headers: ghlHeaders,
@@ -1664,6 +1694,36 @@ async function syncTasks(supabase: any, ghlHeaders: any, locationId: string, use
             lookups.taskByGhlId.set(ghlTask.id, titleDup);
             lookups.taskByContactAndTitle.delete(titleKey);
           } else {
+            const ruleKey = taskRuleKey(ghlTitle);
+
+            // Register unknown task types so they show up in the settings.
+            if (!lookups.taskRules.has(ruleKey)) {
+              await supabase.from('task_automation_rules').insert({
+                user_id: userId, match_key: ruleKey, label: taskRuleLabel(ghlTitle), enabled: true,
+              });
+              lookups.taskRules.set(ruleKey, true);
+            }
+
+            if (lookups.taskRules.get(ruleKey) === false) {
+              await suppressGhlTask(supabase, { ghl_task_id: ghlTask.id, reason: 'rule_disabled', match_key: ruleKey });
+              lookups.suppressedGhlTaskIds.add(ghlTask.id);
+              results.tasks_suppressed = (results.tasks_suppressed || 0) + 1;
+              continue;
+            }
+
+            // Collapse the duplicate series GHL creates: same contact, same task
+            // type and same due date means it is the same job.
+            const dedupeKey = `${ghlTask._localContactId || ''}|${ruleKey}|${ghlDueDate || ''}`;
+            const dupe = lookups.taskByContactKeyDate.get(dedupeKey);
+            if (dupe) {
+              await suppressGhlTask(supabase, {
+                ghl_task_id: ghlTask.id, reason: 'duplicate', kept_task_id: dupe.id, match_key: ruleKey,
+              });
+              lookups.suppressedGhlTaskIds.add(ghlTask.id);
+              results.tasks_suppressed = (results.tasks_suppressed || 0) + 1;
+              continue;
+            }
+
             const { data: inserted } = await supabase.from('tasks').insert({
               user_id: userId,
               title: ghlTitle,
@@ -1678,8 +1738,9 @@ async function syncTasks(supabase: any, ghlHeaders: any, locationId: string, use
               completed_at: ghlTask.completed ? (ghlTask.completedDate || new Date().toISOString()) : null,
             }).select('id').maybeSingle();
             if (inserted) {
-              const newTask = { id: inserted.id, ghl_task_id: ghlTask.id, title: ghlTitle, booking_id: taskLink.booking_id };
+              const newTask = { id: inserted.id, ghl_task_id: ghlTask.id, title: ghlTitle, booking_id: taskLink.booking_id, contact_id: ghlTask._localContactId, due_date: ghlDueDate };
               lookups.taskByGhlId.set(ghlTask.id, newTask);
+              lookups.taskByContactKeyDate.set(dedupeKey, newTask);
             }
             results.tasks_pulled++;
           }
