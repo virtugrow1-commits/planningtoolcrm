@@ -14,7 +14,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Switch } from '@/components/ui/switch';
 import { useToast } from '@/hooks/use-toast';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Webhook, Key, ArrowRightLeft, CheckCircle2, AlertCircle, RefreshCw, Upload, Copy, Link2, Database, BookOpen, Download } from 'lucide-react';
+import { Webhook, Key, ArrowRightLeft, CheckCircle2, AlertCircle, RefreshCw, Upload, Copy, Link2, Database, BookOpen, Download, ListChecks } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { saveEboekhoudenCredentials, loadEboekhoudenCredentials } from '@/lib/eboekhouden';
 import { supabase } from '@/integrations/supabase/client';
@@ -296,6 +296,7 @@ export default function SettingsPage() {
         <TabsList className="flex-wrap">
           <TabsTrigger value="vgw" className="gap-2"><Key size={14} /> CliqCRM Verbinding</TabsTrigger>
           <TabsTrigger value="sync-queue" className="gap-2"><RefreshCw size={14} /> Sync Status</TabsTrigger>
+          <TabsTrigger value="task-automation" className="gap-2"><ListChecks size={14} /> Automatische Taken</TabsTrigger>
           <TabsTrigger value="webhooks" className="gap-2"><Webhook size={14} /> Webhooks</TabsTrigger>
           <TabsTrigger value="mapping" className="gap-2"><ArrowRightLeft size={14} /> Veld Mapping</TabsTrigger>
           <TabsTrigger value="export" className="gap-2"><Download size={14} /> Export</TabsTrigger>
