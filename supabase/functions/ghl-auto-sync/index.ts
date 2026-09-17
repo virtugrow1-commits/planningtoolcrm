@@ -9,6 +9,7 @@ import {
   resolveCompanyId,
 } from "../_shared/inquiryFields.ts";
 import { pickBookingForTask, type LinkableBooking } from "../_shared/taskBookingLink.ts";
+import { suppressGhlTask, taskRuleKey, taskRuleLabel } from "../_shared/taskAutomation.ts";
 
 const GHL_API_BASE = 'https://services.leadconnectorhq.com';
 
@@ -268,7 +269,33 @@ Deno.serve(async (req) => {
         if (deletedId) deletedGhlTaskIds.add(deletedId);
       }
 
-      const lookups = { contactByGhlId, contactByNameEmail, companyByGhlId, companyByName, inquiryByGhlId, taskByGhlId, taskByContactAndTitle, deletedGhlTaskIds, existingContacts, existingCompanies, existingInquiries };
+      // Task automation: rules (per task type on/off) and suppressed GHL tasks
+      // (duplicates or tasks of a disabled type) must never be re-imported.
+      const suppressedGhlTaskIds = new Set<string>();
+      {
+        const PAGE = 1000;
+        for (let from = 0; ; from += PAGE) {
+          const { data } = await supabase.from('ghl_task_suppressions').select('ghl_task_id').range(from, from + PAGE - 1);
+          if (!data?.length) break;
+          for (const row of data) suppressedGhlTaskIds.add(row.ghl_task_id);
+          if (data.length < PAGE) break;
+        }
+      }
+      const { data: ruleRows } = await supabase
+        .from('task_automation_rules')
+        .select('match_key, enabled')
+        .eq('user_id', userId);
+      const taskRules = new Map<string, boolean>((ruleRows || []).map((r: any) => [r.match_key, r.enabled !== false]));
+
+      // Existing tasks keyed by contact + task type + due date, used to collapse
+      // the duplicate series GoHighLevel creates for the same reservation.
+      const taskByContactKeyDate = new Map<string, any>();
+      for (const t of existingTasks) {
+        const dedupeKey = `${t.contact_id || ''}|${taskRuleKey(t.title || '')}|${t.due_date || ''}`;
+        if (!taskByContactKeyDate.has(dedupeKey)) taskByContactKeyDate.set(dedupeKey, t);
+      }
+
+      const lookups = { contactByGhlId, contactByNameEmail, companyByGhlId, companyByName, inquiryByGhlId, taskByGhlId, taskByContactAndTitle, taskByContactKeyDate, deletedGhlTaskIds, suppressedGhlTaskIds, taskRules, existingContacts, existingCompanies, existingInquiries };
 
       // Apply outbound creates, updates and deletes before reading external state.
       // Otherwise a pending task deletion can be pulled back into the CRM first.
