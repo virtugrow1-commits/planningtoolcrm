@@ -1310,6 +1310,22 @@ Deno.serve(async (req) => {
         if (deletedId) deletedGhlTaskIds.add(deletedId);
       }
 
+      // Task automation: on/off rules per task type and previously ignored copies
+      const suppressedGhlTaskIds = new Set<string>();
+      for (let from = 0; ; from += 1000) {
+        const { data: sup } = await supabase.from('ghl_task_suppressions').select('ghl_task_id').range(from, from + 999);
+        if (!sup?.length) break;
+        for (const row of sup) suppressedGhlTaskIds.add(row.ghl_task_id);
+        if (sup.length < 1000) break;
+      }
+      const { data: ruleRows } = await supabase
+        .from('task_automation_rules')
+        .select('match_key, enabled')
+        .in('user_id', orgUserIds);
+      const taskRules = new Map<string, boolean>((ruleRows || []).map((r: any) => [r.match_key, r.enabled !== false]));
+
+
+
       // Fetch contacts with ghl_contact_id to get tasks per contact
       const { data: linkedContacts } = await supabase
         .from('contacts')
@@ -1347,6 +1363,7 @@ Deno.serve(async (req) => {
         const tasks = data.tasks || [];
 
         for (const ghlTask of tasks) {
+          if (suppressedGhlTaskIds.has(ghlTask.id)) continue;
           if (deletedGhlTaskIds.has(ghlTask.id)) {
             const deleteRes = await ghlFetch(`${GHL_API_BASE}/contacts/${contact.ghl_contact_id}/tasks/${ghlTask.id}`, {
               method: 'DELETE',
@@ -1407,6 +1424,41 @@ Deno.serve(async (req) => {
               }).eq('id', existing.id);
             }
           } else {
+            const ruleKey = taskRuleKey(ghlTask.title || 'Taak');
+            const dueDateOnly = ghlTask.dueDate ? String(ghlTask.dueDate).split('T')[0] : null;
+
+            if (!taskRules.has(ruleKey)) {
+              await supabase.from('task_automation_rules').insert({
+                user_id: primaryUserId, match_key: ruleKey, label: taskRuleLabel(ghlTask.title || 'Taak'), enabled: true,
+              });
+              taskRules.set(ruleKey, true);
+            }
+
+            if (taskRules.get(ruleKey) === false) {
+              await suppressGhlTask(supabase, { ghl_task_id: ghlTask.id, reason: 'rule_disabled', match_key: ruleKey });
+              suppressedGhlTaskIds.add(ghlTask.id);
+              continue;
+            }
+
+            // Collapse the duplicate series GHL creates for the same job.
+            const { data: dupe } = await supabase
+              .from('tasks')
+              .select('id, title, due_date')
+              .in('user_id', orgUserIds)
+              .eq('contact_id', contact.id)
+              .limit(200);
+            const dupeMatch = (dupe || []).find((t: any) =>
+              taskRuleKey(t.title || '') === ruleKey &&
+              (t.due_date ? String(t.due_date).split('T')[0] : null) === dueDateOnly
+            );
+            if (dupeMatch) {
+              await suppressGhlTask(supabase, {
+                ghl_task_id: ghlTask.id, reason: 'duplicate', kept_task_id: dupeMatch.id, match_key: ruleKey,
+              });
+              suppressedGhlTaskIds.add(ghlTask.id);
+              continue;
+            }
+
             await supabase.from('tasks').insert({
               user_id: primaryUserId,
               ghl_task_id: ghlTask.id,
