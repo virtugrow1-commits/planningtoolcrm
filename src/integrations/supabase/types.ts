@@ -564,6 +564,30 @@ export type Database = {
         }
         Relationships: []
       }
+      ghl_task_suppressions: {
+        Row: {
+          created_at: string
+          ghl_task_id: string
+          kept_task_id: string | null
+          match_key: string | null
+          reason: string
+        }
+        Insert: {
+          created_at?: string
+          ghl_task_id: string
+          kept_task_id?: string | null
+          match_key?: string | null
+          reason: string
+        }
+        Update: {
+          created_at?: string
+          ghl_task_id?: string
+          kept_task_id?: string | null
+          match_key?: string | null
+          reason?: string
+        }
+        Relationships: []
+      }
       inquiries: {
         Row: {
           assigned_to: string | null
@@ -1287,6 +1311,36 @@ export type Database = {
           payload?: Json | null
           retry_count?: number
           status?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      task_automation_rules: {
+        Row: {
+          created_at: string
+          enabled: boolean
+          id: string
+          label: string
+          match_key: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          enabled?: boolean
+          id?: string
+          label: string
+          match_key: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          enabled?: boolean
+          id?: string
+          label?: string
+          match_key?: string
+          updated_at?: string
           user_id?: string
         }
         Relationships: []
