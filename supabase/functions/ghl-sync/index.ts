@@ -1,5 +1,6 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { pickBookingForTask, type LinkableBooking } from "../_shared/taskBookingLink.ts";
+import { suppressGhlTask, taskRuleKey, taskRuleLabel } from "../_shared/taskAutomation.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
