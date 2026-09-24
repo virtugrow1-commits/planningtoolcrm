@@ -6,17 +6,17 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { Suspense, lazy } from "react";
 import AppLayout from "@/components/AppLayout";
 import Dashboard from "@/pages/Dashboard";
-import CrmPage from "@/pages/CrmPage";
-import CompaniesPage from "@/pages/CompaniesPage";
-import CompanyDetailPage from "@/pages/CompanyDetailPage";
-import ContactDetailPage from "@/pages/ContactDetailPage";
-import InquiriesPage from "@/pages/InquiriesPage";
-import TasksPage from "@/pages/TasksPage";
-import ReserveringenPage from "@/pages/ReserveringenPage";
-import BookingDetailPage from "@/pages/BookingDetailPage";
-import InquiryDetailPage from "@/pages/InquiryDetailPage";
-import TaskDetailPage from "@/pages/TaskDetailPage";
-import AuthPage from "@/pages/AuthPage";
+const CrmPage = lazy(() => import("@/pages/CrmPage"));
+const CompaniesPage = lazy(() => import("@/pages/CompaniesPage"));
+const CompanyDetailPage = lazy(() => import("@/pages/CompanyDetailPage"));
+const ContactDetailPage = lazy(() => import("@/pages/ContactDetailPage"));
+const InquiriesPage = lazy(() => import("@/pages/InquiriesPage"));
+const TasksPage = lazy(() => import("@/pages/TasksPage"));
+const ReserveringenPage = lazy(() => import("@/pages/ReserveringenPage"));
+const BookingDetailPage = lazy(() => import("@/pages/BookingDetailPage"));
+const InquiryDetailPage = lazy(() => import("@/pages/InquiryDetailPage"));
+const TaskDetailPage = lazy(() => import("@/pages/TaskDetailPage"));
+const AuthPage = lazy(() => import("@/pages/AuthPage"));
 import NotFound from "./pages/NotFound";
 
 // Heavy, rarely-visited screens load on demand so the first screen paints faster
@@ -43,15 +43,16 @@ function RouteFallback() {
 }
 
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({ defaultOptions: { queries: { staleTime: 60_000, refetchOnWindowFocus: false } } });
 
 function ProtectedRoutes() {
   const { session, loading } = useAuth();
 
   if (loading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-background">
-        <div className="text-muted-foreground">Laden...</div>
+      <div className="min-h-screen bg-background">
+        <div className="h-14 border-b border-border bg-card" />
+        <RouteFallback />
       </div>
     );
   }
