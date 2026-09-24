@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
+import { createContext, useContext, useEffect, useRef, useState, ReactNode } from 'react';
 import { Session, User } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
 
@@ -21,6 +21,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
   const [role, setRole] = useState<AppRole | null>(null);
+  const authChangeId = useRef(0);
 
   const fetchRole = async (userId: string) => {
     const { data } = await supabase
@@ -33,26 +34,33 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   useEffect(() => {
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSession(session);
-      if (session?.user) {
-        // Defer role fetch to avoid Supabase auth deadlock
-        setTimeout(() => fetchRole(session.user.id), 0);
-      } else {
+    let active = true;
+    let roleTimer: ReturnType<typeof setTimeout> | undefined;
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, nextSession) => {
+      const changeId = ++authChangeId.current;
+      setSession(nextSession);
+
+      if (roleTimer) clearTimeout(roleTimer);
+      if (!nextSession?.user) {
         setRole(null);
+        setLoading(false);
+        return;
       }
-      setLoading(false);
+
+      // The listener supplies INITIAL_SESSION itself. Waiting for the role before
+      // mounting data providers avoids a burst of competing auth-lock requests.
+      roleTimer = setTimeout(async () => {
+        await fetchRole(nextSession.user.id);
+        if (active && changeId === authChangeId.current) setLoading(false);
+      }, 0);
     });
 
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      if (session?.user) {
-        fetchRole(session.user.id);
-      }
-      setLoading(false);
-    });
-
-    return () => subscription.unsubscribe();
+    return () => {
+      active = false;
+      if (roleTimer) clearTimeout(roleTimer);
+      subscription.unsubscribe();
+    };
   }, []);
 
   const signOut = async () => {
