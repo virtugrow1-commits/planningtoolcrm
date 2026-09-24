@@ -2,6 +2,7 @@
 import { supabase } from '@/integrations/supabase/client';
 
 const PAGE_SIZE = 1000;
+const AUTH_LOCK_TIMEOUT = 'Acquiring an exclusive Navigator LockManager lock';
 
 /** Keeps supabase-js from parsing select strings at the type level (huge tsc cost). */
 const sel = (s: string): string => s;
@@ -13,6 +14,30 @@ interface FetchAllOptions {
   ascending?: boolean;
   /** Optional PostgREST `or` filter applied to every page. */
   or?: string;
+}
+
+const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+interface QueryResult {
+  data: any[] | null;
+  count: number | null;
+  error: { message: string } | null;
+}
+
+async function runWithAuthLockRetry(
+  request: () => PromiseLike<QueryResult>,
+): Promise<QueryResult> {
+  let result = await request();
+
+  // The embedded preview can briefly serialize several initial data requests
+  // behind its shared auth storage. Retry only that transient lock timeout.
+  for (const delay of [350, 900]) {
+    if (!result.error?.message?.includes(AUTH_LOCK_TIMEOUT)) return result;
+    await wait(delay);
+    result = await request();
+  }
+
+  return result;
 }
 
 /**
@@ -33,7 +58,7 @@ export async function fetchAllRows(
     return q;
   };
 
-  const first = await base().range(0, PAGE_SIZE - 1);
+  const first = await runWithAuthLockRetry(() => base().range(0, PAGE_SIZE - 1));
   if (first.error) return { rows: [], error: first.error };
 
   const rows: any[] = first.data ?? [];
@@ -44,7 +69,7 @@ export async function fetchAllRows(
     for (let from = PAGE_SIZE; from < total; from += PAGE_SIZE) ranges.push(from);
 
     const pages = await Promise.all(
-      ranges.map((from) => base().range(from, from + PAGE_SIZE - 1)),
+      ranges.map((from) => runWithAuthLockRetry(() => base().range(from, from + PAGE_SIZE - 1))),
     );
     for (const p of pages) {
       if (p.error) return { rows: [], error: p.error };
