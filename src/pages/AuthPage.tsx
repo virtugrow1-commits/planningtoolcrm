@@ -157,6 +157,13 @@ export default function AuthPage() {
               required
               minLength={6}
             />
+            {isLogin && (
+              <div className="text-right">
+                <button type="button" onClick={() => setForgot(true)} className="text-xs text-primary underline-offset-4 hover:underline">
+                  Wachtwoord vergeten?
+                </button>
+              </div>
+            )}
           </div>
           <Button type="submit" className="w-full" disabled={loading}>
             {loading ? 'Even geduld...' : isLogin ? (
