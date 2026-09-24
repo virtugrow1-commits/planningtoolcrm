@@ -17,6 +17,7 @@ const BookingDetailPage = lazy(() => import("@/pages/BookingDetailPage"));
 const InquiryDetailPage = lazy(() => import("@/pages/InquiryDetailPage"));
 const TaskDetailPage = lazy(() => import("@/pages/TaskDetailPage"));
 const AuthPage = lazy(() => import("@/pages/AuthPage"));
+const ResetPasswordPage = lazy(() => import("@/pages/ResetPasswordPage"));
 import NotFound from "./pages/NotFound";
 
 // Heavy, rarely-visited screens load on demand so the first screen paints faster
@@ -120,6 +121,7 @@ const App = () => (
               <Routes>
                 <Route path="/login" element={<AuthRoute />} />
                 <Route path="/quote/view/:token" element={<PublicQuotePage />} />
+                <Route path="/reset-password" element={<ResetPasswordPage />} />
                 <Route path="/*" element={<ProtectedRoutes />} />
               </Routes>
             </Suspense>

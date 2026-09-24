@@ -10,10 +10,36 @@ import { Separator } from '@/components/ui/separator';
 
 export default function AuthPage() {
   const [isLogin, setIsLogin] = useState(true);
+  const [forgot, setForgot] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const { toast } = useToast();
+
+  const translate = (err: { message: string; code?: string }) => {
+    const code = err.code ?? '';
+    if (code === 'invalid_credentials' || /invalid login/i.test(err.message))
+      return "E-mail of wachtwoord onjuist. Gebruik 'Wachtwoord vergeten?'";
+    if (code === 'user_already_exists' || /already registered/i.test(err.message))
+      return 'Dit e-mailadres heeft al een account. Log in of herstel je wachtwoord.';
+    if (code === 'email_not_confirmed') return 'Bevestig eerst je e-mailadres via de link in je mail.';
+    return err.message;
+  };
+
+  const handleForgot = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: `${window.location.origin}/reset-password`,
+    });
+    setLoading(false);
+    if (error) {
+      toast({ title: 'Versturen mislukt', description: translate(error), variant: 'destructive' });
+    } else {
+      toast({ title: 'E-mail verstuurd', description: 'Controleer je inbox voor de link om je wachtwoord opnieuw in te stellen.' });
+      setForgot(false);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -22,22 +48,49 @@ export default function AuthPage() {
     if (isLogin) {
       const { error } = await supabase.auth.signInWithPassword({ email, password });
       if (error) {
-        toast({ title: 'Inloggen mislukt', description: error.message, variant: 'destructive' });
+        toast({ title: 'Inloggen mislukt', description: translate(error), variant: 'destructive' });
       }
     } else {
-      const { error } = await supabase.auth.signUp({
+      const { data, error } = await supabase.auth.signUp({
         email,
         password,
         options: { emailRedirectTo: window.location.origin },
       });
       if (error) {
-        toast({ title: 'Registratie mislukt', description: error.message, variant: 'destructive' });
-      } else {
-        toast({ title: 'Account aangemaakt', description: 'Je bent nu ingelogd.' });
+        toast({ title: 'Registratie mislukt', description: translate(error), variant: 'destructive' });
+      } else if (!data.session) {
+        toast({ title: 'Account aangemaakt', description: 'Controleer je e-mail om je account te bevestigen.' });
       }
     }
     setLoading(false);
   };
+
+  if (forgot) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-background p-4">
+        <div className="w-full max-w-sm space-y-6">
+          <div className="text-center space-y-2">
+            <h1 className="text-2xl font-bold text-foreground">Wachtwoord vergeten</h1>
+            <p className="text-sm text-muted-foreground">Vul je e-mailadres in, dan sturen we je een link.</p>
+          </div>
+          <form onSubmit={handleForgot} className="space-y-4">
+            <div className="space-y-1.5">
+              <Label htmlFor="femail">E-mail</Label>
+              <Input id="femail" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
+            </div>
+            <Button type="submit" className="w-full" disabled={loading}>
+              {loading ? 'Even geduld...' : 'Resetlink versturen'}
+            </Button>
+          </form>
+          <p className="text-center text-sm">
+            <button type="button" onClick={() => setForgot(false)} className="font-medium text-primary underline-offset-4 hover:underline">
+              Terug naar inloggen
+            </button>
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   const handleGoogleLogin = async () => {
     const { error } = await lovable.auth.signInWithOAuth('google', {
@@ -104,6 +157,13 @@ export default function AuthPage() {
               required
               minLength={6}
             />
+            {isLogin && (
+              <div className="text-right">
+                <button type="button" onClick={() => setForgot(true)} className="text-xs text-primary underline-offset-4 hover:underline">
+                  Wachtwoord vergeten?
+                </button>
+              </div>
+            )}
           </div>
           <Button type="submit" className="w-full" disabled={loading}>
             {loading ? 'Even geduld...' : isLogin ? (
