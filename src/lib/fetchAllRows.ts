@@ -18,9 +18,15 @@ interface FetchAllOptions {
 
 const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
-async function runWithAuthLockRetry<T extends { error?: { message?: string } | null }>(
-  request: () => PromiseLike<T>,
-): Promise<T> {
+interface QueryResult {
+  data: any[] | null;
+  count: number | null;
+  error: { message: string } | null;
+}
+
+async function runWithAuthLockRetry(
+  request: () => PromiseLike<QueryResult>,
+): Promise<QueryResult> {
   let result = await request();
 
   // The embedded preview can briefly serialize several initial data requests
