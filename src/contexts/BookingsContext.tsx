@@ -6,6 +6,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useRoomConflicts } from '@/hooks/useRoomConflicts';
 import { useToast } from '@/hooks/use-toast';
 import { fetchAllRows, debounce } from '@/lib/fetchAllRows';
+import { pushToGHL } from '@/lib/ghlSync';
 
 
 export interface BookingConflict {
@@ -96,6 +97,8 @@ export function BookingsProvider({ children }: { children: ReactNode }) {
     return bookings.filter((b) => {
       if (b.id === excludeId) return false;
       if (b.date !== date) return false;
+      // Cancelled and expired reservations no longer occupy the slot
+      if (b.status === 'cancelled' || b.status === 'expired') return false;
       if (!roomsToCheck.includes(b.roomName)) return false;
       const bStart = b.startHour * 60 + (b.startMinute || 0);
       const bEnd = b.endHour * 60 + (b.endMinute || 0);
@@ -118,6 +121,7 @@ export function BookingsProvider({ children }: { children: ReactNode }) {
       .in('room_name', roomsToCheck);
     return (dbConflicts || []).filter((b: any) => {
       if (excludeId && b.id === excludeId) return false;
+      if (b.status === 'cancelled' || b.status === 'expired') return false;
       const bStart = b.start_hour * 60 + (b.start_minute ?? 0);
       const bEnd = b.end_hour * 60 + (b.end_minute ?? 0);
       if (startMin >= bEnd || endMin <= bStart) return false;
@@ -138,26 +142,6 @@ export function BookingsProvider({ children }: { children: ReactNode }) {
     }));
   }, [getConflictRooms]);
 
-  // Queue failed sync to sync_queue table
-  const queueFailedSync = useCallback(async (
-    entityId: string, actionType: string, payload: any, error: string
-  ) => {
-    if (!user) return;
-    try {
-      await supabase.from('sync_queue').insert({
-        user_id: user.id,
-        entity_type: 'booking',
-        entity_id: entityId,
-        action_type: actionType,
-        payload,
-        status: 'pending',
-        last_error: error,
-      } as any);
-    } catch (e) {
-      console.error('[SyncQueue] Failed to queue:', e);
-    }
-  }, [user]);
-
   // Log sync action
   const logSync = useCallback(async (
     action: string, entityId: string | null, details: any, status: 'success' | 'error' | 'conflict'
@@ -174,6 +158,22 @@ export function BookingsProvider({ children }: { children: ReactNode }) {
       } as any);
     } catch (_) { /* intentional */ }
   }, [user]);
+
+  // Push a booking row to GHL. pushToGHL awaits the edge function, recognises
+  // {success:false} bodies and inactive calendars, and queues failures for retry.
+  const pushBookingToGHL = useCallback(async (row: any, actionType: 'create' | 'update') => {
+    const logAction = actionType === 'create' ? 'push_booking' : 'update_booking';
+    const result = await pushToGHL('push-booking', { booking: row }, {
+      entityType: 'booking', entityId: row.id, actionType,
+    });
+    if (result.outcome === 'success' || result.outcome === 'inactive') {
+      const skipped = result.data?.skipped;
+      await logSync(logAction, row.id, { room: row.room_name, ghl_status: skipped ? `skipped:${skipped}` : 'success' }, 'success');
+    } else {
+      console.warn(`[CliqCRM Sync] push-booking (${actionType}) failed, queued:`, result.error);
+      await logSync(logAction, row.id, { room: row.room_name, error: result.error }, 'error');
+    }
+  }, [logSync]);
 
   const addBooking = useCallback(async (booking: Omit<Booking, 'id'>): Promise<{ success: boolean; conflicts?: Booking[] }> => {
     if (!user) return { success: false };
@@ -251,22 +251,10 @@ export function BookingsProvider({ children }: { children: ReactNode }) {
       setBookings(prev => [...prev, newBooking]);
 
       // GHL push in background (fire-and-forget)
-      (async () => {
-        try {
-          const { error: syncErr } = await supabase.functions.invoke('ghl-sync', {
-            body: { action: 'push-booking', booking: data },
-          });
-          if (syncErr) throw syncErr;
-          await logSync('push_booking', data.id, { room: booking.roomName, ghl_status: 'success' }, 'success');
-        } catch (err: any) {
-          console.warn('[CliqCRM Sync] push-booking failed, queuing:', err);
-          await queueFailedSync(data.id, 'create', data, err?.message || 'Unknown error');
-          await logSync('push_booking', data.id, { room: booking.roomName, error: err?.message }, 'error');
-        }
-      })();
+      void pushBookingToGHL(data, 'create');
     }
     return { success: true };
-  }, [user, fetchBookings, toast, checkConflicts, serverConflictCheck, queueFailedSync, logSync]);
+  }, [user, fetchBookings, toast, checkConflicts, serverConflictCheck, pushBookingToGHL]);
 
   const addBookings = useCallback(async (newBookings: Omit<Booking, 'id'>[]): Promise<{ success: boolean; conflicts?: Booking[] }> => {
     if (!user || newBookings.length === 0) return { success: false };
@@ -308,25 +296,15 @@ export function BookingsProvider({ children }: { children: ReactNode }) {
       toast({ title: 'Fout bij aanmaken boekingen', description: error.message, variant: 'destructive' });
       return { success: false };
     }
-    // GHL push in background (fire-and-forget)
-    for (const booking of data || []) {
-      (async () => {
-        try {
-          const { error: syncErr } = await supabase.functions.invoke('ghl-sync', {
-            body: { action: 'push-booking', booking },
-          });
-          if (syncErr) throw syncErr;
-          await logSync('push_booking', booking.id, { ghl_status: 'success' }, 'success');
-        } catch (err: any) {
-          console.warn('[CliqCRM Sync] push-booking failed, queuing:', err);
-          await queueFailedSync(booking.id, 'create', booking, err?.message || 'Unknown error');
-          await logSync('push_booking', booking.id, { error: err?.message }, 'error');
-        }
-      })();
-    }
+    // GHL push in background, one at a time to respect GHL rate limits
+    void (async () => {
+      for (const booking of data || []) {
+        await pushBookingToGHL(booking, 'create');
+      }
+    })();
     await fetchBookings();
     return { success: true };
-  }, [user, fetchBookings, toast, serverConflictCheck, queueFailedSync, logSync]);
+  }, [user, fetchBookings, toast, serverConflictCheck, pushBookingToGHL]);
 
   const updateBooking = useCallback(async (updated: Booking): Promise<{ success: boolean; conflicts?: Booking[] }> => {
     const existingBooking = bookings.find((booking) => booking.id === updated.id);
@@ -370,23 +348,11 @@ export function BookingsProvider({ children }: { children: ReactNode }) {
     }
     if (data) {
       // GHL push in background (fire-and-forget)
-      (async () => {
-        try {
-          const { error: syncErr } = await supabase.functions.invoke('ghl-sync', {
-            body: { action: 'push-booking', booking: data },
-          });
-          if (syncErr) throw syncErr;
-          await logSync('update_booking', data.id, { ghl_status: 'success' }, 'success');
-        } catch (err: any) {
-          console.warn('[CliqCRM Sync] push-booking failed, queuing:', err);
-          await queueFailedSync(data.id, 'update', data, err?.message || 'Unknown error');
-          await logSync('update_booking', data.id, { error: err?.message }, 'error');
-        }
-      })();
+      void pushBookingToGHL(data, 'update');
       await fetchBookings();
     }
     return { success: true };
-  }, [bookings, fetchBookings, toast, serverConflictCheck, queueFailedSync, logSync]);
+  }, [bookings, fetchBookings, toast, serverConflictCheck, pushBookingToGHL]);
 
   const deleteBooking = useCallback(async (id: string) => {
     // Optimistic removal — instantly remove from UI state to prevent "spring back"
@@ -396,18 +362,16 @@ export function BookingsProvider({ children }: { children: ReactNode }) {
     const { data: existing } = await supabase.from('bookings').select('ghl_event_id').eq('id', id).single();
     const ghlEventId = (existing as any)?.ghl_event_id;
     
-    // Delete from GHL FIRST
+    // Delete from GHL FIRST (failures are queued for retry by pushToGHL)
     if (ghlEventId) {
-      try {
-        const { error: syncErr } = await supabase.functions.invoke('ghl-sync', {
-          body: { action: 'delete-booking', ghl_event_id: ghlEventId },
-        });
-        if (syncErr) throw syncErr;
+      const result = await pushToGHL('delete-booking', { ghl_event_id: ghlEventId }, {
+        entityType: 'booking', entityId: id, actionType: 'delete',
+      });
+      if (result.outcome === 'success' || result.outcome === 'inactive') {
         await logSync('delete_booking', id, { ghl_event_id: ghlEventId, ghl_status: 'success' }, 'success');
-      } catch (err: any) {
-        console.warn('[CliqCRM Sync] delete-booking failed, queuing:', err);
-        await queueFailedSync(id, 'delete', { ghl_event_id: ghlEventId }, err?.message || 'Unknown error');
-        await logSync('delete_booking', id, { ghl_event_id: ghlEventId, error: err?.message }, 'error');
+      } else {
+        console.warn('[CliqCRM Sync] delete-booking failed, queued:', result.error);
+        await logSync('delete_booking', id, { ghl_event_id: ghlEventId, error: result.error }, 'error');
       }
     }
     
@@ -420,7 +384,7 @@ export function BookingsProvider({ children }: { children: ReactNode }) {
     }
     // Don't fetchBookings here — optimistic state is already correct
     // Realtime subscription will confirm the deletion
-  }, [bookings, toast, queueFailedSync, logSync]);
+  }, [bookings, toast, logSync]);
 
   return (
     <BookingsContext.Provider value={{ bookings, loading, addBooking, addBookings, updateBooking, deleteBooking, refetch: fetchBookings, checkConflicts }}>

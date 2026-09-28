@@ -31,6 +31,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import ConflictAlertDialog from '@/components/calendar/ConflictAlertDialog';
 import { Booking } from '@/types/crm';
 import { bookingsForInquiry } from '@/lib/inquiryBookings';
+import { localToday } from '@/lib/formatters';
 
 
 export default function InquiryDetailPage() {
@@ -90,10 +91,9 @@ export default function InquiryDetailPage() {
   const contactBookings = useMemo(() => inquiry?.contactId ? bookings.filter(b => b.contactId === inquiry.contactId) : [], [bookings, inquiry]);
   const existingOption = useMemo(() => {
     if (!inquiry) return null;
-    const candidates = bookings.filter(b => b.status === 'option' && (
-      (inquiry.contactId && b.contactId === inquiry.contactId) ||
-      (inquiry.contactName && b.contactName?.toLowerCase() === inquiry.contactName.toLowerCase())
-    ));
+    // Only options that belong to THIS inquiry and are still in the future count
+    const today = localToday();
+    const candidates = bookingsForInquiry(bookings, inquiry).filter(b => b.status === 'option' && b.date >= today);
     if (!candidates.length) return null;
     // Prefer match on preferredDate
     const dateMatch = inquiry.preferredDate ? candidates.find(b => b.date === inquiry.preferredDate) : null;

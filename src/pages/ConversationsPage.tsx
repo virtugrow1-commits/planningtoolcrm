@@ -132,6 +132,11 @@ export default function ConversationsPage() {
   const fetchMessages = useCallback(async (conversationId: string) => {
     setLoadingMessages(true);
     try {
+      // Pull the latest messages for this conversation from GHL first (the
+      // background sync only refreshes the three most recent conversations)
+      try {
+        await supabase.functions.invoke('ghl-sync', { body: { action: 'sync-messages', conversation_id: conversationId } });
+      } catch { /* local messages are still shown */ }
       const { data, error } = await supabase
         .from('messages')
         .select('id, body, direction, date_added, message_type, status, created_at')
@@ -172,14 +177,14 @@ export default function ConversationsPage() {
     if (!selectedConv) return;
     try {
       // Send via GHL if we have a GHL conversation ID
-      const ghlConvId = selectedConv.ghlConversationId || selectedConv.id;
+      const messageType = channel === 'email' ? 'Email' : 'SMS';
       const { data, error } = await supabase.functions.invoke('ghl-sync', {
         body: {
           action: 'send-message',
-          conversationId: ghlConvId,
+          conversationId: selectedConv.id,
           contactId: selectedConv.contactId,
           message,
-          type: 'Email',
+          type: messageType,
           subject: options?.subject || undefined,
           cc: options?.cc || undefined,
           bcc: options?.bcc || undefined,
@@ -195,7 +200,7 @@ export default function ConversationsPage() {
         ghl_message_id: data.messageId || null,
         body: message,
         direction: 'outbound',
-        message_type: 'Email',
+        message_type: messageType === 'Email' ? 'TYPE_EMAIL' : 'TYPE_SMS',
         status: 'sent',
         date_added: new Date().toISOString(),
       };
@@ -215,7 +220,7 @@ export default function ConversationsPage() {
           body: message,
           direction: 'outbound',
           dateAdded: new Date().toISOString(),
-          type: 'Email',
+          type: messageType === 'Email' ? 'TYPE_EMAIL' : 'TYPE_SMS',
           status: 'sent',
         },
       ]);

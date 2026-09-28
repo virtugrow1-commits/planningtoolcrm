@@ -30,6 +30,7 @@ import { useContacts } from '@/hooks/useContacts';
 import { useAuth } from '@/contexts/AuthContext';
 import { useRoomSettings } from '@/hooks/useRoomSettings';
 import ListSkeleton from '@/components/ListSkeleton';
+import { localToday } from '@/lib/formatters';
 
 
 type EnrichedBooking = Booking & { company: string; isPast: boolean };
@@ -60,7 +61,7 @@ export default function ReserveringenPage() {
   const sort = useSortState<EnrichedBooking>();
 
   const availableRooms = useMemo(() => [...ROOMS], []);
-  const todayStr = useMemo(() => new Date().toISOString().split('T')[0], []);
+  const todayStr = useMemo(() => localToday(), []);
 
   const enrichedBookings = useMemo<EnrichedBooking[]>(() => {
     return bookings
@@ -519,7 +520,8 @@ export default function ReserveringenPage() {
         onSubmit={async (form) => {
           const newBookings: Omit<Booking, 'id'>[] = [];
           // Handle recurrence
-          const count = form.repeatType !== 'eenmalig' && form.repeatType !== 'specifiek' ? form.repeatCount : 1;
+          // 'specifiek' (losse datums) uses only the picked dates — no extra booking on the form date
+          const count = form.repeatType === 'specifiek' ? 0 : (form.repeatType !== 'eenmalig' ? form.repeatCount : 1);
           for (let i = 0; i < count; i++) {
             const d = new Date(form.date + 'T00:00:00');
             if (form.repeatType === 'week') d.setDate(d.getDate() + i * 7);

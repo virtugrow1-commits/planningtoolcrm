@@ -1,4 +1,4 @@
-import { formatDate } from '@/lib/formatters';
+import { formatDate, localToday } from '@/lib/formatters';
 import {
   CheckSquare,
   Plus,
@@ -122,7 +122,7 @@ export default function TasksPage() {
   });
 
 
-  const today = new Date().toISOString().split('T')[0];
+  const today = localToday();
 
   const contactMap = useMemo(() => {
     const m = new Map<string, { name: string; id: string }>();
@@ -413,7 +413,7 @@ export default function TasksPage() {
     setSelected(new Set());
     setBulkDate(undefined);
     setBulkDateOpen(false);
-    toast({ title: `${count} ${t('dashboard.movedToDate')}` });
+    toast({ title: `${count} ${t('tasks.movedToDate')}` });
   };
 
   const handleBulkAssign = async () => {

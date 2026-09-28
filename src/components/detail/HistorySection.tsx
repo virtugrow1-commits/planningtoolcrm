@@ -1,4 +1,4 @@
-import { formatDate } from '@/lib/formatters';
+import { formatDate, localToday } from '@/lib/formatters';
 import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { format } from 'date-fns';
@@ -94,7 +94,7 @@ export default function HistorySection({
   inquiriesEmptyText = 'Geen andere aanvragen gevonden.',
 }: HistorySectionProps) {
   const navigate = useNavigate();
-  const todayStr = useMemo(() => new Date().toISOString().split('T')[0], []);
+  const todayStr = useMemo(() => localToday(), []);
   const [expandUpcoming, setExpandUpcoming] = useState(false);
   const [expandPast, setExpandPast] = useState(false);
   const [expandInquiries, setExpandInquiries] = useState(false);

@@ -251,7 +251,7 @@ function ProductListView({ block }: { block: any }) {
     description: item.description,
     quantity: Number(item.quantity) || 0,
     unitPrice: Number(item.unitPrice) || 0,
-    vatRate: Number(item.vatRate) ?? 21,
+    vatRate: Number.isFinite(Number(item.vatRate)) ? Number(item.vatRate) : 21,
     discountPercent: Number(item.discountPercent) || 0,
     lineTotal: 0, // will be overridden
   }));

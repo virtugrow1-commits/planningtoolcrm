@@ -98,7 +98,7 @@ export default function NewReservationDialog({
     date: initialDate || today,
     startHour: initialStartHour ?? 9,
     startMinute: 0,
-    endHour: (initialStartHour ?? 9) + 3,
+    endHour: ((initialStartHour ?? 9) + 3) % 24,
     endMinute: 0,
     title: '',
     status: initialStatus,
@@ -132,7 +132,7 @@ export default function NewReservationDialog({
       const prefillRoom = prefill?.roomName && ROOMS.includes(prefill.roomName as RoomName) ? prefill.roomName as RoomName : undefined;
       let sH = initialStartHour ?? 9;
       let sM = 0;
-      let eH = Math.min((initialStartHour ?? 9) + 3, 25);
+      let eH = ((initialStartHour ?? 9) + 3) % 24; // wraps past midnight (23:00 → 02:00 next day)
       let eM = 0;
       if (prefill?.startTime) {
         const [h, m] = prefill.startTime.split(':').map(Number);
@@ -142,7 +142,7 @@ export default function NewReservationDialog({
         const [h, m] = prefill.endTime.split(':').map(Number);
         if (!isNaN(h)) { eH = h; eM = m || 0; }
       } else {
-        eH = Math.min(sH + 3, 25);
+        eH = (sH + 3) % 24;
         eM = sM;
       }
       setForm({

@@ -190,7 +190,8 @@ export default function PublicQuotePage() {
     );
   }
 
-  const isExpired = quote.valid_until && new Date(quote.valid_until) < new Date();
+  // valid_until is a date: the quote stays valid until the end of that day
+  const isExpired = quote.valid_until && new Date(`${String(quote.valid_until).slice(0, 10)}T23:59:59`) < new Date();
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-secondary/40 via-background to-background pb-32">

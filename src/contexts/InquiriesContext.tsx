@@ -151,32 +151,42 @@ export function InquiriesProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    // Fire-and-forget: push to GHL without blocking the UI
-    if (inquiry.ghlOpportunityId) {
-      // Update existing GHL opportunity with correct stage
-      pushToGHL('push-inquiry-status', {
-        ghl_opportunity_id: inquiry.ghlOpportunityId,
-        status: inquiry.status,
-        name: inquiry.eventType,
-        monetary_value: inquiry.budget,
-        contact_name: inquiry.contactName,
-        guest_count: inquiry.guestCount,
-      }, {
-        entityType: 'inquiry', entityId: inquiry.id, actionType: 'update',
-      });
-    } else {
-      // No GHL opportunity yet — create one with the correct stage
-      pushToGHL('push-inquiry', {
-        inquiry_id: inquiry.id,
-        contact_name: inquiry.contactName,
-        event_type: inquiry.eventType,
-        budget: inquiry.budget,
-        status: inquiry.status,
-        message: inquiry.message,
-      }, {
-        entityType: 'inquiry', entityId: inquiry.id, actionType: 'create',
-      });
-    }
+    // Fire-and-forget: push to GHL without blocking the UI.
+    // The local copy may still lack the GHL id (it arrives via realtime a moment
+    // after creation), so re-read it to avoid creating a second opportunity.
+    void (async () => {
+      let ghlOpportunityId = inquiry.ghlOpportunityId;
+      if (!ghlOpportunityId) {
+        const { data: fresh } = await supabase.from('inquiries').select('ghl_opportunity_id').eq('id', inquiry.id).maybeSingle();
+        ghlOpportunityId = (fresh as any)?.ghl_opportunity_id || undefined;
+      }
+      if (ghlOpportunityId) {
+        // Update existing GHL opportunity with correct stage
+        await pushToGHL('push-inquiry-status', {
+          ghl_opportunity_id: ghlOpportunityId,
+          status: inquiry.status,
+          name: inquiry.eventType,
+          monetary_value: inquiry.budget,
+          contact_name: inquiry.contactName,
+          guest_count: inquiry.guestCount,
+        }, {
+          entityType: 'inquiry', entityId: inquiry.id, actionType: 'update',
+        });
+      } else {
+        // No GHL opportunity yet — create one with the correct stage (the edge
+        // function updates instead when one was created in the meantime)
+        await pushToGHL('push-inquiry', {
+          inquiry_id: inquiry.id,
+          contact_name: inquiry.contactName,
+          event_type: inquiry.eventType,
+          budget: inquiry.budget,
+          status: inquiry.status,
+          message: inquiry.message,
+        }, {
+          entityType: 'inquiry', entityId: inquiry.id, actionType: 'create',
+        });
+      }
+    })();
   }, [toast]);
 
   const deleteInquiry = useCallback(async (id: string) => {

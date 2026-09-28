@@ -88,6 +88,8 @@ export default function CalendarPage() {
       title: booking.title,
       contactName: booking.contactName,
       contactId: booking.contactId,
+      companyId: booking.companyId,
+      inquiryId: booking.inquiryId,
       status: booking.status,
       notes: booking.notes,
       guestCount: booking.guestCount ?? 0,
@@ -187,10 +189,11 @@ export default function CalendarPage() {
       title: form.title,
       contactName: form.contactName,
       contactId: form.contactId,
+      companyId: form.companyId || undefined,
       status: form.status,
       guestCount: form.guestCount ?? 0,
       roomSetup: form.roomSetup || undefined,
-      requirements: form.notes || undefined,
+      notes: form.notes || undefined,
       preparationStatus: 'pending' as const,
     }));
 

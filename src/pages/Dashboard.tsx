@@ -1,4 +1,4 @@
-import { formatDate } from '@/lib/formatters';
+import { formatDate, localToday } from '@/lib/formatters';
 import {
   InboxIcon,
   CalendarCheck,
@@ -108,7 +108,7 @@ export default function Dashboard() {
   const navigate = useNavigate();
   const { toast } = useToast();
 
-  const today = new Date().toISOString().split('T')[0];
+  const today = localToday();
   const todayBookings = useMemo(() =>
     bookings.filter((b) => b.date === today)
       .sort((a, b) => (a.startHour * 60 + (a.startMinute || 0)) - (b.startHour * 60 + (b.startMinute || 0))),
@@ -140,7 +140,9 @@ export default function Dashboard() {
   const filteredTasks = useMemo(() => {
     let result = tasks;
     result = result.filter(t => !!t.contactId);
-    if (filter !== 'completed') {
+    if (filter === 'completed') {
+      result = result.filter(t => t.status === 'completed');
+    } else {
       result = result.filter(t => t.status !== 'completed');
     }
     if (resolvedUserFilter && resolvedUserFilter !== '__all__') {

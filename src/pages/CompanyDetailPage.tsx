@@ -1,4 +1,4 @@
-import { formatDate } from '@/lib/formatters';
+import { formatDate, toLocalDateString, localToday } from '@/lib/formatters';
 import { useState, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Building2, ChevronRight, Plus, Pencil, Check, X, Search, UserPlus, Unlink, Trash2 } from 'lucide-react';
@@ -84,7 +84,7 @@ export default function CompanyDetailPage() {
 
   const contactIds = useMemo(() => new Set(companyContacts.map((c) => c.id)), [companyContacts]);
 
-  const todayStr = useMemo(() => new Date().toISOString().split('T')[0], []);
+  const todayStr = useMemo(() => localToday(), []);
   const relatedBookings = useMemo(() => {
     if (!company) return [];
     const companyNameLower = company.name?.toLowerCase().trim() || '';
@@ -277,7 +277,7 @@ export default function CompanyDetailPage() {
       toast({ title: 'Vul minimaal voor- en achternaam in', variant: 'destructive' });
       return;
     }
-    await addContact({
+    const outcome = await addContact({
       firstName: newContactForm.firstName,
       lastName: newContactForm.lastName,
       email: newContactForm.email,
@@ -288,6 +288,7 @@ export default function CompanyDetailPage() {
       dmu: newContactForm.dmu || undefined,
       functionGroup: newContactForm.functionGroup || undefined,
     });
+    if (outcome === null) return; // duplicate: addContact already showed a toast
     toast({ title: `${newContactForm.firstName} ${newContactForm.lastName} aangemaakt en gekoppeld` });
     setAddContactOpen(false);
     setNewContactForm({ firstName: '', lastName: '', email: '', phone: '', dmu: '', functionGroup: '' });
@@ -457,7 +458,7 @@ export default function CompanyDetailPage() {
                     onClick={() => navigate(`/crm/${b.contact.id}`)}
                     className="block text-xs text-primary hover:underline"
                   >
-                    Verjaardag {b.contact.firstName} {b.contact.lastName}: {formatDate(b.next.toISOString().split('T')[0])}
+                    Verjaardag {b.contact.firstName} {b.contact.lastName}: {formatDate(toLocalDateString(b.next))}
                     {b.days === 0 ? ' (vandaag)' : ` (over ${b.days} ${b.days === 1 ? 'dag' : 'dagen'})`}
                   </button>
                 ))}

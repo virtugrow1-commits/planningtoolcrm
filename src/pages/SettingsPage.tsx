@@ -221,7 +221,8 @@ export default function SettingsPage() {
         let totalRemaining = 0;
         let batchNum = 0;
 
-        while (true) {
+        const MAX_BATCHES = 200;
+        while (batchNum < MAX_BATCHES) {
           batchNum++;
           toast({ title: `⏳ Batch ${batchNum} wordt verwerkt...`, description: `${totalPushed} reserveringen gepusht tot nu toe` });
           const { data, error } = await supabase.functions.invoke('ghl-sync', {
@@ -234,6 +235,9 @@ export default function SettingsPage() {
           totalRemaining = data.total || 0;
 
           if (!data.hasMore || data.batchProcessed === 0) break;
+          // No progress: every booking in this batch failed or was skipped, so the
+          // same rows would come back forever (their ghl_event_id stays empty).
+          if ((data.pushed || 0) === 0) break;
           // Wait between batches to respect rate limits
           await new Promise(r => setTimeout(r, 3000));
         }

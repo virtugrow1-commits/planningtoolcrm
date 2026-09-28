@@ -278,7 +278,7 @@ export default function BookingDetailDialog({ booking, open, onOpenChange, onUpd
                 <User size={14} className="text-muted-foreground" />
                 {linkedContact ? (
                   <button
-                    onClick={() => { onOpenChange(false); navigate(`/contacts/${linkedContact.id}`); }}
+                    onClick={() => { onOpenChange(false); navigate(`/crm/${linkedContact.id}`); }}
                     className="font-medium text-primary hover:underline flex items-center gap-1"
                   >
                     {linkedContact.firstName} {linkedContact.lastName}

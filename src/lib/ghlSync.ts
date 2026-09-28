@@ -1,4 +1,5 @@
 import { supabase } from '@/integrations/supabase/client';
+import { FunctionsHttpError } from '@supabase/supabase-js';
 
 interface SyncOptions {
   /** Entity type for sync queue (e.g. 'contact', 'company', 'booking', 'inquiry', 'task') */
@@ -35,7 +36,7 @@ export async function pushToGHL(
       body: { action, ...data },
     });
     if (error) {
-      const msg = error?.message || 'Edge function error';
+      const msg = await describeInvokeError(error);
       if (isCalendarInactive(msg)) {
         console.info(`[CliqCRM Sync] ${action} skipped: calendar inactive`);
         if (options?.entityType && options?.entityId) {
@@ -85,6 +86,26 @@ export async function pushToGHL(
     await handleSyncFailure(action, data, options, msg);
     return { outcome: 'queued', error: msg };
   }
+}
+
+/**
+ * supabase-js only exposes "Edge Function returned a non-2xx status code" on
+ * HTTP errors; the real reason is in the response body. Read it so the sync
+ * queue, the toast and the inactive-calendar check see the actual message.
+ */
+async function describeInvokeError(error: any): Promise<string> {
+  if (error instanceof FunctionsHttpError && error.context && typeof error.context.clone === 'function') {
+    try {
+      const body = await error.context.clone().json();
+      const msg = body?.error || body?.message;
+      if (msg) return typeof msg === 'string' ? msg : JSON.stringify(msg);
+    } catch { /* fall through to text */ }
+    try {
+      const text = await error.context.clone().text();
+      if (text) return text.slice(0, 500);
+    } catch { /* ignore */ }
+  }
+  return error?.message || 'Edge function error';
 }
 
 /** Detect "calendar inactive" patterns from various GHL/edge error messages */

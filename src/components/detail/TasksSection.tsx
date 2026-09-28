@@ -186,7 +186,7 @@ export default function TasksSection({ tasks, defaults, showOrigin, inquiryLabel
             </div>
           </div>
           <div className="flex gap-1.5 justify-end">
-            <Button variant="ghost" size="sm" className="h-8 text-xs" onClick={() => { setShowForm(false); setNewTitle(''); setNewDueDate(undefined); setNewAssignedTo(undefined); }}>
+            <Button variant="ghost" size="sm" className="h-8 text-xs" onClick={() => { setShowForm(false); setNewTitle(''); setNewDueDate(undefined); setNewAssignedTo([]); }}>
               Annuleren
             </Button>
             <Button size="sm" className="h-8 text-xs" onClick={handleAdd} disabled={adding || !newTitle.trim() || !newAssignedTo.length || !newDueDate}>

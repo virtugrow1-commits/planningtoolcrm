@@ -1,4 +1,4 @@
-import { formatDate } from '@/lib/formatters';
+import { formatDate, localToday, toLocalDateString } from '@/lib/formatters';
 import { resolveContact } from '@/lib/contactLookup';
 
 import { useState, useCallback, useEffect, useMemo, useRef, DragEvent } from 'react';
@@ -139,7 +139,7 @@ export default function InquiriesPage() {
   });
   
   const navigate = useNavigate();
-  const todayStr = useMemo(() => new Date().toISOString().split('T')[0], []);
+  const todayStr = useMemo(() => localToday(), []);
   const [searchParams, setSearchParams] = useSearchParams();
 
   // Determine which inquiries have only past bookings (all bookings before today)
@@ -443,7 +443,7 @@ export default function InquiriesPage() {
     // Navigate to calendar with the first booked date
     const firstDate = validOptions[0]?.date;
     if (firstDate) {
-      navigate(`/calendar?date=${firstDate.toISOString().split('T')[0]}`);
+      navigate(`/calendar?date=${toLocalDateString(firstDate)}`);
     }
   };
 

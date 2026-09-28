@@ -88,11 +88,11 @@ export function ContactsProvider({ children }: { children: ReactNode }) {
 
   const addContact = useCallback(async (contact: Omit<Contact, 'id' | 'createdAt'>): Promise<SyncOutcome | null> => {
     if (!user) return null;
-    // Check for existing contact by name + email to prevent duplicates
+    // Check for existing contact by name to prevent duplicates. Contacts are shared
+    // within the organisation (RLS), so do not restrict the check to this user.
     const { data: existing } = await supabase
       .from('contacts')
       .select('id')
-      .eq('user_id', user.id)
       .ilike('first_name', capitalizeWords(contact.firstName))
       .ilike('last_name', capitalizeWords(contact.lastName))
       .limit(1)

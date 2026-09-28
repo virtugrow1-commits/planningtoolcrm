@@ -9,7 +9,7 @@ const navigateMock = vi.fn();
 const toastMock = vi.fn();
 
 vi.mock('@/contexts/ContactsContext', () => ({
-  useContactsContext: () => ({ addContact: addContactMock }),
+  useContactsContext: () => ({ contacts: [], addContact: addContactMock, updateContact: vi.fn() }),
 }));
 vi.mock('@/hooks/use-toast', () => ({
   useToast: () => ({ toast: toastMock }),
@@ -54,7 +54,7 @@ describe('PostCompanyContactFlow', () => {
     renderFlow({ id: 'c1', name: 'Acme BV' });
     expect(screen.getByText('Contactpersoon toevoegen?')).toBeInTheDocument();
     expect(screen.getByText('Acme BV')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /Ja, contact toevoegen/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Nieuw contact aanmaken/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Nee, sluiten/i })).toBeInTheDocument();
   });
 
@@ -71,7 +71,7 @@ describe('PostCompanyContactFlow', () => {
     const onClose = vi.fn();
     renderFlow({ id: 'c1', name: 'Acme BV' }, onClose);
 
-    await userEvent.click(screen.getByRole('button', { name: /Ja, contact toevoegen/i }));
+    await userEvent.click(screen.getByRole('button', { name: /Nieuw contact aanmaken/i }));
     await screen.findByText('Contactpersoon toevoegen');
 
     await userEvent.type(inputForLabel(/^Voornaam/i), 'Jan');
@@ -102,7 +102,7 @@ describe('PostCompanyContactFlow', () => {
 
   it('validates required first/last name and does not call addContact', async () => {
     renderFlow({ id: 'c1', name: 'Acme BV' });
-    await userEvent.click(screen.getByRole('button', { name: /Ja, contact toevoegen/i }));
+    await userEvent.click(screen.getByRole('button', { name: /Nieuw contact aanmaken/i }));
     await screen.findByText('Contactpersoon toevoegen');
     await userEvent.click(screen.getByRole('button', { name: /^Opslaan$/i }));
     expect(addContactMock).not.toHaveBeenCalled();
@@ -111,14 +111,14 @@ describe('PostCompanyContactFlow', () => {
 
   it('"Ja, nog één" reopens the form with empty fields', async () => {
     renderFlow({ id: 'c1', name: 'Acme BV' });
-    await userEvent.click(screen.getByRole('button', { name: /Ja, contact toevoegen/i }));
+    await userEvent.click(screen.getByRole('button', { name: /Nieuw contact aanmaken/i }));
     await screen.findByText('Contactpersoon toevoegen');
     await userEvent.type(inputForLabel(/^Voornaam/i), 'Jan');
     await userEvent.type(inputForLabel(/^Achternaam/i), 'Jansen');
     await userEvent.click(screen.getByRole('button', { name: /^Opslaan$/i }));
 
     await screen.findByText('Nog een contactpersoon toevoegen?');
-    await userEvent.click(screen.getByRole('button', { name: /Ja, nog één/i }));
+    await userEvent.click(screen.getByRole('button', { name: /Nieuw contact$/i }));
 
     await screen.findByText('Contactpersoon toevoegen');
     expect(inputForLabel(/^Voornaam/i).value).toBe('');
@@ -128,7 +128,7 @@ describe('PostCompanyContactFlow', () => {
   it('"Naar bedrijfspagina" navigates to the company detail page', async () => {
     const onClose = vi.fn();
     renderFlow({ id: 'c1', name: 'Acme BV' }, onClose);
-    await userEvent.click(screen.getByRole('button', { name: /Ja, contact toevoegen/i }));
+    await userEvent.click(screen.getByRole('button', { name: /Nieuw contact aanmaken/i }));
     await screen.findByText('Contactpersoon toevoegen');
     await userEvent.type(inputForLabel(/^Voornaam/i), 'Jan');
     await userEvent.type(inputForLabel(/^Achternaam/i), 'Jansen');

@@ -1,4 +1,4 @@
-import { formatDate } from '@/lib/formatters';
+import { formatDate, localToday } from '@/lib/formatters';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useState, useMemo } from 'react';
 import { useTasksContext } from '@/contexts/TasksContext';
@@ -179,7 +179,7 @@ export default function TaskDetailPage() {
   };
 
 
-  const isOverdue = task.dueDate && task.status !== 'completed' && task.dueDate < new Date().toISOString().split('T')[0];
+  const isOverdue = task.dueDate && task.status !== 'completed' && task.dueDate < localToday();
 
   return (
     <div className="p-6 lg:p-8 space-y-6 animate-fade-in">

@@ -1,4 +1,4 @@
-import { formatDate } from '@/lib/formatters';
+import { formatDate, localToday } from '@/lib/formatters';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useContactsContext } from '@/contexts/ContactsContext';
 import { useInquiriesContext } from '@/contexts/InquiriesContext';
@@ -71,7 +71,7 @@ export default function ContactDetailPage() {
       return false;
     });
   }, [bookings, contact]);
-  const todayStr = useMemo(() => new Date().toISOString().split('T')[0], []);
+  const todayStr = useMemo(() => localToday(), []);
   const confirmedBookings = useMemo(() => contactBookings.filter((b) => b.status !== 'option' && b.date >= todayStr).sort((a, b) => a.date.localeCompare(b.date)), [contactBookings, todayStr]);
   const optionBookings = useMemo(() => contactBookings.filter((b) => b.status === 'option' && b.date >= todayStr).sort((a, b) => a.date.localeCompare(b.date)), [contactBookings, todayStr]);
   const pastBookings = useMemo(() => contactBookings.filter((b) => b.date < todayStr).sort((a, b) => b.date.localeCompare(a.date)), [contactBookings, todayStr]);

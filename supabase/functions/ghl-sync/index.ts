@@ -1,13 +1,26 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { pickBookingForTask, type LinkableBooking } from "../_shared/taskBookingLink.ts";
 import { suppressGhlTask, taskRuleKey, taskRuleLabel } from "../_shared/taskAutomation.ts";
+import {
+  GHL_API_BASE,
+  applyRemoteInquiryPatch,
+  buildAppointmentPayload,
+  buildOpportunityUpdate,
+  buildTaskPayload,
+  crmIsNewer,
+  findStageForStatus,
+  ghlDueDateLocal,
+  ghlOpportunityStatus,
+  parseGhlEvent,
+  stageToStatus,
+} from "../_shared/ghlCommon.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version',
+  // Every response is JSON; the browser client only parses the body when this header is present.
+  'Content-Type': 'application/json',
 };
-
-const GHL_API_BASE = 'https://services.leadconnectorhq.com';
 
 const delay = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
@@ -178,11 +191,11 @@ Deno.serve(async (req) => {
           .maybeSingle();
 
         if (existing) {
-          // Timestamp-based: only overwrite if GHL is newer
+          // Timestamp-based: only overwrite if GHL is newer (compared as real dates)
           const ghlUpdatedAt = ghlContact.dateUpdated || ghlContact.dateAdded || null;
-          const crmIsNewer = !ghlUpdatedAt || existing.updated_at >= ghlUpdatedAt;
+          const crmNewer = crmIsNewer(existing.updated_at, ghlUpdatedAt);
 
-          if (!crmIsNewer) {
+          if (!crmNewer) {
             await supabase.from('contacts').update({
               first_name: firstName,
               last_name: lastName,
@@ -453,21 +466,25 @@ Deno.serve(async (req) => {
         }
       }
 
+      // Contacts by GHL id so pulled appointments get a clickable contact
+      const { data: ghlLinkedContacts } = await supabase
+        .from('contacts')
+        .select('id, ghl_contact_id, first_name, last_name')
+        .in('user_id', orgUserIds)
+        .not('ghl_contact_id', 'is', null);
+      const contactByGhlId = new Map<string, any>((ghlLinkedContacts || []).map((c: any) => [c.ghl_contact_id, c]));
+
       // Upsert events as bookings
       let synced = 0;
       let skipped = 0;
       for (const evt of allEvents) {
-        const evtStart = new Date(evt.startTime || evt.start);
-        const evtEnd = new Date(evt.endTime || evt.end);
-        // Use local date components to avoid UTC shift
-        const dateStr = `${evtStart.getFullYear()}-${String(evtStart.getMonth() + 1).padStart(2, '0')}-${String(evtStart.getDate()).padStart(2, '0')}`;
-        const startHour = evtStart.getHours();
-        const startMinute = evtStart.getMinutes();
-        const endHour = evtEnd.getHours() || 17;
-        const endMinute = evtEnd.getMinutes();
-        const contactName = evt.contact?.name || evt.title || 'GHL Afspraak';
-        const title = evt.title || evt.calendarName || 'GHL Afspraak';
-        const status = (evt.status === 'confirmed' || evt.appointmentStatus === 'confirmed') ? 'confirmed' : 'option';
+        const parsed = parseGhlEvent(evt);
+        if (!parsed) { skipped++; continue; }
+        const { dateStr, startHour, startMinute, endHour, endMinute, title, status } = parsed;
+        const linkedContact = parsed.ghlContactId ? contactByGhlId.get(parsed.ghlContactId) : null;
+        const contactName = linkedContact
+          ? `${linkedContact.first_name || ''} ${linkedContact.last_name || ''}`.trim() || title
+          : (evt.contact?.name || title);
 
         // Determine room: use mapping if available, otherwise default
         const roomName = calIdToRoom[evt.calendarId] || defaultRoom;
@@ -475,19 +492,16 @@ Deno.serve(async (req) => {
         // Check if booking exists across all organization users
         const { data: existing } = await supabase
           .from('bookings')
-          .select('id, room_name, user_id, updated_at')
+          .select('id, room_name, user_id, updated_at, contact_id')
           .in('user_id', orgUserIds)
           .eq('ghl_event_id', evt.id)
           .maybeSingle();
 
         if (existing) {
-          // Timestamp-based: only overwrite if GHL is newer
-          const ghlUpdatedAt = evt.dateUpdated || evt.dateAdded || null;
-          const crmIsNewer = !ghlUpdatedAt || existing.updated_at >= ghlUpdatedAt;
-
-          if (!crmIsNewer) {
+          // Timestamp-based: only overwrite if GHL is newer (compared as real dates)
+          if (!crmIsNewer(existing.updated_at, parsed.updatedAt)) {
             // GHL wins → update time/date fields, preserve locally-set fields (room, notes, guest_count, etc.)
-            await supabase.from('bookings').update({
+            const patch: Record<string, any> = {
               date: dateStr,
               start_hour: startHour,
               start_minute: startMinute,
@@ -496,12 +510,18 @@ Deno.serve(async (req) => {
               title,
               contact_name: contactName,
               status,
-            }).eq('id', existing.id);
+            };
+            if (!existing.contact_id && linkedContact) patch.contact_id = linkedContact.id;
+            await supabase.from('bookings').update(patch).eq('id', existing.id);
             console.log(`[Calendar Sync] Updated booking (GHL newer): ${title} (${existing.id})`);
           } else {
+            if (!existing.contact_id && linkedContact) {
+              await supabase.from('bookings').update({ contact_id: linkedContact.id }).eq('id', existing.id);
+            }
             console.log(`[Calendar Sync] Skipped booking (CRM newer): ${title} (${existing.id})`);
           }
         } else {
+          if (status === 'cancelled') { skipped++; continue; } // never import cancelled appointments as new bookings
           const { data: inserted } = await supabase.from('bookings').insert({
             user_id: primaryUserId, // Assign new bookings to primary org user
             ghl_event_id: evt.id,
@@ -513,6 +533,7 @@ Deno.serve(async (req) => {
             end_minute: endMinute,
             title,
             contact_name: contactName,
+            contact_id: linkedContact?.id || null,
             status,
           }).select('id').single();
           console.log(`[Calendar Sync] Created booking: ${title} (${inserted?.id}) for user ${primaryUserId}`);
@@ -547,24 +568,7 @@ Deno.serve(async (req) => {
         }
       }
 
-      // Map GHL stage names to CRM statuses
-      const stageToStatus = (stageName: string): string => {
-        const lower = stageName.toLowerCase();
-        if (lower.includes('nieuwe aanvraag') || lower === 'new') return 'new';
-        if (lower.includes('lopend contact')) return 'contacted';
-        if (lower.includes('optie')) return 'option';
-        if (lower.includes('aangepaste offerte')) return 'quote_revised';
-        if (lower.includes('offerte verzonden') || lower.includes('offerte')) return 'quoted';
-        if (lower.includes('definitieve reservering') || lower.includes('definitief')) return 'confirmed';
-        if (lower.includes('reservering')) return 'reserved';
-        if (lower.includes('draaiboek')) return 'script';
-        if (lower.includes('facturatie') || lower.includes('invoice')) return 'invoiced';
-        if (lower.includes('vervallen') || lower.includes('verloren') || lower.includes('lost')) return 'lost';
-        if (lower.includes('after sales') || lower.includes('aftersales')) return 'after_sales';
-        if (lower.includes('condoleance') || lower.includes('condolence')) return 'condolence_reminder';
-        if (lower.includes('evenement')) return 'converted';
-        return 'new';
-      };
+      // Map GHL stage names to CRM statuses (shared mapping)
 
       // Fetch all opportunities
       let allOpportunities: any[] = [];
@@ -601,25 +605,40 @@ Deno.serve(async (req) => {
         // Check if opportunity exists across all organization users
         const { data: existing } = await supabase
           .from('inquiries')
-          .select('id, user_id')
+          .select('id, user_id, status, updated_at, local_status_changed_at, contact_name, budget, event_type')
           .in('user_id', orgUserIds)
           .eq('ghl_opportunity_id', opp.id)
           .maybeSingle();
 
         if (existing) {
-          await supabase.from('inquiries').update({
-            contact_name: contactName,
-            status: crmStatus,
-            budget: monetaryValue,
-            event_type: opp.name || 'Onbekend',
-          }).eq('id', existing.id);
-          console.log(`[Opportunities Sync] Updated inquiry: ${contactName} (${existing.id}) for user ${existing.user_id}`);
+          // Same rules as the automatic sync: a status chosen in the CRM stays
+          // authoritative for 24h and the CRM wins when it changed more recently.
+          const statusLocked = existing.local_status_changed_at
+            ? Date.parse(existing.local_status_changed_at) + 24 * 60 * 60 * 1000 > Date.now()
+            : false;
+          const ghlNewer = !crmIsNewer(existing.updated_at, opp.dateUpdated || opp.dateAdded || null);
+          const patch: Record<string, any> = {};
+          if (ghlNewer) {
+            if (contactName && existing.contact_name !== contactName) patch.contact_name = contactName;
+            if ((existing.budget ? Number(existing.budget) : null) !== monetaryValue) patch.budget = monetaryValue;
+            if (existing.event_type !== (opp.name || 'Onbekend')) patch.event_type = opp.name || 'Onbekend';
+            if (!statusLocked && existing.status !== crmStatus) patch.status = crmStatus;
+          }
+          if (Object.keys(patch).length > 0) {
+            await applyRemoteInquiryPatch(supabase, existing.id, patch);
+            console.log(`[Opportunities Sync] Updated inquiry: ${contactName} (${existing.id}) → ${Object.keys(patch).join(',')}`);
+          } else {
+            console.log(`[Opportunities Sync] Skipped inquiry ${existing.id} (CRM newer or unchanged, locked=${statusLocked})`);
+          }
         } else {
+          const { data: contactRow } = opp.contact?.id
+            ? await supabase.from('contacts').select('id').in('user_id', orgUserIds).eq('ghl_contact_id', opp.contact.id).maybeSingle()
+            : { data: null };
           const { data: inserted } = await supabase.from('inquiries').insert({
             user_id: primaryUserId, // Assign new inquiries to primary org user
             ghl_opportunity_id: opp.id,
             contact_name: contactName,
-            contact_id: null,
+            contact_id: contactRow?.id || null,
             event_type: opp.name || 'Onbekend',
             status: crmStatus,
             guest_count: 0,
@@ -837,12 +856,7 @@ Deno.serve(async (req) => {
         return new Response(JSON.stringify({ ok: true, skipped: true, reason: 'no_ghl_contact' }), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
       }
 
-      const ghlPayload: Record<string, any> = {
-        title: task.title || 'Taak',
-        body: task.description || '',
-        completed: task.status === 'completed',
-      };
-      if (task.due_date) ghlPayload.dueDate = task.due_date;
+      const ghlPayload = buildTaskPayload(task);
 
       try {
         if (task.ghl_task_id) {
@@ -1028,172 +1042,171 @@ Deno.serve(async (req) => {
     }
 
     if (action === 'push-inquiry') {
-      // Create a new GHL opportunity from a CRM inquiry
-      const { inquiry_id, contact_name, event_type, budget, status, message } = body;
+      // Create (or, when it already exists, update) the GHL opportunity for a CRM inquiry
+      const { inquiry_id, contact_name, event_type, budget, status } = body;
       if (!inquiry_id) {
-        return new Response(JSON.stringify({ error: 'inquiry_id required' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+        return new Response(JSON.stringify({ error: 'inquiry_id required' }), { status: 400, headers: corsHeaders });
       }
 
       console.log(`[Push Inquiry] Creating GHL opportunity for inquiry: ${inquiry_id}, contact: ${contact_name}`);
 
       try {
-        // Get pipelines to find the correct stage
-        const pipelinesRes = await ghlFetch(`${GHL_API_BASE}/opportunities/pipelines?locationId=${GHL_LOCATION_ID}`, { headers: ghlHeaders });
-        let pipelineId: string | null = null;
-        let stageId: string | null = null;
-
-        if (pipelinesRes.ok) {
-          const pipelinesData = await pipelinesRes.json();
-          const pipeline = pipelinesData.pipelines?.[0];
-          if (pipeline) {
-            pipelineId = pipeline.id;
-            // Map status to correct pipeline stage (same mapping as push-inquiry-status)
-            const statusToStageKeywords: Record<string, string[]> = {
-              'new': ['nieuwe aanvraag', 'new'],
-              'contacted': ['lopend contact'],
-              'option': ['optie'],
-              'quote_revised': ['aangepaste offerte'],
-              'quoted': ['offerte verzonden', 'offerte'],
-              'confirmed': ['definitieve reservering', 'definitief'],
-              'reserved': ['reservering'],
-              'script': ['draaiboek'],
-              'invoiced': ['facturatie', 'invoice'],
-              'lost': ['vervallen', 'verloren', 'lost'],
-              'after_sales': ['after sales', 'aftersales'],
-              'condolence_reminder': ['condoleance', 'condolence'],
-              'converted': ['evenement'],
-            };
-            const keywords = statusToStageKeywords[status] || [];
-            for (const stage of pipeline.stages || []) {
-              const stageLower = stage.name.toLowerCase();
-              if (keywords.some((kw: string) => stageLower.includes(kw))) {
-                stageId = stage.id;
-                break;
-              }
-            }
-            // Fallback to first stage if no match found
-            if (!stageId) stageId = pipeline.stages?.[0]?.id || null;
-            console.log(`[Push Inquiry] Mapped status "${status}" to stage: ${stageId}`);
-          }
-        } else {
-          await pipelinesRes.text();
+        // Always read the current row: the caller may hold a stale copy without the GHL id
+        const { data: inquiryRow } = await supabase
+          .from('inquiries')
+          .select('id, contact_id, ghl_opportunity_id, contact_name, event_type, budget, status')
+          .eq('id', inquiry_id)
+          .maybeSingle();
+        if (!inquiryRow) {
+          return new Response(JSON.stringify({ error: 'Aanvraag niet gevonden' }), { status: 404, headers: corsHeaders });
         }
 
-        if (!pipelineId) {
+        const pipelinesRes = await ghlFetch(`${GHL_API_BASE}/opportunities/pipelines?locationId=${GHL_LOCATION_ID}`, { headers: ghlHeaders });
+        if (!pipelinesRes.ok) {
+          const errText = await pipelinesRes.text();
+          await logSyncOperation(supabase, authUser.id, 'push-inquiry', 'inquiry', { error: errText, inquiryId: inquiry_id }, 'error');
+          return new Response(JSON.stringify({ error: `GHL pipelines fetch failed [${pipelinesRes.status}]: ${errText}` }), { status: 502, headers: corsHeaders });
+        }
+        const pipelinesData = await pipelinesRes.json();
+        const pipelines = pipelinesData.pipelines || [];
+        const pipeline = pipelines[0];
+        if (!pipeline) {
           console.warn('[Push Inquiry] No pipeline found in GHL');
-          return new Response(JSON.stringify({ success: false, error: 'No GHL pipeline found' }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+          return new Response(JSON.stringify({ success: false, error: 'No GHL pipeline found' }), { status: 502, headers: corsHeaders });
+        }
+
+        const effectiveStatus = status || inquiryRow.status || 'new';
+        const stage = findStageForStatus(pipelines, effectiveStatus);
+        const stageId = stage?.stageId || pipeline.stages?.[0]?.id || null;
+        const pipelineId = stage?.pipelineId || pipeline.id;
+        console.log(`[Push Inquiry] Mapped status "${effectiveStatus}" to stage: ${stageId}`);
+
+        // Already linked → update instead of creating a duplicate opportunity
+        if (inquiryRow.ghl_opportunity_id) {
+          const updatePayload = buildOpportunityUpdate(pipelines, {
+            status: effectiveStatus,
+            event_type: event_type || inquiryRow.event_type,
+            budget: budget ?? inquiryRow.budget,
+          });
+          const upd = await ghlFetch(`${GHL_API_BASE}/opportunities/${inquiryRow.ghl_opportunity_id}`, {
+            method: 'PUT', headers: ghlHeaders, body: JSON.stringify(updatePayload),
+          });
+          if (!upd.ok) {
+            const errText = await upd.text();
+            await logSyncOperation(supabase, authUser.id, 'push-inquiry', 'inquiry', { error: errText, inquiryId: inquiry_id, note: 'update_existing' }, 'error');
+            return new Response(JSON.stringify({ error: errText }), { status: upd.status, headers: corsHeaders });
+          }
+          await upd.text();
+          await logSyncOperation(supabase, authUser.id, 'push-inquiry', 'inquiry', { inquiryId: inquiry_id, ghlOppId: inquiryRow.ghl_opportunity_id, note: 'updated_existing' });
+          return new Response(JSON.stringify({ success: true, ghl_opportunity_id: inquiryRow.ghl_opportunity_id, updated: true }), { headers: corsHeaders });
         }
 
         // Resolve GHL contact
         let ghlContactId: string | null = null;
-        const { data: inquiryRow } = await supabase.from('inquiries').select('contact_id').eq('id', inquiry_id).single();
-        if (inquiryRow?.contact_id) {
-          const { data: contactRow } = await supabase.from('contacts').select('ghl_contact_id').eq('id', inquiryRow.contact_id).single();
+        const localContactId = inquiryRow.contact_id;
+        if (localContactId) {
+          const { data: contactRow } = await supabase
+            .from('contacts')
+            .select('id, ghl_contact_id, first_name, last_name, email, phone')
+            .eq('id', localContactId)
+            .maybeSingle();
           ghlContactId = contactRow?.ghl_contact_id || null;
+          // Local contact without GHL id → create it in GHL (upsert dedupes on e-mail/phone)
+          if (!ghlContactId && contactRow) {
+            const cPayload: Record<string, any> = {
+              locationId: GHL_LOCATION_ID,
+              firstName: contactRow.first_name || 'Onbekend',
+              lastName: contactRow.last_name || '',
+            };
+            if (contactRow.email) cPayload.email = contactRow.email;
+            if (contactRow.phone) cPayload.phone = contactRow.phone;
+            const cRes = await ghlFetch(`${GHL_API_BASE}/contacts/upsert`, { method: 'POST', headers: ghlHeaders, body: JSON.stringify(cPayload) });
+            if (cRes.ok) {
+              const cd = await cRes.json();
+              ghlContactId = cd.contact?.id || null;
+              if (ghlContactId) await supabase.from('contacts').update({ ghl_contact_id: ghlContactId }).eq('id', contactRow.id);
+            } else { await cRes.text(); }
+          }
         }
         if (!ghlContactId) {
-          // Search or create contact
-          const searchRes = await ghlFetch(`${GHL_API_BASE}/contacts/?locationId=${GHL_LOCATION_ID}&query=${encodeURIComponent(contact_name || 'Onbekend')}&limit=1`, { headers: ghlHeaders });
+          // No linked contact: search by name, otherwise create a minimal contact
+          const name = contact_name || inquiryRow.contact_name || 'Onbekend';
+          const searchRes = await ghlFetch(`${GHL_API_BASE}/contacts/?locationId=${GHL_LOCATION_ID}&query=${encodeURIComponent(name)}&limit=1`, { headers: ghlHeaders });
           if (searchRes.ok) {
             const sd = await searchRes.json();
             ghlContactId = sd.contacts?.[0]?.id || null;
           } else { await searchRes.text(); }
           if (!ghlContactId) {
-            const nameParts = (contact_name || 'Onbekend').split(' ');
+            const nameParts = name.split(' ');
             const cRes = await ghlFetch(`${GHL_API_BASE}/contacts/`, { method: 'POST', headers: ghlHeaders, body: JSON.stringify({ firstName: nameParts[0], lastName: nameParts.slice(1).join(' ') || '-', locationId: GHL_LOCATION_ID }) });
             if (cRes.ok) { const cd = await cRes.json(); ghlContactId = cd.contact?.id || null; }
             else { await cRes.text(); }
           }
         }
+        if (!ghlContactId) {
+          await logSyncOperation(supabase, authUser.id, 'push-inquiry', 'inquiry', { error: 'no_ghl_contact', inquiryId: inquiry_id }, 'error');
+          return new Response(JSON.stringify({ error: 'Geen GHL-contact voor deze aanvraag' }), { status: 502, headers: corsHeaders });
+        }
 
         const oppPayload: Record<string, any> = {
           pipelineId,
           locationId: GHL_LOCATION_ID,
-          name: event_type || contact_name || 'Aanvraag',
-          status: status === 'lost' ? 'lost' : status === 'converted' ? 'won' : 'open',
-          contactId: ghlContactId || undefined,
+          name: event_type || inquiryRow.event_type || contact_name || 'Aanvraag',
+          status: ghlOpportunityStatus(effectiveStatus),
+          contactId: ghlContactId,
         };
         if (stageId) oppPayload.pipelineStageId = stageId;
-        if (budget) oppPayload.monetaryValue = budget;
+        const budgetValue = budget ?? inquiryRow.budget;
+        if (budgetValue) oppPayload.monetaryValue = Number(budgetValue);
 
         const res = await ghlFetch(`${GHL_API_BASE}/opportunities/`, { method: 'POST', headers: ghlHeaders, body: JSON.stringify(oppPayload) });
-        if (res.ok) {
-          const created = await res.json();
-          const newOppId = created.opportunity?.id;
-          if (newOppId) {
-            await supabase.from('inquiries').update({ ghl_opportunity_id: newOppId }).eq('id', inquiry_id);
-            console.log(`[Push Inquiry] Created GHL opportunity: ${newOppId}`);
-          }
-          await logSyncOperation(supabase, authUser.id, 'push-inquiry', 'inquiry', { inquiryId: inquiry_id, ghlOppId: newOppId });
-        } else {
+        if (!res.ok) {
           const errText = await res.text();
           console.error(`[Push Inquiry] Failed: [${res.status}] ${errText}`);
           await logSyncOperation(supabase, authUser.id, 'push-inquiry', 'inquiry', { error: errText, inquiryId: inquiry_id }, 'error');
+          return new Response(JSON.stringify({ error: errText }), { status: res.status, headers: corsHeaders });
         }
-
-        return new Response(JSON.stringify({ success: true }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+        const created = await res.json();
+        const newOppId = created.opportunity?.id || created.id || null;
+        if (newOppId) {
+          await supabase.from('inquiries').update({ ghl_opportunity_id: newOppId }).eq('id', inquiry_id);
+          console.log(`[Push Inquiry] Created GHL opportunity: ${newOppId}`);
+        }
+        await logSyncOperation(supabase, authUser.id, 'push-inquiry', 'inquiry', { inquiryId: inquiry_id, ghlOppId: newOppId });
+        return new Response(JSON.stringify({ success: true, ghl_opportunity_id: newOppId }), { headers: corsHeaders });
       } catch (err) {
         console.error('[Push Inquiry] Error:', err);
         await logSyncOperation(supabase, authUser.id, 'push-inquiry', 'inquiry', { error: String(err), inquiryId: inquiry_id }, 'error');
-        return new Response(JSON.stringify({ error: String(err) }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+        return new Response(JSON.stringify({ error: String(err) }), { status: 500, headers: corsHeaders });
       }
     }
 
     if (action === 'push-inquiry-status') {
-      const { ghl_opportunity_id, status, name, monetary_value, contact_name, guest_count } = body;
+      const { ghl_opportunity_id, status, name, monetary_value } = body;
       if (!ghl_opportunity_id) {
-        return new Response(JSON.stringify({ error: 'ghl_opportunity_id required' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+        return new Response(JSON.stringify({ error: 'ghl_opportunity_id required' }), { status: 400, headers: corsHeaders });
       }
 
       console.log(`[Push Inquiry Status] Updating GHL opportunity: ${ghl_opportunity_id}, status: ${status}`);
 
-      // Map CRM status back to GHL pipeline stage
-      // We need to find the correct pipeline and stage
       try {
         const pipelinesRes = await ghlFetch(`${GHL_API_BASE}/opportunities/pipelines?locationId=${GHL_LOCATION_ID}`, { headers: ghlHeaders });
-        let stageId: string | null = null;
-        let pipelineId: string | null = null;
-
+        let pipelines: any[] = [];
         if (pipelinesRes.ok) {
-          const pipelinesData = await pipelinesRes.json();
-          const statusToStageKeywords: Record<string, string[]> = {
-            'new': ['nieuwe aanvraag', 'new'],
-            'contacted': ['lopend contact'],
-            'option': ['optie'],
-            'quote_revised': ['aangepaste offerte'],
-            'quoted': ['offerte verzonden', 'offerte'],
-            'confirmed': ['definitieve reservering', 'definitief'],
-            'reserved': ['reservering'],
-            'script': ['draaiboek'],
-            'invoiced': ['facturatie', 'invoice'],
-            'lost': ['vervallen', 'verloren', 'lost'],
-            'after_sales': ['after sales', 'aftersales'],
-            'condolence_reminder': ['condoleance', 'condolence'],
-            'converted': ['evenement'],
-          };
-
-          const keywords = statusToStageKeywords[status] || [];
-          for (const pipeline of pipelinesData.pipelines || []) {
-            for (const stage of pipeline.stages || []) {
-              const stageLower = stage.name.toLowerCase();
-              if (keywords.some((kw: string) => stageLower.includes(kw))) {
-                stageId = stage.id;
-                pipelineId = pipeline.id;
-                break;
-              }
-            }
-            if (stageId) break;
-          }
+          pipelines = (await pipelinesRes.json()).pipelines || [];
         } else {
           await pipelinesRes.text();
         }
 
-        const ghlPayload: Record<string, any> = {};
-        if (stageId) ghlPayload.pipelineStageId = stageId;
-        if (pipelineId) ghlPayload.pipelineId = pipelineId;
-        if (name) ghlPayload.name = name;
-        if (monetary_value != null) ghlPayload.monetaryValue = monetary_value;
-        if (status) ghlPayload.status = status === 'lost' ? 'lost' : status === 'converted' ? 'won' : 'open';
+        const ghlPayload: Record<string, any> = status
+          ? buildOpportunityUpdate(pipelines, { status, event_type: name || null, budget: monetary_value ?? null })
+          : {};
+        if (!status) {
+          if (name) ghlPayload.name = name;
+          if (monetary_value !== undefined && monetary_value !== null) ghlPayload.monetaryValue = Number(monetary_value) || 0;
+        }
+        const stageId = ghlPayload.pipelineStageId || null;
+        const pipelineId = ghlPayload.pipelineId || null;
 
         const res = await ghlFetch(`${GHL_API_BASE}/opportunities/${ghl_opportunity_id}`, {
           method: 'PUT',
@@ -1202,20 +1215,21 @@ Deno.serve(async (req) => {
         });
 
         if (res.ok) {
+          await res.text();
           console.log(`[Push Inquiry Status] Updated GHL opportunity: ${ghl_opportunity_id}`);
           await logSyncOperation(supabase, authUser.id, 'push-inquiry-status', 'inquiry', { ghlOpportunityId: ghl_opportunity_id, status, stageId });
         } else {
           const errText = await res.text();
           console.error(`Failed to update GHL opportunity: [${res.status}] ${errText}`);
           await logSyncOperation(supabase, authUser.id, 'push-inquiry-status', 'inquiry', { error: errText, ghlOpportunityId: ghl_opportunity_id }, 'error');
-          return new Response(JSON.stringify({ error: errText }), { status: res.status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+          return new Response(JSON.stringify({ error: errText }), { status: res.status, headers: corsHeaders });
         }
 
-        return new Response(JSON.stringify({ success: true, stageId, pipelineId }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+        return new Response(JSON.stringify({ success: true, stageId, pipelineId }), { headers: corsHeaders });
       } catch (err) {
         console.error('Error pushing inquiry status:', err);
         await logSyncOperation(supabase, authUser.id, 'push-inquiry-status', 'inquiry', { error: String(err), ghlOpportunityId: ghl_opportunity_id }, 'error');
-        return new Response(JSON.stringify({ error: String(err) }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+        return new Response(JSON.stringify({ error: String(err) }), { status: 500, headers: corsHeaders });
       }
     }
 
@@ -1376,7 +1390,7 @@ Deno.serve(async (req) => {
           }
           const { data: existing } = await supabase
             .from('tasks')
-            .select('id, status, title, description, due_date, booking_id, inquiry_id, local_status_changed_at')
+            .select('id, status, title, description, due_date, due_time, booking_id, inquiry_id, local_status_changed_at')
             .in('user_id', orgUserIds)
             .eq('ghl_task_id', ghlTask.id)
             .maybeSingle();
@@ -1384,7 +1398,7 @@ Deno.serve(async (req) => {
           const taskLink = pickBookingForTask(linkBookings, {
             contactId: contact.id,
             companyId: contact.company_id ?? null,
-            dueDate: ghlTask.dueDate ? String(ghlTask.dueDate).split('T')[0] : null,
+            dueDate: ghlDueDateLocal(ghlTask.dueDate),
           });
 
           if (existing) {
@@ -1396,12 +1410,7 @@ Deno.serve(async (req) => {
             }
             const externalStatus = ghlTask.completed ? 'completed' : 'open';
             if (existing.local_status_changed_at && existing.status !== externalStatus) {
-              const protectedPayload: Record<string, any> = {
-                title: existing.title || 'Taak',
-                body: existing.description || '',
-                completed: existing.status === 'completed',
-              };
-              if (existing.due_date) protectedPayload.dueDate = existing.due_date;
+              const protectedPayload = buildTaskPayload(existing);
               const pushRes = await ghlFetch(`${GHL_API_BASE}/contacts/${contact.ghl_contact_id}/tasks/${ghlTask.id}`, {
                 method: 'PUT',
                 headers: ghlHeaders,
@@ -1420,13 +1429,13 @@ Deno.serve(async (req) => {
                 title: ghlTask.title || 'Taak',
                 description: ghlTask.body || null,
                 status: externalStatus,
-                due_date: ghlTask.dueDate || null,
+                due_date: ghlDueDateLocal(ghlTask.dueDate),
                 completed_at: ghlTask.completed ? (ghlTask.completedDate || new Date().toISOString()) : null,
               }).eq('id', existing.id);
             }
           } else {
             const ruleKey = taskRuleKey(ghlTask.title || 'Taak');
-            const dueDateOnly = ghlTask.dueDate ? String(ghlTask.dueDate).split('T')[0] : null;
+            const dueDateOnly = ghlDueDateLocal(ghlTask.dueDate);
 
             if (!taskRules.has(ruleKey)) {
               await supabase.from('task_automation_rules').insert({
@@ -1469,8 +1478,8 @@ Deno.serve(async (req) => {
               title: ghlTask.title || 'Taak',
               description: ghlTask.body || null,
               status: ghlTask.completed ? 'completed' : 'open',
-              due_date: ghlTask.dueDate || null,
-              priority: 'medium',
+              due_date: dueDateOnly,
+              priority: 'normal',
               completed_at: ghlTask.completed ? (ghlTask.completedDate || new Date().toISOString()) : null,
             });
           }
@@ -1650,8 +1659,28 @@ Deno.serve(async (req) => {
       const data = await res.json();
       const conversations = data.conversations || [];
 
+      const { data: convContacts } = await supabase
+        .from('contacts')
+        .select('id, ghl_contact_id')
+        .in('user_id', orgUserIds)
+        .not('ghl_contact_id', 'is', null);
+      const convContactByGhl = new Map<string, string>((convContacts || []).map((c: any) => [c.ghl_contact_id, c.id]));
+
       for (const conv of conversations) {
-        const contactName = conv.contactName || conv.fullName || 'Onbekend';
+        const contactName = conv.contactName || conv.fullName || conv.contact?.name || 'Onbekend';
+        const ghlContactId = conv.contactId || conv.contact?.id || null;
+        const localContactId = ghlContactId ? (convContactByGhl.get(ghlContactId) || null) : null;
+        const lastMessageDate = conv.lastMessageDate
+          ? (Number(conv.lastMessageDate) > 1e12 ? new Date(Number(conv.lastMessageDate)).toISOString() : conv.lastMessageDate)
+          : null;
+        const row: Record<string, any> = {
+          contact_name: contactName,
+          last_message_body: conv.lastMessageBody || null,
+          last_message_date: lastMessageDate,
+          last_message_direction: conv.lastMessageDirection || null,
+          unread: (conv.lastMessageDirection || 'inbound') === 'inbound' && conv.unreadCount > 0,
+          channel: conv.type || 'chat',
+        };
         const { data: existing } = await supabase
           .from('conversations')
           .select('id')
@@ -1660,25 +1689,17 @@ Deno.serve(async (req) => {
           .maybeSingle();
 
         if (existing) {
-          await supabase.from('conversations').update({
-            contact_name: contactName,
-            last_message_body: conv.lastMessageBody || null,
-            last_message_date: conv.lastMessageDate || null,
-            last_message_direction: conv.lastMessageDirection || null,
-            unread: conv.unreadCount > 0,
-          }).eq('id', existing.id);
+          // Never clear a contact link that was set manually or by the webhook
+          await supabase.from('conversations').update(localContactId ? { ...row, contact_id: localContactId } : row).eq('id', existing.id);
           synced++;
         } else {
           await supabase.from('conversations').insert({
             user_id: primaryUserId,
             ghl_conversation_id: conv.id,
-            contact_name: contactName,
+            contact_id: localContactId,
             email: conv.email || null,
             phone: conv.phone || null,
-            last_message_body: conv.lastMessageBody || null,
-            last_message_date: conv.lastMessageDate || null,
-            last_message_direction: conv.lastMessageDirection || null,
-            unread: conv.unreadCount > 0,
+            ...row,
           });
           synced++;
         }
@@ -1697,7 +1718,12 @@ Deno.serve(async (req) => {
         return new Response(JSON.stringify({ error: 'Booking data required' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
       }
 
-      console.log(`[Push Booking] Pushing booking: ${booking.title || booking.id}, room: ${booking.room_name}`);
+      console.log(`[Push Booking] Pushing booking: ${booking.title || booking.id}, room: ${booking.room_name}, status: ${booking.status}`);
+
+      // A reservation cancelled before it ever reached GHL needs no appointment there
+      if (!booking.ghl_event_id && (booking.status === 'cancelled' || booking.status === 'expired')) {
+        return new Response(JSON.stringify({ success: true, skipped: 'cancelled_without_ghl_event' }), { headers: corsHeaders });
+      }
 
       // Get room → calendar mapping
       const { data: roomSetting } = await supabase
@@ -1714,31 +1740,6 @@ Deno.serve(async (req) => {
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         });
       }
-
-      // Build start/end ISO timestamps (Europe/Amsterdam)
-      const dateStr = booking.date;
-      const startH = String(booking.start_hour).padStart(2, '0');
-      const startM = String(booking.start_minute ?? 0).padStart(2, '0');
-      const endH = String(booking.end_hour).padStart(2, '0');
-      const endM = String(booking.end_minute ?? 0).padStart(2, '0');
-      // If end hour is past midnight (< 7) and start is during the day, use next day for end
-      let endDateStr = dateStr;
-      if (booking.end_hour < 7 && booking.start_hour >= 7) {
-        const nextDay = new Date(dateStr + 'T12:00:00Z');
-        nextDay.setUTCDate(nextDay.getUTCDate() + 1);
-        endDateStr = nextDay.toISOString().slice(0, 10);
-      }
-      const startISO = `${dateStr}T${startH}:${startM}:00`;
-      const endISO = `${endDateStr}T${endH}:${endM}:00`;
-
-      // Calculate Europe/Amsterdam timezone offset
-      const probeDate = new Date(`${dateStr}T12:00:00Z`);
-      const amStr = probeDate.toLocaleString('en-US', { timeZone: 'Europe/Amsterdam', hour12: false });
-      const amDate = new Date(amStr);
-      const offsetH = Math.round((amDate.getTime() - probeDate.getTime()) / 3600000);
-      const tz = `${offsetH >= 0 ? '+' : '-'}${String(Math.abs(offsetH)).padStart(2, '0')}:00`;
-      const startISOwTZ = `${startISO}${tz}`;
-      const endISOwTZ = `${endISO}${tz}`;
 
       // Resolve GHL contact ID for the booking
       let ghlContactId: string | null = null;
@@ -1820,31 +1821,15 @@ Deno.serve(async (req) => {
 
       const calEventHeaders = { ...ghlHeaders, 'Version': '2021-04-15' };
 
-      // Options should NOT trigger GHL workflows that move opportunity stages.
-      // We push them as 'confirmed' to GHL (so the workflow doesn't fire on "new appointment"),
-      // and prefix the title/notes so it's still visually identifiable in GHL.
-      const isOption = booking.status === 'option';
-      const titleForGhl = isOption ? `[OPTIE] ${booking.title || 'Reservering'}` : (booking.title || 'Reservering');
-      const notesForGhl = isOption
-        ? `[OPTIE — geen workflow update]${booking.notes ? `\n\n${booking.notes}` : ''}`
-        : (booking.notes || null);
-
-      // Appointments payload - ignoreFreeSlotValidation bypasses service calendar slot checks
-      const eventPayload: Record<string, any> = {
-        calendarId: roomSetting.ghl_calendar_id,
-        locationId: GHL_LOCATION_ID,
-        contactId: ghlContactId,
-        title: titleForGhl,
-        startTime: startISOwTZ,
-        endTime: endISOwTZ,
-        appointmentStatus: 'confirmed',
-        ignoreDateRange: true,
-        ignoreValidation: true,
-        ignoreFreeSlotValidation: true,
-        selectedTimezone: 'Europe/Amsterdam',
-      };
-      if (notesForGhl) eventPayload.notes = notesForGhl;
-
+      // Shared payload: options carry an "[OPTIE]" title prefix and are sent as
+      // "confirmed" so GHL workflows on new appointments don't fire; cancelled
+      // reservations cancel the GHL appointment; end times past midnight roll
+      // to the next day.
+      const eventPayload = buildAppointmentPayload(booking, roomSetting.ghl_calendar_id, GHL_LOCATION_ID, ghlContactId);
+      const titleForGhl = String(eventPayload.title);
+      const startISOwTZ = String(eventPayload.startTime);
+      const endISOwTZ = String(eventPayload.endTime);
+      const notesForGhl = (eventPayload.notes as string | undefined) || null;
 
       console.log(`[Push Booking] Calendar: ${roomSetting.ghl_calendar_id}, Contact: ${ghlContactId}, Room: ${booking.room_name}`);
 
@@ -2026,7 +2011,8 @@ Deno.serve(async (req) => {
       let countQuery = supabase
         .from('bookings')
         .select('id', { count: 'exact', head: true })
-        .in('user_id', orgUserIds);
+        .in('user_id', orgUserIds)
+        .not('status', 'in', '("cancelled","expired")');
       if (onlyMissing) countQuery = countQuery.is('ghl_event_id', null);
       const { count: totalCount } = await countQuery;
 
@@ -2035,6 +2021,7 @@ Deno.serve(async (req) => {
         .from('bookings')
         .select('*')
         .in('user_id', orgUserIds)
+        .not('status', 'in', '("cancelled","expired")')
         .order('date', { ascending: true })
         .range(offset, offset + batchSize - 1);
       if (onlyMissing) {
@@ -2104,41 +2091,15 @@ Deno.serve(async (req) => {
           continue;
         }
 
-        const startH = String(booking.start_hour).padStart(2, '0');
-        const startM = String(booking.start_minute ?? 0).padStart(2, '0');
-        const endH = String(booking.end_hour).padStart(2, '0');
-        const endM = String(booking.end_minute ?? 0).padStart(2, '0');
-
-        // If end hour is past midnight (< 7) and start is during the day, use next day for end
-        let endDateStr = booking.date;
-        if (booking.end_hour < 7 && booking.start_hour >= 7) {
-          const nextDay = new Date(booking.date + 'T12:00:00Z');
-          nextDay.setUTCDate(nextDay.getUTCDate() + 1);
-          endDateStr = nextDay.toISOString().slice(0, 10);
+        // Nothing to create in GHL for reservations that were already cancelled locally
+        if (!booking.ghl_event_id && (booking.status === 'cancelled' || booking.status === 'expired')) {
+          skipped++;
+          continue;
         }
 
-        const probeDate = new Date(`${booking.date}T12:00:00Z`);
-        const amStr = probeDate.toLocaleString('en-US', { timeZone: 'Europe/Amsterdam', hour12: false });
-        const amDate = new Date(amStr);
-        const offsetH = Math.round((amDate.getTime() - probeDate.getTime()) / 3600000);
-        const tz = `${offsetH >= 0 ? '+' : '-'}${String(Math.abs(offsetH)).padStart(2, '0')}:00`;
-        const startISO = `${booking.date}T${startH}:${startM}:00${tz}`;
-        const endISO = `${endDateStr}T${endH}:${endM}:00${tz}`;
-
-        const ghlPayload: Record<string, any> = {
-          calendarId,
-          locationId: GHL_LOCATION_ID,
-          contactId: ghlContactId,
-          title: booking.title || 'Reservering',
-          startTime: startISO,
-          endTime: endISO,
-          appointmentStatus: booking.status === 'confirmed' ? 'confirmed' : 'new',
-          ignoreDateRange: true,
-          ignoreValidation: true,
-          ignoreFreeSlotValidation: true,
-          selectedTimezone: 'Europe/Amsterdam',
-        };
-        if (booking.notes) ghlPayload.notes = booking.notes;
+        const ghlPayload = buildAppointmentPayload(booking, calendarId, GHL_LOCATION_ID, ghlContactId);
+        const startISO = String(ghlPayload.startTime);
+        const endISO = String(ghlPayload.endTime);
 
         try {
           await delay(500);
@@ -2149,7 +2110,7 @@ Deno.serve(async (req) => {
             const blockPayload = {
               calendarId,
               locationId: GHL_LOCATION_ID,
-              title: booking.title || 'Reservering',
+              title: String(ghlPayload.title),
               startTime: startISO,
               endTime: endISO,
             };
@@ -2461,6 +2422,127 @@ Deno.serve(async (req) => {
       return new Response(JSON.stringify({ success: true, message: 'Document sync logged' }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
+    }
+
+    // =================== sync-messages (GHL → CRM, one conversation) ===================
+    if (action === 'sync-messages') {
+      const { conversation_id } = body; // local conversations.id
+      if (!conversation_id) {
+        return new Response(JSON.stringify({ ok: false, error: 'conversation_id required' }), { status: 400, headers: corsHeaders });
+      }
+      const { data: conv } = await supabase
+        .from('conversations')
+        .select('id, ghl_conversation_id, user_id')
+        .eq('id', conversation_id)
+        .maybeSingle();
+      if (!conv?.ghl_conversation_id) {
+        return new Response(JSON.stringify({ ok: true, skipped: 'no_ghl_conversation' }), { headers: corsHeaders });
+      }
+      const msgRes = await ghlFetch(`${GHL_API_BASE}/conversations/${conv.ghl_conversation_id}/messages?limit=100`, { headers: ghlHeaders });
+      if (!msgRes.ok) {
+        const errText = await msgRes.text();
+        return new Response(JSON.stringify({ ok: false, error: `GHL messages fetch failed [${msgRes.status}]: ${errText}` }), { status: msgRes.status, headers: corsHeaders });
+      }
+      const msgData = await msgRes.json();
+      const messages: any[] = Array.isArray(msgData.messages?.messages) ? msgData.messages.messages
+        : Array.isArray(msgData.messages) ? msgData.messages
+        : Array.isArray(msgData) ? msgData : [];
+      const rows = messages.filter((m: any) => m?.id).map((m: any) => ({
+        user_id: conv.user_id,
+        conversation_id: conv.id,
+        ghl_message_id: m.id,
+        body: m.body || m.text || '',
+        direction: m.direction || 'inbound',
+        date_added: m.dateAdded || m.createdAt || new Date().toISOString(),
+        message_type: m.messageType || m.contentType || m.type || 'TYPE_SMS',
+        status: m.status || 'delivered',
+      }));
+      if (rows.length > 0) {
+        const { error: upErr } = await supabase.from('messages').upsert(rows, { onConflict: 'ghl_message_id' });
+        if (upErr) {
+          return new Response(JSON.stringify({ ok: false, error: upErr.message }), { status: 500, headers: corsHeaders });
+        }
+      }
+      return new Response(JSON.stringify({ ok: true, synced: rows.length }), { headers: corsHeaders });
+    }
+
+    // =================== send-message (CRM → GHL) ===================
+    if (action === 'send-message') {
+      const { conversationId, contactId, message, type, subject, cc, bcc } = body;
+      if (!message || !String(message).trim()) {
+        return new Response(JSON.stringify({ success: false, error: 'message required' }), { status: 400, headers: corsHeaders });
+      }
+
+      // Resolve the GHL contact: local conversation → linked contact → GHL conversation lookup
+      const isUuid = (v: unknown) => typeof v === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v);
+      let ghlContactId: string | null = null;
+      let ghlConversationId: string | null = null;
+      if (conversationId) {
+        const convQuery = supabase.from('conversations').select('id, ghl_conversation_id, contact_id');
+        const { data: conv } = isUuid(conversationId)
+          ? await convQuery.eq('id', conversationId).maybeSingle()
+          : await convQuery.eq('ghl_conversation_id', String(conversationId)).maybeSingle();
+        if (conv) {
+          ghlConversationId = conv.ghl_conversation_id || null;
+          if (conv.contact_id) {
+            const { data: c } = await supabase.from('contacts').select('ghl_contact_id').eq('id', conv.contact_id).maybeSingle();
+            ghlContactId = c?.ghl_contact_id || null;
+          }
+        } else if (!isUuid(conversationId)) {
+          ghlConversationId = String(conversationId);
+        }
+      }
+      if (!ghlContactId && isUuid(contactId)) {
+        const { data: c } = await supabase.from('contacts').select('ghl_contact_id').eq('id', contactId).maybeSingle();
+        ghlContactId = c?.ghl_contact_id || null;
+      }
+      if (!ghlContactId && ghlConversationId) {
+        const cRes = await ghlFetch(`${GHL_API_BASE}/conversations/${ghlConversationId}`, { headers: ghlHeaders });
+        if (cRes.ok) { const cd = await cRes.json(); ghlContactId = cd.contactId || cd.conversation?.contactId || null; }
+        else { await cRes.text(); }
+      }
+      if (!ghlContactId) {
+        return new Response(JSON.stringify({ success: false, error: 'Geen gekoppeld GHL-contact voor dit gesprek' }), { status: 400, headers: corsHeaders });
+      }
+
+      const msgType = String(type || 'SMS').toLowerCase() === 'email' ? 'Email' : 'SMS';
+      const payload: Record<string, any> = { type: msgType, contactId: ghlContactId };
+      if (msgType === 'Email') {
+        payload.html = String(message).replace(/\n/g, '<br>');
+        payload.message = message;
+        if (subject) payload.subject = subject;
+        if (cc) payload.emailCc = String(cc).split(',').map((s: string) => s.trim()).filter(Boolean);
+        if (bcc) payload.emailBcc = String(bcc).split(',').map((s: string) => s.trim()).filter(Boolean);
+      } else {
+        payload.message = message;
+      }
+
+      const res = await ghlFetch(`${GHL_API_BASE}/conversations/messages`, { method: 'POST', headers: ghlHeaders, body: JSON.stringify(payload) });
+      if (!res.ok) {
+        const errText = await res.text();
+        await logSyncOperation(supabase, authUser.id, 'send-message', 'conversation', { error: errText, ghlContactId, type: msgType }, 'error');
+        return new Response(JSON.stringify({ success: false, error: `GHL send failed [${res.status}]: ${errText}` }), { status: res.status, headers: corsHeaders });
+      }
+      const sent = await res.json();
+      await logSyncOperation(supabase, authUser.id, 'send-message', 'conversation', { ghlContactId, type: msgType, messageId: sent.messageId || null, conversationId: sent.conversationId || null });
+      return new Response(JSON.stringify({ success: true, messageId: sent.messageId || sent.id || null, conversationId: sent.conversationId || ghlConversationId }), { headers: corsHeaders });
+    }
+
+    // =================== delete-conversation (CRM → GHL) ===================
+    if (action === 'delete-conversation') {
+      const { conversationId } = body;
+      if (!conversationId) {
+        return new Response(JSON.stringify({ success: true, skipped: 'no conversationId' }), { headers: corsHeaders });
+      }
+      const res = await ghlFetch(`${GHL_API_BASE}/conversations/${conversationId}`, { method: 'DELETE', headers: ghlHeaders });
+      if (!res.ok && res.status !== 404) {
+        const errText = await res.text();
+        await logSyncOperation(supabase, authUser.id, 'delete-conversation', 'conversation', { error: errText, conversationId }, 'error');
+        return new Response(JSON.stringify({ success: false, error: errText }), { status: res.status, headers: corsHeaders });
+      }
+      await res.text();
+      await logSyncOperation(supabase, authUser.id, 'delete-conversation', 'conversation', { conversationId });
+      return new Response(JSON.stringify({ success: true }), { headers: corsHeaders });
     }
 
     return new Response(JSON.stringify({ error: `Unknown action: ${action}` }), {

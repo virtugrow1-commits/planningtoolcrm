@@ -1,4 +1,4 @@
-import { formatDate } from '@/lib/formatters';
+import { formatDate, localToday } from '@/lib/formatters';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -35,7 +35,7 @@ export default function KpiDetailDialog({
     return null;
   };
 
-  const today = new Date().toISOString().split('T')[0];
+  const today = localToday();
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -144,8 +144,8 @@ export default function KpiDetailDialog({
                       <span>{booking.roomName}</span>
                     </div>
                   </div>
-                  <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium ${booking.date < new Date().toISOString().split('T')[0] ? 'bg-muted text-muted-foreground' : booking.status === 'confirmed' ? 'bg-success/15 text-success' : 'bg-warning/15 text-warning'}`}>
-                    {booking.date < new Date().toISOString().split('T')[0] ? 'Afgelopen' : booking.status === 'confirmed' ? 'Bevestigd' : 'In optie'}
+                  <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium ${booking.date < localToday() ? 'bg-muted text-muted-foreground' : booking.status === 'confirmed' ? 'bg-success/15 text-success' : 'bg-warning/15 text-warning'}`}>
+                    {booking.date < localToday() ? 'Afgelopen' : booking.status === 'confirmed' ? 'Bevestigd' : 'In optie'}
                   </span>
                 </div>
               ))}

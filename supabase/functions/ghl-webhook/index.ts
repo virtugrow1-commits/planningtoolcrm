@@ -9,8 +9,12 @@ import {
   parseFormTime,
   resolveCompanyId,
 } from "../_shared/inquiryFields.ts";
-
-const GHL_API_BASE = 'https://services.leadconnectorhq.com';
+import {
+  GHL_API_BASE,
+  applyRemoteInquiryPatch,
+  parseGhlEvent,
+  stageToStatus,
+} from "../_shared/ghlCommon.ts";
 
 
 const corsHeaders = {
@@ -37,35 +41,6 @@ async function ghlFetch(url: string, opts: RequestInit = {}): Promise<Response> 
   return new Response(JSON.stringify({ error: 'Rate limit exceeded' }), { status: 429 });
 }
 
-/** Map GHL pipeline stage name to CRM status */
-function stageToStatus(stageName: string): string {
-  const l = stageName.toLowerCase();
-  if (l.includes('nieuwe aanvraag') || l === 'new') return 'new';
-  if (l.includes('lopend contact')) return 'contacted';
-  if (l.includes('optie')) return 'option';
-  if (l.includes('aangepaste offerte')) return 'quote_revised';
-  if (l.includes('offerte verzonden') || l.includes('offerte')) return 'quoted';
-  if (l.includes('definitieve reservering') || l.includes('definitief')) return 'confirmed';
-  if (l.includes('reservering')) return 'reserved';
-  if (l.includes('draaiboek')) return 'script';
-  if (l.includes('facturatie') || l.includes('invoice')) return 'invoiced';
-  if (l.includes('vervallen') || l.includes('verloren') || l.includes('lost')) return 'lost';
-  if (l.includes('after sales') || l.includes('aftersales')) return 'after_sales';
-  if (l.includes('condoleance') || l.includes('condolence')) return 'condolence_reminder';
-  if (l.includes('evenement')) return 'converted';
-  return 'new';
-}
-
-/** Convert a Date to Europe/Amsterdam local components */
-function toAmsterdam(date: Date) {
-  const s = date.toLocaleString('en-US', { timeZone: 'Europe/Amsterdam', hour12: false });
-  const d = new Date(s);
-  return {
-    dateStr: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`,
-    hours: d.getHours(),
-    minutes: d.getMinutes(),
-  };
-}
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -79,6 +54,21 @@ Deno.serve(async (req) => {
 
   if (!GHL_API_KEY || !GHL_LOCATION_ID) {
     return new Response(JSON.stringify({ error: 'GHL not configured' }), { status: 500, headers: corsHeaders });
+  }
+
+  // Optional shared secret. When GHL_WEBHOOK_SECRET is set, every call must carry it
+  // as an "x-webhook-secret" header or a "?secret=" query parameter; otherwise anyone
+  // who knows the URL could create or delete contacts and inquiries.
+  const WEBHOOK_SECRET = Deno.env.get('GHL_WEBHOOK_SECRET');
+  if (WEBHOOK_SECRET) {
+    const url = new URL(req.url);
+    const provided = req.headers.get('x-webhook-secret') || url.searchParams.get('secret') || '';
+    if (provided !== WEBHOOK_SECRET) {
+      console.warn('GHL webhook rejected: invalid or missing secret');
+      return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    }
+  } else {
+    console.warn('GHL webhook: GHL_WEBHOOK_SECRET not configured — endpoint accepts unauthenticated calls');
   }
 
   const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
@@ -143,9 +133,13 @@ Deno.serve(async (req) => {
                                  (type.includes('opportunity') && (type.includes('delete') || type.includes('Delete')));
     const isContactDelete = type.includes('ContactDelete') || type.includes('contact.delete') ||
                              (type.includes('contact') && (type.includes('delete') || type.includes('Delete')));
+    const isAppointmentDelete = type.includes('AppointmentDelete') || type.includes('appointment.delete') ||
+                                 (type.toLowerCase().includes('appointment') && type.toLowerCase().includes('delet'));
 
     if (isContactDelete) {
       await handleContactDelete(supabase, userId, payload);
+    } else if (isAppointmentDelete) {
+      await handleAppointmentDelete(supabase, userId, payload);
     } else if (isOpportunityDelete) {
       await handleOpportunityDelete(supabase, userId, payload);
     } else if (hasDocumentData) {
@@ -576,13 +570,11 @@ async function handleOpportunityFromWebhookPayload(supabase: any, ghlHeaders: an
       if (eventType && existing.event_type !== eventType) patch.event_type = eventType;
       if (!statusLocked && existing.status !== status) {
         patch.status = status;
-        // Remote-origin change: clear the local lock so future GHL changes still apply
-        patch.local_status_changed_at = null;
       }
 
-
       if (Object.keys(patch).length > 0) {
-        await supabase.from('inquiries').update(patch).eq('id', existing.id);
+        // Remote-origin change: never establishes the 24h CRM status lock
+        await applyRemoteInquiryPatch(supabase, existing.id, patch);
       }
       console.log(`Webhook: GHL -> CRM opp ${ghlOppId} -> ${Object.keys(patch).join(',') || 'no-change'} (statusLocked=${statusLocked})`);
     }
@@ -740,20 +732,38 @@ async function handleContactWebhook(supabase: any, userId: string, payload: any)
   const firstName = payload.firstName || payload.first_name || payload.name?.split(' ')[0] || 'Onbekend';
   const lastName = payload.lastName || payload.last_name || payload.name?.split(' ').slice(1).join(' ') || '';
 
-  const { data: existing } = await supabase.from('contacts').select('id').not('id', 'is', null).eq('ghl_contact_id', contactId).maybeSingle();
+  const { data: existing } = await supabase.from('contacts').select('id, pending_outbound_sync').not('id', 'is', null).eq('ghl_contact_id', contactId).maybeSingle();
+
+  const tags: string[] | null = Array.isArray(payload.tags)
+    ? payload.tags.map((t: any) => String(t).trim()).filter(Boolean)
+    : (typeof payload.tags === 'string' && payload.tags.trim()
+      ? payload.tags.split(',').map((t: string) => t.trim()).filter(Boolean)
+      : null);
 
   if (existing) {
-    await supabase.from('contacts').update({
-      first_name: firstName, last_name: lastName,
-      email: payload.email || null, phone: payload.phone || null,
-      company: payload.companyName || payload.company || null,
-    }).eq('id', existing.id);
+    if (existing.pending_outbound_sync === true) {
+      // A local edit is still waiting to be pushed; the webhook must not overwrite it
+      console.log(`Webhook: Contact ${contactId} skipped (pending outbound sync)`);
+    } else {
+      // Only enrich with real values — a webhook echo must never blank out CRM data
+      const update: Record<string, any> = {};
+      if (payload.firstName || payload.first_name) update.first_name = firstName;
+      if (payload.lastName || payload.last_name) update.last_name = lastName;
+      if (payload.email) update.email = payload.email;
+      if (payload.phone) update.phone = payload.phone;
+      if (payload.companyName || payload.company) update.company = payload.companyName || payload.company;
+      if (tags && tags.length > 0) update.tags = tags;
+      if (Object.keys(update).length > 0) {
+        await supabase.from('contacts').update(update).eq('id', existing.id);
+      }
+    }
   } else {
     await supabase.from('contacts').insert({
       user_id: userId, ghl_contact_id: contactId,
       first_name: firstName, last_name: lastName,
       email: payload.email || null, phone: payload.phone || null,
       company: payload.companyName || payload.company || null, status: 'lead',
+      tags: tags || [],
     });
   }
   // Retroactively link orphaned inquiries to this contact by name match
@@ -786,40 +796,82 @@ async function handleAppointmentWebhook(supabase: any, userId: string, payload: 
   const eventId = payload.id || payload.appointmentId || payload.data?.id;
   if (!eventId) return;
 
-  const startTime = new Date(payload.startTime || payload.start || payload.data?.startTime);
-  const endTime = new Date(payload.endTime || payload.end || payload.data?.endTime);
-  if (isNaN(startTime.getTime())) return;
+  const parsed = parseGhlEvent({ ...payload, ...(payload.data || {}), id: eventId });
+  if (!parsed) return;
+  const { dateStr, startHour, startMinute, endHour, endMinute, title, status } = parsed;
 
-  const startLocal = toAmsterdam(startTime);
-  const endLocal = isNaN(endTime.getTime()) ? null : toAmsterdam(endTime);
-  const dateStr = startLocal.dateStr;
-  const startHour = startLocal.hours;
-  const startMinute = startLocal.minutes;
-  // Preserve exact end time from GHL — never override
-  const endHour = endLocal ? endLocal.hours : Math.min(startHour + 1, 23);
-  const endMinute = endLocal ? endLocal.minutes : 0;
+  // Room from the calendar mapping (room_settings), never a hard-coded default
+  const calendarId = payload.calendarId || payload.calendar_id || payload.data?.calendarId || null;
+  let roomName: string | null = null;
+  if (calendarId) {
+    const { data: rs } = await supabase.from('room_settings').select('room_name').eq('ghl_calendar_id', calendarId).limit(1).maybeSingle();
+    roomName = rs?.room_name || null;
+  }
 
-  const title = payload.title || payload.name || 'GHL Afspraak';
-  const contactName = payload.contact?.name || title;
-  const status = (payload.status === 'confirmed' || payload.appointmentStatus === 'confirmed') ? 'confirmed' : 'option';
+  // Contact link
+  let contactId: string | null = null;
+  let contactName: string = payload.contact?.name || payload.full_name || payload.contact_name || title;
+  const ghlContactId = parsed.ghlContactId || payload.contact_id || null;
+  if (ghlContactId) {
+    const { data: c } = await supabase.from('contacts').select('id, first_name, last_name').eq('ghl_contact_id', ghlContactId).maybeSingle();
+    if (c) {
+      contactId = c.id;
+      contactName = `${c.first_name || ''} ${c.last_name || ''}`.trim() || contactName;
+    }
+  }
 
-  const { data: existing } = await supabase.from('bookings').select('id').not('id', 'is', null).eq('ghl_event_id', eventId).maybeSingle();
+  const { data: existing } = await supabase.from('bookings').select('id, updated_at, contact_id').not('id', 'is', null).eq('ghl_event_id', eventId).maybeSingle();
 
   if (existing) {
-    await supabase.from('bookings').update({
+    // Echo of our own push: the CRM row is newer than the GHL event → keep local data
+    const ghlUpdatedAt = parsed.updatedAt || payload.dateUpdated || payload.date_updated || null;
+    const ghlMs = ghlUpdatedAt ? Date.parse(ghlUpdatedAt) : NaN;
+    const crmMs = existing.updated_at ? Date.parse(existing.updated_at) : NaN;
+    if (Number.isFinite(ghlMs) && Number.isFinite(crmMs) && crmMs >= ghlMs) {
+      if (!existing.contact_id && contactId) {
+        await supabase.from('bookings').update({ contact_id: contactId }).eq('id', existing.id);
+      }
+      console.log(`Webhook: Appointment ${eventId} skipped — CRM is newer`);
+      return;
+    }
+    const patch: Record<string, any> = {
       date: dateStr, start_hour: startHour, start_minute: startMinute,
       end_hour: endHour, end_minute: endMinute,
       title, contact_name: contactName, status,
-    }).eq('id', existing.id);
+    };
+    if (!existing.contact_id && contactId) patch.contact_id = contactId;
+    await supabase.from('bookings').update(patch).eq('id', existing.id);
   } else {
+    if (status === 'cancelled') {
+      console.log(`Webhook: Appointment ${eventId} is cancelled and unknown locally, ignored`);
+      return;
+    }
     await supabase.from('bookings').insert({
-      user_id: userId, ghl_event_id: eventId, room_name: 'Ontmoeten Aan de Donge',
+      user_id: userId, ghl_event_id: eventId, room_name: roomName || 'Ontmoeten Aan de Donge',
       date: dateStr, start_hour: startHour, start_minute: startMinute,
       end_hour: endHour, end_minute: endMinute,
-      title, contact_name: contactName, status,
+      title, contact_name: contactName, contact_id: contactId, status,
     });
   }
-  console.log(`Webhook: Appointment ${eventId} synced (${startHour}:${String(startMinute).padStart(2,'0')}-${endHour}:${String(endMinute).padStart(2,'0')})`);
+  console.log(`Webhook: Appointment ${eventId} synced (${startHour}:${String(startMinute).padStart(2,'0')}-${endHour}:${String(endMinute).padStart(2,'0')}, ${status})`);
+}
+
+async function handleAppointmentDelete(supabase: any, userId: string, payload: any) {
+  const eventId = payload.id || payload.appointmentId || payload.data?.id;
+  if (!eventId) return;
+  const { data: existing } = await supabase.from('bookings').select('id, title, status').eq('ghl_event_id', eventId).maybeSingle();
+  if (!existing) {
+    console.log(`Webhook: AppointmentDelete for ${eventId} but no matching CRM booking`);
+    return;
+  }
+  // Deleting in GHL marks the CRM reservation cancelled instead of removing it,
+  // so no local data (notes, guest counts, tasks) is lost.
+  await supabase.from('bookings').update({ status: 'cancelled', status_reason: 'Afspraak verwijderd in GoHighLevel' }).eq('id', existing.id);
+  await supabase.from('sync_log').insert({
+    user_id: userId, entity_type: 'booking', entity_id: existing.id,
+    action: 'ghl_appointment_deleted', details: { ghl_event_id: eventId, title: existing.title, previous_status: existing.status }, status: 'success',
+  });
+  console.log(`Webhook: Booking ${existing.id} marked cancelled (GHL appointment ${eventId} deleted)`);
 }
 
 // stageToStatus is now defined at the top of the file

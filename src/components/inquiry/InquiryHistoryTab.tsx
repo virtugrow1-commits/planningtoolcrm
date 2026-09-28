@@ -1,4 +1,4 @@
-import { formatDate } from '@/lib/formatters';
+import { formatDate, localToday } from '@/lib/formatters';
 import { useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { format } from 'date-fns';
@@ -19,7 +19,7 @@ interface Props {
 export default function InquiryHistoryTab({ inquiry, contactBookings, companyBookings, contactInquiries }: Props) {
   const navigate = useNavigate();
 
-  const todayStr = useMemo(() => new Date().toISOString().split('T')[0], []);
+  const todayStr = useMemo(() => localToday(), []);
 
   // Merge contact + company bookings, deduplicate
   const allBookings = useMemo(() => {

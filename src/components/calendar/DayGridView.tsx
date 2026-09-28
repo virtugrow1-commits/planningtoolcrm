@@ -5,7 +5,7 @@ import { GripVertical, Plus, User, Clock } from 'lucide-react';
 import { useCompaniesContext } from '@/contexts/CompaniesContext';
 
 function formatDuration(startH: number, startM: number, endH: number, endM: number): string {
-  let startMin = startH * 60 + startM;
+  const startMin = startH * 60 + startM;
   let endMin = endH * 60 + endM;
   if (endMin <= startMin) endMin += 24 * 60; // overnight
   const total = endMin - startMin;

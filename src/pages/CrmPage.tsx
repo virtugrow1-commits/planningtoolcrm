@@ -28,6 +28,7 @@ import { CalendarIcon } from 'lucide-react';
 import { DMU_OPTIONS, FUNCTION_GROUP_OPTIONS } from '@/lib/contactOptions';
 import PageHeader from '@/components/PageHeader';
 import ListSkeleton from '@/components/ListSkeleton';
+import { toLocalDateString } from '@/lib/formatters';
 
 
 const STATUS_LABELS: Record<string, string> = {
@@ -150,7 +151,8 @@ export default function CrmPage() {
       const match = companies.find((c) => c.name.toLowerCase() === newContact.company!.toLowerCase());
       if (match) companyId = match.id;
     }
-    await addContact({ ...newContact, companyId });
+    const outcome = await addContact({ ...newContact, companyId });
+    if (outcome === null) return; // duplicate: addContact already showed a toast
     setNewOpen(false);
     setNewContact({ firstName: '', lastName: '', email: '', phone: '', status: 'lead', department: '', dmu: '', functionGroup: '', jobTitle: '' });
     toast({ title: 'Contact aangemaakt' });
@@ -506,7 +508,7 @@ export default function CrmPage() {
                   <Calendar
                     mode="single"
                     selected={newContact.birthDate ? new Date(newContact.birthDate) : undefined}
-                    onSelect={(d) => setNewContact({ ...newContact, birthDate: d ? d.toISOString().slice(0,10) : undefined })}
+                    onSelect={(d) => setNewContact({ ...newContact, birthDate: d ? toLocalDateString(d) : undefined })}
                     captionLayout="dropdown-buttons"
                     fromYear={1930}
                     toYear={new Date().getFullYear()}

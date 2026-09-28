@@ -88,3 +88,17 @@ export function formatDateTime(value: string | Date | null | undefined, fallback
   const mi = String(d.getMinutes()).padStart(2, '0');
   return `${base} ${hh}:${mi}`;
 }
+
+/**
+ * yyyy-MM-dd for a Date in the browser's local time zone.
+ * `toISOString().slice(0, 10)` is UTC and shifts the day between 00:00 and
+ * 01:00/02:00 in Europe/Amsterdam — never use it for calendar dates.
+ */
+export function toLocalDateString(date: Date): string {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+}
+
+/** Today's calendar date (yyyy-MM-dd) in the browser's local time zone. */
+export function localToday(): string {
+  return toLocalDateString(new Date());
+}

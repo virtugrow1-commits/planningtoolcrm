@@ -1,4 +1,4 @@
-import { formatDate } from '@/lib/formatters';
+import { formatDate, localToday } from '@/lib/formatters';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useState, useMemo } from 'react';
 import { format } from 'date-fns';
@@ -129,7 +129,7 @@ export default function BookingDetailPage() {
   const current = editing ? form! : booking;
 
   // Split bookings into upcoming and past
-  const today = new Date().toISOString().split('T')[0];
+  const today = localToday();
   const upcomingBookings = contactBookings.filter(b => b.date >= today);
   const pastBookings = contactBookings.filter(b => b.date < today);
 

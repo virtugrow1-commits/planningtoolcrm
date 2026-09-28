@@ -100,7 +100,7 @@ export default function PostCompanyContactFlow({ company, onClose }: Props) {
       return;
     }
     setSaving(true);
-    await addContact({
+    const outcome = await addContact({
       firstName: form.firstName,
       lastName: form.lastName,
       email: form.email,
@@ -115,6 +115,8 @@ export default function PostCompanyContactFlow({ company, onClose }: Props) {
       status: 'lead',
     });
     setSaving(false);
+    // addContact returns null when the contact already exists (it shows its own toast)
+    if (outcome === null) return;
     toast({ title: `${form.firstName} ${form.lastName} gekoppeld aan ${company.name}` });
     setForm(emptyForm);
     goToStep('another');
