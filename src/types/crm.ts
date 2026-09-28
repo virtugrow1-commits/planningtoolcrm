@@ -79,6 +79,8 @@ export interface Booking {
   inquiryId?: string;
   status: 'confirmed' | 'option' | 'cancelled' | 'expired';
   statusReason?: string;
+  /** Datum (yyyy-MM-dd) tot wanneer een optie geldig is; wordt automatisch gevuld als leeg */
+  optionExpiresAt?: string;
   notes?: string;
   color?: string;
   guestCount?: number;

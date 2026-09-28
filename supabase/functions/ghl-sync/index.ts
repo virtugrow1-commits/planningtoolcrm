@@ -11,6 +11,7 @@ import {
   findStageForStatus,
   ghlDueDateLocal,
   ghlOpportunityStatus,
+  mergePulledBookingStatus,
   parseGhlEvent,
   stageToStatus,
 } from "../_shared/ghlCommon.ts";
@@ -492,7 +493,7 @@ Deno.serve(async (req) => {
         // Check if booking exists across all organization users
         const { data: existing } = await supabase
           .from('bookings')
-          .select('id, room_name, user_id, updated_at, contact_id')
+          .select('id, room_name, user_id, updated_at, contact_id, status')
           .in('user_id', orgUserIds)
           .eq('ghl_event_id', evt.id)
           .maybeSingle();
@@ -509,7 +510,7 @@ Deno.serve(async (req) => {
               end_minute: endMinute,
               title,
               contact_name: contactName,
-              status,
+              status: mergePulledBookingStatus(existing.status, status),
             };
             if (!existing.contact_id && linkedContact) patch.contact_id = linkedContact.id;
             await supabase.from('bookings').update(patch).eq('id', existing.id);

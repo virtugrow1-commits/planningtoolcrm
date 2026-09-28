@@ -159,10 +159,17 @@ export function findStageForStatus(
   return null;
 }
 
+/**
+ * CRM statuses in which the reservation has actually taken place. Only then is
+ * the opportunity "won" in GHL (client rule: won = er is een reservering geweest).
+ * A definitive reservation that still has to happen stays "open".
+ */
+export const WON_STATUSES: ReadonlySet<string> = new Set(['invoiced', 'after_sales', 'converted', 'condolence_reminder']);
+
 /** GHL opportunity status (open/won/lost) for a CRM inquiry status. */
 export function ghlOpportunityStatus(status: string): 'open' | 'won' | 'lost' {
   if (status === 'lost') return 'lost';
-  if (status === 'confirmed' || status === 'converted') return 'won';
+  if (WON_STATUSES.has(status)) return 'won';
   return 'open';
 }
 
@@ -263,6 +270,16 @@ export function buildAppointmentPayload(
   };
   if (notes) payload.notes = notes;
   return payload;
+}
+
+/**
+ * Status to store when a GHL event is pulled over an existing CRM booking.
+ * "expired" is a CRM-only state that we send to GHL as "cancelled"; it must
+ * survive the round trip instead of turning into "cancelled".
+ */
+export function mergePulledBookingStatus(existingStatus: string | null | undefined, pulled: 'confirmed' | 'option' | 'cancelled'): string {
+  if (existingStatus === 'expired' && pulled === 'cancelled') return 'expired';
+  return pulled;
 }
 
 export interface ParsedGhlEvent {

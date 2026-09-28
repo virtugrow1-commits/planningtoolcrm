@@ -21,6 +21,7 @@ import {
   ghlDueDateLocal,
   ghlOpportunityStatus,
   isWithin,
+  mergePulledBookingStatus,
   parseGhlEvent,
   stageToStatus,
 } from "../_shared/ghlCommon.ts";
@@ -557,7 +558,7 @@ async function syncCalendar(supabase: any, ghlHeaders: any, locationId: string, 
               end_minute: endMinute,
               title,
               contact_name: contactName,
-              status: evtStatus,
+              status: mergePulledBookingStatus(existing.status, evtStatus),
               // Preserve: room_name (user may have moved it), notes, guest_count, room_setup, requirements, preparation_status, assigned_to
             };
             if (!existing.contact_id && linkedContact) patch.contact_id = linkedContact.id;

@@ -12,6 +12,7 @@ import {
 import {
   GHL_API_BASE,
   applyRemoteInquiryPatch,
+  mergePulledBookingStatus,
   parseGhlEvent,
   stageToStatus,
 } from "../_shared/ghlCommon.ts";
@@ -820,7 +821,7 @@ async function handleAppointmentWebhook(supabase: any, userId: string, payload: 
     }
   }
 
-  const { data: existing } = await supabase.from('bookings').select('id, updated_at, contact_id').not('id', 'is', null).eq('ghl_event_id', eventId).maybeSingle();
+  const { data: existing } = await supabase.from('bookings').select('id, updated_at, contact_id, status').not('id', 'is', null).eq('ghl_event_id', eventId).maybeSingle();
 
   if (existing) {
     // Echo of our own push: the CRM row is newer than the GHL event → keep local data
@@ -837,7 +838,7 @@ async function handleAppointmentWebhook(supabase: any, userId: string, payload: 
     const patch: Record<string, any> = {
       date: dateStr, start_hour: startHour, start_minute: startMinute,
       end_hour: endHour, end_minute: endMinute,
-      title, contact_name: contactName, status,
+      title, contact_name: contactName, status: mergePulledBookingStatus(existing.status, status),
     };
     if (!existing.contact_id && contactId) patch.contact_id = contactId;
     await supabase.from('bookings').update(patch).eq('id', existing.id);

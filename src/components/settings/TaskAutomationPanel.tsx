@@ -102,12 +102,13 @@ export default function TaskAutomationPanel() {
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <h3 className="flex items-center gap-2 text-base font-semibold text-foreground">
-              <ListChecks size={16} /> Automatische taken
+              <ListChecks size={16} /> Taken uit GoHighLevel
             </h3>
             <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
-              Deze taaksoorten worden automatisch aangemaakt bij nieuwe reserveringen en aanvragen. Zet een soort uit
-              en er komen geen nieuwe taken van die soort meer bij — taken die al in de lijst staan blijven bewaard.
-              Dubbele taken (zelfde persoon, soort en datum) worden automatisch samengevoegd.
+              Deze taaksoorten komen uit GoHighLevel-workflows. Zet een soort uit en er komen geen nieuwe taken van die
+              soort meer binnen — taken die al in de lijst staan blijven bewaard. Dubbele taken (zelfde persoon, soort en
+              datum) worden automatisch samengevoegd. Wil je een taaksoort door de CRM zelf laten maken? Zet hem hier uit en
+              aan onder het tabblad Automatiseringen.
             </p>
           </div>
           <div className="flex flex-col items-end gap-1 text-xs text-muted-foreground">

@@ -245,6 +245,13 @@ export default function BookingDetailPage() {
                     </SelectContent>
                   </Select>
                 </div>
+                {form!.status === 'option' && (
+                  <div>
+                    <Label>Optie geldig tot</Label>
+                    <Input type="date" value={form!.optionExpiresAt || ''} onChange={(e) => setForm({ ...form!, optionExpiresAt: e.target.value || undefined })} />
+                    <p className="mt-1 text-[11px] text-muted-foreground">Leeg = automatisch (standaard 14 dagen voor de datum, zie Instellingen → Automatiseringen).</p>
+                  </div>
+                )}
                 <div>
                   <Label>Voorbereiding</Label>
                   <Select value={form!.preparationStatus || 'pending'} onValueChange={(v) => setForm({ ...form!, preparationStatus: v as any })}>
@@ -278,6 +285,9 @@ export default function BookingDetailPage() {
                 <InfoRow icon={<FileText size={14} />} label="Voorbereiding" value={prepStatusLabel(booking.preparationStatus)} />
                 <InfoRow icon={<FileText size={14} />} label="Evenement" value={booking.title} />
                 {booking.assignedTo && <InfoRow icon={<UserCheck size={14} />} label="Verantwoordelijke" value={booking.assignedTo} />}
+                {booking.status === 'option' && booking.optionExpiresAt && (
+                  <InfoRow icon={<CalendarIcon size={14} />} label="Optie geldig tot" value={formatDate(booking.optionExpiresAt)} />
+                )}
                 {booking.statusReason && (
                   <div className="pt-2 border-t border-border">
                     <p className="text-xs font-medium text-muted-foreground mb-1">Reden statuswijziging</p>

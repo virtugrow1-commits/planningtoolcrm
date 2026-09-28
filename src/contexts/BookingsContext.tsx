@@ -37,7 +37,7 @@ export function BookingsProvider({ children }: { children: ReactNode }) {
     if (!user) return;
     const { rows: allData, error } = await fetchAllRows({
       table: 'bookings',
-      columns: 'id, reservation_number, room_name, date, start_hour, start_minute, end_hour, end_minute, title, contact_name, contact_id, company_id, inquiry_id, status, status_reason, notes, guest_count, room_setup, requirements, preparation_status, assigned_to, ghl_event_id',
+      columns: 'id, reservation_number, room_name, date, start_hour, start_minute, end_hour, end_minute, title, contact_name, contact_id, company_id, inquiry_id, status, status_reason, option_expires_at, notes, guest_count, room_setup, requirements, preparation_status, assigned_to, ghl_event_id',
       orderBy: 'date',
     });
     if (error) {
@@ -62,6 +62,7 @@ export function BookingsProvider({ children }: { children: ReactNode }) {
       inquiryId: (b as any).inquiry_id || undefined,
       status: b.status as Booking['status'],
       statusReason: (b as any).status_reason || undefined,
+      optionExpiresAt: (b as any).option_expires_at || undefined,
       notes: b.notes || undefined,
       guestCount: (b as any).guest_count ?? 0,
       roomSetup: (b as any).room_setup || undefined,
@@ -175,6 +176,12 @@ export function BookingsProvider({ children }: { children: ReactNode }) {
     }
   }, [logSync]);
 
+  // Let the CRM automations (task templates, option expiry, …) act on this
+  // booking right away instead of waiting for the next scheduled run.
+  const runAutomationsFor = useCallback((bookingId: string) => {
+    supabase.functions.invoke('crm-automations', { body: { source: 'app', booking_id: bookingId } }).catch(() => { /* cron catches up */ });
+  }, []);
+
   const addBooking = useCallback(async (booking: Omit<Booking, 'id'>): Promise<{ success: boolean; conflicts?: Booking[] }> => {
     if (!user) return { success: false };
     const startMin = booking.startHour * 60 + (booking.startMinute ?? 0);
@@ -213,6 +220,7 @@ export function BookingsProvider({ children }: { children: ReactNode }) {
       company_id: booking.companyId || null,
       inquiry_id: booking.inquiryId || null,
       status: booking.status,
+      option_expires_at: booking.status === 'option' ? (booking.optionExpiresAt || null) : null,
       notes: booking.notes || null,
       guest_count: booking.guestCount ?? 0,
       room_setup: booking.roomSetup || null,
@@ -251,10 +259,10 @@ export function BookingsProvider({ children }: { children: ReactNode }) {
       setBookings(prev => [...prev, newBooking]);
 
       // GHL push in background (fire-and-forget)
-      void pushBookingToGHL(data, 'create');
+      void pushBookingToGHL(data, 'create').then(() => runAutomationsFor(data.id));
     }
     return { success: true };
-  }, [user, fetchBookings, toast, checkConflicts, serverConflictCheck, pushBookingToGHL]);
+  }, [user, fetchBookings, toast, checkConflicts, serverConflictCheck, pushBookingToGHL, runAutomationsFor]);
 
   const addBookings = useCallback(async (newBookings: Omit<Booking, 'id'>[]): Promise<{ success: boolean; conflicts?: Booking[] }> => {
     if (!user || newBookings.length === 0) return { success: false };
@@ -285,6 +293,7 @@ export function BookingsProvider({ children }: { children: ReactNode }) {
       company_id: b.companyId || null,
       inquiry_id: b.inquiryId || null,
       status: b.status,
+      option_expires_at: b.status === 'option' ? (b.optionExpiresAt || null) : null,
       notes: b.notes || null,
       guest_count: b.guestCount ?? 0,
       room_setup: b.roomSetup || null,
@@ -300,11 +309,12 @@ export function BookingsProvider({ children }: { children: ReactNode }) {
     void (async () => {
       for (const booking of data || []) {
         await pushBookingToGHL(booking, 'create');
+        runAutomationsFor(booking.id);
       }
     })();
     await fetchBookings();
     return { success: true };
-  }, [user, fetchBookings, toast, serverConflictCheck, pushBookingToGHL]);
+  }, [user, fetchBookings, toast, serverConflictCheck, pushBookingToGHL, runAutomationsFor]);
 
   const updateBooking = useCallback(async (updated: Booking): Promise<{ success: boolean; conflicts?: Booking[] }> => {
     const existingBooking = bookings.find((booking) => booking.id === updated.id);
@@ -334,6 +344,7 @@ export function BookingsProvider({ children }: { children: ReactNode }) {
       company_id: updated.companyId || null,
       inquiry_id: updated.inquiryId ?? null,
       status: updated.status,
+      option_expires_at: updated.status === 'option' ? (updated.optionExpiresAt || null) : null,
       notes: updated.notes || null,
       guest_count: resolvedGuestCount,
       room_setup: updated.roomSetup || null,
@@ -348,11 +359,11 @@ export function BookingsProvider({ children }: { children: ReactNode }) {
     }
     if (data) {
       // GHL push in background (fire-and-forget)
-      void pushBookingToGHL(data, 'update');
+      void pushBookingToGHL(data, 'update').then(() => runAutomationsFor(data.id));
       await fetchBookings();
     }
     return { success: true };
-  }, [bookings, fetchBookings, toast, serverConflictCheck, pushBookingToGHL]);
+  }, [bookings, fetchBookings, toast, serverConflictCheck, pushBookingToGHL, runAutomationsFor]);
 
   const deleteBooking = useCallback(async (id: string) => {
     // Optimistic removal — instantly remove from UI state to prevent "spring back"

@@ -8,3 +8,6 @@ verify_jwt = false
 
 [functions.ghl-auto-sync]
 verify_jwt = false
+
+[functions.crm-automations]
+verify_jwt = false
