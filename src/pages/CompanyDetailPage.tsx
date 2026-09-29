@@ -177,7 +177,12 @@ export default function CompanyDetailPage() {
     [companyContacts]
   );
   const activeContacts = useMemo(() => sortedContacts.filter((c) => !c.departed), [sortedContacts]);
-  const primaryContact = useMemo(() => activeContacts.find((c) => c.isPrimary) || activeContacts[0], [activeContacts]);
+  // Hoofdcontactpersoon: bij voorkeur de primaire contactpersoon van de meest recente lopende aanvraag,
+  // anders de als hoofdcontact gemarkeerde contactpersoon, anders de eerste actieve.
+  const primaryContact = useMemo(() => {
+    const inquiryPrimary = activeInquiries[0]?.contactId ? activeContacts.find((c) => c.id === activeInquiries[0].contactId) : undefined;
+    return inquiryPrimary || activeContacts.find((c) => c.isPrimary) || activeContacts[0];
+  }, [activeInquiries, activeContacts]);
   const [cardTab, setCardTab] = useState('overzicht');
 
   const visibleContacts = showAllContacts ? sortedContacts : sortedContacts.slice(0, 4);
