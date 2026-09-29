@@ -6,6 +6,7 @@ import OudCrmImport from '@/components/OudCrmImport';
 import SyncQueuePanel from '@/components/SyncQueuePanel';
 import ContactExportPanel from '@/components/settings/ContactExportPanel';
 import TaskAutomationPanel from '@/components/settings/TaskAutomationPanel';
+import CustomTaskRulesPanel from '@/components/settings/CustomTaskRulesPanel';
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -313,7 +314,8 @@ export default function SettingsPage() {
           <SyncQueuePanel />
         </TabsContent>
 
-        <TabsContent value="task-automation">
+        <TabsContent value="task-automation" className="space-y-4">
+          <CustomTaskRulesPanel />
           <TaskAutomationPanel />
         </TabsContent>
 
