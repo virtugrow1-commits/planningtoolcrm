@@ -2173,7 +2173,7 @@ async function syncDocuments(supabase: any, ghlHeaders: any, locationId: string,
       const data = await res.json();
       const batch: any[] = data.documents || data.data || data.proposals || [];
       docs.push(...batch);
-      if (batch.length < 100) break;
+      if (batch.length < 20) break;
       await delay(200);
     }
     // 2. Fallback to the legacy path (kept for accounts where it does exist)
