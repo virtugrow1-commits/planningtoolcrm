@@ -140,8 +140,16 @@ export default function NewInquiryDialog({ open, onOpenChange, contacts, compani
     const hasContact = form.contactId || (creatingContact && contactForm.firstName && contactForm.lastName);
     const hasCompany = form.companyId || (creatingCompany && companyForm.name);
 
+    if (!hasCompany) {
+      toast({ title: 'Kies een klant of maak een nieuwe klant aan', variant: 'destructive' });
+      return;
+    }
     if (!hasContact || !form.eventType) {
       toast({ title: 'Vul minimaal contactpersoon en type evenement in', variant: 'destructive' });
+      return;
+    }
+    if (Number(form.guestCount) < 0) {
+      toast({ title: 'Aantal personen moet 0 of meer zijn', variant: 'destructive' });
       return;
     }
 
@@ -286,14 +294,14 @@ export default function NewInquiryDialog({ open, onOpenChange, contacts, compani
                   searchPlaceholder="Zoek bedrijf..."
                   popoverWidth="w-[380px]"
                   allowClear
-                  clearLabel="— Geen bedrijf —"
+                  clearLabel="— Geen klant —"
                 />
                 <button
                   type="button"
                   onClick={() => { setCreatingCompany(true); setForm({ ...form, companyId: '' }); }}
                   className="flex items-center gap-1.5 text-xs text-primary hover:text-primary/80 transition-colors font-medium"
                 >
-                  <Plus size={12} /> Nieuw bedrijf toevoegen
+                  <Plus size={12} /> Nieuwe klant aanmaken
                 </button>
               </div>
             ) : (

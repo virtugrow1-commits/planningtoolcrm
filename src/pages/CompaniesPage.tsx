@@ -79,7 +79,19 @@ export default function CompaniesPage() {
 
   const handleSave = async () => {
     if (!form.name.trim()) {
-      toast({ title: 'Vul een bedrijfsnaam in', variant: 'destructive' });
+      toast({ title: form.isPrivate ? 'Vul voor- en achternaam in' : 'Vul een bedrijfsnaam in', variant: 'destructive' });
+      return;
+    }
+    if (form.isPrivate && form.name.trim().split(/\s+/).length < 2) {
+      toast({ title: 'Vul zowel voor- als achternaam in', variant: 'destructive' });
+      return;
+    }
+    if (form.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim())) {
+      toast({ title: 'Ongeldig e-mailadres', variant: 'destructive' });
+      return;
+    }
+    if (form.phone && !/^\+?[0-9\s\-()]{6,20}$/.test(form.phone.trim())) {
+      toast({ title: 'Ongeldig telefoonnummer', variant: 'destructive' });
       return;
     }
     if (editing) {
