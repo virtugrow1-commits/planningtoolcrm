@@ -1,4 +1,5 @@
 import { formatDate, localToday, toLocalDateString } from '@/lib/formatters';
+import { matchesSearch } from '@/lib/search';
 import { resolveContact } from '@/lib/contactLookup';
 
 import { useState, useCallback, useEffect, useMemo, useRef, DragEvent } from 'react';
@@ -185,16 +186,10 @@ export default function InquiriesPage() {
     return result.filter(inq => {
       const contact = inq.contactId ? contacts.find(c => c.id === inq.contactId) : null;
       const company = contact?.companyId ? companies.find(co => co.id === contact.companyId) : null;
-      return (
-        inq.eventType.toLowerCase().includes(q) ||
-        inq.contactName.toLowerCase().includes(q) ||
-        (inq.displayNumber || '').toLowerCase().includes(q) ||
-        (inq.roomPreference || '').toLowerCase().includes(q) ||
-        (inq.source || '').toLowerCase().includes(q) ||
-        (company?.name || '').toLowerCase().includes(q) ||
-        (contact?.company || '').toLowerCase().includes(q) ||
-        (inq.preferredDate || '').includes(q) ||
-        (PIPELINE_COLUMNS.find(c => c.key === inq.status)?.label || '').toLowerCase().includes(q)
+      const companyRec = company || (inq.companyId ? companies.find(co => co.id === inq.companyId) : null);
+      return matchesSearch(q, inq.eventType, inq.title, inq.contactName, inq.displayNumber, inq.roomPreference, inq.source,
+        companyRec?.name, contact?.company, contact && `${contact.firstName} ${contact.lastName} ${contact.email || ''}`, inq.preferredDate,
+        PIPELINE_COLUMNS.find(c => c.key === inq.status)?.label, inq.assignedTo) || (inq.preferredDate || '').includes(q.trim()) || (!!inq.preferredDate && formatDate(inq.preferredDate).includes(q.trim()));
       );
     });
   }, [activeInquiries, searchQuery, contacts, companies, hidePast, pastOnlyInquiryIds]);
