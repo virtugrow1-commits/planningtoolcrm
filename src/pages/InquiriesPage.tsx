@@ -60,6 +60,13 @@ const ARCHIVE_STATUSES = ['lost', 'converted'] as const;
 // All columns shown in kanban — archive ones are drop-zones only
 const PIPELINE_ACTIVE_COLUMNS = PIPELINE_COLUMNS;
 const ARCHIVE_COLUMN_KEYS = ARCHIVE_STATUSES as readonly string[];
+// Fasegroepen voor de pipeline (statussen zelf blijven ongewijzigd)
+const PIPELINE_GROUP: Record<string, string> = {
+  new: 'Aanvraag', contacted: 'Aanvraag',
+  option: 'Sales', quoted: 'Sales', quote_revised: 'Sales',
+  reserved: 'Reservering', script: 'Reservering', confirmed: 'Reservering', invoiced: 'Reservering',
+  after_sales: 'Aftersales', condolence_reminder: 'Aftersales', converted: 'Aftersales', lost: 'Aftersales',
+};
 
 const RECURRENCE_OPTIONS = [
   { value: 'none', label: 'Eenmalig' },
@@ -621,6 +628,7 @@ export default function InquiriesPage() {
               onDragOver={handleDragOver}
               onDrop={(e) => handleDrop(e, col.key)}
             >
+              <p className="text-[10px] uppercase tracking-wide text-muted-foreground mb-1">{PIPELINE_GROUP[col.key] || ''}</p>
               <div className="mb-3 flex items-center justify-between">
                 <div className="flex items-center gap-1.5">
                   {isArchiveCol && <Archive size={13} className="text-muted-foreground" />}
@@ -684,7 +692,7 @@ export default function InquiriesPage() {
                             onClick={(e) => { e.stopPropagation(); const c = resolveContact(contacts, inq.contactId, inq.contactName); if (c) navigate(`/crm/${c.id}`); else openDetailDialog(inq); }}
 
                           >
-                            {inq.contactName}
+                            <span className="text-muted-foreground/70">Primair: </span>{inq.contactName || '—'}
                           </button>
                         </div>
                       </div>
@@ -699,9 +707,6 @@ export default function InquiriesPage() {
                       {(() => { const next = nextTaskByInquiry.get(inq.id); return next ? (
                         <div className="flex gap-2"><span className="text-muted-foreground w-[100px] shrink-0">Volgende taak:</span><span className="text-card-foreground truncate">{next.title}{next.dueDate ? ` · ${formatDate(next.dueDate)}` : ''}</span></div>
                       ) : null; })()}
-                      {inq.budget ? (
-                        <div className="flex gap-2"><span className="text-muted-foreground w-[100px] shrink-0">Waarde:</span><span className="text-card-foreground">€ {Number(inq.budget).toLocaleString('nl-NL')}</span></div>
-                      ) : null}
                       {(() => { const contact = resolveContact(contacts, inq.contactId, inq.contactName); const company = contact?.companyId ? companies.find(co => co.id === contact.companyId) : null; return contact?.company ? (
                         <div className="flex gap-2"><span className="text-muted-foreground w-[100px] shrink-0">Bedrijf:</span>{company ? (
                           <button className="text-card-foreground font-medium truncate hover:text-primary transition-colors text-left" onClick={(e) => { e.stopPropagation(); navigate(`/companies/${company.id}`); }}>{contact.company}</button>

@@ -1,3 +1,4 @@
+import { matchesSearch } from '@/lib/search';
 import { Search, Plus, Pencil, Trash2, Building2, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -38,7 +39,7 @@ export default function CompaniesPage() {
   const handleSearch = (v: string) => { setSearch(v); setPage(1); };
 
   const filtered = companies.filter((c) =>
-    `${c.name} ${c.email || ''} ${c.phone || ''} ${c.address || ''}`.toLowerCase().includes(search.toLowerCase())
+    matchesSearch(search, c.name, c.email, c.phone, c.address, c.city, c.postcode, c.displayNumber)
   );
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
