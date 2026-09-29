@@ -2,7 +2,7 @@ import { matchesSearch } from '@/lib/search';
 import { Search, Plus, Pencil, Trash2, Building2, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
@@ -35,6 +35,14 @@ export default function CompaniesPage() {
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
   const [postCreateCompany, setPostCreateCompany] = useState<{ id: string; name: string } | null>(null);
   const { toast } = useToast();
+
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get('new') === 'private') {
+      setEditing(null);
+      setForm({ name: '', email: '', phone: '', website: '', address: '', notes: '', isPrivate: true });
+      setDialogOpen(true);
+    }
+  }, []);
 
   const handleSearch = (v: string) => { setSearch(v); setPage(1); };
 

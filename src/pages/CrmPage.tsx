@@ -1,5 +1,5 @@
 import { matchesSearch } from '@/lib/search';
-import { Search, Plus, Filter, X, ChevronLeft, ChevronRight, Edit2, Trash2, Download, Building2, Users } from 'lucide-react';
+import { Search, Plus, Filter, X, ChevronLeft, ChevronRight, Edit2, Trash2, Download, Building2, Users, User } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { useState } from 'react';
@@ -28,6 +28,7 @@ import { Calendar } from '@/components/ui/calendar';
 import { CalendarIcon } from 'lucide-react';
 import { DMU_OPTIONS, FUNCTION_GROUP_OPTIONS } from '@/lib/contactOptions';
 import PageHeader from '@/components/PageHeader';
+const formatDate = (d: string) => { const [y, m, dd] = d.slice(0, 10).split('-'); return dd && m && y ? `${dd}-${m}-${y}` : d; };
 import ListSkeleton from '@/components/ListSkeleton';
 import { toLocalDateString } from '@/lib/formatters';
 
@@ -41,7 +42,7 @@ const STATUS_LABELS: Record<string, string> = {
 };
 
 type FilterKey = 'status' | 'company';
-type CrmTab = 'contacts' | 'companies';
+type CrmTab = 'contacts' | 'companies' | 'private';
 const PAGE_SIZES = [20, 50, 100] as const;
 
 export default function CrmPage() {
@@ -69,7 +70,8 @@ export default function CrmPage() {
   const companySort = useSortState<typeof companies[0]>();
 
   const uniqueStatuses = [...new Set(contacts.map((c) => c.status))];
-  const uniqueCompanies = [...new Set(contacts.map((c) => c.company).filter(Boolean))] as string[];
+  const privateIds = new Set(companies.filter((c) => c.isPrivate).map((c) => c.id));
+  const uniqueCompanies = [...new Set(contacts.filter((c) => !privateIds.has(c.companyId || '')).map((c) => c.company).filter(Boolean))] as string[];
   const activeFilterCount = Object.values(filters).filter(Boolean).length;
 
   const filtered = contacts.filter((c) => {
@@ -171,10 +173,13 @@ export default function CrmPage() {
     }
   };
 
-  // Companies tab filtering
+  // Companies / private tab filtering
   const filteredCompanies = companies.filter((c) =>
+    (activeTab === 'private' ? c.isPrivate === true : c.isPrivate !== true) &&
     matchesSearch(search, c.name, c.email, c.phone, c.address, c.city, c.postcode, c.displayNumber)
   );
+  const birthdayByCompany = new Map<string, string>();
+  contacts.forEach((ct) => { if (ct.companyId && ct.birthDate && !birthdayByCompany.has(ct.companyId)) birthdayByCompany.set(ct.companyId, ct.birthDate); });
   const sortedCompanies = companySort.sortItems(filteredCompanies, (c, key) => {
     switch (key) {
       case 'id': return c.displayNumber || '';
@@ -252,7 +257,7 @@ export default function CrmPage() {
         title="CRM"
         description={activeTab === 'contacts'
           ? `${sortedFiltered.length} contactpersonen`
-          : `${sortedCompanies.length} bedrijven`}
+          : activeTab === 'private' ? `${sortedCompanies.length} particulieren` : `${sortedCompanies.length} bedrijven`}
       />
       <div className="page-toolbar flex flex-wrap items-center justify-end gap-4">
 
@@ -296,7 +301,7 @@ export default function CrmPage() {
             </PopoverContent>
           </Popover>
           
-          <Button size="sm" onClick={() => activeTab === 'contacts' ? setNewOpen(true) : setNewCompanyOpen(true)}><Plus size={14} className="mr-1" /> {activeTab === 'contacts' ? t('crm.newContact') : t('crm.newCompany')}</Button>
+          <Button size="sm" onClick={() => activeTab === 'contacts' ? setNewOpen(true) : activeTab === 'private' ? navigate('/companies?new=private') : setNewCompanyOpen(true)}><Plus size={14} className="mr-1" /> {activeTab === 'contacts' ? t('crm.newContact') : activeTab === 'private' ? 'Nieuwe particulier' : t('crm.newCompany')}</Button>
         </div>
       </div>
 
@@ -312,6 +317,7 @@ export default function CrmPage() {
         <TabsList>
           <TabsTrigger value="contacts" className="gap-1.5"><Users size={14} /> {t('crm.contacts')}</TabsTrigger>
           <TabsTrigger value="companies" className="gap-1.5"><Building2 size={14} /> {t('crm.companies')}</TabsTrigger>
+          <TabsTrigger value="private" className="gap-1.5"><User size={14} /> Particulieren</TabsTrigger>
         </TabsList>
       </Tabs>
 
@@ -354,7 +360,7 @@ export default function CrmPage() {
                 <td className="px-4 py-3 font-medium text-foreground">{[c.firstName, c.lastName].filter(n => n && n !== '—').join(' ') || '—'}</td>
                 <td className="px-4 py-3 text-muted-foreground">{c.email || '—'}</td>
                 <td className="px-4 py-3 text-muted-foreground hidden md:table-cell">{c.phone || '—'}</td>
-                <td className="px-4 py-3 text-muted-foreground hidden lg:table-cell">{c.company || '—'}</td>
+                <td className="px-4 py-3 text-muted-foreground hidden lg:table-cell">{privateIds.has(c.companyId || '') ? <Badge variant="secondary" className="text-xs">Particulier</Badge> : (c.company || '—')}</td>
                 <td className="px-4 py-3 hidden lg:table-cell" onClick={(e) => e.stopPropagation()}>
                   <Select value={c.status} onValueChange={async (v) => { await updateContact({ ...c, status: v as Contact['status'] }); toast({ title: t('toast.updated') }); }}>
                     <SelectTrigger className={cn('h-7 w-[140px] text-xs border-0 bg-transparent hover:bg-muted/50', c.status === 'do_not_contact' && 'text-destructive')}>
@@ -389,12 +395,12 @@ export default function CrmPage() {
               <th className="px-4 py-3"><SortableHeader label="Email" sortKey="email" currentSort={companySort.sortKey} currentDirection={companySort.sortDir} onSort={companySort.handleSort} /></th>
               <th className="px-4 py-3 hidden md:table-cell"><SortableHeader label="Telefoon" sortKey="phone" currentSort={companySort.sortKey} currentDirection={companySort.sortDir} onSort={companySort.handleSort} /></th>
               <th className="px-4 py-3 hidden lg:table-cell"><SortableHeader label="Plaats" sortKey="city" currentSort={companySort.sortKey} currentDirection={companySort.sortDir} onSort={companySort.handleSort} /></th>
-              <th className="px-4 py-3 hidden lg:table-cell"><SortableHeader label="Doelgroep" sortKey="status" currentSort={companySort.sortKey} currentDirection={companySort.sortDir} onSort={companySort.handleSort} /></th>
+              <th className="px-4 py-3 hidden lg:table-cell"><SortableHeader label={activeTab === 'private' ? 'Verjaardag' : 'Doelgroep'} sortKey="status" currentSort={companySort.sortKey} currentDirection={companySort.sortDir} onSort={companySort.handleSort} /></th>
             </tr>
           </thead>
           <tbody>
             {paginatedCompanies.length === 0 && (
-              <tr><td colSpan={7} className="px-4 py-8 text-center text-muted-foreground"><Building2 size={32} className="mx-auto mb-2 opacity-40" />Geen bedrijven gevonden</td></tr>
+              <tr><td colSpan={7} className="px-4 py-8 text-center text-muted-foreground"><Building2 size={32} className="mx-auto mb-2 opacity-40" />{activeTab === 'private' ? 'Geen particulieren gevonden' : 'Geen bedrijven gevonden'}</td></tr>
             )}
             {paginatedCompanies.map((c) => (
               <tr
@@ -412,7 +418,7 @@ export default function CrmPage() {
                 <td className="px-4 py-3 text-muted-foreground hidden lg:table-cell">{c.city || '—'}</td>
                 <td className="px-4 py-3 hidden lg:table-cell">
                   <span className="text-xs text-muted-foreground truncate max-w-[200px] inline-block">
-                    {c.crmGroup || '—'}
+                    {activeTab === 'private' ? (birthdayByCompany.get(c.id) ? formatDate(birthdayByCompany.get(c.id)!) : '—') : (c.crmGroup || '—')}
                   </span>
                 </td>
               </tr>
