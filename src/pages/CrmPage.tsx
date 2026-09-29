@@ -1,3 +1,4 @@
+import { matchesSearch } from '@/lib/search';
 import { Search, Plus, Filter, X, ChevronLeft, ChevronRight, Edit2, Trash2, Download, Building2, Users } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -72,13 +73,10 @@ export default function CrmPage() {
   const activeFilterCount = Object.values(filters).filter(Boolean).length;
 
   const filtered = contacts.filter((c) => {
-    const searchLower = search.toLowerCase().trim();
-    const contactText = `${c.firstName} ${c.lastName} ${c.email} ${c.company || ''}`.toLowerCase();
-    const searchTerms = searchLower.split(/\s+/).filter(Boolean);
-    const matchesSearch = !searchLower || searchTerms.every((term) => contactText.includes(term));
+    const matchesSearchTerm = matchesSearch(search, c.firstName, c.infix, c.lastName, c.email, c.phone, c.mobile, c.company, c.displayNumber, c.jobTitle);
     const matchesStatus = !filters.status || c.status === filters.status;
     const matchesCompany = !filters.company || c.company === filters.company;
-    return matchesSearch && matchesStatus && matchesCompany;
+    return matchesSearchTerm && matchesStatus && matchesCompany;
   });
 
   const clearFilters = () => { setFilters({ status: '', company: '' }); setPage(1); };
@@ -175,7 +173,7 @@ export default function CrmPage() {
 
   // Companies tab filtering
   const filteredCompanies = companies.filter((c) =>
-    `${c.name} ${c.email || ''} ${c.phone || ''} ${c.address || ''}`.toLowerCase().includes(search.toLowerCase())
+    matchesSearch(search, c.name, c.email, c.phone, c.address, c.city, c.postcode, c.displayNumber)
   );
   const sortedCompanies = companySort.sortItems(filteredCompanies, (c, key) => {
     switch (key) {
