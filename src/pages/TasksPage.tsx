@@ -589,7 +589,7 @@ export default function TasksPage() {
             </Select>
 
             <div className="w-52">
-              <CrmCombobox options={inquiryFilterOptions} value={inquiryFilter} onSelect={id => setInquiryFilter(id || '__all__')} placeholder="Alle aanvragen" searchPlaceholder="Zoek aanvraag..." />
+              <CrmCombobox options={inquiryFilterOptions} value={inquiryFilter} onSelect={id => setInquiryFilter(id || '__all__')} placeholder="Alle aanvragen" searchPlaceholder="Zoek aanvraag..." className="h-9 text-xs bg-card" />
             </div>
 
             <Select value={eventFilter} onValueChange={setEventFilter}>
