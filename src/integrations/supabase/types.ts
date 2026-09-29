@@ -1445,6 +1445,7 @@ export type Database = {
           description: string | null
           enabled: boolean
           id: string
+          legacy_rule_id: string | null
           offset_days: number
           priority: string
           sort_order: number
@@ -1460,6 +1461,7 @@ export type Database = {
           description?: string | null
           enabled?: boolean
           id?: string
+          legacy_rule_id?: string | null
           offset_days?: number
           priority?: string
           sort_order?: number
@@ -1475,6 +1477,7 @@ export type Database = {
           description?: string | null
           enabled?: boolean
           id?: string
+          legacy_rule_id?: string | null
           offset_days?: number
           priority?: string
           sort_order?: number
