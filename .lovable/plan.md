@@ -1,25 +1,21 @@
-# Nieuwe GHL-sleutel activeren voor documenten
+# Documenten-sync testen na scope-uitbreiding GHL-token
 
-## Doel
-De nieuwe GoHighLevel-sleutel (met leesrecht "Documents & Contracts") in de app zetten en controleren dat documenten voortaan binnenkomen.
+## Situatie
+De bestaande GHL-token is in GoHighLevel bijgewerkt met het leesrecht "Documents & Contracts". De sleutel in de app blijft ongewijzigd — er hoeft niets opnieuw opgeslagen te worden.
 
 ## Stappen
 
-1. **Nieuwe sleutel opslaan**
-   - Jij plakt de nieuwe token in het beveiligde invoerveld dat ik open (bestaande sleutel GHL_API_KEY wordt vervangen).
-   - De oude sleutel wordt nergens getoond of gelogd.
+1. **Documenten-sync eenmalig handmatig aanroepen**
+   - Alleen de documenten-stap van de sync draaien (geen volledige sync).
+   - Let op: de sync slaat documenten 24 uur over na een weigering. Die blokkade moet voor de test worden gereset (tabelveld bijwerken), zodat de test direct eerlijk is.
 
-2. **Sync-test draaien**
-   - Ik roep de sync eenmalig handmatig aan (alleen documenten-stap, geen volledige sync).
-   - Verwacht resultaat: geen "GHL denied access" meer; documenten worden opgehaald en gekoppeld.
+2. **Resultaat controleren**
+   - Verwacht: geen "GHL denied access" meer in de logs.
+   - Rapporteren hoeveel documenten zijn opgehaald en gekoppeld.
 
-3. **Controleren in de app**
-   - Ik kijk in de preview of er documenten zichtbaar zijn bij klanten/aanvragen.
-   - Ik rapporteer hoeveel documenten zijn binnengekomen.
-
-## Wat je zelf doet
-- De nieuwe token plakken in het beveiligde veld (stap 1).
+3. **Visuele controle in de preview**
+   - Kijken of documenten zichtbaar zijn bij klanten/aanvragen.
 
 ## Buiten scope
-- Geen code- of UI-wijzigingen.
+- Geen code- of UI-wijzigingen (alleen eventueel de 24u-blokkade resetten).
 - Niets publiceren; live blijft de oude versie.
