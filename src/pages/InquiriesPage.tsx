@@ -726,7 +726,9 @@ export default function InquiriesPage() {
                       {(() => { const next = nextTaskByInquiry.get(inq.id); return next ? (
                         <div className="flex gap-2"><span className="text-muted-foreground w-[100px] shrink-0">Volgende taak:</span><span className="text-card-foreground truncate">{next.title}{next.dueDate ? ` · ${formatDate(next.dueDate)}` : ''}</span></div>
                       ) : null; })()}
-                      {(() => { const contact = resolveContact(contacts, inq.contactId, inq.contactName); const company = contact?.companyId ? companies.find(co => co.id === contact.companyId) : null; return contact?.company ? (
+                      {(() => { const contact = resolveContact(contacts, inq.contactId, inq.contactName); const company = contact?.companyId ? companies.find(co => co.id === contact.companyId) : null; if (company?.isPrivate) return (
+                        <div className="flex gap-2"><span className="text-muted-foreground w-[100px] shrink-0">Klanttype:</span><span className="text-card-foreground font-medium">Particulier</span></div>
+                      ); return contact?.company ? (
                         <div className="flex gap-2"><span className="text-muted-foreground w-[100px] shrink-0">Bedrijf:</span>{company ? (
                           <button className="text-card-foreground font-medium truncate hover:text-primary transition-colors text-left" onClick={(e) => { e.stopPropagation(); navigate(`/companies/${company.id}`); }}>{contact.company}</button>
                         ) : (<span className="text-card-foreground font-medium truncate">{contact.company}</span>)}</div>
