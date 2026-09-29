@@ -2,7 +2,8 @@
 // Used by ghl-webhook, ghl-auto-sync and ghl-enrich-inquiry so that a form
 // submission always lands in the same CRM fields, regardless of entry point.
 
-export const GHL_API_BASE = 'https://services.leadconnectorhq.com';
+// Overridable only for automated tests (points the functions at a mock GoHighLevel).
+export const GHL_API_BASE = Deno.env.get('GHL_API_BASE_OVERRIDE') || 'https://services.leadconnectorhq.com';
 
 /** Known form/custom field labels that may show up as top-level payload keys */
 export const KNOWN_FORM_KEYS = [

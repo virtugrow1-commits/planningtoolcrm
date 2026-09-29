@@ -4,7 +4,8 @@
 // CRM reservation look as a GHL appointment" lives here, so the three entry
 // points can never drift apart again.
 
-export const GHL_API_BASE = 'https://services.leadconnectorhq.com';
+// Overridable only for automated tests (points the functions at a mock GoHighLevel).
+export const GHL_API_BASE = Deno.env.get('GHL_API_BASE_OVERRIDE') || 'https://services.leadconnectorhq.com';
 
 /** Prefix used on GHL appointment titles for CRM options. */
 export const OPTION_TITLE_PREFIX = '[OPTIE]';

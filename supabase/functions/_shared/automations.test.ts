@@ -36,6 +36,9 @@ Deno.test('planTasks creates one task per assignee with stable keys', () => {
   const unassigned = planTasks(tpl({ assignees: [] }), 'booking:b1', { today: '2026-10-01', eventDate: '2026-10-20' });
   assertEquals(unassigned.length, 1);
   assertEquals(unassigned[0].assigned_to, null);
+  const owner = planTasks(tpl({ assignees: [] }), 'booking:b1', { today: '2026-10-01', eventDate: '2026-10-20', fallbackAssignee: 'Iris Machielse' });
+  assertEquals(owner[0].assigned_to, 'Iris Machielse');
+  assertEquals(owner[0].automation_key, 't1:booking:b1:iris-machielse');
 });
 
 Deno.test('fillPlaceholders drops empty suffix', () => {

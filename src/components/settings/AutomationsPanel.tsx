@@ -18,7 +18,7 @@ import { Zap, Plus, Trash2, Play, ChevronDown, ChevronUp, Clock, CheckCircle2, A
 // Types
 // ---------------------------------------------------------------------------
 
-type Trigger = 'booking_confirmed' | 'booking_option' | 'booking_cancelled' | 'quote_sent' | 'quote_signed' | 'event_passed' | 'option_expiring';
+type Trigger = 'inquiry_created' | 'booking_confirmed' | 'booking_option' | 'booking_cancelled' | 'quote_sent' | 'quote_signed' | 'event_passed' | 'option_expiring';
 
 interface Template {
   id: string;
@@ -47,6 +47,7 @@ interface RunLog {
 }
 
 const TRIGGERS: { value: Trigger; label: string; help: string; anchorLabel: string }[] = [
+  { value: 'inquiry_created', label: 'Nieuwe aanvraag', help: 'Zodra een aanvraag binnenkomt (formulier, GoHighLevel of handmatig).', anchorLabel: 'dagen na binnenkomst (of t.o.v. de voorkeursdatum)' },
   { value: 'booking_option', label: 'Optie geplaatst', help: 'Zodra een optie in de kalender staat.', anchorLabel: 'dagen na plaatsen van de optie' },
   { value: 'booking_confirmed', label: 'Reservering definitief', help: 'Zodra een reservering bevestigd is.', anchorLabel: 'dagen t.o.v. de reserveringsdatum (negatief = ervoor)' },
   { value: 'quote_sent', label: 'Offerte verzonden', help: 'Zodra een offerte/contract vanuit GoHighLevel verzonden is (vereist "Offertes & contracten").', anchorLabel: 'dagen na verzenden' },
@@ -472,7 +473,7 @@ function TemplateRow({ template, anchorLabel, members, expanded, onExpand, onCha
           <div className="min-w-0">
             <p className={`truncate text-sm font-medium ${template.enabled ? 'text-foreground' : 'text-muted-foreground'}`}>{template.title}</p>
             <p className="text-[11px] text-muted-foreground">
-              {offsetText}{template.anchor === 'event_date' ? ' (t.o.v. reserveringsdatum)' : ''} · {template.assignees.length ? template.assignees.join(' + ') : 'niet toegewezen'} · {PRIORITIES.find(p => p.value === template.priority)?.label}
+              {offsetText}{template.anchor === 'event_date' ? ' (t.o.v. reserveringsdatum)' : ''} · {template.assignees.length ? template.assignees.join(' + ') : 'verantwoordelijke van de aanvraag/reservering'} · {PRIORITIES.find(p => p.value === template.priority)?.label}
             </p>
           </div>
         </button>
@@ -502,7 +503,7 @@ function TemplateRow({ template, anchorLabel, members, expanded, onExpand, onCha
               </Select>
             </div>
           </Field>
-          <Field label="Voor wie (iedereen krijgt een eigen taak)">
+          <Field label="Voor wie (iedereen krijgt een eigen taak; niemand gekozen = de verantwoordelijke van de aanvraag/reservering)">
             <AssigneePicker value={template.assignees} members={members} onChange={(v) => onChange({ assignees: v })} />
           </Field>
           <div className="md:col-span-2">

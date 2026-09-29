@@ -323,7 +323,7 @@ export default function SettingsPage() {
           <AutomationsPanel />
         </TabsContent>
 
-        <TabsContent value="task-automation">
+        <TabsContent value="task-automation" className="space-y-4">
           <TaskAutomationPanel />
         </TabsContent>
 

@@ -119,6 +119,8 @@ export function InquiriesProvider({ children }: { children: ReactNode }) {
     }
     if (inserted?.id) {
       if (inquiry.contactId) syncOfferteFields(inserted.id);
+      // Task templates for "Nieuwe aanvraag" right away instead of at the next scheduled run
+      supabase.functions.invoke('crm-automations', { body: { source: 'app', inquiry_id: inserted.id } }).catch(() => { /* cron catches up */ });
       // Fire-and-forget: don't block UI waiting for GHL sync
       pushToGHL('push-inquiry', {
         inquiry_id: inserted.id,

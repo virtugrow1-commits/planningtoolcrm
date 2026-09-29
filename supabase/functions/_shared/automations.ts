@@ -2,6 +2,7 @@
 // edge function `crm-automations` loads data, calls these helpers and writes.
 
 export type TemplateTrigger =
+  | 'inquiry_created'
   | 'booking_confirmed'
   | 'booking_option'
   | 'booking_cancelled'
@@ -31,6 +32,8 @@ export interface AutomationContext {
   triggerDate?: string | null;
   /** Free-text placeholders for titles: {naam}, {bedrijf}, {titel}, {datum}. */
   placeholders?: Record<string, string | null | undefined>;
+  /** Used when the template has no assignees: the owner of the inquiry/reservation. */
+  fallbackAssignee?: string | null;
 }
 
 export interface PlannedTask {
@@ -112,7 +115,9 @@ export function planTasks(
   if (!template.enabled) return [];
   const dueDate = dueDateFor(template, ctx);
   if (!dueDate) return [];
-  const assignees = template.assignees.length ? template.assignees : [null];
+  const assignees: (string | null)[] = template.assignees.length
+    ? template.assignees
+    : [ctx.fallbackAssignee && ctx.fallbackAssignee.trim() ? ctx.fallbackAssignee.trim() : null];
   const title = fillPlaceholders(template.title, ctx.placeholders);
   const description = template.description ? fillPlaceholders(template.description, ctx.placeholders) : null;
   return assignees.map((assignee) => ({

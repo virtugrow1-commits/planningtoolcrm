@@ -99,11 +99,12 @@ Deno.serve(async (req) => {
   let body: Record<string, any> = {};
   try { body = await req.json(); } catch { body = {}; }
   const bookingScope: string | null = body.booking_id || null;
+  const inquiryScope: string | null = body.inquiry_id || null;
   const dryRun = body.dry_run === true;
 
   const today = amsterdamDate();
   const results: Results = {
-    today, scope: bookingScope ? `booking:${bookingScope}` : 'all',
+    today, scope: bookingScope ? `booking:${bookingScope}` : inquiryScope ? `inquiry:${inquiryScope}` : 'all',
     tasks_created: 0, tasks_pushed: 0, inquiries_updated: 0, bookings_updated: 0,
     contacts_updated: 0, ghl_tags_pushed: 0, options_warned: 0, options_expired: 0,
     errors: [], details: [],
@@ -272,11 +273,42 @@ Deno.serve(async (req) => {
       const lookbackDays = 14;
       let q = supabase
         .from('bookings')
-        .select('id, user_id, date, status, title, contact_name, contact_id, company_id, inquiry_id, room_name, notes, created_at, updated_at, option_expires_at, ghl_event_id, start_hour, start_minute, end_hour, end_minute')
+        .select('id, user_id, date, status, title, contact_name, contact_id, company_id, inquiry_id, room_name, notes, created_at, updated_at, option_expires_at, ghl_event_id, start_hour, start_minute, end_hour, end_minute, assigned_to')
         .gte('date', addDays(today, -lookbackDays));
       if (bookingScope) q = q.eq('id', bookingScope);
-      const { data: bookings, error: bErr } = await q;
+      // An inquiry-only run does not look at bookings
+      const { data: bookings, error: bErr } = inquiryScope && !bookingScope ? { data: [], error: null } : await q;
       if (bErr) results.errors.push(`bookings:${bErr.message}`);
+
+      // New inquiries (created in the last two days, or the one just saved in the app)
+      if (!bookingScope && templatesFor('inquiry_created').length > 0) {
+        let iq = supabase
+          .from('inquiries')
+          .select('id, user_id, contact_id, contact_name, company_id, event_type, preferred_date, status, assigned_to, created_at')
+          .neq('status', 'lost');
+        iq = inquiryScope ? iq.eq('id', inquiryScope) : iq.gte('created_at', new Date(Date.now() - 2 * 86400000).toISOString());
+        const { data: newInquiries, error: iErr } = await iq;
+        if (iErr) results.errors.push(`inquiries:${iErr.message}`);
+        for (const inq of newInquiries || []) {
+          const c = inq.contact_id ? contactById.get(inq.contact_id) : null;
+          const pd = inq.preferred_date && /^\d{4}-\d{2}-\d{2}/.test(String(inq.preferred_date)) ? String(inq.preferred_date).slice(0, 10) : null;
+          const ph = {
+            naam: contactName(c) || inq.contact_name || '',
+            bedrijf: c?.company || '',
+            titel: inq.event_type || '',
+            datum: pd ? `${pd.slice(8, 10)}-${pd.slice(5, 7)}-${pd.slice(0, 4)}` : '',
+          };
+          for (const t of templatesFor('inquiry_created')) {
+            await createTasks(
+              planTasks({ ...t, title: withNameSuffix(t.title, ph.naam) }, `inquiry:${inq.id}`, {
+                today, eventDate: pd, triggerDate: String(inq.created_at).slice(0, 10), placeholders: ph, fallbackAssignee: inq.assigned_to,
+              }),
+              { contact_id: inq.contact_id, company_id: inq.company_id, inquiry_id: inq.id, booking_id: null },
+              inq.user_id || ownerId,
+            );
+          }
+        }
+      }
 
       for (const b of bookings || []) {
         const ph = bookingPlaceholders(b);
@@ -286,25 +318,25 @@ Deno.serve(async (req) => {
 
         if (b.status === 'confirmed' && b.date >= today) {
           for (const t of templatesFor('booking_confirmed')) {
-            await createTasks(planTasks({ ...t, title: withNameSuffix(t.title, ph.naam) }, `booking:${b.id}`, { today, eventDate: b.date, placeholders: ph }), link, userId);
+            await createTasks(planTasks({ ...t, title: withNameSuffix(t.title, ph.naam) }, `booking:${b.id}`, { today, eventDate: b.date, placeholders: ph, fallbackAssignee: b.assigned_to }), link, userId);
           }
         }
         if (b.status === 'option' && b.date >= today) {
           const placed = b.created_at ? String(b.created_at).slice(0, 10) : today;
           for (const t of templatesFor('booking_option')) {
-            await createTasks(planTasks({ ...t, title: withNameSuffix(t.title, ph.naam) }, `booking:${b.id}`, { today, eventDate: b.date, triggerDate: placed, placeholders: ph }), link, userId);
+            await createTasks(planTasks({ ...t, title: withNameSuffix(t.title, ph.naam) }, `booking:${b.id}`, { today, eventDate: b.date, triggerDate: placed, placeholders: ph, fallbackAssignee: b.assigned_to }), link, userId);
           }
         }
         if (b.status === 'cancelled' && recentlyChanged) {
           for (const t of templatesFor('booking_cancelled')) {
-            await createTasks(planTasks({ ...t, title: withNameSuffix(t.title, ph.naam) }, `booking:${b.id}`, { today, eventDate: b.date, triggerDate: today, placeholders: ph }), link, userId);
+            await createTasks(planTasks({ ...t, title: withNameSuffix(t.title, ph.naam) }, `booking:${b.id}`, { today, eventDate: b.date, triggerDate: today, placeholders: ph, fallbackAssignee: b.assigned_to }), link, userId);
           }
         }
         // "Evenement heeft plaatsgevonden": only the last two days, so switching
         // a template on does not backfill weeks of old events with tasks due today.
         if (b.status === 'confirmed' && b.date < today && b.date >= addDays(today, -2)) {
           for (const t of templatesFor('event_passed')) {
-            await createTasks(planTasks({ ...t, title: withNameSuffix(t.title, ph.naam) }, `booking:${b.id}`, { today, eventDate: b.date, placeholders: ph }), link, userId);
+            await createTasks(planTasks({ ...t, title: withNameSuffix(t.title, ph.naam) }, `booking:${b.id}`, { today, eventDate: b.date, placeholders: ph, fallbackAssignee: b.assigned_to }), link, userId);
           }
         }
       }
@@ -420,7 +452,7 @@ Deno.serve(async (req) => {
           const key = `option_warn:${opt.id}:${expiresAt}`;
           if (!(await hasRun(key))) {
             for (const t of templatesFor('option_expiring')) {
-              await createTasks(planTasks({ ...t, title: withNameSuffix(t.title, ph.naam) }, `option:${opt.id}:${expiresAt}`, { today, eventDate: opt.date, triggerDate: today, placeholders: ph }), link, opt.user_id || ownerId);
+              await createTasks(planTasks({ ...t, title: withNameSuffix(t.title, ph.naam) }, `option:${opt.id}:${expiresAt}`, { today, eventDate: opt.date, triggerDate: today, placeholders: ph, fallbackAssignee: opt.assigned_to }), link, opt.user_id || ownerId);
             }
             results.options_warned++;
             await recordRun('option_expiry', key, 'booking', opt.id, { expires_at: expiresAt, state });
