@@ -35,7 +35,7 @@ export default function TaskAutomationPanel() {
   const load = async () => {
     setLoading(true);
     const [{ data: ruleRows }, { count: supCount }] = await Promise.all([
-      supabase.from('task_automation_rules').select('id, match_key, label, enabled').order('label'),
+      (supabase as any).from('task_automation_rules').select('id, match_key, label, enabled').neq('source', 'custom').order('label'),
       supabase.from('ghl_task_suppressions').select('ghl_task_id', { count: 'exact', head: true }),
     ]);
     setRules((ruleRows as Rule[]) || []);
