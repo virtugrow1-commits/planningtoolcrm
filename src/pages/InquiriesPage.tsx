@@ -190,7 +190,6 @@ export default function InquiriesPage() {
       return matchesSearch(q, inq.eventType, inq.title, inq.contactName, inq.displayNumber, inq.roomPreference, inq.source,
         companyRec?.name, contact?.company, contact && `${contact.firstName} ${contact.lastName} ${contact.email || ''}`, inq.preferredDate,
         PIPELINE_COLUMNS.find(c => c.key === inq.status)?.label, inq.assignedTo) || (inq.preferredDate || '').includes(q.trim()) || (!!inq.preferredDate && formatDate(inq.preferredDate).includes(q.trim()));
-      );
     });
   }, [activeInquiries, searchQuery, contacts, companies, hidePast, pastOnlyInquiryIds]);
 
