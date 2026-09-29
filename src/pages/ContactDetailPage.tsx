@@ -42,7 +42,7 @@ export default function ContactDetailPage() {
   const navigate = useNavigate();
   const { contacts, updateContact, deleteContact } = useContactsContext();
   const { inquiries } = useInquiriesContext();
-  const { companies } = useCompaniesContext();
+  const { companies, addCompany } = useCompaniesContext();
   const { bookings } = useBookings();
   const { tasks } = useTasksContext();
   const { getContactCompanies, linkContact, unlinkContact, markDeparted } = useContactCompanies();
@@ -396,6 +396,7 @@ export default function ContactDetailPage() {
               contactCompanyLinks={id ? getContactCompanies(id) : []}
               linkContact={linkContact}
               unlinkContact={unlinkContact}
+              addCompany={addCompany}
             />
 
             {/* Adresgegevens — eigen adres of fallback naar bedrijfsadres */}
@@ -710,7 +711,8 @@ export default function ContactDetailPage() {
 
 /* InfoField is now imported from @/components/detail/DetailPageComponents */
 
-function CompanyField({ current, editing, companies, form, setForm, navigate, contactCompanyLinks, linkContact, unlinkContact }: {
+function CompanyField({ current, editing, companies, form, setForm, navigate, contactCompanyLinks, linkContact, unlinkContact, addCompany }: {
+  addCompany: (c: any) => Promise<{ companyId: string | null } | any>;
   current: Contact;
   editing: boolean;
   companies: { id: string; name: string }[];
@@ -893,7 +895,7 @@ function CompanyField({ current, editing, companies, form, setForm, navigate, co
         <div className="relative">
           <CrmCombobox
             options={companies
-              .filter((c) => !allCompanies.some((lc) => lc.id === c.id))
+              .filter((c: any) => !c.isPrivate && !allCompanies.some((lc) => lc.id === c.id))
               .map((c) => ({
                 id: c.id,
                 label: c.name,
@@ -923,6 +925,7 @@ function CompanyField({ current, editing, companies, form, setForm, navigate, co
           </button>
         </div>
       )}
+      </>}
     </div>
   );
 }
