@@ -56,7 +56,7 @@ interface NewContactForm {
   functionGroup: string;
 }
 
-const emptyCompanyForm: NewCompanyForm = { name: '', email: '', phone: '', address: '' };
+const emptyCompanyForm: NewCompanyForm & { isPrivate?: boolean } = { name: '', email: '', phone: '', address: '', isPrivate: false };
 const emptyContactForm: NewContactForm = { firstName: '', lastName: '', email: '', phone: '', dmu: '', functionGroup: '' };
 
 export default function NewInquiryDialog({ open, onOpenChange, contacts, companies, onInquiryAdded }: NewInquiryDialogProps) {
@@ -70,7 +70,7 @@ export default function NewInquiryDialog({ open, onOpenChange, contacts, compani
 
   // Inline creation modes
   const [creatingCompany, setCreatingCompany] = useState(false);
-  const [companyForm, setCompanyForm] = useState<NewCompanyForm>(emptyCompanyForm);
+  const [companyForm, setCompanyForm] = useState<NewCompanyForm & { isPrivate?: boolean }>(emptyCompanyForm);
   const [creatingContact, setCreatingContact] = useState(false);
   const [contactForm, setContactForm] = useState<NewContactForm>(emptyContactForm);
   const [saving, setSaving] = useState(false);
@@ -179,6 +179,7 @@ export default function NewInquiryDialog({ open, onOpenChange, contacts, compani
             email: companyForm.email || null,
             phone: companyForm.phone || null,
             address: companyForm.address || null,
+            is_private: companyForm.isPrivate === true,
           }).select().single();
 
           if (coErr) {
@@ -308,8 +309,14 @@ export default function NewInquiryDialog({ open, onOpenChange, contacts, compani
               <div className="rounded-lg border border-primary/20 bg-primary/5 p-3 space-y-3">
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-semibold text-primary flex items-center gap-1">
-                    <Building2 size={12} /> Nieuw bedrijf
+                    <Building2 size={12} /> Nieuwe klant
                   </span>
+                  <div className="flex gap-1">
+                    {[{ v: false, l: 'Bedrijf' }, { v: true, l: 'Particulier' }].map((o) => (
+                      <button key={o.l} type="button" onClick={() => setCompanyForm({ ...companyForm, isPrivate: o.v })}
+                        className={`text-[11px] px-2 py-0.5 rounded-full border ${companyForm.isPrivate === o.v ? 'bg-primary text-primary-foreground border-primary' : 'border-border text-muted-foreground'}`}>{o.l}</button>
+                    ))}
+                  </div>
                   <button
                     type="button"
                     onClick={() => { setCreatingCompany(false); setCompanyForm(emptyCompanyForm); }}
@@ -320,7 +327,7 @@ export default function NewInquiryDialog({ open, onOpenChange, contacts, compani
                 </div>
                 <div className="grid gap-2">
                   <Input
-                    placeholder="Bedrijfsnaam *"
+                    placeholder={companyForm.isPrivate ? "Voor- en achternaam *" : "Bedrijfsnaam *"}
                     value={companyForm.name}
                     onChange={(e) => setCompanyForm({ ...companyForm, name: e.target.value })}
                     className="text-sm h-8"
