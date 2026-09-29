@@ -98,6 +98,15 @@ export default function InquiriesPage() {
   const { contacts } = useContactsContext();
   const { bookings, addBookings } = useBookings();
   const { tasks, addTask } = useTasksContext();
+  const nextTaskByInquiry = useMemo(() => {
+    const m = new Map<string, (typeof tasks)[number]>();
+    for (const t of tasks) {
+      if (!t.inquiryId || t.status === 'completed') continue;
+      const cur = m.get(t.inquiryId);
+      if (!cur || (t.dueDate || '9999') < (cur.dueDate || '9999')) m.set(t.inquiryId, t);
+    }
+    return m;
+  }, [tasks]);
   const { companies } = useCompaniesContext();
   const { t, language } = useLanguage();
   const [dragId, setDragId] = useState<string | null>(null);
@@ -172,7 +181,7 @@ export default function InquiriesPage() {
       result = result.filter(inq => !pastOnlyInquiryIds.has(inq.id));
     }
     if (!searchQuery.trim()) return result;
-    const q = searchQuery.toLowerCase();
+    const q = searchQuery;
     return result.filter(inq => {
       const contact = inq.contactId ? contacts.find(c => c.id === inq.contactId) : null;
       const company = contact?.companyId ? companies.find(co => co.id === contact.companyId) : null;
@@ -674,7 +683,8 @@ export default function InquiriesPage() {
                           className="mt-1 shrink-0"
                         />
                         <div className="flex-1 min-w-0">
-                          <p className="text-sm font-semibold text-card-foreground truncate">{inq.eventType}</p>
+                          <p className="text-sm font-semibold text-card-foreground truncate">{inq.title || inq.eventType}</p>
+                          {inq.title && <p className="text-[11px] text-muted-foreground truncate">{inq.eventType}</p>}
                           <button
                             className="text-xs text-muted-foreground hover:text-primary transition-colors text-left truncate block w-full"
                             onClick={(e) => { e.stopPropagation(); const c = resolveContact(contacts, inq.contactId, inq.contactName); if (c) navigate(`/crm/${c.id}`); else openDetailDialog(inq); }}
@@ -692,7 +702,12 @@ export default function InquiriesPage() {
                     </div>
 
                     <div className="mt-2.5 space-y-1 text-xs">
-                      
+                      {(() => { const next = nextTaskByInquiry.get(inq.id); return next ? (
+                        <div className="flex gap-2"><span className="text-muted-foreground w-[100px] shrink-0">Volgende taak:</span><span className="text-card-foreground truncate">{next.title}{next.dueDate ? ` · ${formatDate(next.dueDate)}` : ''}</span></div>
+                      ) : null; })()}
+                      {inq.budget ? (
+                        <div className="flex gap-2"><span className="text-muted-foreground w-[100px] shrink-0">Waarde:</span><span className="text-card-foreground">€ {Number(inq.budget).toLocaleString('nl-NL')}</span></div>
+                      ) : null}
                       {(() => { const contact = resolveContact(contacts, inq.contactId, inq.contactName); const company = contact?.companyId ? companies.find(co => co.id === contact.companyId) : null; return contact?.company ? (
                         <div className="flex gap-2"><span className="text-muted-foreground w-[100px] shrink-0">Bedrijf:</span>{company ? (
                           <button className="text-card-foreground font-medium truncate hover:text-primary transition-colors text-left" onClick={(e) => { e.stopPropagation(); navigate(`/companies/${company.id}`); }}>{contact.company}</button>
