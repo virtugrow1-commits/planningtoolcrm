@@ -3,6 +3,12 @@
 ## Doel
 De preview van het hoofdproject toont weer de oude (huidige live) versie, terwijl de CRM 2.0-werkversie veilig blijft bewaard in de draft "CRM 2.0 klanttest" (drft_01m39km6gkfhx8qwf7794mm5b4). Er wordt niets gepubliceerd; de live site blijft ongewijzigd.
 
+## Waarom terugzetten (en moet het per se?)
+- Het is een **vangnet, geen vereiste**. Zolang je niet op Publish/Update klikt, blijft de live site sowieso de oude versie.
+- Reden 1 — bescherming tegen een mis-klik: staat het hoofdproject nog op 2.0 en klik je per ongeluk op Publish, dan gaat de onafgeronde 2.0 live. Staat hij teruggezet op de oude versie, dan publiceer je bij een mis-klik gewoon de oude versie.
+- Reden 2 — duidelijkheid: hoofdproject = wat live staat (de oude versie), draft "CRM 2.0 klanttest" = de nieuwe versie die de klant test. Zo weet je altijd precies wat waar staat.
+- Alternatief: niets terugzetten en gewoon niets publiceren. Werkt ook, maar dan is de 2.0-code de "stand" van het hoofdproject en is één mis-klik op Publish genoeg om 2.0 live te zetten.
+
 ## Stappen (in de Lovable-interface, door jou uit te voeren)
 1. Open het project en zorg dat je in het **hoofdproject** werkt, niet in de draft. De draft staat in het projectoverzicht onder "CRM 2.0 klanttest".
 2. Klik in de editor op het **klok-icoon (geschiedenis / version history)**.
