@@ -2195,12 +2195,18 @@ async function syncDocuments(supabase: any, ghlHeaders: any, locationId: string,
     console.log(`[Documents Sync] Found ${docs.length} documents from GHL (${source})`);
     if (docs[0]) console.log(`[Documents Sync] Sample keys: ${Object.keys(docs[0]).join(',')} | recipients: ${JSON.stringify(docs[0].recipients || null)?.slice(0, 300)}`);
 
-    // Contact lookup once
+    // Contact lookup once (GHL recipients use `id`, not `contactId`; email as fallback)
     const ghlIds = [...new Set(docs.map((d) => primaryRecipient(d)?.contactId || d.contactId || d.contact?.id).filter(Boolean))];
+    const emails = [...new Set(docs.map((d) => (primaryRecipient(d)?.email || '').toLowerCase()).filter(Boolean))];
     const contactByGhl = new Map<string, any>();
+    const contactByEmail = new Map<string, any>();
     for (let i = 0; i < ghlIds.length; i += 200) {
       const { data } = await supabase.from('contacts').select('id, ghl_contact_id, company_id').in('ghl_contact_id', ghlIds.slice(i, i + 200));
       for (const c of data || []) contactByGhl.set(c.ghl_contact_id, c);
+    }
+    for (let i = 0; i < emails.length; i += 200) {
+      const { data } = await supabase.from('contacts').select('id, email, company_id').in('email', emails.slice(i, i + 200));
+      for (const c of data || []) if (c.email) contactByEmail.set(c.email.toLowerCase(), c);
     }
 
     for (const doc of docs) {
