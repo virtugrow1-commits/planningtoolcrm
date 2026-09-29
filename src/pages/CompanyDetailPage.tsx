@@ -661,6 +661,7 @@ export default function CompanyDetailPage() {
             )}
           </SectionCard>
 
+          </div>
           </TabsContent>
           {[
             { id: 'toekomstig', title: 'Toekomstige reserveringen', list: futureReservations },
