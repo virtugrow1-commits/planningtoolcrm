@@ -2257,7 +2257,7 @@ async function syncDocuments(supabase: any, ghlHeaders: any, locationId: string,
       if (existing) {
         const patch: Record<string, any> = { title, amount, external_url: externalUrl };
         if (!existing.inquiry_id && inquiryId) patch.inquiry_id = inquiryId;
-        if (contact?.id) patch.contact_id = contact.id;
+        if (contact?.id) { patch.contact_id = contact.id; if (contact.company_id) patch.company_id = contact.company_id; }
         if ((order[status] ?? 0) > (order[existing.status] ?? 0) || status === 'declined') {
           patch.status = status;
           if (status === 'viewed') patch.viewed_at = doc.viewedAt || new Date().toISOString();
