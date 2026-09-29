@@ -300,7 +300,7 @@ export default function CrmPage() {
             </PopoverContent>
           </Popover>
           
-          <Button size="sm" onClick={() => activeTab === 'contacts' ? setNewOpen(true) : setNewCompanyOpen(true)}><Plus size={14} className="mr-1" /> {activeTab === 'contacts' ? t('crm.newContact') : t('crm.newCompany')}</Button>
+          <Button size="sm" onClick={() => activeTab === 'contacts' ? setNewOpen(true) : activeTab === 'private' ? navigate('/companies?new=private') : setNewCompanyOpen(true)}><Plus size={14} className="mr-1" /> {activeTab === 'contacts' ? t('crm.newContact') : activeTab === 'private' ? 'Nieuwe particulier' : t('crm.newCompany')}</Button>
         </div>
       </div>
 
@@ -394,12 +394,12 @@ export default function CrmPage() {
               <th className="px-4 py-3"><SortableHeader label="Email" sortKey="email" currentSort={companySort.sortKey} currentDirection={companySort.sortDir} onSort={companySort.handleSort} /></th>
               <th className="px-4 py-3 hidden md:table-cell"><SortableHeader label="Telefoon" sortKey="phone" currentSort={companySort.sortKey} currentDirection={companySort.sortDir} onSort={companySort.handleSort} /></th>
               <th className="px-4 py-3 hidden lg:table-cell"><SortableHeader label="Plaats" sortKey="city" currentSort={companySort.sortKey} currentDirection={companySort.sortDir} onSort={companySort.handleSort} /></th>
-              <th className="px-4 py-3 hidden lg:table-cell"><SortableHeader label="Doelgroep" sortKey="status" currentSort={companySort.sortKey} currentDirection={companySort.sortDir} onSort={companySort.handleSort} /></th>
+              <th className="px-4 py-3 hidden lg:table-cell"><SortableHeader label={activeTab === 'private' ? 'Verjaardag' : 'Doelgroep'} sortKey="status" currentSort={companySort.sortKey} currentDirection={companySort.sortDir} onSort={companySort.handleSort} /></th>
             </tr>
           </thead>
           <tbody>
             {paginatedCompanies.length === 0 && (
-              <tr><td colSpan={7} className="px-4 py-8 text-center text-muted-foreground"><Building2 size={32} className="mx-auto mb-2 opacity-40" />Geen bedrijven gevonden</td></tr>
+              <tr><td colSpan={7} className="px-4 py-8 text-center text-muted-foreground"><Building2 size={32} className="mx-auto mb-2 opacity-40" />{activeTab === 'private' ? 'Geen particulieren gevonden' : 'Geen bedrijven gevonden'}</td></tr>
             )}
             {paginatedCompanies.map((c) => (
               <tr
@@ -417,7 +417,7 @@ export default function CrmPage() {
                 <td className="px-4 py-3 text-muted-foreground hidden lg:table-cell">{c.city || '—'}</td>
                 <td className="px-4 py-3 hidden lg:table-cell">
                   <span className="text-xs text-muted-foreground truncate max-w-[200px] inline-block">
-                    {c.crmGroup || '—'}
+                    {activeTab === 'private' ? (birthdayByCompany.get(c.id) ? formatDate(birthdayByCompany.get(c.id)!) : '—') : (c.crmGroup || '—')}
                   </span>
                 </td>
               </tr>
