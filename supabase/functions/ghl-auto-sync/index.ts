@@ -2193,6 +2193,7 @@ async function syncDocuments(supabase: any, ghlHeaders: any, locationId: string,
       docs.push(...(data.documents || data.data || []));
     }
     console.log(`[Documents Sync] Found ${docs.length} documents from GHL (${source})`);
+    if (docs[0]) console.log(`[Documents Sync] Sample keys: ${Object.keys(docs[0]).join(',')} | recipients: ${JSON.stringify(docs[0].recipients || null)?.slice(0, 300)}`);
 
     // Contact lookup once
     const ghlIds = [...new Set(docs.map((d) => primaryRecipient(d)?.contactId || d.contactId || d.contact?.id).filter(Boolean))];
