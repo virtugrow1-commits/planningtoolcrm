@@ -79,7 +79,19 @@ export default function CompaniesPage() {
 
   const handleSave = async () => {
     if (!form.name.trim()) {
-      toast({ title: 'Vul een bedrijfsnaam in', variant: 'destructive' });
+      toast({ title: form.isPrivate ? 'Vul voor- en achternaam in' : 'Vul een bedrijfsnaam in', variant: 'destructive' });
+      return;
+    }
+    if (form.isPrivate && form.name.trim().split(/\s+/).length < 2) {
+      toast({ title: 'Vul zowel voor- als achternaam in', variant: 'destructive' });
+      return;
+    }
+    if (form.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim())) {
+      toast({ title: 'Ongeldig e-mailadres', variant: 'destructive' });
+      return;
+    }
+    if (form.phone && !/^\+?[0-9\s\-()]{6,20}$/.test(form.phone.trim())) {
+      toast({ title: 'Ongeldig telefoonnummer', variant: 'destructive' });
       return;
     }
     if (editing) {
@@ -199,20 +211,22 @@ export default function CompaniesPage() {
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="max-w-md">
-          <DialogHeader><DialogTitle>{editing ? 'Bedrijf bewerken' : 'Nieuw Bedrijf'}</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle>{editing ? 'Klant bewerken' : 'Nieuwe klant'}</DialogTitle></DialogHeader>
           <div className="grid gap-4 py-2">
-            <div className="grid gap-1.5"><Label>Naam *</Label><Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} /></div>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="grid gap-1.5"><Label>Email</Label><Input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} /></div>
-              <div className="grid gap-1.5"><Label>Telefoon</Label><Input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} /></div>
+            <div className="grid grid-cols-2 gap-2">
+              {[{ v: false, l: 'Bedrijf' }, { v: true, l: 'Particulier' }].map((o) => (
+                <Button key={o.l} type="button" variant={form.isPrivate === o.v ? 'default' : 'outline'} onClick={() => setForm({ ...form, isPrivate: o.v })}>{o.l}</Button>
+              ))}
             </div>
-            <div className="grid gap-1.5"><Label>Website</Label><Input value={form.website} onChange={(e) => setForm({ ...form, website: e.target.value })} /></div>
+            <div className="grid gap-1.5"><Label>{form.isPrivate ? 'Voor- en achternaam *' : 'Bedrijfsnaam *'}</Label><Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder={form.isPrivate ? 'Bijv. Jan de Vries' : ''} /></div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="grid gap-1.5"><Label>E-mail</Label><Input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} /></div>
+              <div className="grid gap-1.5"><Label>{form.isPrivate ? 'Mobiel' : 'Telefoon'}</Label><Input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} /></div>
+            </div>
+            {!form.isPrivate && <div className="grid gap-1.5"><Label>Website</Label><Input value={form.website} onChange={(e) => setForm({ ...form, website: e.target.value })} /></div>}
             <div className="grid gap-1.5"><Label>Adres</Label><Input value={form.address} onChange={(e) => setForm({ ...form, address: e.target.value })} /></div>
             <div className="grid gap-1.5"><Label>Notities</Label><Textarea value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} rows={3} /></div>
-            <div className="flex items-center gap-2">
-              <Checkbox id="new-is-private" checked={form.isPrivate} onCheckedChange={(checked) => setForm({ ...form, isPrivate: checked === true })} />
-              <Label htmlFor="new-is-private" className="cursor-pointer font-normal">Particulier (klantenkaart op persoonsnaam)</Label>
-            </div>
+            <p className="text-xs text-muted-foreground">{form.isPrivate ? 'Na aanmaken vul je op de klantkaart de geboortedatum van de persoon in.' : 'Na aanmaken kun je direct de eerste contactpersoon toevoegen.'}</p>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setDialogOpen(false)}>Annuleren</Button>

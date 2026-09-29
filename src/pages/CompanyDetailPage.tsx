@@ -104,6 +104,9 @@ export default function CompanyDetailPage() {
     });
   }, [bookings, contactIds, company, companyContacts]);
   const optionBookings = useMemo(() => relatedBookings.filter((b) => b.status === 'option' && b.date >= todayStr).sort((a, b) => a.date.localeCompare(b.date)), [relatedBookings, todayStr]);
+  // Toekomstig: datum >= vandaag en niet geannuleerd/verlopen. Afgerond: datum in het verleden.
+  const futureReservations = useMemo(() => relatedBookings.filter((b) => b.status === 'confirmed' && b.date >= todayStr).sort((a, b) => a.date.localeCompare(b.date)), [relatedBookings, todayStr]);
+  const pastReservations = useMemo(() => relatedBookings.filter((b) => b.status === 'confirmed' && b.date < todayStr).sort((a, b) => b.date.localeCompare(a.date)), [relatedBookings, todayStr]);
 
   /** Wanneer een contactpersoon deze werkgever verliet (leeg = nog in dienst). */
   const departedAtByContact = useMemo(() => {
@@ -174,6 +177,7 @@ export default function CompanyDetailPage() {
     [companyContacts]
   );
   const activeContacts = useMemo(() => sortedContacts.filter((c) => !c.departed), [sortedContacts]);
+  const primaryContact = useMemo(() => activeContacts.find((c) => c.isPrimary) || activeContacts[0], [activeContacts]);
 
   const visibleContacts = showAllContacts ? sortedContacts : sortedContacts.slice(0, 4);
 
@@ -406,11 +410,19 @@ export default function CompanyDetailPage() {
         <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-4">
           {/* Kerncijfers + directe acties */}
           <div className="md:col-span-2 rounded-xl bg-card p-5 card-shadow space-y-4">
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <div className="flex items-center gap-2 text-xs">
+              <Badge variant="secondary">{company.isPrivate ? 'Particulier' : 'Bedrijf'}</Badge>
+              {primaryContact && (
+                <span className="text-muted-foreground">Hoofdcontactpersoon: <button className="text-foreground hover:text-primary font-medium" onClick={() => navigate(`/crm/${primaryContact.id}`)}>{[primaryContact.firstName, primaryContact.infix, primaryContact.lastName].filter(Boolean).join(' ')}</button></span>
+              )}
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
               {[
                 { label: 'Contactpersonen', value: activeContacts.length, onClick: undefined },
                 { label: 'Lopende aanvragen', value: activeInquiries.length, onClick: () => navigate('/inquiries') },
                 { label: 'Opties', value: optionBookings.length, onClick: () => navigate('/calendar') },
+                { label: 'Toekomstige reserveringen', value: futureReservations.length, onClick: () => document.getElementById('toekomstige-reserveringen')?.scrollIntoView({ behavior: 'smooth' }) },
+                { label: 'Afgeronde reserveringen', value: pastReservations.length, onClick: () => document.getElementById('afgeronde-reserveringen')?.scrollIntoView({ behavior: 'smooth' }) },
                 { label: 'Open taken', value: openTaskCount, onClick: () => navigate('/tasks') },
               ].map((kpi) => (
                 <button
@@ -641,6 +653,35 @@ export default function CompanyDetailPage() {
               </div>
             )}
           </SectionCard>
+
+          {[
+            { id: 'toekomstige-reserveringen', title: 'Toekomstige reserveringen', list: futureReservations },
+            { id: 'afgeronde-reserveringen', title: 'Afgeronde reserveringen', list: pastReservations },
+          ].map((sec) => (
+            <div key={sec.id} id={sec.id} className="md:col-span-2 scroll-mt-24">
+              <SectionCard title={sec.title} count={sec.list.length}>
+                {sec.list.length === 0 ? (
+                  <p className="text-xs text-muted-foreground">Geen {sec.title.toLowerCase()}</p>
+                ) : (
+                  <div className="space-y-1 max-h-80 overflow-y-auto">
+                    {sec.list.map((b) => (
+                      <button key={b.id} onClick={() => navigate(`/reserveringen/${b.id}`)} className="w-full flex items-center justify-between gap-3 py-1.5 px-2 rounded-md hover:bg-muted/50 transition-colors text-left text-xs">
+                        <div className="min-w-0 flex-1">
+                          <span className="font-medium text-foreground">{b.title || 'Reservering'}</span>
+                          <span className="text-muted-foreground ml-2">{b.roomName}</span>
+                          {b.guestCount ? <span className="text-muted-foreground ml-2">· {b.guestCount} pers.</span> : null}
+                        </div>
+                        {b.status === 'cancelled' && <Badge variant="outline" className="text-[10px]">Geannuleerd</Badge>}
+                        <span className="text-muted-foreground shrink-0">
+                          {formatDate(b.date)} · {String(b.startHour).padStart(2, '0')}:{String(b.startMinute).padStart(2, '0')}–{String(b.endHour).padStart(2, '0')}:{String(b.endMinute).padStart(2, '0')}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </SectionCard>
+            </div>
+          ))}
         </div>
       </div>
 

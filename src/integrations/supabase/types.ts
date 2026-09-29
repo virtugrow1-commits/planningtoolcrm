@@ -392,11 +392,15 @@ export type Database = {
           function_group: string | null
           ghl_contact_id: string | null
           id: string
+          infix: string | null
+          is_active: boolean
+          is_primary: boolean
           job_title: string | null
           last_local_edit_at: string | null
           last_name: string
           last_sync_error: string | null
           last_synced_at: string | null
+          mobile: string | null
           notes: string | null
           pending_outbound_sync: boolean
           phone: string | null
@@ -423,11 +427,15 @@ export type Database = {
           function_group?: string | null
           ghl_contact_id?: string | null
           id?: string
+          infix?: string | null
+          is_active?: boolean
+          is_primary?: boolean
           job_title?: string | null
           last_local_edit_at?: string | null
           last_name: string
           last_sync_error?: string | null
           last_synced_at?: string | null
+          mobile?: string | null
           notes?: string | null
           pending_outbound_sync?: boolean
           phone?: string | null
@@ -454,11 +462,15 @@ export type Database = {
           function_group?: string | null
           ghl_contact_id?: string | null
           id?: string
+          infix?: string | null
+          is_active?: boolean
+          is_primary?: boolean
           job_title?: string | null
           last_local_edit_at?: string | null
           last_name?: string
           last_sync_error?: string | null
           last_synced_at?: string | null
+          mobile?: string | null
           notes?: string | null
           pending_outbound_sync?: boolean
           phone?: string | null
@@ -667,14 +679,17 @@ export type Database = {
           contact_id: string | null
           contact_name: string
           created_at: string
+          deleted_at: string | null
           display_number: string | null
           event_type: string
           ghl_opportunity_id: string | null
           guest_count: number
           id: string
           is_read: boolean
+          last_contact_at: string | null
           local_status_changed_at: string | null
           message: string | null
+          next_action_at: string | null
           offerte_gestaged_op: string | null
           offerte_revisie: number
           preferred_date: string | null
@@ -684,6 +699,7 @@ export type Database = {
           source: string
           status: string
           status_reason: string | null
+          title: string | null
           updated_at: string
           user_id: string
         }
@@ -694,14 +710,17 @@ export type Database = {
           contact_id?: string | null
           contact_name: string
           created_at?: string
+          deleted_at?: string | null
           display_number?: string | null
           event_type: string
           ghl_opportunity_id?: string | null
           guest_count?: number
           id?: string
           is_read?: boolean
+          last_contact_at?: string | null
           local_status_changed_at?: string | null
           message?: string | null
+          next_action_at?: string | null
           offerte_gestaged_op?: string | null
           offerte_revisie?: number
           preferred_date?: string | null
@@ -711,6 +730,7 @@ export type Database = {
           source?: string
           status?: string
           status_reason?: string | null
+          title?: string | null
           updated_at?: string
           user_id: string
         }
@@ -721,14 +741,17 @@ export type Database = {
           contact_id?: string | null
           contact_name?: string
           created_at?: string
+          deleted_at?: string | null
           display_number?: string | null
           event_type?: string
           ghl_opportunity_id?: string | null
           guest_count?: number
           id?: string
           is_read?: boolean
+          last_contact_at?: string | null
           local_status_changed_at?: string | null
           message?: string | null
+          next_action_at?: string | null
           offerte_gestaged_op?: string | null
           offerte_revisie?: number
           preferred_date?: string | null
@@ -738,6 +761,7 @@ export type Database = {
           source?: string
           status?: string
           status_reason?: string | null
+          title?: string | null
           updated_at?: string
           user_id?: string
         }
@@ -754,6 +778,92 @@ export type Database = {
             columns: ["contact_id"]
             isOneToOne: false
             referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      inquiry_contacts: {
+        Row: {
+          contact_id: string
+          created_at: string
+          id: string
+          inquiry_id: string
+          is_primary: boolean
+          role: string | null
+          user_id: string
+        }
+        Insert: {
+          contact_id: string
+          created_at?: string
+          id?: string
+          inquiry_id: string
+          is_primary?: boolean
+          role?: string | null
+          user_id: string
+        }
+        Update: {
+          contact_id?: string
+          created_at?: string
+          id?: string
+          inquiry_id?: string
+          is_primary?: boolean
+          role?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "inquiry_contacts_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "inquiry_contacts_inquiry_id_fkey"
+            columns: ["inquiry_id"]
+            isOneToOne: false
+            referencedRelation: "inquiries"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      inquiry_history: {
+        Row: {
+          action: string
+          actor_id: string | null
+          actor_name: string | null
+          created_at: string
+          details: Json | null
+          id: string
+          inquiry_id: string
+          user_id: string
+        }
+        Insert: {
+          action: string
+          actor_id?: string | null
+          actor_name?: string | null
+          created_at?: string
+          details?: Json | null
+          id?: string
+          inquiry_id: string
+          user_id: string
+        }
+        Update: {
+          action?: string
+          actor_id?: string | null
+          actor_name?: string | null
+          created_at?: string
+          details?: Json | null
+          id?: string
+          inquiry_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "inquiry_history_inquiry_id_fkey"
+            columns: ["inquiry_id"]
+            isOneToOne: false
+            referencedRelation: "inquiries"
             referencedColumns: ["id"]
           },
         ]
@@ -1507,6 +1617,7 @@ export type Database = {
           local_status_changed_at: string | null
           priority: string
           status: string
+          task_scope: string
           title: string
           updated_at: string
           user_id: string
@@ -1529,6 +1640,7 @@ export type Database = {
           local_status_changed_at?: string | null
           priority?: string
           status?: string
+          task_scope?: string
           title: string
           updated_at?: string
           user_id: string
@@ -1551,6 +1663,7 @@ export type Database = {
           local_status_changed_at?: string | null
           priority?: string
           status?: string
+          task_scope?: string
           title?: string
           updated_at?: string
           user_id?: string
@@ -1590,6 +1703,10 @@ export type Database = {
     Functions: {
       bump_offerte_revisie: { Args: { p_inquiry_id: string }; Returns: number }
       get_public_quote: { Args: { _token: string }; Returns: Json }
+      log_inquiry_history: {
+        Args: { _action: string; _details: Json; _inq: string; _owner: string }
+        Returns: undefined
+      }
       normalize_dutch_name_particles: {
         Args: { input_text: string }
         Returns: string

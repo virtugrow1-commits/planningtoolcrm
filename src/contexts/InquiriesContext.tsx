@@ -53,6 +53,9 @@ export function InquiriesProvider({ children }: { children: ReactNode }) {
 
     setInquiries(allRows.map((i) => ({
         id: i.id,
+        title: i.title || undefined,
+        lastContactAt: i.last_contact_at || undefined,
+        nextActionAt: i.next_action_at || undefined,
         displayNumber: (i as any).display_number ? (i as any).display_number.replace(/^ANV-/, '#') : undefined,
         contactId: i.contact_id || '',
         contactName: i.contact_name,
@@ -103,6 +106,7 @@ export function InquiriesProvider({ children }: { children: ReactNode }) {
       contact_name: inquiry.contactName,
       company_id: inquiry.companyId || null,
       event_type: inquiry.eventType,
+      title: inquiry.title || null,
       preferred_date: inquiry.preferredDate || null,
       room_preference: inquiry.roomPreference || null,
       guest_count: inquiry.guestCount,
@@ -156,6 +160,9 @@ export function InquiriesProvider({ children }: { children: ReactNode }) {
       preferred_start_time: inquiry.preferredStartTime || null,
       preferred_end_time: inquiry.preferredEndTime || null,
       status_reason: inquiry.statusReason || null,
+      title: inquiry.title || null,
+      last_contact_at: inquiry.lastContactAt || null,
+      next_action_at: inquiry.nextActionAt || null,
     } as any).eq('id', inquiry.id);
     if (error) {
       toast({ title: 'Fout bij bijwerken aanvraag', description: error.message, variant: 'destructive' });
