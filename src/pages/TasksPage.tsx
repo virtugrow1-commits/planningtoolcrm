@@ -29,6 +29,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogD
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
 import CrmCombobox, { ComboboxOption } from '@/components/CrmCombobox';
+import { matchesSearch } from '@/lib/search';
 import TeamMemberMultiSelect from '@/components/TeamMemberMultiSelect';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
@@ -50,8 +51,15 @@ export default function TasksPage() {
 
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
-  const [statusFilter, setStatusFilter] = useState<'all' | 'open' | 'completed'>('open');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'open' | 'completed' | 'overdue'>('open');
   const [userFilter, setUserFilter] = useState<string>('__all__');
+  const [scopeFilter, setScopeFilter] = useState<'all' | 'customer' | 'request'>('all');
+  const [periodFilter, setPeriodFilter] = useState<'all' | 'today' | 'week' | 'nextweek' | 'month' | 'custom'>('all');
+  const [customFrom, setCustomFrom] = useState('');
+  const [customTo, setCustomTo] = useState('');
+  const [customerTypeFilter, setCustomerTypeFilter] = useState<'all' | 'company' | 'private'>('all');
+  const [inquiryFilter, setInquiryFilter] = useState('__all__');
+  const [eventFilter, setEventFilter] = useState('__all__');
   const [visibleCount, setVisibleCount] = useState(50);
   const [archiveLoading, setArchiveLoading] = useState(false);
   const [hoveredId, setHoveredId] = useState<string | null>(null);
@@ -206,9 +214,28 @@ export default function TasksPage() {
 
 
 
+  const contactById = useMemo(() => new Map(contacts.map(c => [c.id, c])), [contacts]);
+  const inquiryById = useMemo(() => new Map(inquiries.map(i => [i.id, i])), [inquiries]);
+
+  const periodRange = useMemo((): [string, string] | null => {
+    const fmt = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    const now = new Date();
+    const dow = (now.getDay() + 6) % 7;
+    const monday = new Date(now); monday.setDate(now.getDate() - dow);
+    const addDays = (d: Date, n: number) => { const x = new Date(d); x.setDate(d.getDate() + n); return x; };
+    switch (periodFilter) {
+      case 'today': return [today, today];
+      case 'week': return [fmt(monday), fmt(addDays(monday, 6))];
+      case 'nextweek': return [fmt(addDays(monday, 7)), fmt(addDays(monday, 13))];
+      case 'month': return [fmt(new Date(now.getFullYear(), now.getMonth(), 1)), fmt(new Date(now.getFullYear(), now.getMonth() + 1, 0))];
+      case 'custom': return customFrom || customTo ? [customFrom || '0000-00-00', customTo || '9999-12-31'] : null;
+      default: return null;
+    }
+  }, [periodFilter, today, customFrom, customTo]);
+
   // One pass over the tasks: counts + filtering together.
   const { filteredTasks, counts } = useMemo(() => {
-    const q = debouncedSearch.trim().toLowerCase();
+    const q = debouncedSearch.trim();
     const result: Task[] = [];
     let open = 0;
     let completed = 0;
@@ -222,13 +249,31 @@ export default function TasksPage() {
         completed++;
       }
 
-      if (statusFilter !== 'all' && tk.status !== statusFilter) continue;
+      if (statusFilter === 'overdue') {
+        if (tk.status !== 'open' || !tk.dueDate || tk.dueDate >= today) continue;
+      } else if (statusFilter !== 'all' && tk.status !== statusFilter) continue;
       if (userFilter !== '__all__' && tk.assignedTo !== userFilter) continue;
+      if (scopeFilter === 'request' && !tk.inquiryId) continue;
+      if (scopeFilter === 'customer' && tk.inquiryId) continue;
+      if (periodRange && (!tk.dueDate || tk.dueDate < periodRange[0] || tk.dueDate > periodRange[1])) continue;
+      const inq = tk.inquiryId ? inquiryById.get(tk.inquiryId) : undefined;
+      const compId = tk.companyId || inq?.companyId || (tk.contactId ? contactCompanyMap.get(tk.contactId) : undefined);
+      const comp = compId ? companyMap.get(compId) : undefined;
+      if (customerTypeFilter !== 'all') {
+        const isPrivate = !!(comp as any)?.isPrivate;
+        if (!comp || (customerTypeFilter === 'private') !== isPrivate) continue;
+      }
+      if (inquiryFilter !== '__all__' && tk.inquiryId !== inquiryFilter) continue;
+      if (eventFilter !== '__all__' && (inq?.eventType || '') !== eventFilter) continue;
       if (q) {
-        const hit =
-          tk.title.toLowerCase().includes(q) ||
-          (tk.description || '').toLowerCase().includes(q) ||
-          (tk.assignedTo || '').toLowerCase().includes(q);
+        const ct = tk.contactId ? contactById.get(tk.contactId) : undefined;
+        const ict = inq?.contactId ? contactById.get(inq.contactId) : undefined;
+        const hit = matchesSearch(
+          q, tk.title, tk.description, tk.assignedTo, comp?.name,
+          ct && `${ct.firstName} ${ct.lastName} ${ct.company || ''}`,
+          ict && `${ict.firstName} ${ict.lastName}`,
+          inq && `${inq.displayNumber || ''} ${inq.title || ''} ${inq.eventType || ''} ${inq.contactName || ''}`,
+        );
         if (!hit) continue;
       }
       result.push(tk);
@@ -256,12 +301,23 @@ export default function TasksPage() {
     });
 
     return { filteredTasks: result, counts: { open, completed, overdue } };
-  }, [tasks, statusFilter, userFilter, debouncedSearch, sortKey, today]);
+  }, [tasks, statusFilter, userFilter, debouncedSearch, sortKey, today, scopeFilter, periodRange, customerTypeFilter, inquiryFilter, eventFilter, inquiryById, contactById, companyMap, contactCompanyMap]);
+
+  const eventTypes = useMemo(() => Array.from(new Set(inquiries.map(i => i.eventType).filter(Boolean))).sort(), [inquiries]);
+  const inquiryFilterOptions = useMemo<ComboboxOption[]>(() => [
+    { id: '__all__', label: 'Alle aanvragen' },
+    ...inquiries.map(i => ({ id: i.id, label: [i.displayNumber, i.title || i.eventType].filter(Boolean).join(' · ') || 'Aanvraag', secondary: i.contactName || undefined, searchText: `${i.displayNumber || ''} ${i.title || ''} ${i.eventType} ${i.contactName}` })),
+  ], [inquiries]);
+  const filtersActive = !!search || statusFilter !== 'open' || userFilter !== '__all__' || scopeFilter !== 'all' || periodFilter !== 'all' || customerTypeFilter !== 'all' || inquiryFilter !== '__all__' || eventFilter !== '__all__';
+  const clearFilters = () => {
+    setSearch(''); setStatusFilter('open'); userFilterTouched.current = true; setUserFilter('__all__'); setScopeFilter('all');
+    setPeriodFilter('all'); setCustomFrom(''); setCustomTo(''); setCustomerTypeFilter('all'); setInquiryFilter('__all__'); setEventFilter('__all__');
+  };
 
   // Render in chunks; more rows load as the sentinel scrolls into view.
   useEffect(() => {
     setVisibleCount(50);
-  }, [debouncedSearch, statusFilter, userFilter, sortKey]);
+  }, [debouncedSearch, statusFilter, userFilter, sortKey, scopeFilter, periodRange, customerTypeFilter, inquiryFilter, eventFilter]);
 
   const visibleTasks = useMemo(() => filteredTasks.slice(0, visibleCount), [filteredTasks, visibleCount]);
   const hasMore = filteredTasks.length > visibleTasks.length;
@@ -483,6 +539,16 @@ export default function TasksPage() {
               <SelectContent>
                 <SelectItem value="all">{t('dashboard.all')}</SelectItem>
                 {TASK_STATUSES.map(s => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}
+                <SelectItem value="overdue">Te laat</SelectItem>
+              </SelectContent>
+            </Select>
+
+            <Select value={scopeFilter} onValueChange={v => setScopeFilter(v as any)}>
+              <SelectTrigger className="h-9 w-40 text-xs bg-card"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Alle soorten</SelectItem>
+                <SelectItem value="customer">Algemene taak</SelectItem>
+                <SelectItem value="request">Aanvraagtaak</SelectItem>
               </SelectContent>
             </Select>
 
@@ -495,6 +561,45 @@ export default function TasksPage() {
               </SelectContent>
             </Select>
 
+            <Select value={periodFilter} onValueChange={v => setPeriodFilter(v as any)}>
+              <SelectTrigger className="h-9 w-40 text-xs bg-card"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Elke periode</SelectItem>
+                <SelectItem value="today">Vandaag</SelectItem>
+                <SelectItem value="week">Deze week</SelectItem>
+                <SelectItem value="nextweek">Volgende week</SelectItem>
+                <SelectItem value="month">Deze maand</SelectItem>
+                <SelectItem value="custom">Aangepaste periode</SelectItem>
+              </SelectContent>
+            </Select>
+            {periodFilter === 'custom' && (
+              <>
+                <Input type="date" value={customFrom} onChange={e => setCustomFrom(e.target.value)} className="h-9 w-36 text-xs bg-card" aria-label="Vanaf" />
+                <Input type="date" value={customTo} onChange={e => setCustomTo(e.target.value)} className="h-9 w-36 text-xs bg-card" aria-label="Tot en met" />
+              </>
+            )}
+
+            <Select value={customerTypeFilter} onValueChange={v => setCustomerTypeFilter(v as any)}>
+              <SelectTrigger className="h-9 w-40 text-xs bg-card"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Alle klanten</SelectItem>
+                <SelectItem value="company">Bedrijven</SelectItem>
+                <SelectItem value="private">Particulieren</SelectItem>
+              </SelectContent>
+            </Select>
+
+            <div className="w-52">
+              <CrmCombobox options={inquiryFilterOptions} value={inquiryFilter} onSelect={id => setInquiryFilter(id || '__all__')} placeholder="Alle aanvragen" searchPlaceholder="Zoek aanvraag..." />
+            </div>
+
+            <Select value={eventFilter} onValueChange={setEventFilter}>
+              <SelectTrigger className="h-9 w-44 text-xs bg-card"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__all__">Alle events</SelectItem>
+                {eventTypes.map(e => <SelectItem key={e} value={e}>{e}</SelectItem>)}
+              </SelectContent>
+            </Select>
+
             <Select value={sortKey} onValueChange={v => setSortKey(v as SortKey)}>
               <SelectTrigger className="h-9 w-44 text-xs bg-card"><SelectValue /></SelectTrigger>
               <SelectContent>
@@ -503,6 +608,10 @@ export default function TasksPage() {
                 <SelectItem value="title">{language === 'en' ? 'Sort: Title' : 'Sorteer: Titel'}</SelectItem>
               </SelectContent>
             </Select>
+
+            {filtersActive && (
+              <Button variant="ghost" size="sm" className="h-9 text-xs" onClick={clearFilters}>Filters wissen</Button>
+            )}
           </>
         }
       />

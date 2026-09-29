@@ -31,7 +31,7 @@ export function ContactsProvider({ children }: { children: ReactNode }) {
     if (!user) return;
     const { rows: allRows, error } = await fetchAllRows({
       table: 'contacts',
-      columns: 'id, display_number, first_name, last_name, email, phone, company, company_id, status, created_at, notes, ghl_contact_id, departed, department, dmu, function_group, job_title, address, postcode, city, country, birth_date, tags',
+      columns: 'id, display_number, first_name, last_name, email, phone, company, company_id, status, created_at, notes, ghl_contact_id, departed, department, dmu, function_group, job_title, address, postcode, city, country, birth_date, tags, infix, mobile, is_primary',
       orderBy: 'first_name',
     });
     if (error) {
@@ -64,6 +64,9 @@ export function ContactsProvider({ children }: { children: ReactNode }) {
       city: (c as any).city || undefined,
       country: (c as any).country || undefined,
       birthDate: (c as any).birth_date || undefined,
+      infix: (c as any).infix || undefined,
+      mobile: (c as any).mobile || undefined,
+      isPrimary: (c as any).is_primary === true,
       tags: Array.isArray((c as any).tags) ? (c as any).tags : [],
     })));
     setLoading(false);

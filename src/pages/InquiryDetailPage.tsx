@@ -24,6 +24,8 @@ import { cn } from '@/lib/utils';
 import InquiryDetailsTab, { PIPELINE_COLUMNS } from '@/components/inquiry/InquiryDetailsTab';
 import { SectionCard } from '@/components/detail/DetailPageComponents';
 import InquiryHistoryTab from '@/components/inquiry/InquiryHistoryTab';
+import InquiryContactsCard from '@/components/inquiry/InquiryContactsCard';
+import InquiryActivityLog from '@/components/inquiry/InquiryActivityLog';
 import TasksSection from '@/components/detail/TasksSection';
 import NewReservationDialog from '@/components/calendar/NewReservationDialog';
 import InquiryStatusChangeDialog from '@/components/inquiry/InquiryStatusChangeDialog';
@@ -255,6 +257,8 @@ export default function InquiryDetailPage() {
         existingOption={existingOption}
       />
 
+      <InquiryContactsCard inquiry={inquiry} />
+
       {/* Opties */}
       <SectionCard
         title="Opties"
@@ -288,6 +292,8 @@ export default function InquiryDetailPage() {
           </div>
         )}
       </SectionCard>
+
+      <InquiryActivityLog inquiryId={inquiry.id} />
 
       {/* Historie */}
       <div className="space-y-3">

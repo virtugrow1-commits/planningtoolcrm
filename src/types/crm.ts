@@ -21,6 +21,9 @@ export interface Contact {
   city?: string;
   country?: string;
   birthDate?: string;
+  infix?: string;
+  mobile?: string;
+  isPrimary?: boolean;
   tags?: string[];
 }
 
@@ -47,6 +50,9 @@ export interface Inquiry {
   statusReason?: string;
   offerteRevisie?: number;
   offerteGestagedOp?: string;
+  title?: string;
+  lastContactAt?: string;
+  nextActionAt?: string;
 }
 
 
