@@ -20,6 +20,16 @@ interface InquiriesContextType {
 
 const InquiriesContext = createContext<InquiriesContextType | null>(null);
 
+/**
+ * Keep the {{contact.offerte_*}} custom fields on the GHL contact in sync so a
+ * Documents & Contracts template is filled the moment the contact is selected
+ * in GoHighLevel. Never bumps the revision (that happens when a document is sent
+ * or via the "Offerte klaarzetten" button).
+ */
+export function syncOfferteFields(inquiryId: string) {
+  supabase.functions.invoke('stage-offerte', { body: { inquiry_id: inquiryId, bump: false } }).catch(() => { /* best effort */ });
+}
+
 export function InquiriesProvider({ children }: { children: ReactNode }) {
   const [inquiries, setInquiries] = useState<Inquiry[]>([]);
   const [loading, setLoading] = useState(true);
@@ -108,6 +118,7 @@ export function InquiriesProvider({ children }: { children: ReactNode }) {
       return;
     }
     if (inserted?.id) {
+      if (inquiry.contactId) syncOfferteFields(inserted.id);
       // Fire-and-forget: don't block UI waiting for GHL sync
       pushToGHL('push-inquiry', {
         inquiry_id: inserted.id,
@@ -150,6 +161,8 @@ export function InquiriesProvider({ children }: { children: ReactNode }) {
       fetchInquiries();
       return;
     }
+
+    if (inquiry.contactId) syncOfferteFields(inquiry.id);
 
     // Fire-and-forget: push to GHL without blocking the UI.
     // The local copy may still lack the GHL id (it arrives via realtime a moment

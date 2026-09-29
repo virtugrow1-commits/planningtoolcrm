@@ -347,6 +347,22 @@ Deno.serve(async (req) => {
           let moved = false;
           if (!alreadySigned) {
             moved = await advanceInquiry(inquiry, qc.sent_status, `Offerte "${doc.title}" verzonden`);
+            // The sent document carries the current revision; the next offer for this
+            // inquiry becomes revision +1 on the GHL contact fields.
+            if (inquiry && !dryRun) {
+              const { error: revErr } = await supabase.rpc('bump_offerte_revisie', { p_inquiry_id: inquiry.id });
+              if (revErr) results.errors.push(`revisie:${inquiry.id}:${revErr.message}`);
+              else {
+                await supabase.from('inquiries').update({ offerte_gestaged_op: new Date().toISOString() }).eq('id', inquiry.id);
+                try {
+                  await fetch(`${SUPABASE_URL}/functions/v1/stage-offerte`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${SERVICE_KEY}` },
+                    body: JSON.stringify({ inquiry_id: inquiry.id, bump: false }),
+                  }).then((r) => r.text());
+                } catch (e) { results.errors.push(`stage-offerte:${inquiry.id}:${String(e)}`); }
+              }
+            }
             const sentDate = doc.sent_at ? String(doc.sent_at).slice(0, 10) : today;
             for (const t of templatesFor('quote_sent')) {
               await createTasks(planTasks({ ...t, title: withNameSuffix(t.title, ph.naam) }, `document:${doc.id}`, { today, triggerDate: sentDate, placeholders: ph }), link, userId);

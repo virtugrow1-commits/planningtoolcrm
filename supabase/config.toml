@@ -11,3 +11,6 @@ verify_jwt = false
 
 [functions.crm-automations]
 verify_jwt = false
+
+[functions.stage-offerte]
+verify_jwt = false

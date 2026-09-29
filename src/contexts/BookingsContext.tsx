@@ -178,8 +178,14 @@ export function BookingsProvider({ children }: { children: ReactNode }) {
 
   // Let the CRM automations (task templates, option expiry, …) act on this
   // booking right away instead of waiting for the next scheduled run.
-  const runAutomationsFor = useCallback((bookingId: string) => {
+  const runAutomationsFor = useCallback((bookingId: string, row?: { inquiry_id?: string | null; contact_id?: string | null }) => {
     supabase.functions.invoke('crm-automations', { body: { source: 'app', booking_id: bookingId } }).catch(() => { /* cron catches up */ });
+    // Date/time/guest count of a reservation feed the offerte fields on the GHL contact
+    if (row?.inquiry_id) {
+      supabase.functions.invoke('stage-offerte', { body: { inquiry_id: row.inquiry_id, bump: false } }).catch(() => { /* best effort */ });
+    } else if (row?.contact_id) {
+      supabase.functions.invoke('stage-offerte', { body: { contact_id: row.contact_id, bump: false } }).catch(() => { /* best effort */ });
+    }
   }, []);
 
   const addBooking = useCallback(async (booking: Omit<Booking, 'id'>): Promise<{ success: boolean; conflicts?: Booking[] }> => {
@@ -259,7 +265,7 @@ export function BookingsProvider({ children }: { children: ReactNode }) {
       setBookings(prev => [...prev, newBooking]);
 
       // GHL push in background (fire-and-forget)
-      void pushBookingToGHL(data, 'create').then(() => runAutomationsFor(data.id));
+      void pushBookingToGHL(data, 'create').then(() => runAutomationsFor(data.id, data));
     }
     return { success: true };
   }, [user, fetchBookings, toast, checkConflicts, serverConflictCheck, pushBookingToGHL, runAutomationsFor]);
@@ -309,7 +315,7 @@ export function BookingsProvider({ children }: { children: ReactNode }) {
     void (async () => {
       for (const booking of data || []) {
         await pushBookingToGHL(booking, 'create');
-        runAutomationsFor(booking.id);
+        runAutomationsFor(booking.id, booking);
       }
     })();
     await fetchBookings();
@@ -359,7 +365,7 @@ export function BookingsProvider({ children }: { children: ReactNode }) {
     }
     if (data) {
       // GHL push in background (fire-and-forget)
-      void pushBookingToGHL(data, 'update').then(() => runAutomationsFor(data.id));
+      void pushBookingToGHL(data, 'update').then(() => runAutomationsFor(data.id, data));
       await fetchBookings();
     }
     return { success: true };
