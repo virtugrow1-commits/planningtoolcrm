@@ -2296,5 +2296,10 @@ async function syncDocuments(supabase: any, ghlHeaders: any, locationId: string,
 function primaryRecipient(doc: any): { contactId?: string; name?: string; email?: string } | null {
   const list: any[] = Array.isArray(doc.recipients) ? doc.recipients : [];
   if (!list.length) return null;
-  return list.find((r) => r.isPrimary) || list[0];
+  const r = list.find((x) => x.isPrimary) || list[0];
+  return {
+    contactId: r.contactId || r.id,
+    name: r.contactName || [r.firstName, r.lastName].filter(Boolean).join(' ') || r.name,
+    email: r.email,
+  };
 }
