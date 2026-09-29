@@ -2230,7 +2230,9 @@ async function syncDocuments(supabase: any, ghlHeaders: any, locationId: string,
           await delay(150);
         } catch { /* ignore detail fetch errors */ }
       }
-      const contact = ghlContactId ? contactByGhl.get(ghlContactId) : null;
+      const contact = (ghlContactId ? contactByGhl.get(ghlContactId) : null)
+        || (recipient?.email ? contactByEmail.get(recipient.email.toLowerCase()) : null)
+        || null;
       const title = doc.name || doc.title || 'Document';
       const contactName = recipient?.name || doc.contactName || doc.contact?.name || 'Onbekend';
       const rawAmount = doc.grandTotal ?? doc.amount ?? doc.total ?? doc.monetaryValue;
