@@ -742,6 +742,15 @@ function CompanyField({ current, editing, companies, form, setForm, navigate, co
     return linkedCompanies;
   }, [linkedCompanies, current.companyId, companies]);
 
+  if (!editing && allCompanies.length > 0 && allCompanies.every((co: any) => co.isPrivate)) {
+    return (
+      <div>
+        <p className="text-xs font-semibold text-muted-foreground mb-1 flex items-center gap-1.5"><Building2 size={14} /> Klanttype</p>
+        <button onClick={() => navigate(`/companies/${allCompanies[0].id}`)} className="text-primary hover:underline font-medium text-sm">Particulier</button>
+      </div>
+    );
+  }
+
   if (!editing) {
     return (
       <div>
