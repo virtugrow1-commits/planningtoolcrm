@@ -718,7 +718,7 @@ export default function TasksPage() {
               return (
                 <div
                   key={task.id}
-                  className="flex items-center gap-3 px-5 py-3 hover:bg-muted/20 transition-colors group"
+                  className="flex items-center gap-2 sm:gap-3 px-3 sm:px-5 py-3 hover:bg-muted/20 transition-colors group"
                   onMouseEnter={() => setHoveredId(task.id)}
                   onFocus={() => setHoveredId(task.id)}
                 >
@@ -784,7 +784,7 @@ export default function TasksPage() {
                       </SelectContent>
                     </Select>
                   ) : (
-                    <div className="h-7 w-32 shrink-0" aria-hidden />
+                    <div className="hidden sm:block h-7 w-32 shrink-0" aria-hidden />
                   )}
                   <Button
                     variant="ghost"
