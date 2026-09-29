@@ -134,6 +134,7 @@ export default function InquiryDetailsTab({ inquiry, editing, form, setForm, con
                   popoverWidth="w-[340px]"
                 />
               </div>
+              <div><Label>Titel</Label><Input value={form!.title || ''} onChange={(e) => setForm({ ...form!, title: e.target.value || undefined })} /></div>
               <div><Label>{t('inquiries.eventType')}</Label><Input value={form!.eventType} onChange={(e) => setForm({ ...form!, eventType: e.target.value })} /></div>
               <div><Label>{t('inquiries.preferredDate')}</Label><Input type="date" value={form!.preferredDate} onChange={(e) => setForm({ ...form!, preferredDate: e.target.value })} /></div>
               <div className="grid grid-cols-2 gap-2">
@@ -174,6 +175,10 @@ export default function InquiryDetailsTab({ inquiry, editing, form, setForm, con
                   </SelectContent>
               </Select>
               </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div><Label>Datum laatste contact</Label><Input type="date" value={form!.lastContactAt || ''} onChange={(e) => setForm({ ...form!, lastContactAt: e.target.value || undefined })} /></div>
+                <div><Label>Datum volgende actie</Label><Input type="date" value={form!.nextActionAt || ''} onChange={(e) => setForm({ ...form!, nextActionAt: e.target.value || undefined })} /></div>
+              </div>
               <div><Label>{t('tasks.assignedTo')}</Label><TeamMemberSelect value={form!.assignedTo} onValueChange={(v) => setForm({ ...form!, assignedTo: v })} /></div>
               <div><Label>{t('common.notes')}</Label><Textarea value={form!.message} onChange={(e) => setForm({ ...form!, message: e.target.value })} rows={4} /></div>
               <div className="flex gap-2">
@@ -191,6 +196,8 @@ export default function InquiryDetailsTab({ inquiry, editing, form, setForm, con
                 <InfoRow icon={<Clock size={14} />} label={t('inquiries.preferredTime')} value={`${inquiry.preferredStartTime || '—'} – ${inquiry.preferredEndTime || '—'}`} />
               )}
               <InfoRow icon={<Users size={14} />} label={t('inquiries.guestCount')} value={`${inquiry.guestCount}`} />
+              {inquiry.lastContactAt && <InfoRow icon={<Users size={14} />} label="Laatste contact" value={inquiry.lastContactAt.split('-').reverse().join('-')} />}
+              {inquiry.nextActionAt && <InfoRow icon={<Users size={14} />} label="Volgende actie" value={inquiry.nextActionAt.split('-').reverse().join('-')} />}
               <InfoRow icon={<Euro size={14} />} label={t('inquiries.budget')} value={inquiry.budget ? `€${inquiry.budget.toLocaleString('nl-NL', { minimumFractionDigits: 2 })}` : '—'} />
               <InfoRow icon={<MapPin size={14} />} label={t('inquiries.roomPreference')} value={inquiry.roomPreference || '—'} />
               <InfoRow icon={<FileText size={14} />} label={t('common.source')} value={inquiry.source === 'GHL' ? 'CliqCRM' : inquiry.source} />

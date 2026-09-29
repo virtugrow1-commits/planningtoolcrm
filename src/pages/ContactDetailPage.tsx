@@ -173,6 +173,14 @@ export default function ContactDetailPage() {
       toast({ title: 'Vul minimaal voor- en achternaam in', variant: 'destructive' });
       return;
     }
+    if (form.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) {
+      toast({ title: 'Ongeldig e-mailadres', variant: 'destructive' });
+      return;
+    }
+    if (form.birthDate && form.birthDate > new Date().toISOString().slice(0, 10)) {
+      toast({ title: 'Geboortedatum mag niet in de toekomst liggen', variant: 'destructive' });
+      return;
+    }
     // Auto-link company_id if company name matches
     let companyId = form.companyId;
     if (form.company) {
@@ -345,9 +353,14 @@ export default function ContactDetailPage() {
 
           <div className="space-y-4 text-sm">
             <InfoField icon={<User size={14} />} label="Voornaam" value={current.firstName} editing={editing} onChange={(v) => setForm({ ...form!, firstName: v })} />
+            <InfoField icon={<User size={14} />} label="Tussenvoegsel" value={current.infix || ''} editing={editing} onChange={(v) => setForm({ ...form!, infix: v || undefined })} />
             <InfoField icon={<User size={14} />} label="Achternaam" value={current.lastName} editing={editing} onChange={(v) => setForm({ ...form!, lastName: v })} />
             <InfoField icon={<Mail size={14} />} label="Email" value={current.email} editing={editing} type="email" onChange={(v) => setForm({ ...form!, email: v })} />
             <InfoField icon={<Phone size={14} />} label="Telefoon" value={current.phone} editing={editing} onChange={(v) => setForm({ ...form!, phone: v })} />
+            <InfoField icon={<Phone size={14} />} label="Mobiel" value={current.mobile || ''} editing={editing} onChange={(v) => setForm({ ...form!, mobile: v || undefined })} />
+            {editing ? (
+              <label className="flex items-center gap-2 text-xs py-1"><input type="checkbox" checked={!!current.isPrimary} onChange={(e) => setForm({ ...form!, isPrimary: e.target.checked })} /> Hoofdcontactpersoon</label>
+            ) : current.isPrimary ? <p className="text-xs text-primary py-1">Hoofdcontactpersoon</p> : null}
             <InfoField icon={<User size={14} />} label="Afdelingsnaam" value={current.department || ''} editing={editing} onChange={(v) => setForm({ ...form!, department: v || undefined })} />
             <div>
               <p className="text-xs font-semibold text-muted-foreground mb-0.5 flex items-center gap-1.5"><User size={14} /> DMU</p>
