@@ -1,4 +1,5 @@
 import { formatDate, localToday, toLocalDateString } from '@/lib/formatters';
+import { supabase } from '@/integrations/supabase/client';
 import { matchesSearch } from '@/lib/search';
 import { resolveContact } from '@/lib/contactLookup';
 
@@ -117,6 +118,24 @@ export default function InquiriesPage() {
   }, [tasks]);
   const { companies } = useCompaniesContext();
   const { t, language } = useLanguage();
+  // Extra gekoppelde contactpersonen per aanvraag (2e/3e cp op de pipelinekaart)
+  const [extraContactsByInquiry, setExtraContactsByInquiry] = useState<Map<string, string[]>>(new Map());
+  useEffect(() => {
+    let cancelled = false;
+    (supabase as any).from('inquiry_contacts').select('inquiry_id, contact_id, is_primary').then(({ data }: any) => {
+      if (cancelled || !data) return;
+      const m = new Map<string, { id: string; primary: boolean }[]>();
+      for (const r of data) {
+        const arr = m.get(r.inquiry_id) || [];
+        arr.push({ id: r.contact_id, primary: !!r.is_primary });
+        m.set(r.inquiry_id, arr);
+      }
+      const out = new Map<string, string[]>();
+      for (const [k, arr] of m) out.set(k, arr.sort((a, b) => Number(b.primary) - Number(a.primary)).map((x) => x.id));
+      setExtraContactsByInquiry(out);
+    });
+    return () => { cancelled = true; };
+  }, []);
   const [dragId, setDragId] = useState<string | null>(null);
   const [scheduleOpen, setScheduleOpen] = useState(false);
   const [selectedInquiry, setSelectedInquiry] = useState<Inquiry | null>(null);
