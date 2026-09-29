@@ -5,6 +5,7 @@ import { pushToGHL } from '@/lib/ghlSync';
 import { Task } from '@/types/task';
 import { useToast } from '@/hooks/use-toast';
 import { fetchAllRows, debounce } from '@/lib/fetchAllRows';
+import { htmlToPlainText } from '@/lib/htmlToPlainText';
 
 
 interface TasksContextType {
@@ -57,7 +58,7 @@ export function TasksProvider({ children }: { children: ReactNode }) {
     setTasks(allRows.map((t: any) => ({
         id: t.id,
         title: t.title,
-        description: t.description || undefined,
+        description: htmlToPlainText(t.description) || undefined,
         status: t.status as Task['status'],
         priority: t.priority as Task['priority'],
         dueDate: t.due_date || undefined,
@@ -104,7 +105,7 @@ export function TasksProvider({ children }: { children: ReactNode }) {
     const { data, error } = await (supabase as any).from('tasks').insert({
       user_id: user.id,
       title: task.title,
-      description: task.description || null,
+      description: htmlToPlainText(task.description) || null,
       status: task.status,
       priority: task.priority,
       due_date: task.dueDate || null,
@@ -144,7 +145,7 @@ export function TasksProvider({ children }: { children: ReactNode }) {
       : null;
     const { data, error } = await (supabase as any).from('tasks').update({
       title: task.title,
-      description: task.description || null,
+      description: htmlToPlainText(task.description) || null,
       status: task.status,
       priority: task.priority,
       due_date: task.dueDate || null,

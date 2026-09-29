@@ -10,6 +10,7 @@ import {
 } from "../_shared/inquiryFields.ts";
 import { pickBookingForTask, type LinkableBooking } from "../_shared/taskBookingLink.ts";
 import { suppressGhlTask, taskRuleKey, taskRuleLabel } from "../_shared/taskAutomation.ts";
+import { htmlToPlainText } from "../_shared/htmlToPlainText.ts";
 import {
   GHL_API_BASE,
   applyRemoteInquiryPatch,
@@ -1552,7 +1553,7 @@ async function syncTasks(supabase: any, ghlHeaders: any, locationId: string, use
         }
         const ghlStatus = ghlTask.completed ? 'completed' : 'open';
         const ghlTitle = ghlTask.title || 'GHL Taak';
-        const ghlDescription = ghlTask.body || null;
+        const ghlDescription = htmlToPlainText(ghlTask.body);
         const ghlDueDate = ghlDueDateLocal(ghlTask.dueDate);
 
         // In-memory lookup

@@ -29,6 +29,7 @@ import { format } from 'date-fns';
 import { nl } from 'date-fns/locale';
 import { Skeleton } from '@/components/ui/skeleton';
 import CallLogPanel from '@/components/contact/CallLogPanel';
+import { htmlToPlainText } from '@/lib/htmlToPlainText';
 
 export default function TaskDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -91,7 +92,7 @@ export default function TaskDetailPage() {
   const prioInfo = TASK_PRIORITIES.find(p => p.value === task.priority);
 
   const startEdit = () => {
-    setForm({ ...task });
+    setForm({ ...task, description: htmlToPlainText(task.description) || undefined });
     setEditDueDate(task.dueDate ? new Date(task.dueDate) : undefined);
     setEditDueTime(task.dueTime || '');
     setEditAssignedTo(task.assignedTo ? [task.assignedTo] : []);
@@ -359,7 +360,7 @@ export default function TaskDetailPage() {
                 {task.description && (
                   <div>
                     <p className="text-xs font-semibold text-muted-foreground mb-0.5">Omschrijving</p>
-                    <p className="text-sm text-foreground whitespace-pre-wrap">{task.description}</p>
+                    <p className="text-sm text-foreground whitespace-pre-wrap">{htmlToPlainText(task.description)}</p>
                   </div>
                 )}
                 <InfoRow icon={<CalendarIcon size={14} />} label="Datum" value={task.dueDate ? (
