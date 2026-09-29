@@ -36,6 +36,14 @@ export default function CompaniesPage() {
   const [postCreateCompany, setPostCreateCompany] = useState<{ id: string; name: string } | null>(null);
   const { toast } = useToast();
 
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get('new') === 'private') {
+      setEditing(null);
+      setForm({ name: '', email: '', phone: '', website: '', address: '', notes: '', isPrivate: true });
+      setDialogOpen(true);
+    }
+  }, []);
+
   const handleSearch = (v: string) => { setSearch(v); setPage(1); };
 
   const filtered = companies.filter((c) =>

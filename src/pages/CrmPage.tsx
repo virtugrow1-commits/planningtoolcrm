@@ -1,5 +1,5 @@
 import { matchesSearch } from '@/lib/search';
-import { Search, Plus, Filter, X, ChevronLeft, ChevronRight, Edit2, Trash2, Download, Building2, Users } from 'lucide-react';
+import { Search, Plus, Filter, X, ChevronLeft, ChevronRight, Edit2, Trash2, Download, Building2, Users, User } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { useState } from 'react';
@@ -28,6 +28,7 @@ import { Calendar } from '@/components/ui/calendar';
 import { CalendarIcon } from 'lucide-react';
 import { DMU_OPTIONS, FUNCTION_GROUP_OPTIONS } from '@/lib/contactOptions';
 import PageHeader from '@/components/PageHeader';
+const formatDate = (d: string) => { const [y, m, dd] = d.slice(0, 10).split('-'); return dd && m && y ? `${dd}-${m}-${y}` : d; };
 import ListSkeleton from '@/components/ListSkeleton';
 import { toLocalDateString } from '@/lib/formatters';
 
