@@ -178,6 +178,7 @@ export default function CompanyDetailPage() {
   );
   const activeContacts = useMemo(() => sortedContacts.filter((c) => !c.departed), [sortedContacts]);
   const primaryContact = useMemo(() => activeContacts.find((c) => c.isPrimary) || activeContacts[0], [activeContacts]);
+  const [cardTab, setCardTab] = useState('overzicht');
 
   const visibleContacts = showAllContacts ? sortedContacts : sortedContacts.slice(0, 4);
 
@@ -418,12 +419,12 @@ export default function CompanyDetailPage() {
             </div>
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
               {[
-                { label: 'Contactpersonen', value: activeContacts.length, onClick: undefined },
-                { label: 'Lopende aanvragen', value: activeInquiries.length, onClick: () => navigate('/inquiries') },
-                { label: 'Opties', value: optionBookings.length, onClick: () => navigate('/calendar') },
-                { label: 'Toekomstige reserveringen', value: futureReservations.length, onClick: () => document.getElementById('toekomstige-reserveringen')?.scrollIntoView({ behavior: 'smooth' }) },
-                { label: 'Afgeronde reserveringen', value: pastReservations.length, onClick: () => document.getElementById('afgeronde-reserveringen')?.scrollIntoView({ behavior: 'smooth' }) },
-                { label: 'Open taken', value: openTaskCount, onClick: () => navigate('/tasks') },
+                { label: 'Contactpersonen', value: activeContacts.length, onClick: () => setCardTab('contactpersonen') },
+                { label: 'Open aanvragen', value: activeInquiries.length, onClick: () => setCardTab('aanvragen') },
+                { label: 'Opties', value: optionBookings.length, onClick: () => setCardTab('overzicht') },
+                { label: 'Toekomstige reserveringen', value: futureReservations.length, onClick: () => setCardTab('toekomstig') },
+                { label: 'Afgeronde reserveringen', value: pastReservations.length, onClick: () => setCardTab('afgerond') },
+                { label: 'Open taken', value: openTaskCount, onClick: () => setCardTab('taken') },
               ].map((kpi) => (
                 <button
                   key={kpi.label}
@@ -478,25 +479,35 @@ export default function CompanyDetailPage() {
             )}
           </div>
 
+          <Tabs value={cardTab} onValueChange={setCardTab} className="md:col-span-2">
+            <TabsList className="flex-wrap h-auto">
+              <TabsTrigger value="overzicht">Overzicht</TabsTrigger>
+              <TabsTrigger value="contactpersonen">Contactpersonen ({companyContacts.length})</TabsTrigger>
+              <TabsTrigger value="taken">Taken ({openTaskCount})</TabsTrigger>
+              <TabsTrigger value="aanvragen">Aanvragen ({activeInquiries.length})</TabsTrigger>
+              <TabsTrigger value="toekomstig">Toekomstige reserveringen ({futureReservations.length})</TabsTrigger>
+              <TabsTrigger value="afgerond">Afgeronde reserveringen ({pastReservations.length})</TabsTrigger>
+            </TabsList>
 
-
-          {/* Contactpersonen */}
+          <TabsContent value="contactpersonen" className="mt-4 space-y-4">
           <SectionCard
             title="Contactpersonen"
             count={companyContacts.length}
             onAdd={() => { setAddContactOpen(true); setAddContactTab('link'); setLinkSearch(''); setNewContactForm({ firstName: '', lastName: '', email: '', phone: '', dmu: '', functionGroup: '' }); }}
           >
             {companyContacts.length === 0 ? (
-              <p className="text-xs text-muted-foreground">Geen contactpersonen gevonden.</p>
+              <p className="text-xs text-muted-foreground">Geen contactpersoon gekoppeld.</p>
             ) : (
               <div className="space-y-1">
-                {visibleContacts.map((c) => (
+                {companyContacts.map((c) => (
                   <div key={c.id} className="flex items-start justify-between py-1.5 px-2 rounded-md hover:bg-muted/50 transition-colors text-xs">
                     <button onClick={() => navigate(`/crm/${c.id}`)} className="flex-1 text-left min-w-0">
                       <div>
-                        <span className={`font-medium ${c.departed ? 'text-muted-foreground/50' : 'text-foreground'}`}>{c.firstName} {c.lastName}</span>
+                        <span className={`font-medium ${c.departed ? 'text-muted-foreground/50' : 'text-foreground'}`}>{[c.firstName, c.infix, c.lastName].filter(Boolean).join(' ')}</span>
+                        {c.isPrimary && <Badge variant="secondary" className="text-[9px] px-1 py-0 ml-1.5">Hoofdcontact</Badge>}
                         {c.departed && <span className="text-[10px] text-muted-foreground/50 ml-1.5">(uit dienst)</span>}
-                        {c.phone && <span className="text-muted-foreground ml-2">{c.phone}</span>}
+                        {c.email && <span className="text-muted-foreground ml-2">{c.email}</span>}
+                        {(c.mobile || c.phone) && <span className="text-muted-foreground ml-2">{c.mobile || c.phone}</span>}
                       </div>
                       {(c.dmu || c.functionGroup || c.jobTitle) && (
                         <div className="flex flex-wrap gap-1 mt-1">
@@ -510,7 +521,7 @@ export default function CompanyDetailPage() {
                       {c.companyId !== company?.id && <Badge variant="outline" className="text-[9px] px-1">Secundair</Badge>}
                       {c.status === 'do_not_contact' && <Badge variant="destructive" className="text-[10px]">{STATUS_LABELS[c.status]}</Badge>}
                       <button
-                        onClick={(e) => { e.stopPropagation(); handleUnlinkContact(c.id); }}
+                        onClick={(e) => { e.stopPropagation(); if (window.confirm('Contactpersoon loskoppelen van deze klant?')) handleUnlinkContact(c.id); }}
                         className="p-0.5 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors"
                         title="Ontkoppelen"
                       >
@@ -520,16 +531,6 @@ export default function CompanyDetailPage() {
                     </div>
                   </div>
                 ))}
-                {companyContacts.length > 4 && !showAllContacts && (
-                  <button onClick={() => setShowAllContacts(true)} className="w-full text-center py-2 text-xs text-primary hover:text-primary/80 font-medium transition-colors">
-                    {companyContacts.length} contactpersonen — meer tonen
-                  </button>
-                )}
-                {showAllContacts && companyContacts.length > 4 && (
-                  <button onClick={() => setShowAllContacts(false)} className="w-full text-center py-2 text-xs text-muted-foreground hover:text-foreground font-medium transition-colors">
-                    Minder tonen
-                  </button>
-                )}
               </div>
             )}
           </SectionCard>
@@ -550,34 +551,37 @@ export default function CompanyDetailPage() {
               companyId={company.id}
             />
           </div>
+          </TabsContent>
 
-          {/* Taken — met de aanvraag als ondertitel wanneer die er is */}
+          <TabsContent value="taken" className="mt-4">
           <TasksSection
             tasks={companyTasks}
             defaults={{ companyId: company.id }}
             inquiryLabels={inquiryLabels}
           />
+          </TabsContent>
 
-          {/* Aanvragen */}
+          <TabsContent value="aanvragen" className="mt-4 space-y-4">
           <SectionCard title="Aanvragen" count={activeInquiries.length} linkLabel="Bekijk alle aanvragen" onLink={() => navigate('/inquiries')} onAdd={() => navigate('/inquiries?new=true')}>
             {activeInquiries.length === 0 ? (
               <p className="text-xs text-muted-foreground">Geen lopende aanvragen</p>
             ) : (
               <div className="space-y-3">
-                {activeInquiries.slice(0, 8).map((inq) => (
+                {activeInquiries.map((inq) => (
                   <button
                     key={inq.id}
                     onClick={() => navigate(`/inquiries/${inq.id}`)}
                     className="w-full text-left rounded-lg border border-border/50 p-3 hover:bg-muted/30 transition-colors space-y-1.5"
                   >
                     <div className="flex items-center justify-between gap-2">
-                      <span className="text-xs font-medium text-foreground">{inq.eventType}</span>
+                      <span className="text-xs font-medium text-foreground">{inq.title || inq.eventType}</span>
                       <div className="flex items-center gap-2">
                         {!inq.isRead && <span className="inline-flex rounded-md px-1.5 py-0.5 text-[10px] font-bold bg-destructive text-destructive-foreground">New</span>}
                         <Badge variant="outline" className="text-[10px]">{INQUIRY_STATUS[inq.status] || inq.status}</Badge>
                       </div>
                     </div>
                     <div className="flex flex-wrap gap-x-4 gap-y-0.5 text-[11px] text-muted-foreground">
+                      {inq.displayNumber && <span>{inq.displayNumber}</span>}
                       <span>{formatDate(inq.createdAt)}</span>
                       <span>{inq.contactName}</span>
                       {inq.guestCount > 0 && <span>{inq.guestCount} gasten</span>}
@@ -591,7 +595,10 @@ export default function CompanyDetailPage() {
               </div>
             )}
           </SectionCard>
+          </TabsContent>
 
+          <TabsContent value="overzicht" className="mt-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {/* Opties */}
           <SectionCard title="Opties" count={optionBookings.length} linkLabel="Bekijk agenda" onLink={() => navigate('/calendar')} onAdd={() => navigate('/calendar?new=true')}>
             {optionBookings.length === 0 ? (
@@ -654,16 +661,17 @@ export default function CompanyDetailPage() {
             )}
           </SectionCard>
 
+          </TabsContent>
           {[
-            { id: 'toekomstige-reserveringen', title: 'Toekomstige reserveringen', list: futureReservations },
-            { id: 'afgeronde-reserveringen', title: 'Afgeronde reserveringen', list: pastReservations },
+            { id: 'toekomstig', title: 'Toekomstige reserveringen', list: futureReservations },
+            { id: 'afgerond', title: 'Afgeronde reserveringen', list: pastReservations },
           ].map((sec) => (
-            <div key={sec.id} id={sec.id} className="md:col-span-2 scroll-mt-24">
+            <TabsContent key={sec.id} value={sec.id} className="mt-4">
               <SectionCard title={sec.title} count={sec.list.length}>
                 {sec.list.length === 0 ? (
                   <p className="text-xs text-muted-foreground">Geen {sec.title.toLowerCase()}</p>
                 ) : (
-                  <div className="space-y-1 max-h-80 overflow-y-auto">
+                  <div className="space-y-1">
                     {sec.list.map((b) => (
                       <button key={b.id} onClick={() => navigate(`/reserveringen/${b.id}`)} className="w-full flex items-center justify-between gap-3 py-1.5 px-2 rounded-md hover:bg-muted/50 transition-colors text-left text-xs">
                         <div className="min-w-0 flex-1">
@@ -680,8 +688,9 @@ export default function CompanyDetailPage() {
                   </div>
                 )}
               </SectionCard>
-            </div>
+            </TabsContent>
           ))}
+          </Tabs>
         </div>
       </div>
 
