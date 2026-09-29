@@ -413,8 +413,8 @@ async function syncLocationTags(supabase: any, ghlHeaders: any, locationId: stri
 // === CALENDAR SYNC ===
 async function syncCalendar(supabase: any, ghlHeaders: any, locationId: string, userId: string, results: any, isFullSync: boolean = true, lookups: any = null) {
   try {
-    // showAll=true ensures we also pull events from inactive calendars
-    const calRes = await fetch(`${GHL_API_BASE}/calendars/?locationId=${locationId}&showAll=true`, { headers: ghlHeaders });
+    // GHL rejects the showAll parameter (422), so list calendars without it
+    const calRes = await fetch(`${GHL_API_BASE}/calendars/?locationId=${locationId}`, { headers: ghlHeaders });
     if (!calRes.ok) {
       const body = await calRes.text().catch(() => '');
       console.error('Calendar list error:', calRes.status, body);
