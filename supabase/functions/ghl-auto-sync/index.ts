@@ -2159,9 +2159,9 @@ async function syncDocuments(supabase: any, ghlHeaders: any, locationId: string,
     }
     const docs: any[] = [];
     let source = 'proposals';
-    // 1. Proposals API (paginated)
-    for (let skip = 0, page = 0; page < 10; skip += 100, page++) {
-      const res = await fetch(`${GHL_API_BASE}/proposals/document?locationId=${locationId}&limit=100&skip=${skip}`, { headers: ghlHeaders });
+    // 1. Proposals API (paginated) — GHL rejects limit > 21 with a 422
+    for (let skip = 0, page = 0; page < 50; skip += 20, page++) {
+      const res = await fetch(`${GHL_API_BASE}/proposals/document?locationId=${locationId}&limit=20&skip=${skip}`, { headers: ghlHeaders });
       if (!res.ok) {
         const body = await res.text().catch(() => '');
         if (page === 0) {
@@ -2173,7 +2173,7 @@ async function syncDocuments(supabase: any, ghlHeaders: any, locationId: string,
       const data = await res.json();
       const batch: any[] = data.documents || data.data || data.proposals || [];
       docs.push(...batch);
-      if (batch.length < 100) break;
+      if (batch.length < 20) break;
       await delay(200);
     }
     // 2. Fallback to the legacy path (kept for accounts where it does exist)
@@ -2193,13 +2193,20 @@ async function syncDocuments(supabase: any, ghlHeaders: any, locationId: string,
       docs.push(...(data.documents || data.data || []));
     }
     console.log(`[Documents Sync] Found ${docs.length} documents from GHL (${source})`);
+    if (docs[0]) console.log(`[Documents Sync] Sample keys: ${Object.keys(docs[0]).join(',')} | recipients: ${JSON.stringify(docs[0].recipients || null)?.slice(0, 300)}`);
 
-    // Contact lookup once
+    // Contact lookup once (GHL recipients use `id`, not `contactId`; email as fallback)
     const ghlIds = [...new Set(docs.map((d) => primaryRecipient(d)?.contactId || d.contactId || d.contact?.id).filter(Boolean))];
+    const emails = [...new Set(docs.map((d) => (primaryRecipient(d)?.email || '').toLowerCase()).filter(Boolean))];
     const contactByGhl = new Map<string, any>();
+    const contactByEmail = new Map<string, any>();
     for (let i = 0; i < ghlIds.length; i += 200) {
       const { data } = await supabase.from('contacts').select('id, ghl_contact_id, company_id').in('ghl_contact_id', ghlIds.slice(i, i + 200));
       for (const c of data || []) contactByGhl.set(c.ghl_contact_id, c);
+    }
+    for (let i = 0; i < emails.length; i += 200) {
+      const { data } = await supabase.from('contacts').select('id, email, company_id').in('email', emails.slice(i, i + 200));
+      for (const c of data || []) if (c.email) contactByEmail.set(c.email.toLowerCase(), c);
     }
 
     for (const doc of docs) {
@@ -2208,9 +2215,24 @@ async function syncDocuments(supabase: any, ghlHeaders: any, locationId: string,
       const status = mapDocumentStatus(doc.status);
       if (status === 'draft') continue; // concepts are not interesting for the CRM
 
-      const recipient = primaryRecipient(doc);
-      const ghlContactId = recipient?.contactId || doc.contactId || doc.contact?.id || null;
-      const contact = ghlContactId ? contactByGhl.get(ghlContactId) : null;
+      let recipient = primaryRecipient(doc);
+      let ghlContactId = recipient?.contactId || doc.contactId || doc.contact?.id || null;
+      // The list endpoint omits recipients — fetch the document detail as fallback
+      if (!ghlContactId) {
+        try {
+          const detRes = await fetch(`${GHL_API_BASE}/proposals/document/${ghlDocId}?locationId=${locationId}`, { headers: ghlHeaders });
+          if (detRes.ok) {
+            const det = await detRes.json();
+            const detail = det.document || det.data || det;
+            recipient = primaryRecipient(detail) || recipient;
+            ghlContactId = recipient?.contactId || detail.contactId || detail.contact?.id || null;
+          }
+          await delay(150);
+        } catch { /* ignore detail fetch errors */ }
+      }
+      const contact = (ghlContactId ? contactByGhl.get(ghlContactId) : null)
+        || (recipient?.email ? contactByEmail.get(recipient.email.toLowerCase()) : null)
+        || null;
       const title = doc.name || doc.title || 'Document';
       const contactName = recipient?.name || doc.contactName || doc.contact?.name || 'Onbekend';
       const rawAmount = doc.grandTotal ?? doc.amount ?? doc.total ?? doc.monetaryValue;
@@ -2244,7 +2266,7 @@ async function syncDocuments(supabase: any, ghlHeaders: any, locationId: string,
       if (existing) {
         const patch: Record<string, any> = { title, amount, external_url: externalUrl };
         if (!existing.inquiry_id && inquiryId) patch.inquiry_id = inquiryId;
-        if (contact?.id) patch.contact_id = contact.id;
+        if (contact?.id) { patch.contact_id = contact.id; if (contact.company_id) patch.company_id = contact.company_id; }
         if ((order[status] ?? 0) > (order[existing.status] ?? 0) || status === 'declined') {
           patch.status = status;
           if (status === 'viewed') patch.viewed_at = doc.viewedAt || new Date().toISOString();
@@ -2274,5 +2296,10 @@ async function syncDocuments(supabase: any, ghlHeaders: any, locationId: string,
 function primaryRecipient(doc: any): { contactId?: string; name?: string; email?: string } | null {
   const list: any[] = Array.isArray(doc.recipients) ? doc.recipients : [];
   if (!list.length) return null;
-  return list.find((r) => r.isPrimary) || list[0];
+  const r = list.find((x) => x.isPrimary) || list[0];
+  return {
+    contactId: r.contactId || r.id,
+    name: r.contactName || [r.firstName, r.lastName].filter(Boolean).join(' ') || r.name,
+    email: r.email,
+  };
 }
