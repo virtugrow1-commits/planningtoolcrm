@@ -14,6 +14,74 @@ export type Database = {
   }
   public: {
     Tables: {
+      automation_runs: {
+        Row: {
+          automation: string
+          created_at: string
+          dedupe_key: string
+          entity_id: string | null
+          entity_type: string
+          id: string
+          result: Json
+          template_id: string | null
+          user_id: string
+        }
+        Insert: {
+          automation: string
+          created_at?: string
+          dedupe_key: string
+          entity_id?: string | null
+          entity_type: string
+          id?: string
+          result?: Json
+          template_id?: string | null
+          user_id: string
+        }
+        Update: {
+          automation?: string
+          created_at?: string
+          dedupe_key?: string
+          entity_id?: string | null
+          entity_type?: string
+          id?: string
+          result?: Json
+          template_id?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "automation_runs_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "task_templates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      automation_settings: {
+        Row: {
+          config: Json
+          enabled: boolean
+          key: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          config?: Json
+          enabled?: boolean
+          key: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          config?: Json
+          enabled?: boolean
+          key?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       bookings: {
         Row: {
           assigned_to: string | null
@@ -29,6 +97,7 @@ export type Database = {
           id: string
           inquiry_id: string | null
           notes: string | null
+          option_expires_at: string | null
           preparation_status: string
           requirements: string | null
           reservation_number: string | null
@@ -56,6 +125,7 @@ export type Database = {
           id?: string
           inquiry_id?: string | null
           notes?: string | null
+          option_expires_at?: string | null
           preparation_status?: string
           requirements?: string | null
           reservation_number?: string | null
@@ -83,6 +153,7 @@ export type Database = {
           id?: string
           inquiry_id?: string | null
           notes?: string | null
+          option_expires_at?: string | null
           preparation_status?: string
           requirements?: string | null
           reservation_number?: string | null
@@ -1366,9 +1437,58 @@ export type Database = {
         }
         Relationships: []
       }
+      task_templates: {
+        Row: {
+          anchor: string
+          assignees: string[]
+          created_at: string
+          description: string | null
+          enabled: boolean
+          id: string
+          offset_days: number
+          priority: string
+          sort_order: number
+          title: string
+          trigger: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          anchor?: string
+          assignees?: string[]
+          created_at?: string
+          description?: string | null
+          enabled?: boolean
+          id?: string
+          offset_days?: number
+          priority?: string
+          sort_order?: number
+          title: string
+          trigger: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          anchor?: string
+          assignees?: string[]
+          created_at?: string
+          description?: string | null
+          enabled?: boolean
+          id?: string
+          offset_days?: number
+          priority?: string
+          sort_order?: number
+          title?: string
+          trigger?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       tasks: {
         Row: {
           assigned_to: string | null
+          automation_key: string | null
           booking_id: string | null
           company_id: string | null
           completed_at: string | null
@@ -1390,6 +1510,7 @@ export type Database = {
         }
         Insert: {
           assigned_to?: string | null
+          automation_key?: string | null
           booking_id?: string | null
           company_id?: string | null
           completed_at?: string | null
@@ -1411,6 +1532,7 @@ export type Database = {
         }
         Update: {
           assigned_to?: string | null
+          automation_key?: string | null
           booking_id?: string | null
           company_id?: string | null
           completed_at?: string | null
