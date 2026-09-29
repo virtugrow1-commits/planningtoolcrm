@@ -42,7 +42,7 @@ export default function ContactDetailPage() {
   const navigate = useNavigate();
   const { contacts, updateContact, deleteContact } = useContactsContext();
   const { inquiries } = useInquiriesContext();
-  const { companies } = useCompaniesContext();
+  const { companies, addCompany } = useCompaniesContext();
   const { bookings } = useBookings();
   const { tasks } = useTasksContext();
   const { getContactCompanies, linkContact, unlinkContact, markDeparted } = useContactCompanies();
@@ -396,6 +396,7 @@ export default function ContactDetailPage() {
               contactCompanyLinks={id ? getContactCompanies(id) : []}
               linkContact={linkContact}
               unlinkContact={unlinkContact}
+              addCompany={addCompany}
             />
 
             {/* Adresgegevens — eigen adres of fallback naar bedrijfsadres */}
@@ -710,7 +711,8 @@ export default function ContactDetailPage() {
 
 /* InfoField is now imported from @/components/detail/DetailPageComponents */
 
-function CompanyField({ current, editing, companies, form, setForm, navigate, contactCompanyLinks, linkContact, unlinkContact }: {
+function CompanyField({ current, editing, companies, form, setForm, navigate, contactCompanyLinks, linkContact, unlinkContact, addCompany }: {
+  addCompany: (c: any) => Promise<{ companyId: string | null } | any>;
   current: Contact;
   editing: boolean;
   companies: { id: string; name: string }[];
@@ -777,8 +779,86 @@ function CompanyField({ current, editing, companies, form, setForm, navigate, co
   }
 
 
+  const isPrivateNow = allCompanies.length > 0 && allCompanies.every((co: any) => co.isPrivate);
+
+  const countFor = async (companyId: string) => {
+    const [a, b] = await Promise.all([
+      supabase.from('inquiries').select('id', { count: 'exact', head: true }).eq('company_id', companyId).eq('contact_id', current.id),
+      supabase.from('bookings').select('id', { count: 'exact', head: true }).eq('company_id', companyId).eq('contact_id', current.id),
+    ]);
+    return { inq: a.count || 0, book: b.count || 0 };
+  };
+
+  const moveRecords = async (fromId: string, toId: string) => {
+    for (const t of ['inquiries', 'bookings', 'tasks', 'contact_activities', 'documents']) {
+      await (supabase as any).from(t).update({ company_id: toId }).eq('company_id', fromId).eq('contact_id', current.id);
+    }
+  };
+
+  const cleanupPrivate = async (companyId: string) => {
+    const [{ count: links }, { count: inq }, { count: bk }] = await Promise.all([
+      supabase.from('contact_companies' as any).select('id', { count: 'exact', head: true }).eq('company_id', companyId),
+      supabase.from('inquiries').select('id', { count: 'exact', head: true }).eq('company_id', companyId),
+      supabase.from('bookings').select('id', { count: 'exact', head: true }).eq('company_id', companyId),
+    ]);
+    if (!links && !inq && !bk) await supabase.from('companies').delete().eq('id', companyId);
+  };
+
+  const toBusiness = async (targetId: string) => {
+    const target = companies.find((c) => c.id === targetId);
+    if (!target) return;
+    const privs = allCompanies.filter((c: any) => c.isPrivate);
+    let inq = 0, book = 0;
+    for (const p of privs) { const r = await countFor(p.id); inq += r.inq; book += r.book; }
+    if (!window.confirm(`Klanttype wijzigen naar Bedrijf (${target.name})? ${inq} aanvragen en ${book} reserveringen gaan mee.`)) return;
+    await linkContact(current.id, target.id, true);
+    await supabase.from('contacts').update({ company_id: target.id, company: target.name } as any).eq('id', current.id);
+    for (const p of privs) {
+      await moveRecords(p.id, target.id);
+      await unlinkContact(current.id, p.id);
+      await cleanupPrivate(p.id);
+    }
+    if (form) setForm({ ...form, company: target.name, companyId: target.id });
+    setShowAddCompany(false);
+  };
+
+  const toPrivate = async () => {
+    const name = [current.firstName, current.infix, current.lastName].filter((n) => n && n !== '—').join(' ');
+    if (!window.confirm(`Klanttype wijzigen naar Particulier? De koppeling met ${allCompanies.map((c) => c.name).join(', ') || 'het bedrijf'} wordt verwijderd; de historie blijft bij het bedrijf.`)) return;
+    let privId = (companies as any[]).find((c) => c.isPrivate && c.name.toLowerCase() === name.toLowerCase())?.id as string | undefined;
+    if (!privId) {
+      const res = await addCompany({ name, email: current.email || undefined, phone: current.mobile || current.phone || undefined, isPrivate: true } as any);
+      privId = res?.companyId || undefined;
+    }
+    if (!privId) return;
+    for (const co of allCompanies) await unlinkContact(current.id, co.id);
+    await linkContact(current.id, privId, true);
+    await supabase.from('contacts').update({ company_id: privId, company: null } as any).eq('id', current.id);
+    if (form) setForm({ ...form, company: undefined, companyId: privId });
+  };
+
+  const [pickBusiness, setPickBusiness] = useState(false);
+
   return (
     <div>
+      <p className="text-xs font-semibold text-muted-foreground mb-1 flex items-center gap-1.5"><Building2 size={14} /> Klanttype</p>
+      <div className="flex gap-1 mb-2">
+        <Button type="button" size="sm" variant={isPrivateNow ? 'default' : 'outline'} className="h-7 text-xs" onClick={() => { if (!isPrivateNow) toPrivate(); }}>Particulier</Button>
+        <Button type="button" size="sm" variant={!isPrivateNow ? 'default' : 'outline'} className="h-7 text-xs" onClick={() => { if (isPrivateNow) setPickBusiness(true); }}>Bedrijf</Button>
+      </div>
+      {isPrivateNow && pickBusiness && (
+        <div className="mb-2">
+          <CrmCombobox
+            options={(companies as any[]).filter((c) => !c.isPrivate).map((c) => ({ id: c.id, label: c.name }))}
+            value=""
+            onSelect={(id) => { setPickBusiness(false); if (id) toBusiness(id); }}
+            placeholder="Kies het bedrijf..."
+            searchPlaceholder="Zoek bedrijf..."
+            popoverWidth="w-[280px]"
+          />
+        </div>
+      )}
+      {isPrivateNow ? null : <>
       <p className="text-xs font-semibold text-muted-foreground mb-1 flex items-center gap-1.5"><Building2 size={14} /> Bedrijven</p>
       {/* Current linked companies */}
       <div className="space-y-1 mb-2">
@@ -815,7 +895,7 @@ function CompanyField({ current, editing, companies, form, setForm, navigate, co
         <div className="relative">
           <CrmCombobox
             options={companies
-              .filter((c) => !allCompanies.some((lc) => lc.id === c.id))
+              .filter((c: any) => !c.isPrivate && !allCompanies.some((lc) => lc.id === c.id))
               .map((c) => ({
                 id: c.id,
                 label: c.name,
@@ -845,6 +925,7 @@ function CompanyField({ current, editing, companies, form, setForm, navigate, co
           </button>
         </div>
       )}
+      </>}
     </div>
   );
 }
