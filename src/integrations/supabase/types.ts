@@ -1317,29 +1317,50 @@ export type Database = {
       }
       task_automation_rules: {
         Row: {
+          assigned_to: string | null
           created_at: string
+          description: string | null
           enabled: boolean
           id: string
           label: string
           match_key: string
+          offset_days: number
+          offset_from: string
+          priority: string
+          source: string
+          trigger_event: string | null
           updated_at: string
           user_id: string
         }
         Insert: {
+          assigned_to?: string | null
           created_at?: string
+          description?: string | null
           enabled?: boolean
           id?: string
           label: string
           match_key: string
+          offset_days?: number
+          offset_from?: string
+          priority?: string
+          source?: string
+          trigger_event?: string | null
           updated_at?: string
           user_id: string
         }
         Update: {
+          assigned_to?: string | null
           created_at?: string
+          description?: string | null
           enabled?: boolean
           id?: string
           label?: string
           match_key?: string
+          offset_days?: number
+          offset_from?: string
+          priority?: string
+          source?: string
+          trigger_event?: string | null
           updated_at?: string
           user_id?: string
         }
