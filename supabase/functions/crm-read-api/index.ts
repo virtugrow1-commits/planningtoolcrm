@@ -70,8 +70,14 @@ Deno.serve(async (req) => {
   const q = (url.searchParams.get("q") ?? "").trim().slice(0, 100).replace(/[,()%*]/g, " ");
   const id = url.searchParams.get("id");
   const companyId = url.searchParams.get("company_id");
-  const from = url.searchParams.get("from");
-  const to = url.searchParams.get("to");
+  let from = url.searchParams.get("from");
+  let to = url.searchParams.get("to");
+  // Narrowcasting convenience: ?day=today returns only today's bookings (Europe/Amsterdam).
+  if (url.searchParams.get("day") === "today") {
+    const today = new Date().toLocaleDateString("sv-SE", { timeZone: "Europe/Amsterdam" });
+    from = today;
+    to = today;
+  }
   const uuid = /^[0-9a-f-]{36}$/i;
   const day = /^\d{4}-\d{2}-\d{2}$/;
   if ((id && !uuid.test(id)) || (companyId && !uuid.test(companyId))) return json({ error: "Invalid id" }, 400);
