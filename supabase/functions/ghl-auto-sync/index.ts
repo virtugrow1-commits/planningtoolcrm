@@ -2147,6 +2147,16 @@ function mapDocumentType(doc: any): string {
 
 async function syncDocuments(supabase: any, ghlHeaders: any, locationId: string, userId: string, results: any) {
   try {
+    // GHL refused access recently (missing documents scope): don't retry every
+    // sync run — wait 24h so the log shows one clear message per day.
+    const { data: recentDenied } = await supabase.from('sync_log').select('id')
+      .eq('action', 'documents-sync-unavailable')
+      .gte('created_at', new Date(Date.now() - 24 * 3600 * 1000).toISOString())
+      .limit(1);
+    if (recentDenied && recentDenied.length > 0) {
+      console.log('[Documents Sync] Skipped: GHL denied access within the last 24h');
+      return;
+    }
     const docs: any[] = [];
     let source = 'proposals';
     // 1. Proposals API (paginated)
