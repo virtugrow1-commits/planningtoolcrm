@@ -1,3 +1,7 @@
+-- Kolommen bestaan al live (aangemaakt vanuit Lovable); idempotent vastgelegd.
+ALTER TABLE public.inquiries ADD COLUMN IF NOT EXISTS offerte_revisie integer NOT NULL DEFAULT 0;
+ALTER TABLE public.inquiries ADD COLUMN IF NOT EXISTS offerte_gestaged_op timestamptz;
+
 -- Revisienummer van de offerte per aanvraag ophogen (atomair). De functie
 -- bestond al in de live database (aangemaakt vanuit Lovable) maar stond niet
 -- in de migraties; hier idempotent vastgelegd zodat elke omgeving hem heeft.
