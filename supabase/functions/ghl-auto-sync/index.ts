@@ -2159,9 +2159,9 @@ async function syncDocuments(supabase: any, ghlHeaders: any, locationId: string,
     }
     const docs: any[] = [];
     let source = 'proposals';
-    // 1. Proposals API (paginated)
-    for (let skip = 0, page = 0; page < 10; skip += 100, page++) {
-      const res = await fetch(`${GHL_API_BASE}/proposals/document?locationId=${locationId}&limit=100&skip=${skip}`, { headers: ghlHeaders });
+    // 1. Proposals API (paginated) — GHL rejects limit > 21 with a 422
+    for (let skip = 0, page = 0; page < 50; skip += 20, page++) {
+      const res = await fetch(`${GHL_API_BASE}/proposals/document?locationId=${locationId}&limit=20&skip=${skip}`, { headers: ghlHeaders });
       if (!res.ok) {
         const body = await res.text().catch(() => '');
         if (page === 0) {
