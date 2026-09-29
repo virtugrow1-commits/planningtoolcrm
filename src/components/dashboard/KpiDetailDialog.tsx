@@ -7,6 +7,7 @@ import { useNavigate } from 'react-router-dom';
 import { Task, TASK_STATUSES, TASK_PRIORITIES } from '@/types/task';
 import { useTasksContext } from '@/contexts/TasksContext';
 import { useToast } from '@/hooks/use-toast';
+import { htmlToPlainText } from '@/lib/htmlToPlainText';
 
 interface KpiDetailDialogProps {
   open: boolean;
@@ -59,7 +60,7 @@ export default function KpiDetailDialog({
                         {task.title}
                       </p>
                       <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                        {task.description && <span className="truncate max-w-[200px]">{task.description}</span>}
+                        {task.description && <span className="truncate max-w-[200px]">{htmlToPlainText(task.description)}</span>}
                         {task.dueDate && (
                           <span className={task.dueDate < today ? 'text-destructive font-medium' : ''}>
                             📅 {formatDate(task.dueDate)}{task.dueTime ? ` ⏰ ${task.dueTime}` : ''}

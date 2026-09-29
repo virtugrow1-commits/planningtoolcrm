@@ -1,6 +1,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { pickBookingForTask, type LinkableBooking } from "../_shared/taskBookingLink.ts";
 import { suppressGhlTask, taskRuleKey, taskRuleLabel } from "../_shared/taskAutomation.ts";
+import { htmlToPlainText } from "../_shared/htmlToPlainText.ts";
 import {
   GHL_API_BASE,
   applyRemoteInquiryPatch,
@@ -1428,7 +1429,7 @@ Deno.serve(async (req) => {
             } else {
               await supabase.from('tasks').update({
                 title: ghlTask.title || 'Taak',
-                description: ghlTask.body || null,
+                description: htmlToPlainText(ghlTask.body),
                 status: externalStatus,
                 due_date: ghlDueDateLocal(ghlTask.dueDate),
                 completed_at: ghlTask.completed ? (ghlTask.completedDate || new Date().toISOString()) : null,
@@ -1477,7 +1478,7 @@ Deno.serve(async (req) => {
               booking_id: taskLink.booking_id,
               inquiry_id: taskLink.inquiry_id,
               title: ghlTask.title || 'Taak',
-              description: ghlTask.body || null,
+              description: htmlToPlainText(ghlTask.body),
               status: ghlTask.completed ? 'completed' : 'open',
               due_date: dueDateOnly,
               priority: 'normal',
