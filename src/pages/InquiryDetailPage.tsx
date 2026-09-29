@@ -247,7 +247,7 @@ export default function InquiryDetailPage() {
       </div>
 
       <Tabs defaultValue="overzicht">
-        <TabsList className="flex-wrap h-auto">
+        <TabsList className="flex-wrap h-auto justify-start">
           <TabsTrigger value="overzicht">Overzicht</TabsTrigger>
           <TabsTrigger value="contactpersonen">Contactpersonen</TabsTrigger>
           <TabsTrigger value="taken">Taken{openTaskCount > 0 ? ` (${openTaskCount})` : ''}</TabsTrigger>

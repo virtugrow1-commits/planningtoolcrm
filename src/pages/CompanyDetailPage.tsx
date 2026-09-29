@@ -408,9 +408,9 @@ export default function CompanyDetailPage() {
         </div>
 
         {/* RIGHT CONTENT — klantenkaart */}
-        <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-4 content-start">
           {/* Kerncijfers + directe acties */}
-          <div className="md:col-span-2 rounded-xl bg-card p-5 card-shadow space-y-4">
+          <div className="md:col-span-2 h-fit rounded-xl bg-card p-5 card-shadow space-y-4">
             <div className="flex items-center gap-2 text-xs">
               <Badge variant="secondary">{company.isPrivate ? 'Particulier' : 'Bedrijf'}</Badge>
               {primaryContact && (
@@ -480,7 +480,7 @@ export default function CompanyDetailPage() {
           </div>
 
           <Tabs value={cardTab} onValueChange={setCardTab} className="md:col-span-2">
-            <TabsList className="flex-wrap h-auto">
+            <TabsList className="flex-wrap h-auto justify-start">
               <TabsTrigger value="overzicht">Overzicht</TabsTrigger>
               <TabsTrigger value="contactpersonen">Contactpersonen ({companyContacts.length})</TabsTrigger>
               <TabsTrigger value="taken">Taken ({openTaskCount})</TabsTrigger>
