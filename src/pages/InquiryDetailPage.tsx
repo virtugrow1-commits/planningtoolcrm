@@ -34,6 +34,7 @@ import ConflictAlertDialog from '@/components/calendar/ConflictAlertDialog';
 import { Booking } from '@/types/crm';
 import { bookingsForInquiry } from '@/lib/inquiryBookings';
 import { localToday } from '@/lib/formatters';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 
 export default function InquiryDetailPage() {
@@ -237,8 +238,25 @@ export default function InquiryDetailPage() {
         </Select>
         {!inquiry.isRead && <Badge className="bg-destructive text-destructive-foreground text-[10px]">Nieuw</Badge>}
       </div>
+      <div className="flex flex-wrap gap-x-5 gap-y-1 text-xs text-muted-foreground -mt-3">
+        <span>Bedrijf: <span className="text-foreground">{company?.name || '—'}</span></span>
+        <span>Nummer: <span className="text-foreground">{inquiry.displayNumber || '—'}</span></span>
+        <span>Titel: <span className="text-foreground">{inquiry.title || inquiry.eventType || '—'}</span></span>
+        <span>Eventdatum: <span className="text-foreground">{inquiry.preferredDate ? inquiry.preferredDate.split('-').reverse().join('-') : '—'}</span></span>
+        <span>Personen: <span className="text-foreground">{inquiry.guestCount ?? 0}</span></span>
+      </div>
 
-      {/* Details */}
+      <Tabs defaultValue="overzicht">
+        <TabsList className="flex-wrap h-auto">
+          <TabsTrigger value="overzicht">Overzicht</TabsTrigger>
+          <TabsTrigger value="contactpersonen">Contactpersonen</TabsTrigger>
+          <TabsTrigger value="taken">Taken{openTaskCount > 0 ? ` (${openTaskCount})` : ''}</TabsTrigger>
+          <TabsTrigger value="notities">Notities</TabsTrigger>
+          <TabsTrigger value="reservering">Reservering</TabsTrigger>
+          <TabsTrigger value="geschiedenis">Geschiedenis</TabsTrigger>
+        </TabsList>
+
+      <TabsContent value="overzicht" className="mt-4">
       <InquiryDetailsTab
         inquiry={inquiry}
         editing={editing}
@@ -256,10 +274,13 @@ export default function InquiryDetailPage() {
         refetch={refetch}
         existingOption={existingOption}
       />
+      </TabsContent>
 
+      <TabsContent value="contactpersonen" className="mt-4">
       <InquiryContactsCard inquiry={inquiry} />
+      </TabsContent>
 
-      {/* Opties */}
+      <TabsContent value="reservering" className="mt-4">
       <SectionCard
         title="Opties"
         count={inquiryOptionBookings.length}
@@ -293,16 +314,10 @@ export default function InquiryDetailPage() {
         )}
       </SectionCard>
 
-      <InquiryActivityLog inquiryId={inquiry.id} />
+      </TabsContent>
 
-      {/* Historie */}
+      <TabsContent value="geschiedenis" className="mt-4">
       <div className="space-y-3">
-        <h2 className="text-lg font-bold text-foreground flex items-center gap-2">
-          <History size={16} /> Historie
-          {(contactBookings.length + contactInquiries.length) > 0 && (
-            <Badge variant="secondary" className="text-[10px] h-4 px-1">{contactBookings.length + contactInquiries.length}</Badge>
-          )}
-        </h2>
         <InquiryHistoryTab
           inquiry={inquiry}
           contactBookings={contactBookings}
@@ -310,8 +325,9 @@ export default function InquiryDetailPage() {
           contactInquiries={contactInquiries}
         />
       </div>
+      </TabsContent>
 
-      {/* Documenten */}
+      <TabsContent value="overzicht" className="mt-4">
       {inquiryDocuments.length > 0 && (
         <div className="space-y-3">
           <h2 className="text-lg font-bold text-foreground flex items-center gap-2">
@@ -340,22 +356,18 @@ export default function InquiryDetailPage() {
           </div>
         </div>
       )}
+      </TabsContent>
 
-      {/* Taken */}
-      <div className="space-y-3">
-        <h2 className="text-lg font-bold text-foreground flex items-center gap-2">
-          <CheckSquare size={16} /> Taken
-          {openTaskCount > 0 && (
-            <Badge variant="secondary" className="text-[10px] h-4 px-1 bg-warning/15 text-warning">{openTaskCount}</Badge>
-          )}
-        </h2>
+      <TabsContent value="taken" className="mt-4">
         <TasksSection
           tasks={inquiryTasks}
           showOrigin
           defaults={{ inquiryId: inquiry.id, contactId: contact?.id, companyId: company?.id }}
         />
-      </div>
+      </TabsContent>
 
+      <TabsContent value="notities" className="space-y-6 mt-4">
+      <InquiryActivityLog inquiryId={inquiry.id} />
       {/* Gesprekverslag */}
       {contact && (
         <div className="space-y-3">
@@ -395,6 +407,8 @@ export default function InquiryDetailPage() {
           </div>
         </div>
       )}
+      </TabsContent>
+      </Tabs>
 
       {/* Status Change dialog */}
       <InquiryStatusChangeDialog
