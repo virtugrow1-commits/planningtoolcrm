@@ -1,4 +1,5 @@
 import { formatDate, localToday, toLocalDateString } from '@/lib/formatters';
+import { supabase } from '@/integrations/supabase/client';
 import { matchesSearch } from '@/lib/search';
 import { resolveContact } from '@/lib/contactLookup';
 
@@ -117,6 +118,24 @@ export default function InquiriesPage() {
   }, [tasks]);
   const { companies } = useCompaniesContext();
   const { t, language } = useLanguage();
+  // Extra gekoppelde contactpersonen per aanvraag (2e/3e cp op de pipelinekaart)
+  const [extraContactsByInquiry, setExtraContactsByInquiry] = useState<Map<string, string[]>>(new Map());
+  useEffect(() => {
+    let cancelled = false;
+    (supabase as any).from('inquiry_contacts').select('inquiry_id, contact_id, is_primary').then(({ data }: any) => {
+      if (cancelled || !data) return;
+      const m = new Map<string, { id: string; primary: boolean }[]>();
+      for (const r of data) {
+        const arr = m.get(r.inquiry_id) || [];
+        arr.push({ id: r.contact_id, primary: !!r.is_primary });
+        m.set(r.inquiry_id, arr);
+      }
+      const out = new Map<string, string[]>();
+      for (const [k, arr] of m) out.set(k, arr.sort((a, b) => Number(b.primary) - Number(a.primary)).map((x) => x.id));
+      setExtraContactsByInquiry(out);
+    });
+    return () => { cancelled = true; };
+  }, []);
   const [dragId, setDragId] = useState<string | null>(null);
   const [scheduleOpen, setScheduleOpen] = useState(false);
   const [selectedInquiry, setSelectedInquiry] = useState<Inquiry | null>(null);
@@ -712,6 +731,12 @@ export default function InquiriesPage() {
                           <button className="text-card-foreground font-medium truncate hover:text-primary transition-colors text-left" onClick={(e) => { e.stopPropagation(); navigate(`/companies/${company.id}`); }}>{contact.company}</button>
                         ) : (<span className="text-card-foreground font-medium truncate">{contact.company}</span>)}</div>
                       ) : null; })()}
+                      {(() => { const contact = resolveContact(contacts, inq.contactId, inq.contactName); if (!contact) return null; const bits = [contact.email, contact.mobile || contact.phone, contact.birthDate ? `Verjaardag: ${formatDate(contact.birthDate)}` : null].filter(Boolean); return bits.length ? (
+                        <div className="flex gap-2"><span className="text-muted-foreground w-[100px] shrink-0">Contact:</span><span className="text-card-foreground truncate">{bits.join(' · ')}</span></div>
+                      ) : null; })()}
+                      {(extraContactsByInquiry.get(inq.id) || []).filter((cid) => cid !== inq.contactId).slice(0, 2).map((cid, i) => { const c = contacts.find((x) => x.id === cid); if (!c) return null; const name = [c.firstName, c.infix, c.lastName].filter((n) => n && n !== '—').join(' ') || c.email; return (
+                        <div key={cid} className="flex gap-2"><span className="text-muted-foreground w-[100px] shrink-0">{i + 2}e contact:</span><button className="text-card-foreground truncate hover:text-primary transition-colors text-left" onClick={(e) => { e.stopPropagation(); navigate(`/crm/${c.id}`); }}>{name}</button></div>
+                      ); })}
                       <div className="flex gap-2"><span className="text-muted-foreground w-[100px] shrink-0">Bron:</span><span className="text-card-foreground truncate">{inq.source === 'GHL' ? 'CliqCRM' : inq.source}</span></div>
                       {inq.guestCount > 0 && <div className="flex gap-2"><span className="text-muted-foreground w-[100px] shrink-0">Personen:</span><span className="text-card-foreground">{inq.guestCount}</span></div>}
                       {inq.roomPreference && <div className="flex gap-2"><span className="text-muted-foreground w-[100px] shrink-0">Ruimte:</span><span className="text-card-foreground truncate">{inq.roomPreference}</span></div>}
