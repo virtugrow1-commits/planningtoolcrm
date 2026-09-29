@@ -2208,8 +2208,24 @@ async function syncDocuments(supabase: any, ghlHeaders: any, locationId: string,
       const status = mapDocumentStatus(doc.status);
       if (status === 'draft') continue; // concepts are not interesting for the CRM
 
-      const recipient = primaryRecipient(doc);
-      const ghlContactId = recipient?.contactId || doc.contactId || doc.contact?.id || null;
+      let recipient = primaryRecipient(doc);
+      let ghlContactId = recipient?.contactId || doc.contactId || doc.contact?.id || null;
+      // The list endpoint omits recipients — fetch the document detail as fallback
+      if (!ghlContactId) {
+        try {
+          const detRes = await fetch(`${GHL_API_BASE}/proposals/document/${ghlDocId}?locationId=${locationId}`, { headers: ghlHeaders });
+          if (detRes.ok) {
+            const det = await detRes.json();
+            const detail = det.document || det.data || det;
+            recipient = primaryRecipient(detail) || recipient;
+            ghlContactId = recipient?.contactId || detail.contactId || detail.contact?.id || null;
+            if (recipient?.name && contactName === 'Onbekend') {
+              // will be picked up below via recipient
+            }
+          }
+          await delay(150);
+        } catch { /* ignore detail fetch errors */ }
+      }
       const contact = ghlContactId ? contactByGhl.get(ghlContactId) : null;
       const title = doc.name || doc.title || 'Document';
       const contactName = recipient?.name || doc.contactName || doc.contact?.name || 'Onbekend';
