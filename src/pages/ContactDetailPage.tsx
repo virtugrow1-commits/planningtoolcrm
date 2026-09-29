@@ -725,6 +725,7 @@ function CompanyField({ current, editing, companies, form, setForm, navigate, co
 }) {
   const [companySearch, setCompanySearch] = useState('');
   const [showAddCompany, setShowAddCompany] = useState(false);
+  const [pickBusiness, setPickBusiness] = useState(false);
 
   // All linked companies (from junction table)
   const linkedCompanies = useMemo(() => {
@@ -837,7 +838,6 @@ function CompanyField({ current, editing, companies, form, setForm, navigate, co
     if (form) setForm({ ...form, company: undefined, companyId: privId });
   };
 
-  const [pickBusiness, setPickBusiness] = useState(false);
 
   return (
     <div>
