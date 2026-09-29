@@ -2219,9 +2219,6 @@ async function syncDocuments(supabase: any, ghlHeaders: any, locationId: string,
             const detail = det.document || det.data || det;
             recipient = primaryRecipient(detail) || recipient;
             ghlContactId = recipient?.contactId || detail.contactId || detail.contact?.id || null;
-            if (recipient?.name && contactName === 'Onbekend') {
-              // will be picked up below via recipient
-            }
           }
           await delay(150);
         } catch { /* ignore detail fetch errors */ }
