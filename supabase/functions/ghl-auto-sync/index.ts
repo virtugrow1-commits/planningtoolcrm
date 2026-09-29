@@ -324,8 +324,11 @@ Deno.serve(async (req) => {
         await delay(200);
         await syncConversations(supabase, ghlHeaders, GHL_LOCATION_ID, userId, results, lookups);
         await delay(200);
-        await syncDocuments(supabase, ghlHeaders, GHL_LOCATION_ID, userId, results);
       }
+
+      // Documents (offertes/contracten) are cheap to fetch and drive the
+      // quote automations, so they sync in every run (every 5 minutes).
+      await syncDocuments(supabase, ghlHeaders, GHL_LOCATION_ID, userId, results);
 
       // Push local inquiries without GHL opportunity ID
       await pushLocalInquiries(supabase, ghlHeaders, GHL_LOCATION_ID, userId, results);
@@ -2120,77 +2123,135 @@ async function processSyncQueue(supabase: any, ghlHeaders: any, locationId: stri
 }
 
 // === DOCUMENTS SYNC (GHL → CRM) ===
+// GoHighLevel "Documents & Contracts" live under the Proposals API:
+//   GET /proposals/document?locationId=…&limit=…&skip=…   (scope documents_contracts.readonly)
+// The older /documents/search path never existed, so documents were never
+// imported. We try the real endpoint first and keep the old one as fallback.
+function mapDocumentStatus(raw: unknown): string {
+  const s = String(raw || '').toLowerCase();
+  if (['accepted', 'signed', 'completed', 'approved'].some((k) => s.includes(k))) return 'signed';
+  if (s.includes('paid')) return 'paid';
+  if (s.includes('declined') || s.includes('rejected')) return 'declined';
+  if (s.includes('viewed') || s.includes('opened')) return 'viewed';
+  if (s.includes('draft')) return 'draft';
+  return 'sent';
+}
+
+function mapDocumentType(doc: any): string {
+  const t = String(doc.type || doc.documentType || '').toLowerCase();
+  if (t.includes('invoice')) return 'invoice';
+  if (t.includes('estimate')) return 'estimate';
+  if (t.includes('contract')) return 'contract';
+  return 'proposal';
+}
+
 async function syncDocuments(supabase: any, ghlHeaders: any, locationId: string, userId: string, results: any) {
   try {
-    // GHL Documents/Proposals search endpoint
-    const searchUrl = `${GHL_API_BASE}/documents/search?locationId=${locationId}&limit=100`;
-    const res = await fetch(searchUrl, { headers: ghlHeaders });
-    
-    if (!res.ok) {
-      // Documents API may not be available on all GHL plans
-      if (res.status === 404 || res.status === 403) {
-        console.log('[Documents Sync] Documents API not available, skipping');
+    const docs: any[] = [];
+    let source = 'proposals';
+    // 1. Proposals API (paginated)
+    for (let skip = 0, page = 0; page < 10; skip += 100, page++) {
+      const res = await fetch(`${GHL_API_BASE}/proposals/document?locationId=${locationId}&limit=100&skip=${skip}`, { headers: ghlHeaders });
+      if (!res.ok) {
+        const body = await res.text().catch(() => '');
+        if (page === 0) {
+          console.warn(`[Documents Sync] /proposals/document failed [${res.status}]: ${body.slice(0, 200)}`);
+          source = 'legacy';
+        }
+        break;
+      }
+      const data = await res.json();
+      const batch: any[] = data.documents || data.data || data.proposals || [];
+      docs.push(...batch);
+      if (batch.length < 100) break;
+      await delay(200);
+    }
+    // 2. Fallback to the legacy path (kept for accounts where it does exist)
+    if (source === 'legacy') {
+      const res = await fetch(`${GHL_API_BASE}/documents/search?locationId=${locationId}&limit=100`, { headers: ghlHeaders });
+      if (!res.ok) {
+        await res.text().catch(() => '');
+        if (res.status === 404 || res.status === 403 || res.status === 401) {
+          console.log('[Documents Sync] Documents API not available (check the documents_contracts.readonly scope of the private integration), skipping');
+          await logSystemSync(supabase, userId, 'documents-sync-unavailable', { status: res.status }, 'error');
+          return;
+        }
+        console.error(`[Documents Sync] Fetch failed: ${res.status}`);
         return;
       }
-      console.error(`[Documents Sync] Fetch failed: ${res.status}`);
-      return;
+      const data = await res.json();
+      docs.push(...(data.documents || data.data || []));
+    }
+    console.log(`[Documents Sync] Found ${docs.length} documents from GHL (${source})`);
+
+    // Contact lookup once
+    const ghlIds = [...new Set(docs.map((d) => primaryRecipient(d)?.contactId || d.contactId || d.contact?.id).filter(Boolean))];
+    const contactByGhl = new Map<string, any>();
+    for (let i = 0; i < ghlIds.length; i += 200) {
+      const { data } = await supabase.from('contacts').select('id, ghl_contact_id, company_id').in('ghl_contact_id', ghlIds.slice(i, i + 200));
+      for (const c of data || []) contactByGhl.set(c.ghl_contact_id, c);
     }
 
-    const data = await res.json();
-    const docs = data.documents || data.data || [];
-    console.log(`[Documents Sync] Found ${docs.length} documents from GHL`);
-
     for (const doc of docs) {
-      const ghlDocId = doc.id || doc.documentId;
+      const ghlDocId = doc._id || doc.id || doc.documentId;
       if (!ghlDocId) continue;
+      const status = mapDocumentStatus(doc.status);
+      if (status === 'draft') continue; // concepts are not interesting for the CRM
 
-      const title = doc.title || doc.name || 'Document';
-      const contactName = doc.contactName || doc.contact?.name || 'Onbekend';
-      const rawAmount = doc.amount ?? doc.total ?? doc.monetaryValue;
+      const recipient = primaryRecipient(doc);
+      const ghlContactId = recipient?.contactId || doc.contactId || doc.contact?.id || null;
+      const contact = ghlContactId ? contactByGhl.get(ghlContactId) : null;
+      const title = doc.name || doc.title || 'Document';
+      const contactName = recipient?.name || doc.contactName || doc.contact?.name || 'Onbekend';
+      const rawAmount = doc.grandTotal ?? doc.amount ?? doc.total ?? doc.monetaryValue;
       const amount = rawAmount !== undefined && rawAmount !== null && rawAmount !== '' && !Number.isNaN(Number(rawAmount)) ? Number(rawAmount) : null;
-      const externalUrl = doc.url || doc.documentUrl || null;
-      
-      let docType = 'proposal';
-      const typeStr = (doc.type || doc.documentType || '').toLowerCase();
-      if (typeStr.includes('invoice')) docType = 'invoice';
-      else if (typeStr.includes('estimate')) docType = 'estimate';
-      else if (typeStr.includes('contract')) docType = 'contract';
+      const externalUrl = doc.url || doc.documentUrl || doc.publicUrl || null;
+      const sentAt = doc.sentAt || doc.sentOn || doc.updatedAt || doc.createdAt || new Date().toISOString();
 
-      let status = 'sent';
-      const statusStr = (doc.status || '').toLowerCase();
-      if (statusStr.includes('signed') || statusStr.includes('accepted') || statusStr.includes('completed')) status = 'signed';
-      else if (statusStr.includes('viewed') || statusStr.includes('opened')) status = 'viewed';
-      else if (statusStr.includes('declined') || statusStr.includes('rejected')) status = 'declined';
-      else if (statusStr.includes('paid')) status = 'paid';
-
-      // Link to local contact
-      let dbContactId: string | null = null;
-      const ghlContactId = doc.contactId || doc.contact?.id;
-      if (ghlContactId) {
-        const { data: contactMatch } = await supabase.from('contacts').select('id').eq('ghl_contact_id', ghlContactId).maybeSingle();
-        dbContactId = contactMatch?.id || null;
+      // Link to the most recent open inquiry of the contact
+      let inquiryId: string | null = null;
+      if (contact) {
+        const { data: inq } = await supabase.from('inquiries').select('id')
+          .eq('contact_id', contact.id).neq('status', 'lost')
+          .order('created_at', { ascending: false }).limit(1).maybeSingle();
+        inquiryId = inq?.id || null;
       }
 
-      // Upsert into documents table
-      const { error } = await supabase.from('documents').upsert({
+      // Keep the highest status reached (sent → viewed → signed/paid)
+      const { data: existing } = await supabase.from('documents').select('id, status, inquiry_id').eq('ghl_document_id', ghlDocId).maybeSingle();
+      const order: Record<string, number> = { sent: 0, viewed: 1, signed: 2, paid: 3, declined: -1 };
+      const row: Record<string, any> = {
         user_id: userId,
         ghl_document_id: ghlDocId,
         title,
-        document_type: docType,
-        status,
+        document_type: mapDocumentType(doc),
         contact_name: contactName,
-        contact_id: dbContactId,
+        contact_id: contact?.id || null,
+        company_id: contact?.company_id || null,
         amount,
         external_url: externalUrl,
-        sent_at: doc.sentAt || doc.createdAt || new Date().toISOString(),
-        viewed_at: doc.viewedAt || null,
-        signed_at: doc.signedAt || doc.completedAt || null,
-      }, { onConflict: 'ghl_document_id' });
-
-      if (error) {
-        console.error(`[Documents Sync] Upsert error for ${ghlDocId}:`, error.message);
+      };
+      if (existing) {
+        const patch: Record<string, any> = { title, amount, external_url: externalUrl };
+        if (!existing.inquiry_id && inquiryId) patch.inquiry_id = inquiryId;
+        if (contact?.id) patch.contact_id = contact.id;
+        if ((order[status] ?? 0) > (order[existing.status] ?? 0) || status === 'declined') {
+          patch.status = status;
+          if (status === 'viewed') patch.viewed_at = doc.viewedAt || new Date().toISOString();
+          if (status === 'signed' || status === 'paid') patch.signed_at = doc.acceptedAt || doc.signedAt || doc.completedAt || new Date().toISOString();
+        }
+        const { error } = await supabase.from('documents').update(patch).eq('id', existing.id);
+        if (error) console.error(`[Documents Sync] Update error for ${ghlDocId}:`, error.message); else results.documents_synced++;
       } else {
-        results.documents_synced++;
+        const { error } = await supabase.from('documents').insert({
+          ...row,
+          inquiry_id: inquiryId,
+          status,
+          sent_at: sentAt,
+          viewed_at: doc.viewedAt || (status === 'viewed' ? new Date().toISOString() : null),
+          signed_at: doc.acceptedAt || doc.signedAt || doc.completedAt || (status === 'signed' ? new Date().toISOString() : null),
+        });
+        if (error) console.error(`[Documents Sync] Insert error for ${ghlDocId}:`, error.message); else results.documents_synced++;
       }
     }
     console.log(`[Documents Sync] Synced ${results.documents_synced} documents`);
@@ -2198,4 +2259,10 @@ async function syncDocuments(supabase: any, ghlHeaders: any, locationId: string,
     console.error('[Documents Sync] Error:', e);
     results.errors.push(`documents: ${e}`);
   }
+}
+
+function primaryRecipient(doc: any): { contactId?: string; name?: string; email?: string } | null {
+  const list: any[] = Array.isArray(doc.recipients) ? doc.recipients : [];
+  if (!list.length) return null;
+  return list.find((r) => r.isPrimary) || list[0];
 }
