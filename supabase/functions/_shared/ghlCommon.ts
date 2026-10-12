@@ -38,6 +38,21 @@ export function crmIsNewer(crmUpdatedAt: unknown, ghlUpdatedAt: unknown): boolea
   return crmMs >= ghlMs;
 }
 
+/**
+ * Local status change wins when it happened within the last 24h and is at
+ * least as recent as the GHL update. Unlike crmIsNewer (which uses the
+ * row's updated_at), this only looks at the moment the status itself was
+ * changed locally, so enrichment/task updates can't resurrect an old status.
+ */
+export function crmStatusWins(localStatusChangedAt: unknown, ghlUpdatedAt: unknown): boolean {
+  const localMs = parseTs(localStatusChangedAt);
+  if (!Number.isFinite(localMs)) return false;
+  if (Date.now() - localMs > 24*60*60*1000) return false;
+  const ghlMs = parseTs(ghlUpdatedAt);
+  if (!Number.isFinite(ghlMs)) return true;
+  return localMs >= ghlMs;
+}
+
 /** True when `ts` is within the last `windowMs` milliseconds. */
 export function isWithin(ts: unknown, windowMs: number): boolean {
   const ms = parseTs(ts);
