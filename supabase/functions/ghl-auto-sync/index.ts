@@ -18,6 +18,7 @@ import {
   buildOpportunityUpdate,
   buildTaskPayload,
   crmIsNewer,
+  crmStatusWins,
   findStageForStatus,
   ghlDueDateLocal,
   ghlOpportunityStatus,
@@ -769,12 +770,6 @@ async function syncOpportunities(supabase: any, ghlHeaders: any, locationId: str
         const existing = lookups.inquiryByGhlId.get(opp.id);
 
         if (existing) {
-          // A status the user picked in the CRM stays authoritative for 24h.
-          const statusLockedUntil = existing.local_status_changed_at
-            ? Date.parse(existing.local_status_changed_at) + 24 * 60 * 60 * 1000
-            : 0;
-          const statusLocked = statusLockedUntil > Date.now();
-
           const crmDiffers = existing.status !== ghlStatus ||
                              existing.event_type !== (opp.name || 'Onbekend') ||
                              (existing.budget ? Number(existing.budget) : null) !== monetaryValue;
@@ -782,9 +777,14 @@ async function syncOpportunities(supabase: any, ghlHeaders: any, locationId: str
           if (crmDiffers) {
             // Compare timestamps as real dates (string compare mixed up "+00:00" vs "Z"
             // formats and made GHL win, reverting manual CRM status changes).
-            const crmIsNewerFlag = crmIsNewer(existing.updated_at, opp.dateUpdated || opp.dateAdded || null);
+            // Status conflicts use local_status_changed_at (not updated_at, which
+            // also bumps on enrichment/task writes) so BUUT's own stage changes
+            // no longer get reverted by a stale CRM status.
+            const ghlTs = opp.dateUpdated || opp.dateAdded || null;
+            const crmIsNewerFlag = crmIsNewer(existing.updated_at, ghlTs);
+            const statusFromCrm = existing.status === ghlStatus || crmStatusWins(existing.local_status_changed_at, ghlTs);
 
-            if (crmIsNewerFlag || statusLocked) {
+            if (crmIsNewerFlag && statusFromCrm) {
               // CRM wins → push CRM status to GHL so they stay in sync
               const updatePayload = buildOpportunityUpdate(pipelines, {
                 status: existing.status,
@@ -795,7 +795,7 @@ async function syncOpportunities(supabase: any, ghlHeaders: any, locationId: str
                 method: 'PUT', headers: ghlHeaders, body: JSON.stringify(updatePayload),
               });
               if (pushRes.ok) {
-                console.log(`CRM -> GHL opp ${opp.id}: ${existing.status} (locked=${statusLocked})`);
+                console.log(`CRM -> GHL opp ${opp.id}: ${existing.status}`);
                 results.opportunities_pushed = (results.opportunities_pushed || 0) + 1;
               } else {
                 console.error(`Push to GHL failed for ${opp.id}: ${await pushRes.text()}`);
@@ -804,10 +804,12 @@ async function syncOpportunities(supabase: any, ghlHeaders: any, locationId: str
               // GHL wins → GHL has a more recent change, update CRM.
               // Only write fields that actually differ so updated_at keeps its meaning.
               const patch: Record<string, any> = {};
-              if (contactName && existing.contact_name !== contactName) patch.contact_name = contactName;
-              if ((existing.budget ? Number(existing.budget) : null) !== monetaryValue) patch.budget = monetaryValue;
-              if (existing.event_type !== (opp.name || 'Onbekend')) patch.event_type = opp.name || 'Onbekend';
-              if (!statusLocked && existing.status !== ghlStatus) {
+              if (!crmIsNewerFlag) {
+                if (contactName && existing.contact_name !== contactName) patch.contact_name = contactName;
+                if ((existing.budget ? Number(existing.budget) : null) !== monetaryValue) patch.budget = monetaryValue;
+                if (existing.event_type !== (opp.name || 'Onbekend')) patch.event_type = opp.name || 'Onbekend';
+              }
+              if (!statusFromCrm && existing.status !== ghlStatus) {
                 patch.status = ghlStatus;
               }
 
@@ -815,7 +817,7 @@ async function syncOpportunities(supabase: any, ghlHeaders: any, locationId: str
                 // Remote-origin change: never establishes the 24h CRM status lock
                 const { error: updateErr } = await applyRemoteInquiryPatch(supabase, existing.id, patch);
                 if (!updateErr) {
-                  console.log(`GHL -> CRM opp ${opp.id}: ${Object.keys(patch).join(',')} (statusLocked=${statusLocked})`);
+                  console.log(`GHL -> CRM opp ${opp.id}: ${Object.keys(patch).join(',')}`);
                 }
               }
             }

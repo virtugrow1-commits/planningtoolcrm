@@ -12,6 +12,7 @@ import {
 import {
   GHL_API_BASE,
   applyRemoteInquiryPatch,
+  crmStatusWins,
   mergePulledBookingStatus,
   parseGhlEvent,
   stageToStatus,
@@ -549,27 +550,30 @@ async function handleOpportunityFromWebhookPayload(supabase: any, ghlHeaders: an
   const { data: existing } = await supabase.from('inquiries').select('id, updated_at, status, contact_name, budget, event_type, local_status_changed_at').not('id', 'is', null).eq('ghl_opportunity_id', ghlOppId).maybeSingle();
 
   if (existing) {
-    // A status picked in the CRM stays authoritative for 24h.
-    const statusLocked = existing.local_status_changed_at
-      ? Date.parse(existing.local_status_changed_at) + 24 * 60 * 60 * 1000 > Date.now()
-      : false;
-
     // Compare as real dates: string compare mixed up "+00:00" vs "Z" formats.
     const ghlUpdatedAt = payload.dateUpdated || payload.date_updated || null;
     const ghlMs = ghlUpdatedAt ? Date.parse(ghlUpdatedAt) : NaN;
     const crmMs = existing.updated_at ? Date.parse(existing.updated_at) : NaN;
     const crmIsNewer = !Number.isFinite(ghlMs) || (Number.isFinite(crmMs) && crmMs >= ghlMs);
 
-    if (crmIsNewer) {
+    // Status conflicts use local_status_changed_at (not updated_at, which also
+    // bumps on enrichment/task writes) so BUUT's own stage changes are no
+    // longer reverted by a stale CRM status.
+    const statusFromCrm = crmStatusWins(existing.local_status_changed_at, ghlUpdatedAt);
+    const statusChange = existing.status !== status && !statusFromCrm;
+
+    if (crmIsNewer && !statusChange) {
       // CRM was changed more recently than GHL → ignore this webhook (echo prevention)
       console.log(`Webhook: Skipped opp ${ghlOppId} — CRM is newer (CRM: ${existing.updated_at}, GHL: ${ghlUpdatedAt})`);
     } else {
       // GHL change is genuinely newer → update only the fields that differ
       const patch: Record<string, any> = {};
-      if (contactName && existing.contact_name !== contactName) patch.contact_name = contactName;
-      if ((existing.budget ? Number(existing.budget) : null) !== monetaryValue) patch.budget = monetaryValue;
-      if (eventType && existing.event_type !== eventType) patch.event_type = eventType;
-      if (!statusLocked && existing.status !== status) {
+      if (!crmIsNewer) {
+        if (contactName && existing.contact_name !== contactName) patch.contact_name = contactName;
+        if ((existing.budget ? Number(existing.budget) : null) !== monetaryValue) patch.budget = monetaryValue;
+        if (eventType && existing.event_type !== eventType) patch.event_type = eventType;
+      }
+      if (statusChange) {
         patch.status = status;
       }
 
@@ -577,7 +581,7 @@ async function handleOpportunityFromWebhookPayload(supabase: any, ghlHeaders: an
         // Remote-origin change: never establishes the 24h CRM status lock
         await applyRemoteInquiryPatch(supabase, existing.id, patch);
       }
-      console.log(`Webhook: GHL -> CRM opp ${ghlOppId} -> ${Object.keys(patch).join(',') || 'no-change'} (statusLocked=${statusLocked})`);
+      console.log(`Webhook: GHL -> CRM opp ${ghlOppId} -> ${Object.keys(patch).join(',') || 'no-change'}`);
     }
   } else {
 

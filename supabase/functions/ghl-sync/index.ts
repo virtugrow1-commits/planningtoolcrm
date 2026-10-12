@@ -9,6 +9,7 @@ import {
   buildOpportunityUpdate,
   buildTaskPayload,
   crmIsNewer,
+  crmStatusWins,
   findStageForStatus,
   ghlDueDateLocal,
   ghlOpportunityStatus,
@@ -613,24 +614,25 @@ Deno.serve(async (req) => {
           .maybeSingle();
 
         if (existing) {
-          // Same rules as the automatic sync: a status chosen in the CRM stays
-          // authoritative for 24h and the CRM wins when it changed more recently.
-          const statusLocked = existing.local_status_changed_at
-            ? Date.parse(existing.local_status_changed_at) + 24 * 60 * 60 * 1000 > Date.now()
-            : false;
-          const ghlNewer = !crmIsNewer(existing.updated_at, opp.dateUpdated || opp.dateAdded || null);
+          // Same rules as the automatic sync: the CRM wins field updates when it
+          // changed more recently. The status is judged separately on
+          // local_status_changed_at (not updated_at, which also bumps on
+          // enrichment/task writes) so BUUT's own stage changes are no longer
+          // reverted by a stale CRM status.
+          const ghlTs = opp.dateUpdated || opp.dateAdded || null;
+          const ghlNewer = !crmIsNewer(existing.updated_at, ghlTs);
           const patch: Record<string, any> = {};
           if (ghlNewer) {
             if (contactName && existing.contact_name !== contactName) patch.contact_name = contactName;
             if ((existing.budget ? Number(existing.budget) : null) !== monetaryValue) patch.budget = monetaryValue;
             if (existing.event_type !== (opp.name || 'Onbekend')) patch.event_type = opp.name || 'Onbekend';
-            if (!statusLocked && existing.status !== crmStatus) patch.status = crmStatus;
           }
+          if (existing.status !== crmStatus && !crmStatusWins(existing.local_status_changed_at, ghlTs)) patch.status = crmStatus;
           if (Object.keys(patch).length > 0) {
             await applyRemoteInquiryPatch(supabase, existing.id, patch);
             console.log(`[Opportunities Sync] Updated inquiry: ${contactName} (${existing.id}) → ${Object.keys(patch).join(',')}`);
           } else {
-            console.log(`[Opportunities Sync] Skipped inquiry ${existing.id} (CRM newer or unchanged, locked=${statusLocked})`);
+            console.log(`[Opportunities Sync] Skipped inquiry ${existing.id} (CRM newer or unchanged)`);
           }
         } else {
           const { data: contactRow } = opp.contact?.id
