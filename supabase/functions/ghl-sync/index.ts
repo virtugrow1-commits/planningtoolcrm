@@ -9,6 +9,7 @@ import {
   buildOpportunityUpdate,
   buildTaskPayload,
   crmIsNewer,
+  crmStatusWins,
   findStageForStatus,
   ghlDueDateLocal,
   ghlOpportunityStatus,
