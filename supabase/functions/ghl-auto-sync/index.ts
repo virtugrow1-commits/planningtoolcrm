@@ -87,6 +87,16 @@ function delay(ms: number) {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
+/** Fisher–Yates shuffle (returns a new array) */
+function shuffle<T>(items: T[]): T[] {
+  const a = [...items];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
 /** Fetch all rows from a table using paginated queries (batches of 1000) */
 async function fetchAll(supabase: any, table: string, selectCols: string, filters: Record<string, any> = {}): Promise<any[]> {
   const rows: any[] = [];
@@ -919,13 +929,19 @@ async function syncOpportunities(supabase: any, ghlHeaders: any, locationId: str
       }
     }
 
-    // 3. Orphan cleanup — only check items NOT seen in GHL search, limit to 10 verifications per run
-    const linkedNotSeen = lookups.existingInquiries.filter((i: any) =>
+    // 3. Orphan cleanup — only check items NOT seen in GHL search, capped per run.
+    // The candidates are shuffled so every run checks a different sample. Taking
+    // the first N each time checked the same inquiries forever, so opportunities
+    // deleted in GHL (e.g. the duplicate "- Aanvraag" opps) were never removed here.
+    const linkedNotSeen = shuffle(lookups.existingInquiries.filter((i: any) =>
       i.ghl_opportunity_id && !seenGhlOppIds.has(i.ghl_opportunity_id)
-    );
+    ));
+    if (linkedNotSeen.length > 0) {
+      console.log(`Orphan check: ${linkedNotSeen.length} linked inquiries not seen in GHL search`);
+    }
 
     let deletedCount = 0;
-    const MAX_ORPHAN_CHECKS = 10;
+    const MAX_ORPHAN_CHECKS = 25;
     for (const inq of linkedNotSeen.slice(0, MAX_ORPHAN_CHECKS)) {
       await delay(200);
       const verifyRes = await fetch(`${GHL_API_BASE}/opportunities/${inq.ghl_opportunity_id}`, { headers: ghlHeaders });
