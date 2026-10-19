@@ -87,7 +87,7 @@ Deno.serve(async (req) => {
   const authHeader = req.headers.get('Authorization') || '';
   const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : '';
   let caller: 'cron' | 'user' | null = null;
-  // Scheduled run: x-cron-secret is a random secret kept in Supabase Vault
+  // Scheduled run: x-cron-secret is a random secret kept in the database (private schema)
   // (migration 20261019110000); only the database and the cron job know it.
   const cronSecret = req.headers.get('x-cron-secret') || '';
   if (cronSecret) {
