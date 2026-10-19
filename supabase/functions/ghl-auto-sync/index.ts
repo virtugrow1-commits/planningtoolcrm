@@ -22,6 +22,7 @@ import {
   findStageForStatus,
   ghlDueDateLocal,
   ghlOpportunityStatus,
+  isValidBookingDate,
   isWithin,
   mergePulledBookingStatus,
   parseGhlEvent,
@@ -641,6 +642,11 @@ async function syncCalendar(supabase: any, ghlHeaders: any, locationId: string, 
       }
       // A reservation that was cancelled before it ever reached GHL needs no appointment
       if (booking.status === 'cancelled' || booking.status === 'expired') continue;
+      // A typo date (e.g. year 0026) is rejected by GHL on every run — skip it with a clear log
+      if (!isValidBookingDate(booking.date)) {
+        console.warn(`Skipping booking ${booking.id}: invalid date "${booking.date}" — correct it in the CRM`);
+        continue;
+      }
       try {
         await delay(500); // Rate limit between pushes
         const appointmentPayload = buildAppointmentPayload(booking, targetCalendarId, locationId, ghlContactId);

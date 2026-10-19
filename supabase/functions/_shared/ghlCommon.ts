@@ -231,6 +231,14 @@ export interface CrmBookingLike {
 }
 
 /** Local (Amsterdam) start/end ISO strings with offset for a CRM booking. */
+/** A booking date GHL will accept (yyyy-MM-dd, year 2000–2100). Typos like 0026-06-23 are not. */
+export function isValidBookingDate(date: unknown): boolean {
+  const d = String(date || '');
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(d)) return false;
+  const year = Number(d.slice(0, 4));
+  return year >= 2000 && year <= 2100 && Number.isFinite(Date.parse(`${d}T12:00:00Z`));
+}
+
 export function bookingTimes(b: CrmBookingLike): { startTime: string; endTime: string } {
   const tz = amsterdamOffset(b.date);
   const pad = (n: number | null | undefined) => String(n ?? 0).padStart(2, '0');

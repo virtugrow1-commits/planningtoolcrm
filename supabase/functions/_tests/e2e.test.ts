@@ -482,6 +482,16 @@ Deno.test({ name: 'CliqCRM ↔ GoHighLevel end-to-end', sanitizeOps: false, sani
     assertEquals((await ghl()).contacts[ghlContactId].companyName, '');
   });
 
+  await t.step('auto-sync: a booking with a typo date (year 0026) is skipped, not offered to GHL every run', async () => {
+    const before = Object.keys((await ghl()).appointments).length;
+    const bad = await insert('bookings', { user_id: SJORS, room_name: 'Zaal A', date: '0026-06-23', start_hour: 19, start_minute: 30, end_hour: 22, end_minute: 0, title: 'Typo', contact_name: 'Dex Boers', contact_id: contact.id, status: 'confirmed' });
+    const res = await autoSync('light');
+    assertEquals(res.phase, 'completed');
+    assertEquals(Object.keys((await ghl()).appointments).length, before, 'no appointment attempted');
+    assertEquals((await one('bookings', bad.id)).ghl_event_id, null);
+    await psql(`delete from bookings where id='${bad.id}'`);
+  });
+
   await t.step('no request ever sent locationId on an update', async () => {
     const bad = ((await ghl()).log as any[]).filter((l) => l.method === 'PUT' && l.body && 'locationId' in l.body && !l.path.startsWith('/calendars'));
     assertEquals(bad, []);

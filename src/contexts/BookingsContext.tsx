@@ -188,8 +188,18 @@ export function BookingsProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
+  // A typo in the year (e.g. 0026-06-23) is accepted by the date input but makes
+  // GHL reject the appointment on every sync run. Refuse impossible dates up front.
+  const rejectInvalidDate = useCallback((date: string | undefined): boolean => {
+    const year = Number(String(date || '').slice(0, 4));
+    if (/^\d{4}-\d{2}-\d{2}$/.test(String(date || '')) && year >= 2000 && year <= 2100) return false;
+    toast({ title: 'Ongeldige datum', description: `Controleer het jaartal (${date || 'leeg'}).`, variant: 'destructive' });
+    return true;
+  }, [toast]);
+
   const addBooking = useCallback(async (booking: Omit<Booking, 'id'>): Promise<{ success: boolean; conflicts?: Booking[] }> => {
     if (!user) return { success: false };
+    if (rejectInvalidDate(booking.date)) return { success: false };
     const startMin = booking.startHour * 60 + (booking.startMinute ?? 0);
     const endMin = booking.endHour * 60 + (booking.endMinute ?? 0);
 
@@ -272,6 +282,7 @@ export function BookingsProvider({ children }: { children: ReactNode }) {
 
   const addBookings = useCallback(async (newBookings: Omit<Booking, 'id'>[]): Promise<{ success: boolean; conflicts?: Booking[] }> => {
     if (!user || newBookings.length === 0) return { success: false };
+    if (newBookings.some((b) => rejectInvalidDate(b.date))) return { success: false };
     // Check conflicts for each booking (with combined room logic)
     for (const b of newBookings) {
       const startMin = b.startHour * 60 + (b.startMinute ?? 0);
@@ -323,6 +334,7 @@ export function BookingsProvider({ children }: { children: ReactNode }) {
   }, [user, fetchBookings, toast, serverConflictCheck, pushBookingToGHL, runAutomationsFor]);
 
   const updateBooking = useCallback(async (updated: Booking): Promise<{ success: boolean; conflicts?: Booking[] }> => {
+    if (rejectInvalidDate(updated.date)) return { success: false };
     const existingBooking = bookings.find((booking) => booking.id === updated.id);
     const resolvedGuestCount = updated.guestCount ?? existingBooking?.guestCount ?? 0;
     const startMin = updated.startHour * 60 + (updated.startMinute ?? 0);
