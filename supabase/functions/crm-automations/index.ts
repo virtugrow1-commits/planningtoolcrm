@@ -87,7 +87,17 @@ Deno.serve(async (req) => {
   const authHeader = req.headers.get('Authorization') || '';
   const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : '';
   let caller: 'cron' | 'user' | null = null;
-  if (token && ANON_KEY && token === ANON_KEY) {
+  // Scheduled run: x-cron-secret is a random secret kept in Supabase Vault
+  // (migration 20261019110000); only the database and the cron job know it.
+  const cronSecret = req.headers.get('x-cron-secret') || '';
+  if (cronSecret) {
+    const { data: ok, error: vErr } = await supabase.rpc('verify_crm_cron_secret', { p_secret: cronSecret });
+    if (vErr) console.error('cron secret check failed:', vErr.message);
+    if (ok === true) caller = 'cron';
+  }
+  if (caller) {
+    // authenticated as cron
+  } else if (token && ANON_KEY && token === ANON_KEY) {
     caller = 'cron';
   } else if (token) {
     const anonClient = createClient(SUPABASE_URL, ANON_KEY || token, { global: { headers: { Authorization: authHeader } } });
