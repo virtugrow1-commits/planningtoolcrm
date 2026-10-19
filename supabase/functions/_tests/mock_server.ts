@@ -140,6 +140,8 @@ async function handleGhl(req: Request, path: string, url: URL): Promise<Response
       S.opportunities[id] = { id, ...body, dateAdded: now(), dateUpdated: now() };
       return json({ opportunity: S.opportunities[id] }, 201);
     }
+    // test hook: ids starting with op_bad simulate a GHL validation error (not a missing record)
+    if (String(seg[1] || '').startsWith('op_bad')) return json({ statusCode: 400, message: 'Bad Request' }, 400);
     const o = S.opportunities[seg[1]];
     if (!o) return json({ message: 'Opportunity not found' }, 404);
     if (m === 'GET') return json({ opportunity: o });

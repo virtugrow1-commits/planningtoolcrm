@@ -28,6 +28,7 @@ weblink (REST API). Directe database-toegang is **niet** nodig.
 | `q`          | vrije zoekterm (naam, e-mail, eventtitel, zaal)                  |
 | `from` / `to`| datumbereik `yyyy-MM-dd` (alleen bij `bookings`)                 |
 | `day=today`  | alleen reserveringen van vandaag (Amsterdam-tijd) — handig voor narrowcasting |
+| `status`     | alleen bij `bookings`: `confirmed` of `option`. Zonder deze parameter komen bevestigde reserveringen én opties terug; geannuleerde en verlopen reserveringen nooit |
 | `company_id` | filter op één klant                                              |
 | `id`         | één specifiek record ophalen                                     |
 | `limit`      | max. aantal rijen (standaard 200, max 500)                       |

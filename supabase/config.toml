@@ -14,3 +14,6 @@ verify_jwt = false
 
 [functions.stage-offerte]
 verify_jwt = false
+
+[functions.crm-read-api]
+verify_jwt = false

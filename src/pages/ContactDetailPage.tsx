@@ -6,6 +6,7 @@ import { useBookings } from '@/contexts/BookingsContext';
 import { useCompaniesContext } from '@/contexts/CompaniesContext';
 import { useTasksContext } from '@/contexts/TasksContext';
 import { useContactCompanies } from '@/hooks/useContactCompanies';
+import { pushToGHL } from '@/lib/ghlSync';
 import { useState, useMemo } from 'react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
@@ -805,6 +806,25 @@ function CompanyField({ current, editing, companies, form, setForm, navigate, co
     if (!links && !inq && !bk) await supabase.from('companies').delete().eq('id', companyId);
   };
 
+  // Write the new company on the contact the same way a normal contact edit does
+  // (pending_outbound_sync + push), so the next GHL pull can't restore the old one.
+  const syncCompanyToGhl = async (companyId: string, companyName: string | null) => {
+    await supabase.from('contacts').update({
+      company_id: companyId, company: companyName,
+      pending_outbound_sync: true, last_local_edit_at: new Date().toISOString(),
+    } as any).eq('id', current.id);
+    await pushToGHL('push-contact', { contact: {
+      id: current.id,
+      first_name: current.firstName,
+      last_name: current.lastName,
+      email: current.email || null,
+      phone: current.phone || null,
+      company: companyName,
+      clear_company: companyName === null,
+      ghl_contact_id: current.ghlContactId || null,
+    }}, { entityType: 'contact', entityId: current.id, actionType: 'update' });
+  };
+
   const toBusiness = async (targetId: string) => {
     const target = companies.find((c) => c.id === targetId);
     if (!target) return;
@@ -813,7 +833,7 @@ function CompanyField({ current, editing, companies, form, setForm, navigate, co
     for (const p of privs) { const r = await countFor(p.id); inq += r.inq; book += r.book; }
     if (!window.confirm(`Klanttype wijzigen naar Bedrijf (${target.name})? ${inq} aanvragen en ${book} reserveringen gaan mee.`)) return;
     await linkContact(current.id, target.id, true);
-    await supabase.from('contacts').update({ company_id: target.id, company: target.name } as any).eq('id', current.id);
+    await syncCompanyToGhl(target.id, target.name);
     for (const p of privs) {
       await moveRecords(p.id, target.id);
       await unlinkContact(current.id, p.id);
@@ -834,7 +854,7 @@ function CompanyField({ current, editing, companies, form, setForm, navigate, co
     if (!privId) return;
     for (const co of allCompanies) await unlinkContact(current.id, co.id);
     await linkContact(current.id, privId, true);
-    await supabase.from('contacts').update({ company_id: privId, company: null } as any).eq('id', current.id);
+    await syncCompanyToGhl(privId, null);
     if (form) setForm({ ...form, company: undefined, companyId: privId });
   };
 

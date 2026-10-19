@@ -89,6 +89,13 @@ Deno.serve(async (req) => {
   if (companyId && resource !== "rooms" && resource !== "companies") query = query.eq("company_id", companyId);
   if (resource === "rooms") query = query.eq("enabled", true);
   if (resource === "inquiries") query = query.is("deleted_at", null);
+  // Bookings: cancelled/expired reservations must never show up on a screen as if
+  // they were happening. Optional ?status=confirmed (or option) narrows further.
+  if (resource === "bookings") {
+    const st = url.searchParams.get("status");
+    if (st === "confirmed" || st === "option") query = query.eq("status", st);
+    else query = query.not("status", "in", "(cancelled,expired)");
+  }
   if (cfg.dateCol && from) query = query.gte(cfg.dateCol, from);
   if (cfg.dateCol && to) query = query.lte(cfg.dateCol, to);
   if (q && cfg.search) query = query.or(cfg.search.map((c) => `${c}.ilike.%${q}%`).join(","));

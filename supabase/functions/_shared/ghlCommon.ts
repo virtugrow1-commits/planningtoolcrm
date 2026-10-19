@@ -39,15 +39,18 @@ export function crmIsNewer(crmUpdatedAt: unknown, ghlUpdatedAt: unknown): boolea
 }
 
 /**
- * Local status change wins when it happened within the last 24h and is at
- * least as recent as the GHL update. Unlike crmIsNewer (which uses the
- * row's updated_at), this only looks at the moment the status itself was
- * changed locally, so enrichment/task updates can't resurrect an old status.
+ * A status chosen in the CRM wins when it was set at least as recently as the
+ * last GHL update. Unlike crmIsNewer (which uses the row's updated_at), this
+ * only looks at the moment the status itself was changed locally
+ * (local_status_changed_at, stamped by a DB trigger on CRM writes and cleared by
+ * applyRemoteInquiryPatch), so enrichment/task updates can't resurrect an old
+ * status. There is deliberately no age limit: a CRM status that never reached
+ * GHL (failed push, status set by an automation) must not be replaced by the
+ * older GHL stage a day later — the most recent change wins.
  */
 export function crmStatusWins(localStatusChangedAt: unknown, ghlUpdatedAt: unknown): boolean {
   const localMs = parseTs(localStatusChangedAt);
   if (!Number.isFinite(localMs)) return false;
-  if (Date.now() - localMs > 24*60*60*1000) return false;
   const ghlMs = parseTs(ghlUpdatedAt);
   if (!Number.isFinite(ghlMs)) return true;
   return localMs >= ghlMs;

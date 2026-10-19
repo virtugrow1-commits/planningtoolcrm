@@ -22,10 +22,15 @@ Deno.test("crmStatusWins: local change 1 min ago, GHL 5 min ago -> true (CRM new
   assertEquals(crmStatusWins(local, ghl), true);
 });
 
-Deno.test("crmStatusWins: local change older than 24h -> false", () => {
+Deno.test("crmStatusWins: old local change still wins over an even older GHL update (no age limit)", () => {
   const local = new Date(Date.now() - 25 * HOUR).toISOString();
-  assertEquals(crmStatusWins(local, null), false);
-  assertEquals(crmStatusWins(local, new Date(Date.now() - 30 * HOUR).toISOString()), false);
+  assertEquals(crmStatusWins(local, null), true);
+  assertEquals(crmStatusWins(local, new Date(Date.now() - 30 * HOUR).toISOString()), true);
+});
+
+Deno.test("crmStatusWins: old local change loses to a newer GHL update", () => {
+  const local = new Date(Date.now() - 25 * HOUR).toISOString();
+  assertEquals(crmStatusWins(local, new Date(Date.now() - 1 * HOUR).toISOString()), false);
 });
 
 Deno.test("crmStatusWins: GHL timestamp null and recent local change -> true", () => {

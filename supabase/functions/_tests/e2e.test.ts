@@ -4,6 +4,7 @@
 import { assert, assertEquals } from "jsr:@std/assert@1";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { makeJwt } from "./jwt.ts";
+import { stageToStatus } from "../_shared/ghlCommon.ts";
 
 const BASE = 'http://127.0.0.1:9000';
 const SERVICE = Deno.env.get('E2E_SERVICE')!;
@@ -220,12 +221,43 @@ Deno.test({ name: 'CliqCRM ↔ GoHighLevel end-to-end', sanitizeOps: false, sani
     assertEquals(inq.local_status_changed_at, null, 'GHL-origin change must not lock the status');
   });
 
-  await t.step('auto-sync: a status chosen in the CRM wins and is pushed to GHL', async () => {
-    await db.from('inquiries').update({ status: 'reserved' }).eq('id', inquiry.id); // CRM change → trigger stamps the lock
+  await t.step('auto-sync: a status chosen in the CRM after the last GHL change wins and is pushed to GHL', async () => {
+    const s = await ghl();
+    s.opportunities[oppId].dateUpdated = new Date(Date.now() - 10 * 60_000).toISOString(); // GHL changed 10 min ago
+    await seed({ opportunities: s.opportunities });
+    await db.from('inquiries').update({ status: 'reserved' }).eq('id', inquiry.id); // CRM change now → trigger stamps local_status_changed_at
     const res = await autoSync('light');
     assertEquals(res.phase, 'completed');
     assertEquals((await one('inquiries', inquiry.id)).status, 'reserved');
     assertEquals((await ghl()).opportunities[oppId].pipelineStageId, stageId('Reservering'));
+  });
+
+  await t.step('auto-sync: a stage change in GHL after the CRM change wins (most recent change wins)', async () => {
+    const s = await ghl();
+    Object.assign(s.opportunities[oppId], { pipelineStageId: stageId('Draaiboek maken'), dateUpdated: new Date(Date.now() + 60_000).toISOString() });
+    await seed({ opportunities: s.opportunities });
+    const res = await autoSync('light');
+    assertEquals(res.phase, 'completed');
+    assertEquals((await one('inquiries', inquiry.id)).status, stageToStatus('Draaiboek maken'));
+    // leave GHL in the past again so later steps start from a clean slate
+    const s2 = await ghl();
+    Object.assign(s2.opportunities[oppId], { pipelineStageId: stageId('Lopend contact'), dateUpdated: new Date(Date.now() - 60 * 60_000).toISOString() });
+    await seed({ opportunities: s2.opportunities });
+  });
+
+  await t.step('auto-sync: a CRM status from 2 days ago that never reached GHL is not reverted by the older GHL stage', async () => {
+    const s = await ghl();
+    Object.assign(s.opportunities[oppId], { pipelineStageId: stageId('Lopend contact'), dateUpdated: new Date(Date.now() - 3 * 86_400_000).toISOString() });
+    await seed({ opportunities: s.opportunities });
+    await psql(`update inquiries set status='quoted' where id='${inquiry.id}'`);
+    await psql(`update inquiries set local_status_changed_at = now() - interval '2 days' where id='${inquiry.id}'`);
+    const res = await autoSync('light');
+    assertEquals(res.phase, 'completed');
+    assertEquals((await one('inquiries', inquiry.id)).status, 'quoted');
+    assertEquals((await ghl()).opportunities[oppId].pipelineStageId, stageId('Offerte Verzonden'));
+    const s2 = await ghl();
+    Object.assign(s2.opportunities[oppId], { pipelineStageId: stageId('Lopend contact'), dateUpdated: new Date(Date.now() - 60 * 60_000).toISOString() });
+    await seed({ opportunities: s2.opportunities });
   });
 
   await t.step('push-task without a due date still reaches GHL (dueDate is required)', async () => {
@@ -429,6 +461,25 @@ Deno.test({ name: 'CliqCRM ↔ GoHighLevel end-to-end', sanitizeOps: false, sani
     assertEquals(msgs[0].type, 'SMS');
     assertEquals(msgs[1].type, 'Email');
     assertEquals(msgs[1].contactId, ghlContactId);
+  });
+
+  await t.step('orphan cleanup: deletes only inquiries whose GHL opportunity is really gone', async () => {
+    const gone = await insert('inquiries', { user_id: SJORS, contact_name: 'Weg Klant', event_type: 'Borrel', guest_count: 10, status: 'new', ghl_opportunity_id: 'op_gone_1' });
+    const bad = await insert('inquiries', { user_id: SJORS, contact_name: 'Fout Klant', event_type: 'Borrel', guest_count: 10, status: 'new', ghl_opportunity_id: 'op_bad_1' });
+    const res = await autoSync('light');
+    assertEquals(res.phase, 'completed');
+    assertEquals(Number(await psql(`select count(*) from inquiries where id='${gone.id}'`)), 0, 'GHL 404 → removed');
+    assertEquals(Number(await psql(`select count(*) from inquiries where id='${bad.id}'`)), 1, 'GHL 400 without "not found" → kept');
+    await psql(`delete from inquiries where id='${bad.id}'`);
+  });
+
+  await t.step('push-contact with clear_company empties the company name in GHL (Particulier switch)', async () => {
+    const s = await ghl();
+    s.contacts[ghlContactId].companyName = 'Oud Bedrijf BV';
+    await seed({ contacts: s.contacts });
+    const r = await fn('ghl-sync', { action: 'push-contact', contact: { id: contact.id, first_name: 'Dex', last_name: 'Boers', email: 'contact@cliqmakers.nl', company: null, clear_company: true, ghl_contact_id: ghlContactId } });
+    assertEquals(r.status, 200, JSON.stringify(r.data));
+    assertEquals((await ghl()).contacts[ghlContactId].companyName, '');
   });
 
   await t.step('no request ever sent locationId on an update', async () => {

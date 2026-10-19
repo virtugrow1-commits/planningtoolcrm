@@ -40,7 +40,7 @@ export function InquiriesProvider({ children }: { children: ReactNode }) {
     if (!user) return;
     const { rows: allRows, error } = await fetchAllRows({
       table: 'inquiries',
-      columns: 'id, display_number, contact_id, contact_name, company_id, event_type, preferred_date, room_preference, guest_count, budget, message, status, created_at, source, ghl_opportunity_id, is_read, assigned_to, preferred_start_time, preferred_end_time, status_reason, offerte_revisie, offerte_gestaged_op',
+      columns: 'id, display_number, contact_id, contact_name, company_id, event_type, preferred_date, room_preference, guest_count, budget, message, status, created_at, source, ghl_opportunity_id, is_read, assigned_to, preferred_start_time, preferred_end_time, status_reason, offerte_revisie, offerte_gestaged_op, title, last_contact_at, next_action_at',
       orderBy: 'created_at',
       ascending: false,
     });

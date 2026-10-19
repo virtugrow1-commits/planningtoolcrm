@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useContactsContext } from '@/contexts/ContactsContext';
+import { useInquiriesContext } from '@/contexts/InquiriesContext';
 import { useToast } from '@/hooks/use-toast';
 import { Inquiry, Contact } from '@/types/crm';
 import { SectionCard } from '@/components/detail/DetailPageComponents';
@@ -27,6 +28,7 @@ const PHONE_RE = /^\+?[0-9\s\-()]{6,20}$/;
 export default function InquiryContactsCard({ inquiry }: { inquiry: Inquiry }) {
   const { user } = useAuth();
   const { contacts, addContact, refetch } = useContactsContext();
+  const { updateInquiry } = useInquiriesContext();
   const { toast } = useToast();
   const navigate = useNavigate();
   const [rows, setRows] = useState<Row[] | null>(null);
@@ -58,8 +60,16 @@ export default function InquiryContactsCard({ inquiry }: { inquiry: Inquiry }) {
     const makePrimary = (rows || []).length === 0;
     const { error } = await (supabase as any).from('inquiry_contacts').insert({ inquiry_id: inquiry.id, contact_id: contactId, is_primary: makePrimary, user_id: user.id });
     if (error) { toast({ title: 'Koppelen mislukt', description: error.message, variant: 'destructive' }); return false; }
-    if (makePrimary) await supabase.from('inquiries').update({ contact_id: contactId } as any).eq('id', inquiry.id);
+    if (makePrimary) await setPrimaryOnInquiry(contactId);
     return true;
+  };
+
+  // The primary contact lives on the inquiry itself (contact_id + contact_name, shown
+  // on the board and pushed to GHL). Going through updateInquiry keeps both in step;
+  // a DB trigger then mirrors it into inquiry_contacts.
+  const setPrimaryOnInquiry = async (contactId: string) => {
+    const c = byId.get(contactId);
+    await updateInquiry({ ...inquiry, contactId, contactName: c ? fullName(c) : inquiry.contactName });
   };
 
   const handleAdd = async () => {
@@ -75,8 +85,10 @@ export default function InquiryContactsCard({ inquiry }: { inquiry: Inquiry }) {
         if (nf.birthDate && nf.birthDate > new Date().toISOString().slice(0, 10)) { toast({ title: 'Geboortedatum mag niet in de toekomst liggen', variant: 'destructive' }); return; }
         const res = await addContact({ firstName: nf.firstName, lastName: nf.lastName, email: nf.email, phone: nf.mobile, companyId: inquiry.companyId, status: 'client', birthDate: nf.birthDate || undefined } as any);
         if (!res) return;
-        let q = supabase.from('contacts').select('id').ilike('first_name', nf.firstName.trim()).ilike('last_name', nf.lastName.trim()).order('created_at', { ascending: false }).limit(1);
-        const { data } = await q.maybeSingle();
+        // addContact returns no id: find the row just created (match on e-mail too when given, so a namesake isn't linked)
+        let q = supabase.from('contacts').select('id').ilike('first_name', nf.firstName.trim()).ilike('last_name', nf.lastName.trim());
+        if (nf.email.trim()) q = q.ilike('email', nf.email.trim());
+        const { data } = await q.order('created_at', { ascending: false }).limit(1).maybeSingle();
         if (data?.id) {
           if (nf.mobile) await (supabase as any).from('contacts').update({ mobile: nf.mobile }).eq('id', data.id);
           if (await link(data.id)) { toast({ title: 'Contactpersoon aangemaakt en gekoppeld' }); setOpen(false); setNf({ firstName: '', lastName: '', email: '', mobile: '', birthDate: '' }); refetch(); }
@@ -89,12 +101,16 @@ export default function InquiryContactsCard({ inquiry }: { inquiry: Inquiry }) {
     await (supabase as any).from('inquiry_contacts').update({ is_primary: false }).eq('inquiry_id', inquiry.id).eq('is_primary', true);
     const { error } = await (supabase as any).from('inquiry_contacts').update({ is_primary: true }).eq('id', r.id);
     if (error) { toast({ title: 'Wijzigen mislukt', description: error.message, variant: 'destructive' }); }
-    else { await supabase.from('inquiries').update({ contact_id: r.contact_id } as any).eq('id', inquiry.id); toast({ title: 'Primaire contactpersoon gewijzigd' }); }
+    else { await setPrimaryOnInquiry(r.contact_id); toast({ title: 'Primaire contactpersoon gewijzigd' }); }
     load();
   };
 
   const remove = async () => {
     if (!removeRow) return;
+    if (removeRow.is_primary && (rows || []).length > 1) {
+      toast({ title: 'Maak eerst een andere contactpersoon primair', description: 'De primaire contactpersoon staat op de aanvraag en in GoHighLevel.', variant: 'destructive' });
+      setRemoveRow(null); return;
+    }
     const { error } = await (supabase as any).from('inquiry_contacts').delete().eq('id', removeRow.id);
     if (error) toast({ title: 'Verwijderen mislukt', description: error.message, variant: 'destructive' });
     else toast({ title: 'Contactpersoon losgekoppeld van aanvraag' });

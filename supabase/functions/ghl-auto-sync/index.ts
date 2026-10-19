@@ -933,7 +933,7 @@ async function syncOpportunities(supabase: any, ghlHeaders: any, locationId: str
     // The candidates are shuffled so every run checks a different sample. Taking
     // the first N each time checked the same inquiries forever, so opportunities
     // deleted in GHL (e.g. the duplicate "- Aanvraag" opps) were never removed here.
-    const linkedNotSeen = shuffle(lookups.existingInquiries.filter((i: any) =>
+    const linkedNotSeen = shuffle<any>(lookups.existingInquiries.filter((i: any) =>
       i.ghl_opportunity_id && !seenGhlOppIds.has(i.ghl_opportunity_id)
     ));
     if (linkedNotSeen.length > 0) {
@@ -945,14 +945,23 @@ async function syncOpportunities(supabase: any, ghlHeaders: any, locationId: str
     for (const inq of linkedNotSeen.slice(0, MAX_ORPHAN_CHECKS)) {
       await delay(200);
       const verifyRes = await fetch(`${GHL_API_BASE}/opportunities/${inq.ghl_opportunity_id}`, { headers: ghlHeaders });
-      if (verifyRes.status === 404 || verifyRes.status === 422 || verifyRes.status === 400) {
+      // Only a definite "does not exist" may delete the CRM inquiry: a 404, or a
+      // 400/422 whose body says the opportunity was not found. Any other
+      // validation error (bad request, API hiccup) must never hard-delete data.
+      let gone = verifyRes.status === 404;
+      if (!gone && (verifyRes.status === 400 || verifyRes.status === 422)) {
+        const body = (await verifyRes.text().catch(() => '')).toLowerCase();
+        gone = body.includes('not found') || body.includes('does not exist') || body.includes('no opportunity');
+        if (!gone) console.warn(`Orphan check ${inq.ghl_opportunity_id}: ${verifyRes.status} ${body.slice(0, 200)} — kept`);
+      }
+      if (gone) {
         const { error: delErr } = await supabase.from('inquiries').delete().eq('id', inq.id);
         if (!delErr) {
           console.log(`Deleted orphaned inquiry ${inq.id} (GHL opp ${inq.ghl_opportunity_id})`);
           deletedCount++;
         }
-      } else {
-        await verifyRes.text(); // consume body
+      } else if (!verifyRes.bodyUsed) {
+        await verifyRes.text().catch(() => ''); // consume body
       }
       if (verifyRes.status === 429) await delay(2000);
     }
@@ -2228,16 +2237,32 @@ async function syncDocuments(supabase: any, ghlHeaders: any, locationId: string,
       for (const c of data || []) if (c.email) contactByEmail.set(c.email.toLowerCase(), c);
     }
 
+    // Existing CRM rows in one query (instead of one lookup per document)
+    const docIds = [...new Set(docs.map((d) => d._id || d.id || d.documentId).filter(Boolean))];
+    const existingByGhlId = new Map<string, any>();
+    for (let i = 0; i < docIds.length; i += 200) {
+      const { data } = await supabase.from('documents').select('id, status, inquiry_id, contact_id, ghl_document_id').in('ghl_document_id', docIds.slice(i, i + 200));
+      for (const d of data || []) existingByGhlId.set(d.ghl_document_id, d);
+    }
+    // Detail calls are only needed for documents that are not linked to a contact
+    // yet; capped per run so a large archive can't eat the GHL rate limit or the
+    // edge-function time budget (the rest follows on the next runs).
+    const MAX_DETAIL_FETCHES = 30;
+    let detailFetches = 0;
+
     for (const doc of docs) {
       const ghlDocId = doc._id || doc.id || doc.documentId;
       if (!ghlDocId) continue;
       const status = mapDocumentStatus(doc.status);
       if (status === 'draft') continue; // concepts are not interesting for the CRM
+      const existing = existingByGhlId.get(ghlDocId) || null;
 
       let recipient = primaryRecipient(doc);
       let ghlContactId = recipient?.contactId || doc.contactId || doc.contact?.id || null;
-      // The list endpoint omits recipients — fetch the document detail as fallback
-      if (!ghlContactId) {
+      // The list endpoint omits recipients — fetch the document detail as fallback,
+      // but only when the CRM row has no contact yet.
+      if (!ghlContactId && !existing?.contact_id && detailFetches < MAX_DETAIL_FETCHES) {
+        detailFetches++;
         try {
           const detRes = await fetch(`${GHL_API_BASE}/proposals/document/${ghlDocId}?locationId=${locationId}`, { headers: ghlHeaders });
           if (detRes.ok) {
@@ -2261,7 +2286,7 @@ async function syncDocuments(supabase: any, ghlHeaders: any, locationId: string,
 
       // Link to the most recent open inquiry of the contact
       let inquiryId: string | null = null;
-      if (contact) {
+      if (contact && !existing?.inquiry_id) {
         const { data: inq } = await supabase.from('inquiries').select('id')
           .eq('contact_id', contact.id).neq('status', 'lost')
           .order('created_at', { ascending: false }).limit(1).maybeSingle();
@@ -2269,7 +2294,6 @@ async function syncDocuments(supabase: any, ghlHeaders: any, locationId: string,
       }
 
       // Keep the highest status reached (sent → viewed → signed/paid)
-      const { data: existing } = await supabase.from('documents').select('id, status, inquiry_id').eq('ghl_document_id', ghlDocId).maybeSingle();
       const order: Record<string, number> = { sent: 0, viewed: 1, signed: 2, paid: 3, declined: -1 };
       const row: Record<string, any> = {
         user_id: userId,

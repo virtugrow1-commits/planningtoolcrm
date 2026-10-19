@@ -19,9 +19,14 @@ function decodeEntity(entity: string): string {
   return HTML_ENTITIES[entity.toLowerCase()] ?? `&${entity};`;
 }
 
+const LOOKS_LIKE_HTML = /<\/?(p|br|div|span|li|ul|ol|h[1-6]|strong|em|b|i|u|a|table|tr|td|th|tbody|font)\b[^<>]*>/i;
+
 /** Convert rich-text task bodies to readable plain text. */
 export function htmlToPlainText(value: string | null | undefined): string {
   if (!value) return '';
+  // Only treat the text as HTML when it actually contains HTML tags; otherwise a
+  // typed note like "Bel terug <na 17:00>" would lose the part between brackets.
+  if (!LOOKS_LIKE_HTML.test(value)) return value.trim();
 
   return value
     .replace(/<\s*br\s*\/?\s*>/gi, '\n')

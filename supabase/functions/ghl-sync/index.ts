@@ -683,6 +683,9 @@ Deno.serve(async (req) => {
       // GHL contact update endpoint rejects locationId; create endpoint requires it
       const createPayload: Record<string, any> = { ...basePayload, locationId: GHL_LOCATION_ID };
       const updatePayload: Record<string, any> = { ...basePayload };
+      // Explicit "Particulier" switch: an absent companyName leaves the old business
+      // name in GHL, which the next pull would copy back into the CRM.
+      if (contact.clear_company === true && !contact.company) updatePayload.companyName = '';
 
       try {
         if (contact.ghl_contact_id) {
