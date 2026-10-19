@@ -627,17 +627,21 @@ async function syncCalendar(supabase: any, ghlHeaders: any, locationId: string, 
     }
 
     // Push local bookings (with rate limiting to avoid 429)
-    const activeCalendarIds = new Set(calendars.filter((c: any) => c.isActive !== false).map((c: any) => c.id));
-    const defaultCalendarId = calendars.find((c: any) => c.isActive !== false)?.id;
+    // GHL's API reports isActive=false for calendars that are in normal use in the
+    // GHL UI (the 1.03, 1.04 and BBQ room calendars), so skipping on isActive kept
+    // dozens of future reservations out of GHL. Only skip a calendar that no longer
+    // exists at all; if GHL really refuses an appointment, that is logged below.
+    const activeCalendarIds = new Set(calendars.map((c: any) => c.id));
+    const defaultCalendarId = calendars.find((c: any) => c.isActive !== false)?.id || calendars[0]?.id;
     const { data: localBookings } = await supabase.from('bookings').select('*, contacts!bookings_contact_id_fkey(ghl_contact_id)').not('id', 'is', null).is('ghl_event_id', null);
     for (const booking of localBookings || []) {
       const ghlContactId = (booking as any).contacts?.ghl_contact_id || null;
       if (!ghlContactId) continue;
       const targetCalendarId = roomToCalId[booking.room_name] || defaultCalendarId;
       if (!targetCalendarId) continue;
-      // Skip inactive calendars
+      // Skip calendars that no longer exist in GHL
       if (!activeCalendarIds.has(targetCalendarId)) {
-        console.log(`Skipping booking ${booking.id}: calendar ${targetCalendarId} is inactive`);
+        console.log(`Skipping booking ${booking.id}: calendar ${targetCalendarId} does not exist in GHL`);
         continue;
       }
       // A reservation that was cancelled before it ever reached GHL needs no appointment

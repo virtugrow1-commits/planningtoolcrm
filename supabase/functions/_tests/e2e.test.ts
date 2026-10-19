@@ -492,6 +492,19 @@ Deno.test({ name: 'CliqCRM ↔ GoHighLevel end-to-end', sanitizeOps: false, sani
     await psql(`delete from bookings where id='${bad.id}'`);
   });
 
+  await t.step('auto-sync: a booking in a calendar the GHL API flags isActive=false still reaches GHL', async () => {
+    const s = await ghl();
+    s.calendars = [...s.calendars, { id: 'cal_b', name: 'Zaal B', isActive: false }];
+    await seed({ calendars: s.calendars });
+    await psql(`insert into room_settings(user_id, room_name, max_guests, ghl_calendar_id) values ('${SJORS}','Zaal B',40,'cal_b') on conflict do nothing`);
+    const b = await insert('bookings', { user_id: SJORS, room_name: 'Zaal B', date: addDays(today, 20), start_hour: 10, start_minute: 0, end_hour: 12, end_minute: 0, title: 'Overleg', contact_name: 'Dex Boers', contact_id: contact.id, status: 'confirmed' });
+    const res = await autoSync('light');
+    assertEquals(res.phase, 'completed');
+    const row = await one('bookings', b.id);
+    assert(row.ghl_event_id, 'booking got a GHL appointment');
+    assertEquals((await ghl()).appointments[row.ghl_event_id].calendarId, 'cal_b');
+  });
+
   await t.step('no request ever sent locationId on an update', async () => {
     const bad = ((await ghl()).log as any[]).filter((l) => l.method === 'PUT' && l.body && 'locationId' in l.body && !l.path.startsWith('/calendars'));
     assertEquals(bad, []);
