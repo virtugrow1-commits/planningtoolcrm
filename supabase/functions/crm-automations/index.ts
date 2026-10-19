@@ -217,19 +217,40 @@ Deno.serve(async (req) => {
       }
     };
 
-    /** Push a booking's current state to its GHL appointment (status/title change). */
-    const pushBooking = async (booking: any) => {
-      if (!ghlEnabled || !booking.ghl_event_id) return;
+    /**
+     * Push a booking's current state to GHL: update its appointment (status/title
+     * change), or — with `create` — create the appointment when the booking has
+     * none yet (e.g. a signed offer whose reservation never reached the agenda).
+     */
+    const pushBooking = async (booking: any, opts: { create?: boolean } = {}) => {
+      if (!ghlEnabled) return;
+      if (!booking.ghl_event_id && !opts.create) return;
+      if (!booking.ghl_event_id && (booking.status === 'cancelled' || booking.status === 'expired')) return;
       const calendarId = calendarForRoom.get(booking.room_name);
       const contact = booking.contact_id ? contactById.get(booking.contact_id) : null;
-      if (!calendarId || !contact?.ghl_contact_id) return;
+      if (!calendarId || !contact?.ghl_contact_id) {
+        if (opts.create) results.errors.push(`ghl-booking:${booking.id}:geen GHL-agenda voor zaal "${booking.room_name}" of contact zonder GHL-id`);
+        return;
+      }
       try {
         const payload = buildAppointmentPayload(booking, calendarId, GHL_LOCATION_ID, contact.ghl_contact_id);
-        const res = await fetch(`${GHL_API_BASE}/calendars/events/appointments/${booking.ghl_event_id}`, {
-          method: 'PUT', headers: { ...ghlHeaders, 'Version': '2021-04-15' }, body: JSON.stringify(payload),
+        const url = booking.ghl_event_id
+          ? `${GHL_API_BASE}/calendars/events/appointments/${booking.ghl_event_id}`
+          : `${GHL_API_BASE}/calendars/events/appointments`;
+        const res = await fetch(url, {
+          method: booking.ghl_event_id ? 'PUT' : 'POST',
+          headers: { ...ghlHeaders, 'Version': '2021-04-15' },
+          body: JSON.stringify(payload),
         });
-        if (!res.ok) results.errors.push(`ghl-booking:${booking.id}:${await readError(res)}`);
-        else await res.text();
+        if (!res.ok) { results.errors.push(`ghl-booking:${booking.id}:${await readError(res)}`); return; }
+        if (booking.ghl_event_id) { await res.text(); return; }
+        const created = await res.json();
+        const ghlId = created?.id || created?.event?.id || created?.appointment?.id;
+        if (ghlId) {
+          await supabase.from('bookings').update({ ghl_event_id: ghlId }).eq('id', booking.id);
+          booking.ghl_event_id = ghlId;
+          results.details.push(`reservering ${booking.title || booking.id} → in GHL-agenda gezet`);
+        }
       } catch (e) { results.errors.push(`ghl-booking:${booking.id}:${String(e)}`); }
     };
 
@@ -428,8 +449,14 @@ Deno.serve(async (req) => {
                 converted++;
                 results.bookings_updated++;
                 results.details.push(`optie ${opt.title} → bevestigd`);
-                await pushBooking({ ...opt, status: 'confirmed' });
+                await pushBooking({ ...opt, status: 'confirmed' }, { create: true });
               }
+            }
+            // Bevestigde reserveringen van deze aanvraag die nog niet in de GHL-agenda staan
+            if (inquiry && !dryRun) {
+              const { data: missing } = await supabase.from('bookings').select('*')
+                .eq('inquiry_id', inquiry.id).eq('status', 'confirmed').is('ghl_event_id', null);
+              for (const b of missing || []) await pushBooking(b, { create: true });
             }
             for (const t of templatesFor('quote_signed')) {
               await createTasks(planTasks({ ...t, title: withNameSuffix(t.title, ph.naam) }, `document:${doc.id}`, { today, triggerDate: today, placeholders: ph }), link, userId);

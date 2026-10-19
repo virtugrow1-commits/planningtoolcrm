@@ -1028,5 +1028,26 @@ async function handleDocumentWebhook(supabase: any, ghlHeaders: any, userId: str
     await supabase.from('documents').insert(upsertData);
     console.log(`Webhook: Created document without GHL ID for ${contactName}`);
   }
+
+  // Getekende offerte: automatiseringen direct draaien (fase "Definitieve reservering",
+  // optie → bevestigd, GHL-agenda) in plaats van te wachten op de 10-minutenrun.
+  // crm-automations is idempotent, dus een dubbele aanroep kan geen kwaad.
+  if (status === 'signed') {
+    try {
+      const url = Deno.env.get('SUPABASE_URL');
+      const anon = Deno.env.get('SUPABASE_ANON_KEY');
+      if (url && anon) {
+        const res = await fetch(`${url}/functions/v1/crm-automations`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${anon}` },
+          body: JSON.stringify({}),
+        });
+        await res.text();
+        console.log(`Webhook: crm-automations na ondertekening → ${res.status}`);
+      }
+    } catch (e) {
+      console.error('Webhook: crm-automations aanroepen mislukt:', e);
+    }
+  }
 }
 
