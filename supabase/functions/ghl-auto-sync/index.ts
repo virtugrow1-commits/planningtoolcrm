@@ -445,6 +445,30 @@ async function syncCalendar(supabase: any, ghlHeaders: any, locationId: string, 
       .not('id', 'is', null)
       .not('ghl_calendar_id', 'is', null);
     
+    // Self-heal room → calendar links. Calendar IDs in room_settings were typed in
+    // by hand and some do not exist in GHL (1.03, 1.04, BBQ), so reservations for
+    // those rooms never reached GHL. When a stored ID is unknown but exactly one
+    // GHL calendar carries the room's name, use that calendar and store its ID.
+    const normName = (s: unknown) => String(s || '').toLowerCase().replace(/\s+/g, ' ').trim();
+    const knownCalIds = new Set(calendars.map((c: any) => c.id));
+    for (const rm of roomMappings || []) {
+      if (!rm.ghl_calendar_id || knownCalIds.has(rm.ghl_calendar_id)) continue;
+      const byName = calendars.filter((c: any) => normName(c.name) === normName(rm.room_name));
+      if (byName.length !== 1) {
+        console.warn(`Room "${rm.room_name}": calendar ${rm.ghl_calendar_id} does not exist in GHL and no unique calendar with that name`);
+        continue;
+      }
+      const fixedId = byName[0].id;
+      console.log(`Room "${rm.room_name}": calendar ${rm.ghl_calendar_id} does not exist in GHL, relinked to "${byName[0].name}" (${fixedId})`);
+      const { error: relinkErr } = await supabase.from('room_settings')
+        .update({ ghl_calendar_id: fixedId })
+        .eq('room_name', rm.room_name)
+        .eq('ghl_calendar_id', rm.ghl_calendar_id);
+      if (relinkErr) console.error(`Room "${rm.room_name}" relink failed:`, relinkErr.message);
+      else await logSystemSync(supabase, userId, 'room-calendar-relinked', { room: rm.room_name, from: rm.ghl_calendar_id, to: fixedId }, 'success');
+      rm.ghl_calendar_id = fixedId;
+    }
+
     const calIdToRoom: Record<string, string> = {};
     const roomToCalId: Record<string, string> = {};
     for (const rm of roomMappings || []) {
