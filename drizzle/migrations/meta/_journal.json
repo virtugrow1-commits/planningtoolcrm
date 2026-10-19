@@ -1,0 +1,20 @@
+{
+  "version": "7",
+  "dialect": "postgresql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "7",
+      "when": 1792405724677,
+      "tag": "0000_fix_inquiry_delete_history",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1792405733365,
+      "tag": "0001_contacts_is_active_follows_departed",
+      "breakpoints": true
+    }
+  ]
+}
