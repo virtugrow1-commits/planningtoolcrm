@@ -15,6 +15,13 @@
       "when": 1792405733365,
       "tag": "0001_contacts_is_active_follows_departed",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1792407941986,
+      "tag": "0002_crm_automations_cron_secret",
+      "breakpoints": true
     }
   ]
 }
