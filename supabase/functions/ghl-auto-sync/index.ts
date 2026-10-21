@@ -13,6 +13,8 @@ import { suppressGhlTask, taskRuleKey, taskRuleLabel } from "../_shared/taskAuto
 import { htmlToPlainText } from "../_shared/htmlToPlainText.ts";
 import {
   GHL_API_BASE,
+  resolveContactTags,
+  sameTags,
   applyRemoteInquiryPatch,
   buildAppointmentPayload,
   buildOpportunityUpdate,

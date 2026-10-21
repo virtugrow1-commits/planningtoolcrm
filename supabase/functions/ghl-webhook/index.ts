@@ -11,6 +11,8 @@ import {
 } from "../_shared/inquiryFields.ts";
 import {
   GHL_API_BASE,
+  resolveContactTags,
+  sameTags,
   applyRemoteInquiryPatch,
   crmStatusWins,
   mergePulledBookingStatus,
