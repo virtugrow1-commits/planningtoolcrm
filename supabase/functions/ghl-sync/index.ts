@@ -4,6 +4,8 @@ import { suppressGhlTask, taskRuleKey, taskRuleLabel } from "../_shared/taskAuto
 import { htmlToPlainText } from "../_shared/htmlToPlainText.ts";
 import {
   GHL_API_BASE,
+  resolveContactTags,
+  sameTags,
   applyRemoteInquiryPatch,
   buildAppointmentPayload,
   buildOpportunityUpdate,
@@ -188,7 +190,7 @@ Deno.serve(async (req) => {
         // Check if contact exists in any user within the organization
         const { data: existing } = await supabase
           .from('contacts')
-          .select('id, user_id, updated_at')
+          .select('id, user_id, updated_at, tags, last_local_edit_at, pending_outbound_sync')
           .in('user_id', orgUserIds)
           .eq('ghl_contact_id', ghlContact.id)
           .maybeSingle();
@@ -205,7 +207,8 @@ Deno.serve(async (req) => {
               email: ghlContact.email || null,
               phone: ghlContact.phone || null,
               company: ghlContact.companyName || null,
-              tags: Array.isArray(ghlContact.tags) ? ghlContact.tags : [],
+              ...(Array.isArray(ghlContact.tags) && resolveContactTags(existing.tags, ghlContact.tags, existing.last_local_edit_at, existing.pending_outbound_sync === true).source === 'ghl'
+                ? { tags: ghlContact.tags } : {}),
             }).eq('id', existing.id);
             console.log(`[Contacts Sync] Updated contact (GHL newer): ${firstName} ${lastName} (${existing.id})`);
           } else {

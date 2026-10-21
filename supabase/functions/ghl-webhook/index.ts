@@ -11,6 +11,8 @@ import {
 } from "../_shared/inquiryFields.ts";
 import {
   GHL_API_BASE,
+  resolveContactTags,
+  sameTags,
   applyRemoteInquiryPatch,
   crmStatusWins,
   mergePulledBookingStatus,
@@ -737,7 +739,7 @@ async function handleContactWebhook(supabase: any, userId: string, payload: any)
   const firstName = payload.firstName || payload.first_name || payload.name?.split(' ')[0] || 'Onbekend';
   const lastName = payload.lastName || payload.last_name || payload.name?.split(' ').slice(1).join(' ') || '';
 
-  const { data: existing } = await supabase.from('contacts').select('id, pending_outbound_sync').not('id', 'is', null).eq('ghl_contact_id', contactId).maybeSingle();
+  const { data: existing } = await supabase.from('contacts').select('id, pending_outbound_sync, tags, last_local_edit_at').not('id', 'is', null).eq('ghl_contact_id', contactId).maybeSingle();
 
   const tags: string[] | null = Array.isArray(payload.tags)
     ? payload.tags.map((t: any) => String(t).trim()).filter(Boolean)
@@ -757,7 +759,10 @@ async function handleContactWebhook(supabase: any, userId: string, payload: any)
       if (payload.email) update.email = payload.email;
       if (payload.phone) update.phone = payload.phone;
       if (payload.companyName || payload.company) update.company = payload.companyName || payload.company;
-      if (tags && tags.length > 0) update.tags = tags;
+      if (tags) {
+        const decision = resolveContactTags(existing.tags as string[], tags, existing.last_local_edit_at, false);
+        if (decision.source === 'ghl' && decision.changed) update.tags = decision.tags;
+      }
       if (Object.keys(update).length > 0) {
         await supabase.from('contacts').update(update).eq('id', existing.id);
       }

@@ -56,6 +56,36 @@ export function crmStatusWins(localStatusChangedAt: unknown, ghlUpdatedAt: unkno
   return localMs >= ghlMs;
 }
 
+const normTag = (t: string) => String(t).trim().toLowerCase();
+
+/** Same set of tags, ignoring case, spaces and order. */
+export function sameTags(a: string[], b: string[]): boolean {
+  const sa = new Set(a.map(normTag).filter(Boolean));
+  const sb = new Set(b.map(normTag).filter(Boolean));
+  if (sa.size !== sb.size) return false;
+  for (const t of sa) if (!sb.has(t)) return false;
+  return true;
+}
+
+/**
+ * Decide which tag list wins between CRM and GHL. A tag change made in the CRM
+ * within the last 24h (last_local_edit_at) or still pending push wins, so a
+ * lagging GHL copy can never wipe a freshly chosen tag.
+ */
+export function resolveContactTags(
+  localTags: string[] | null | undefined,
+  ghlTags: string[] | null | undefined,
+  lastLocalEditAt: unknown,
+  pendingOutbound = false,
+): { tags: string[]; source: 'crm' | 'ghl'; changed: boolean } {
+  const local = (localTags || []).map((t) => String(t).trim()).filter(Boolean);
+  const remote = (ghlTags || []).map((t) => String(t).trim()).filter(Boolean);
+  const localMs = parseTs(lastLocalEditAt);
+  const localRecent = pendingOutbound || (Number.isFinite(localMs) && Date.now() - localMs <= 24 * 60 * 60 * 1000);
+  if (localRecent) return { tags: local, source: 'crm', changed: false };
+  return { tags: remote, source: 'ghl', changed: !sameTags(local, remote) };
+}
+
 /** True when `ts` is within the last `windowMs` milliseconds. */
 export function isWithin(ts: unknown, windowMs: number): boolean {
   const ms = parseTs(ts);
