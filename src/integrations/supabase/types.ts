@@ -1707,8 +1707,13 @@ export type Database = {
         Args: { _action: string; _details: Json; _inq: string; _owner: string }
         Returns: undefined
       }
+      normalize_company_name: { Args: { input_text: string }; Returns: string }
       normalize_dutch_name_particles: {
         Args: { input_text: string }
+        Returns: string
+      }
+      normalize_person_name: {
+        Args: { input_text: string; is_infix?: boolean; is_last_name?: boolean }
         Returns: string
       }
       public_quote_mark_viewed: { Args: { _token: string }; Returns: undefined }

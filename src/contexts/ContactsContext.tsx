@@ -4,7 +4,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { pushToGHL } from '@/lib/ghlSync';
 import { Contact } from '@/types/crm';
 import { useToast } from '@/hooks/use-toast';
-import { capitalizeWords } from '@/lib/utils';
+import { capitalizeWords, normalizePersonName } from '@/lib/utils';
 import { fetchAllRows, debounce } from '@/lib/fetchAllRows';
 
 
@@ -111,7 +111,7 @@ export function ContactsProvider({ children }: { children: ReactNode }) {
     const { data, error } = await (supabase as any).from('contacts').insert({
       user_id: user.id,
       first_name: capitalizeWords(contact.firstName),
-      last_name: capitalizeWords(contact.lastName),
+      last_name: normalizePersonName(contact.lastName, { lastName: true }),
       email: contact.email || null,
       phone: contact.phone || null,
       company: contact.company || null,
@@ -128,7 +128,7 @@ export function ContactsProvider({ children }: { children: ReactNode }) {
       city: contact.city || null,
       country: contact.country || 'NL',
       birth_date: contact.birthDate || null,
-      infix: contact.infix || null,
+      infix: contact.infix ? capitalizeWords(contact.infix).toLowerCase() : null,
       mobile: contact.mobile || null,
       is_primary: contact.isPrimary === true,
       tags: contact.tags || [],
@@ -157,7 +157,7 @@ export function ContactsProvider({ children }: { children: ReactNode }) {
     // Update local DB first AND mark as pending so background sync can't overwrite
     const { error } = await (supabase as any).from('contacts').update({
       first_name: capitalizeWords(contact.firstName),
-      last_name: capitalizeWords(contact.lastName),
+      last_name: normalizePersonName(contact.lastName, { lastName: true }),
       email: contact.email || null,
       phone: contact.phone || null,
       company: contact.company || null,
@@ -175,7 +175,7 @@ export function ContactsProvider({ children }: { children: ReactNode }) {
       city: contact.city || null,
       country: contact.country || 'NL',
       birth_date: contact.birthDate || null,
-      infix: contact.infix || null,
+      infix: contact.infix ? capitalizeWords(contact.infix).toLowerCase() : null,
       mobile: contact.mobile || null,
       is_primary: contact.isPrimary === true,
       tags: contact.tags || [],
@@ -193,7 +193,7 @@ export function ContactsProvider({ children }: { children: ReactNode }) {
     const result = await pushToGHL('push-contact', { contact: {
       id: contact.id,
       first_name: capitalizeWords(contact.firstName),
-      last_name: capitalizeWords(contact.lastName),
+      last_name: normalizePersonName(contact.lastName, { lastName: true }),
       email: contact.email || null,
       phone: contact.phone || null,
       company: contact.company || null,

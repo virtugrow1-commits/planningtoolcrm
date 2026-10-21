@@ -10,7 +10,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { pushToGHL } from '@/lib/ghlSync';
-import { capitalizeWords } from '@/lib/utils';
+import { capitalizeWords, normalizeCompanyName, normalizePersonName } from '@/lib/utils';
 import { Inquiry, ROOMS, Contact } from '@/types/crm';
 import { Company } from '@/contexts/CompaniesContext';
 import { Plus, Building2, User } from 'lucide-react';
@@ -175,7 +175,7 @@ export default function NewInquiryDialog({ open, onOpenChange, contacts, compani
         } else {
           const { data: newCo, error: coErr } = await (supabase as any).from('companies').insert({
             user_id: user.id,
-            name: capitalizeWords(companyForm.name.trim()),
+            name: normalizeCompanyName(companyForm.name.trim()),
             email: companyForm.email || null,
             phone: companyForm.phone || null,
             address: companyForm.address || null,
@@ -226,7 +226,7 @@ export default function NewInquiryDialog({ open, onOpenChange, contacts, compani
           const { data: newContact, error: cErr } = await supabase.from('contacts').insert({
             user_id: user.id,
             first_name: capitalizeWords(contactForm.firstName.trim()),
-            last_name: capitalizeWords(contactForm.lastName.trim()),
+            last_name: normalizePersonName(contactForm.lastName.trim(), { lastName: true }),
             email: contactForm.email || null,
             phone: contactForm.phone || null,
             company_id: companyId || null,

@@ -3,7 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { pushToGHL } from '@/lib/ghlSync';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
-import { capitalizeWords } from '@/lib/utils';
+import { capitalizeWords, normalizeCompanyName } from '@/lib/utils';
 import { parseCrmGroup } from '@/lib/formatters';
 import { fetchAllRows, debounce } from '@/lib/fetchAllRows';
 
@@ -110,7 +110,7 @@ export function CompaniesProvider({ children }: { children: ReactNode }) {
     if (!user) return { outcome: null, companyId: null };
     const { data, error } = await (supabase as any).from('companies').insert({
       user_id: user.id,
-      name: capitalizeWords(company.name),
+      name: normalizeCompanyName(company.name),
       email: company.email || null,
       phone: company.phone || null,
       website: company.website || null,
@@ -142,7 +142,7 @@ export function CompaniesProvider({ children }: { children: ReactNode }) {
   }, [user, toast]);
 
   const updateCompany = useCallback(async (company: Company): Promise<SyncOutcome> => {
-    const normalizedName = capitalizeWords(company.name);
+    const normalizedName = normalizeCompanyName(company.name);
     const updatedCompany = { ...company, name: normalizedName };
 
     // Optimistic update: instantly reflect changes in UI
