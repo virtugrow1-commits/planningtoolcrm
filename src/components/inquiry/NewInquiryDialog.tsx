@@ -226,7 +226,7 @@ export default function NewInquiryDialog({ open, onOpenChange, contacts, compani
           const { data: newContact, error: cErr } = await supabase.from('contacts').insert({
             user_id: user.id,
             first_name: capitalizeWords(contactForm.firstName.trim()),
-            last_name: normalizePersonName(contactForm.lastName.trim(, { lastName: true })),
+            last_name: normalizePersonName(contactForm.lastName.trim(), { lastName: true }),
             email: contactForm.email || null,
             phone: contactForm.phone || null,
             company_id: companyId || null,
