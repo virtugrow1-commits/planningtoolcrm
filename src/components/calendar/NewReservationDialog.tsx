@@ -14,7 +14,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { pushToGHL } from '@/lib/ghlSync';
-import { capitalizeWords } from '@/lib/utils';
+import { capitalizeWords, normalizeCompanyName } from '@/lib/utils';
 import { useContactCompanies } from '@/hooks/useContactCompanies';
 
 export interface NewReservationForm {
@@ -284,7 +284,7 @@ export default function NewReservationDialog({
         } else {
           const { data: newCo, error: coErr } = await (supabase as any).from('companies').insert({
             user_id: user.id,
-            name: capitalizeWords(companyForm.name.trim()),
+            name: normalizeCompanyName(companyForm.name.trim()),
             email: companyForm.email || null,
             phone: companyForm.phone || null,
             address: companyForm.address || null,
