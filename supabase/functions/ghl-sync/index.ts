@@ -190,7 +190,7 @@ Deno.serve(async (req) => {
         // Check if contact exists in any user within the organization
         const { data: existing } = await supabase
           .from('contacts')
-          .select('id, user_id, updated_at')
+          .select('id, user_id, updated_at, tags, last_local_edit_at, pending_outbound_sync')
           .in('user_id', orgUserIds)
           .eq('ghl_contact_id', ghlContact.id)
           .maybeSingle();
