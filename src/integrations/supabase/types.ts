@@ -1713,7 +1713,7 @@ export type Database = {
         Returns: string
       }
       normalize_person_name: {
-        Args: { input_text: string; is_infix?: boolean }
+        Args: { input_text: string; is_infix?: boolean; is_last_name?: boolean }
         Returns: string
       }
       public_quote_mark_viewed: { Args: { _token: string }; Returns: undefined }

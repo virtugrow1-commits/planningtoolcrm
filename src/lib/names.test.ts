@@ -15,3 +15,9 @@ describe('normalizeCompanyName', () => {
   it('keeps company name as typed', () => expect(normalizeCompanyName('Hotel De Kroon')).toBe('Hotel De Kroon'));
   it('first letter capital', () => expect(normalizeCompanyName('bakker en Zn')).toBe('Bakker en Zn'));
 });
+
+describe('last name field', () => {
+  it('keeps leading tussenvoegsel lowercase', () => expect(normalizePersonName('Van Pelt', { lastName: true })).toBe('van Pelt'));
+  it('particle after hyphen', () => expect(normalizePersonName('witte-Van steen', { lastName: true })).toBe('Witte-van Steen'));
+  it('connector en stays lowercase', () => expect(normalizePersonName('karina en lendert')).toBe('Karina en Lendert'));
+});

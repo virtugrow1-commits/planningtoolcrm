@@ -1,8 +1,8 @@
-/** Dutch tussenvoegsels: lowercase when they appear after the first word of a person name. */
+/** Dutch tussenvoegsels (and the connector "en"): lowercase unless they open a first/full name. */
 const PARTICLES = new Set([
   'van', 'de', 'den', 'der', 'des', 'ten', 'ter', 'te', 'het', "'t", "'s",
   'op', 'in', 'aan', 'bij', 'uit', 'voor', 'onder', 'over', 'tot',
-  'la', 'le', 'du', 'da', 'di', 'del', 'della', 'von', 'zu', 'dos', 'das',
+  'la', 'le', 'du', 'da', 'di', 'del', 'della', 'von', 'zu', 'dos', 'das', 'en',
 ]);
 
 /** Capitalize the first letter only; keep the rest as typed. "ij…" becomes "IJ…". */
@@ -12,27 +12,26 @@ function capFirst(part: string): string {
   return part.charAt(0).toUpperCase() + part.slice(1);
 }
 
-function capWord(word: string): string {
-  return word.split('-').map(capFirst).join('-');
-}
-
 /**
- * Person name (first name, last name or full name):
- * keeps the user's own capitals, starts every name part with a capital (IJ as one letter),
- * and lowercases tussenvoegsels that are not the first word.
+ * Person name. Keeps the user's own capitals, starts every name part with a capital
+ * (IJ counts as one letter) and keeps tussenvoegsels lowercase. A tussenvoegsel that opens
+ * a first or full name gets a capital; in a last-name field it stays lowercase ("van Pelt").
  */
-export function normalizePersonName(str: string, opts: { infix?: boolean } = {}): string {
+export function normalizePersonName(str: string, opts: { infix?: boolean; lastName?: boolean } = {}): string {
   if (!str) return str;
   const words = str.trim().split(/\s+/);
   if (opts.infix) return words.map((w) => w.toLowerCase()).join(' ');
   return words
-    .map((w, i) => (i > 0 && PARTICLES.has(w.toLowerCase()) ? w.toLowerCase() : capWord(w)))
+    .map((w, i) =>
+      w.split('-').map((p, j) =>
+        PARTICLES.has(p.toLowerCase()) && (i > 0 || j > 0 || opts.lastName) ? p.toLowerCase() : capFirst(p),
+      ).join('-'),
+    )
     .join(' ');
 }
 
 /** Company name: kept exactly as typed, only the first letter is made a capital. */
 export function normalizeCompanyName(str: string): string {
   if (!str) return str;
-  const t = str.trim();
-  return capFirst(t);
+  return capFirst(str.trim());
 }
