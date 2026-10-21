@@ -1142,16 +1142,25 @@ async function syncContacts(supabase: any, ghlHeaders: any, locationId: string, 
           }
         }
 
-        // Tags are managed in GHL and are always mirrored into the CRM
+        // Tags: GHL is mirrored, unless the CRM changed them in the last 24h —
+        // then the CRM selection wins and is re-pushed to GHL.
         if (Array.isArray(ghlContact.tags)) {
           const ghlTags: string[] = ghlContact.tags.map((t: any) => fixEnc(String(t))).filter(Boolean);
           for (const t of ghlTags) allSeenTags.add(t);
           const currentTags: string[] = Array.isArray(existing.tags) ? existing.tags : [];
-          const differs = currentTags.length !== ghlTags.length ||
-            ghlTags.some((t) => !currentTags.some((c) => norm(c) === norm(t)));
-          if (differs) {
-            await supabase.from('contacts').update({ tags: ghlTags }).eq('id', existing.id);
-            existing.tags = ghlTags;
+          const decision = resolveContactTags(currentTags, ghlTags, existing.last_local_edit_at, existing.pending_outbound_sync === true);
+          if (decision.source === 'ghl' && decision.changed) {
+            await supabase.from('contacts').update({ tags: decision.tags }).eq('id', existing.id);
+            existing.tags = decision.tags;
+          } else if (decision.source === 'crm' && !sameTags(currentTags, ghlTags)) {
+            try {
+              const r = await fetch(`${GHL_API_BASE}/contacts/${ghlContact.id}`, {
+                method: 'PUT', headers: ghlHeaders, body: JSON.stringify({ tags: currentTags }),
+              });
+              console.log(`CRM -> GHL tags for contact ${existing.id}: ${r.status}`);
+            } catch (e) {
+              console.error(`Tag push failed for contact ${existing.id}: ${String(e)}`);
+            }
           }
         }
       } else {

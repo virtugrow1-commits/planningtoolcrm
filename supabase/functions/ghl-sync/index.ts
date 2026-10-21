@@ -205,7 +205,8 @@ Deno.serve(async (req) => {
               email: ghlContact.email || null,
               phone: ghlContact.phone || null,
               company: ghlContact.companyName || null,
-              tags: Array.isArray(ghlContact.tags) ? ghlContact.tags : [],
+              ...(Array.isArray(ghlContact.tags) && resolveContactTags(existing.tags, ghlContact.tags, existing.last_local_edit_at, existing.pending_outbound_sync === true).source === 'ghl'
+                ? { tags: ghlContact.tags } : {}),
             }).eq('id', existing.id);
             console.log(`[Contacts Sync] Updated contact (GHL newer): ${firstName} ${lastName} (${existing.id})`);
           } else {
