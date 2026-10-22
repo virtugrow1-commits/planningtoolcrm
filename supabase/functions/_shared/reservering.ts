@@ -189,6 +189,13 @@ export function pickSignedQuoteForInquiry<T extends { inquiry_id?: string | null
   const byNewest = [...(docs ?? [])].sort((a, b) => String(b.signed_at || '').localeCompare(String(a.signed_at || '')));
   const own = byNewest.find((d) => d.inquiry_id === inquiryId);
   if (own) return own;
-  const since = inquiryCreatedAt ? String(inquiryCreatedAt).slice(0, 10) : '';
-  return byNewest.find((d) => !d.inquiry_id && (!since || String(d.signed_at || '').slice(0, 10) >= since)) ?? null;
+  // Op het exacte moment vergelijken: een oude offerte die eerder op dezelfde dag
+  // is getekend hoort niet bij een aanvraag die daarna binnenkwam.
+  const since = inquiryCreatedAt ? Date.parse(String(inquiryCreatedAt)) : NaN;
+  return byNewest.find((d) => {
+    if (d.inquiry_id) return false;
+    if (!Number.isFinite(since)) return true;
+    const signed = Date.parse(String(d.signed_at || ''));
+    return Number.isFinite(signed) && signed >= since;
+  }) ?? null;
 }

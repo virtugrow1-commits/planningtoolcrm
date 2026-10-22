@@ -2232,6 +2232,9 @@ async function syncDocuments(supabase: any, ghlHeaders: any, locationId: string,
     }
     const docs: any[] = [];
     let source = 'proposals';
+    // Alleen als de hele lijst foutloos is opgehaald mogen we documenten die in
+    // GHL verwijderd zijn ook uit BUUT halen.
+    let listComplete = false;
     // 1. Proposals API (paginated) — GHL rejects limit > 21 with a 422
     for (let skip = 0, page = 0; page < 50; skip += 20, page++) {
       const res = await fetch(`${GHL_API_BASE}/proposals/document?locationId=${locationId}&limit=20&skip=${skip}`, { headers: ghlHeaders });
@@ -2246,7 +2249,7 @@ async function syncDocuments(supabase: any, ghlHeaders: any, locationId: string,
       const data = await res.json();
       const batch: any[] = data.documents || data.data || data.proposals || [];
       docs.push(...batch);
-      if (batch.length < 20) break;
+      if (batch.length < 20) { listComplete = true; break; }
       await delay(200);
     }
     // 2. Fallback to the legacy path (kept for accounts where it does exist)
@@ -2376,6 +2379,23 @@ async function syncDocuments(supabase: any, ghlHeaders: any, locationId: string,
       }
     }
     console.log(`[Documents Sync] Synced ${results.documents_synced} documents`);
+
+    // In GHL verwijderde documenten ook uit BUUT halen (anders blijven ze in de
+    // aanvraag, de dashboardtellingen en de keuze van de getekende offerte staan).
+    if (source === 'proposals' && listComplete && docIds.length > 0) {
+      const live = new Set(docIds.map(String));
+      const { data: crmDocs } = await supabase.from('documents').select('id, ghl_document_id')
+        .eq('user_id', userId).not('ghl_document_id', 'is', null);
+      const gone = (crmDocs || []).filter((d: any) => !live.has(String(d.ghl_document_id))).map((d: any) => d.id);
+      // Veiligheidsgrens: nooit in één keer een groot deel van het archief weghalen
+      if (gone.length > 0 && gone.length <= Math.max(5, Math.floor((crmDocs || []).length * 0.2))) {
+        const { error } = await supabase.from('documents').delete().in('id', gone);
+        if (error) console.error('[Documents Sync] Remove deleted error:', error.message);
+        else { console.log(`[Documents Sync] Removed ${gone.length} documents deleted in GHL`); results.documents_removed = gone.length; }
+      } else if (gone.length > 0) {
+        console.warn(`[Documents Sync] ${gone.length} documents missing in GHL — above safety limit, not removed`);
+      }
+    }
   } catch (e) {
     console.error('[Documents Sync] Error:', e);
     results.errors.push(`documents: ${e}`);

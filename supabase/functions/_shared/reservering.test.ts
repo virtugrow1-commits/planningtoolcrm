@@ -67,3 +67,8 @@ Deno.test('getekende offerte hoort bij deze aanvraag, niet bij een oude aanvraag
   assertEquals(pickSignedQuoteForInquiry(docs.slice(0, 2), 'inq-nieuw', '2026-10-22T14:00:00Z'), null);
   assertEquals(pickSignedQuoteForInquiry([{ id: 'los', inquiry_id: null, signed_at: '2026-10-22T15:00:00Z' }], 'inq-nieuw', '2026-10-22T14:00:00Z')?.id, 'los');
 });
+
+Deno.test('losse offerte die eerder op dezelfde dag is getekend hoort niet bij een latere aanvraag', () => {
+  const docs = [{ id: 'oud-zelfde-dag', inquiry_id: null, signed_at: '2026-10-22T14:20:00Z' }];
+  assertEquals(pickSignedQuoteForInquiry(docs, 'inq-nieuw', '2026-10-22T15:23:00Z'), null);
+});
