@@ -1,3 +1,5 @@
+import { buildBegroting, inloopVoor, onderdeel, ONDERDELEN, type Begroting } from './begroting.ts';
+
 // Gegevens voor de reserveringsbevestiging (GHL Documents & Contracts).
 //
 // De bevestiging gebruikt eigen contactvelden ({{contact.reservering_*}}), los
@@ -18,7 +20,18 @@ export const RESERVERING_FIELDS: Record<string, string> = {
   reservering_aantal_gasten: 'Reservering aantal gasten',
   reservering_zaal: 'Reservering zaal',
   reservering_zaalopstelling: 'Reservering zaalopstelling',
+  reservering_inloop: 'Reservering inloop',
+  reservering_lunch: 'Reservering lunch',
+  reservering_borrel: 'Reservering borrel',
+  reservering_diner: 'Reservering diner',
+  reservering_begroting: 'Reservering begroting',
+  reservering_subtotaal: 'Reservering subtotaal',
+  reservering_btw: 'Reservering btw',
+  reservering_totaalbedrag: 'Reservering totaalbedrag',
 };
+
+/** Velden die in GHL "Meerdere regels" (LARGE_TEXT) zijn; de rest is "Enkele lijn". */
+export const LARGE_TEXT_FIELDS = new Set(['reservering_begroting']);
 
 export type ReserveringKey = keyof typeof RESERVERING_FIELDS;
 
@@ -97,6 +110,14 @@ export interface ReserveringData {
   reservering_aantal_gasten: string;
   reservering_zaal: string;
   reservering_zaalopstelling: string;
+  reservering_inloop: string;
+  reservering_lunch: string;
+  reservering_borrel: string;
+  reservering_diner: string;
+  reservering_begroting: string;
+  reservering_subtotaal: string;
+  reservering_btw: string;
+  reservering_totaalbedrag: string;
 }
 
 export function buildReserveringData(input: {
@@ -107,6 +128,8 @@ export function buildReserveringData(input: {
   reservationNumber: string;
   offerteNummer: string;
   today?: string;
+  /** Begroting van de geaccepteerde offerte (uit de GHL-factuur) */
+  begroting?: Begroting;
 }): ReserveringData {
   const { inquiry: inq, contact, company } = input;
   const picked = pickBookings(input.bookings);
@@ -124,6 +147,8 @@ export function buildReserveringData(input: {
   const gastenBooking = Math.max(0, ...sameDay.map((b) => Number(b.guest_count) || 0));
   const gasten = gastenBooking > 0 ? gastenBooking : Number(inq.guest_count) || 0;
 
+  const beg: Begroting = input.begroting ?? buildBegroting(null, null);
+
   const volledigeNaam = `${contact?.first_name ?? ''} ${contact?.last_name ?? ''}`.trim();
   const bedrijf = company?.name || contact?.company || volledigeNaam || '—';
 
@@ -140,5 +165,13 @@ export function buildReserveringData(input: {
     reservering_aantal_gasten: String(gasten),
     reservering_zaal: dash(zalen || inq.room_preference),
     reservering_zaalopstelling: dash(opstelling),
+    reservering_inloop: start ? inloopVoor(start) : '—',
+    reservering_lunch: onderdeel(beg.itemNamen, ONDERDELEN.lunch, beg.bron),
+    reservering_borrel: onderdeel(beg.itemNamen, ONDERDELEN.borrel, beg.bron),
+    reservering_diner: onderdeel(beg.itemNamen, ONDERDELEN.diner, beg.bron),
+    reservering_begroting: beg.regels,
+    reservering_subtotaal: beg.subtotaal,
+    reservering_btw: beg.btw,
+    reservering_totaalbedrag: beg.totaal,
   };
 }

@@ -129,9 +129,13 @@ export default function InquiryDetailsTab({ inquiry, editing, form, setForm, con
       });
       if (error) throw error;
       if (data?.ok === false) throw new Error(data?.error || 'Onbekende fout');
+      const begrotingOk = data?.begroting_bron === 'factuur';
       toast({
         title: `Reserveringsbevestiging klaargezet (${data?.reserveringsnummer ?? ''})`,
-        description: 'Maak in CliqCRM het document aan vanuit het sjabloon Reserveringsbevestiging; alle gegevens staan er al in.',
+        description: begrotingOk
+          ? 'Inclusief de begroting van de getekende offerte. Maak in CliqCRM het document aan vanuit het sjabloon Reserveringsbevestiging.'
+          : `Let op: begroting niet compleet${data?.begroting_melding ? ` (${data.begroting_melding})` : ''}. ${data?.begroting_bron === 'document_totaal' ? 'Alleen het totaalbedrag is ingevuld.' : ''}`,
+        variant: begrotingOk ? undefined : 'destructive',
       });
       await loadResInfo();
       await refetch();

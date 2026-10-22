@@ -11,7 +11,8 @@
 
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { GHL_API_BASE, jsonResponse, readError } from "../_shared/ghlCommon.ts";
-import { buildReserveringData, RESERVERING_FIELDS, signedOfferteNummer } from "../_shared/reservering.ts";
+import { buildReserveringData, LARGE_TEXT_FIELDS, RESERVERING_FIELDS, signedOfferteNummer } from "../_shared/reservering.ts";
+import { buildBegroting, pickInvoice, type Invoice } from "../_shared/begroting.ts";
 import { isQuoteDocument } from "../_shared/automations.ts";
 
 const TOKEN = Deno.env.get("GHL_API_KEY") || "";
@@ -47,7 +48,7 @@ async function resolveFieldIds(): Promise<Record<string, string>> {
       const res = await fetch(`${GHL_API_BASE}/locations/${LOCATION}/customFields`, {
         method: "POST",
         headers: ghlHeaders,
-        body: JSON.stringify({ name: RESERVERING_FIELDS[key], dataType: "TEXT", model: "contact", fieldKey: `contact.${key}` }),
+        body: JSON.stringify({ name: RESERVERING_FIELDS[key], dataType: LARGE_TEXT_FIELDS.has(key) ? "LARGE_TEXT" : "TEXT", model: "contact" }),
       });
       if (!res.ok) console.warn(`stage-reservering: veld ${key} aanmaken mislukt ${res.status}: ${await readError(res)}`);
       else await res.text();
@@ -57,6 +58,31 @@ async function resolveFieldIds(): Promise<Record<string, string>> {
   const stillMissing = Object.keys(RESERVERING_FIELDS).filter((k) => !ids[k]);
   if (stillMissing.length) throw new Error(`Ontbrekende GHL-velden: ${stillMissing.map((k) => `contact.${k}`).join(", ")}`);
   return ids;
+}
+
+/**
+ * De factuur die GHL bij het ondertekenen van de offerte aanmaakte
+ * ("<titel> - Invoice"), met de geaccepteerde productregels.
+ * Vereist de scope invoices.readonly op de private integration.
+ */
+async function fetchAcceptedInvoice(ghlContactId: string, docTitle: string | null, docAmount: number | null): Promise<{ invoice: Invoice | null; warning?: string }> {
+  const base = `${GHL_API_BASE}/invoices/`;
+  const qs = (extra: string) => `?altId=${LOCATION}&altType=location&limit=100&offset=0${extra}`;
+  let res = await fetch(`${base}${qs(`&contactId=${encodeURIComponent(ghlContactId)}`)}`, { headers: ghlHeaders });
+  if (!res.ok) {
+    const err = await readError(res);
+    return { invoice: null, warning: `GHL facturen ${res.status}: ${err}` };
+  }
+  let list: Invoice[] = (await res.json()).invoices || [];
+  // Sommige accounts negeren contactId: dan zelf filteren
+  list = list.filter((i) => !i.contactDetails?.id || i.contactDetails.id === ghlContactId);
+  const picked = pickInvoice(list, docTitle, docAmount);
+  if (!picked?._id) return { invoice: null, warning: list.length ? "Geen factuur gevonden die bij de getekende offerte hoort" : "Contact heeft geen facturen in CliqCRM" };
+  if (Array.isArray(picked.items) && picked.items.length) return { invoice: picked };
+  res = await fetch(`${base}${picked._id}${qs("")}`, { headers: ghlHeaders });
+  if (!res.ok) return { invoice: null, warning: `GHL factuur ${res.status}: ${await readError(res)}` };
+  const body = await res.json();
+  return { invoice: (body.invoice || body) as Invoice };
 }
 
 Deno.serve(async (req) => {
@@ -104,7 +130,7 @@ Deno.serve(async (req) => {
     // 2. Getekende offerte zoeken (documenten van deze aanvraag, anders van het contact)
     const { data: docs } = await db
       .from("documents")
-      .select("id, title, document_type, document_kind, status, signed_at, offerte_nummer, inquiry_id, contact_id")
+      .select("id, title, document_type, document_kind, status, signed_at, offerte_nummer, inquiry_id, contact_id, amount")
       .or(`inquiry_id.eq.${inquiryId},contact_id.eq.${contact.id}`)
       .in("status", ["signed", "paid"])
       .order("signed_at", { ascending: false });
@@ -126,6 +152,11 @@ Deno.serve(async (req) => {
       .select("date, start_hour, start_minute, end_hour, end_minute, reservation_number, status, guest_count, room_name, room_setup")
       .eq("inquiry_id", inquiryId);
 
+    const hasDate = (bookings ?? []).some((b: any) => b.status === "confirmed" || b.status === "option") || Boolean(inq.preferred_date);
+    if (!hasDate) {
+      throw new Error("Deze aanvraag heeft geen datum. Maak eerst een reservering of vul een voorkeursdatum in.");
+    }
+
     const { data: resNr, error: resErr } = await db.rpc("ensure_inquiry_reservation_number", { p_inquiry_id: inquiryId });
     if (resErr) throw resErr;
 
@@ -142,19 +173,6 @@ Deno.serve(async (req) => {
       signedDoc,
       revisieBumpedAfterSigned: bumpedAfterSigned,
     });
-
-    const data = buildReserveringData({
-      inquiry: inq,
-      contact,
-      company: inq.companies as any,
-      bookings: bookings ?? [],
-      reservationNumber: String(resNr),
-      offerteNummer,
-    });
-
-    if (data.reservering_datum === "—") {
-      throw new Error("Deze aanvraag heeft geen datum. Maak eerst een reservering of vul een voorkeursdatum in.");
-    }
 
     // 5. GHL-contact (aanmaken als het nog niet bestaat)
     let ghlId: string | null = contact.ghl_contact_id;
@@ -177,7 +195,33 @@ Deno.serve(async (req) => {
       await db.from("contacts").update({ ghl_contact_id: ghlId }).eq("id", contact.id);
     }
 
-    // 6. Velden wegschrijven
+    // 6. Begroting van de geaccepteerde offerte (uit de GHL-factuur)
+    const docAmount = signedDoc?.amount != null ? Number(signedDoc.amount) : null;
+    let begrotingWarning: string | undefined;
+    let invoice: Invoice | null = null;
+    if (signedDoc) {
+      try {
+        const r = await fetchAcceptedInvoice(ghlId, signedDoc.title, docAmount);
+        invoice = r.invoice;
+        begrotingWarning = r.warning;
+      } catch (e) {
+        begrotingWarning = `Begroting ophalen mislukt: ${e instanceof Error ? e.message : String(e)}`;
+      }
+      if (begrotingWarning) console.warn("stage-reservering:", begrotingWarning);
+    }
+    const begroting = buildBegroting(invoice, docAmount);
+
+    const data = buildReserveringData({
+      inquiry: inq,
+      contact,
+      company: inq.companies as any,
+      bookings: bookings ?? [],
+      reservationNumber: String(resNr),
+      offerteNummer,
+      begroting,
+    });
+
+    // 7. Velden wegschrijven
     const ids = await resolveFieldIds();
     const customFields = Object.entries(data).map(([key, value]) => ({ id: ids[key], value }));
     const put = await fetch(`${GHL_API_BASE}/contacts/${ghlId}`, {
@@ -195,6 +239,8 @@ Deno.serve(async (req) => {
       reserveringsnummer: `RES-${data.reservering_nummer}`,
       offertenummer: data.reservering_offertenummer,
       getekend: Boolean(signedDoc),
+      begroting_bron: begroting.bron,
+      begroting_melding: begrotingWarning ?? null,
       velden: data,
       ghl_contact_id: ghlId,
     });

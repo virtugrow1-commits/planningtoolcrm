@@ -67,7 +67,17 @@ Twee aparte documentsoorten in GHL *Documents & Contracts*, elk met eigen contac
 Velden `reservering_nummer`, `reservering_offertenummer`, `reservering_bevestigingsdatum`, `reservering_datum`,
 `reservering_starttijd`, `reservering_eindtijd`, `reservering_bedrijfsnaam`, `reservering_kostenplaats`,
 `reservering_type_bijeenkomst`, `reservering_aantal_gasten`, `reservering_zaal`, `reservering_zaalopstelling`
+`reservering_inloop` (kwartier voor aanvang), `reservering_lunch`, `reservering_borrel`, `reservering_diner`
+(Ja/Nee uit de geaccepteerde producten), `reservering_begroting` (Meerdere regels: één regel per product),
+`reservering_subtotaal`, `reservering_btw`, `reservering_totaalbedrag`
 (ontbrekende velden maakt `stage-reservering` zelf aan in GHL).
+
+**Begroting**: de Documents-API van GHL geeft geen productregels terug. Bij ondertekenen maakt GHL wel automatisch een
+conceptfactuur `<titel offerte> - Invoice` met de geaccepteerde regels; `stage-reservering` leest die via de Invoices-API
+(scope `invoices.readonly`, staat aan op de integratie *Nieuwe api Aan de donge*). Geen factuur gevonden → alleen het
+totaalbedrag van het getekende document, en de knop meldt dat.
+
+**Sjabloon**: `{{contact.…}}`-codes werken alleen in een *Tekst*-blok, niet in een *Tekstveld* (invulveld).
 
 Na deploy: migratie `20261022120000_reserveringsbevestiging.sql` toepassen en edge function `stage-reservering` deployen
 (plus de gewijzigde `stage-offerte` en `crm-automations`). Beide functies werken ook vóór de migratie door, alleen zonder
