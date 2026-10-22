@@ -345,6 +345,21 @@ Deno.serve(async (req) => {
       // quote automations, so they sync in every run (every 5 minutes).
       await syncDocuments(supabase, ghlHeaders, GHL_LOCATION_ID, userId, results);
 
+      // Nieuw verzonden/getekend document: offerte-automatisering meteen draaien
+      // (fase, optie -> bevestigd) in plaats van pas bij de volgende ronde.
+      if (results.documents_status_changed) {
+        try {
+          const res = await fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/crm-automations`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${Deno.env.get('SUPABASE_ANON_KEY') || ''}` },
+            body: JSON.stringify({ source: 'auto-sync-documents' }),
+          });
+          await res.text();
+        } catch (e) {
+          console.warn('[Documents Sync] crm-automations trigger failed:', e);
+        }
+      }
+
       // Push local inquiries without GHL opportunity ID
       await pushLocalInquiries(supabase, ghlHeaders, GHL_LOCATION_ID, userId, results);
 
@@ -774,6 +789,17 @@ async function autoEnrichInquiry(supabase: any, ghlHeaders: any, locationId: str
 
 
 // === OPPORTUNITIES BIDIRECTIONAL SYNC ===
+/** Laatste geldige tijdstip uit een lijst (ISO-strings of epoch-ms), of null. */
+function latestTs(...values: unknown[]): string | null {
+  let best = -Infinity;
+  for (const v of values) {
+    if (v === null || v === undefined || v === '') continue;
+    const ms = typeof v === 'number' ? v : Date.parse(String(v));
+    if (Number.isFinite(ms) && ms > best) best = ms;
+  }
+  return Number.isFinite(best) ? new Date(best).toISOString() : null;
+}
+
 async function syncOpportunities(supabase: any, ghlHeaders: any, locationId: string, userId: string, results: any, lookups: any) {
   try {
     const pipelinesRes = await fetch(`${GHL_API_BASE}/opportunities/pipelines?locationId=${locationId}`, { headers: ghlHeaders });
@@ -826,7 +852,10 @@ async function syncOpportunities(supabase: any, ghlHeaders: any, locationId: str
             // Status conflicts use local_status_changed_at (not updated_at, which
             // also bumps on enrichment/task writes) so BUUT's own stage changes
             // no longer get reverted by a stale CRM status.
-            const ghlTs = opp.dateUpdated || opp.dateAdded || null;
+            // Een fase-wissel door een GHL-workflow (bijv. "Offerte akkoord") staat in
+            // lastStageChangeAt/lastStatusChangeAt; neem het laatste moment, anders
+            // wint een oudere BUUT-status en zet de sync de fase terug.
+            const ghlTs = latestTs(opp.lastStageChangeAt, opp.lastStatusChangeAt, opp.dateUpdated, opp.updatedAt, opp.dateAdded);
             const crmIsNewerFlag = crmIsNewer(existing.updated_at, ghlTs);
             const statusFromCrm = existing.status === ghlStatus || crmStatusWins(existing.local_status_changed_at, ghlTs);
 
@@ -2361,6 +2390,7 @@ async function syncDocuments(supabase: any, ghlHeaders: any, locationId: string,
         if (contact?.id) { patch.contact_id = contact.id; if (contact.company_id) patch.company_id = contact.company_id; }
         if ((order[status] ?? 0) > (order[existing.status] ?? 0) || status === 'declined') {
           patch.status = status;
+          if (status === 'signed' || status === 'paid') results.documents_status_changed = (results.documents_status_changed || 0) + 1;
           if (status === 'viewed') patch.viewed_at = doc.viewedAt || new Date().toISOString();
           if (status === 'signed' || status === 'paid') patch.signed_at = doc.acceptedAt || doc.signedAt || doc.completedAt || new Date().toISOString();
         }
@@ -2375,7 +2405,11 @@ async function syncDocuments(supabase: any, ghlHeaders: any, locationId: string,
           viewed_at: doc.viewedAt || (status === 'viewed' ? new Date().toISOString() : null),
           signed_at: doc.acceptedAt || doc.signedAt || doc.completedAt || (status === 'signed' ? new Date().toISOString() : null),
         });
-        if (error) console.error(`[Documents Sync] Insert error for ${ghlDocId}:`, error.message); else results.documents_synced++;
+        if (error) console.error(`[Documents Sync] Insert error for ${ghlDocId}:`, error.message);
+        else {
+          results.documents_synced++;
+          results.documents_status_changed = (results.documents_status_changed || 0) + 1;
+        }
       }
     }
     console.log(`[Documents Sync] Synced ${results.documents_synced} documents`);
