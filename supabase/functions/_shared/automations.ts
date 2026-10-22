@@ -185,6 +185,18 @@ export interface QuoteDocumentsConfig {
   signed_status: string;
   convert_option_to_confirmed: boolean;
   title_keywords: string[];
+  /** ISO-moment waarop de automatisering is aangezet: oudere verzendingen/ondertekeningen worden genegeerd */
+  vanaf?: string | null;
+}
+
+/** Valt dit moment op of na het startmoment van de automatisering? (geen startmoment = altijd) */
+export function isAfterStart(moment: string | null | undefined, vanaf: string | null | undefined): boolean {
+  if (!vanaf) return true;
+  if (!moment) return false;
+  const m = Date.parse(String(moment));
+  const v = Date.parse(String(vanaf));
+  if (!Number.isFinite(v)) return true;
+  return Number.isFinite(m) && m >= v;
 }
 
 export type DocumentKind = 'offerte' | 'reserveringsbevestiging' | 'overig';

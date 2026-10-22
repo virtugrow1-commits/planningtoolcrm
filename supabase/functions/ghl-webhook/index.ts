@@ -1033,5 +1033,20 @@ async function handleDocumentWebhook(supabase: any, ghlHeaders: any, userId: str
     await supabase.from('documents').insert(upsertData);
     console.log(`Webhook: Created document without GHL ID for ${contactName}`);
   }
+
+  // Verzonden/getekend: laat de CRM-automatiseringen (fase, optie -> bevestigd,
+  // taken) meteen draaien in plaats van pas bij de volgende ronde (elke 10 min).
+  // Idempotent, dus dubbel draaien kan geen kwaad.
+  if (status === 'sent' || status === 'signed' || status === 'paid') {
+    const url = `${Deno.env.get('SUPABASE_URL')}/functions/v1/crm-automations`;
+    const anon = Deno.env.get('SUPABASE_ANON_KEY') || '';
+    const run = fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${anon}` },
+      body: JSON.stringify({ source: 'document-webhook' }),
+    }).then((r) => r.text()).catch((e) => console.warn('crm-automations trigger failed:', e));
+    const rt = (globalThis as any).EdgeRuntime;
+    if (rt?.waitUntil) rt.waitUntil(run); else await run;
+  }
 }
 

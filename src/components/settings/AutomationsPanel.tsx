@@ -167,7 +167,7 @@ export default function AutomationsPanel() {
 
   const memberNames = members.map(m => m.displayName).filter(Boolean);
   const taskTemplatesOn = setting('task_templates', {}).enabled;
-  const quoteCfg = setting('quote_documents', { sent_status: 'quoted', signed_status: 'confirmed', convert_option_to_confirmed: true, title_keywords: ['offerte', 'contract'] });
+  const quoteCfg = setting('quote_documents', { sent_status: 'quoted', signed_status: 'reserved', convert_option_to_confirmed: true, title_keywords: ['offerte', 'contract'] });
   const optionCfg = setting('option_expiry', { default_days_before_event: 14, warn_days_before_expiry: 3, auto_expire: true });
   const postCfg = setting('post_event', { inquiry_status: 'invoiced', contact_status: 'client', ghl_tags: ['klant', 'review-aanvraag'], lookback_days: 14 });
   const slaCfg = setting('inbound_reply_sla', { hours: 4, assignees: memberNames });
@@ -247,9 +247,9 @@ export default function AutomationsPanel() {
         <CardContent className="p-6 space-y-4">
           <SectionHeader
             title="Offertes & contracten (GoHighLevel Documents)"
-            description="Wordt een offerte vanuit GoHighLevel verzonden, dan gaat de aanvraag naar 'Offerte verzonden' en vuren de taken bij 'Offerte verzonden'. Wordt het document getekend, dan wordt de aanvraag definitief en worden opties van die aanvraag omgezet naar een bevestigde reservering (ook in GoHighLevel)."
+            description="Wordt een offerte vanuit GoHighLevel verzonden, dan gaat de aanvraag naar 'Offerte verzonden' en vuren de taken bij 'Offerte verzonden'. Wordt het document getekend, dan gaat de aanvraag naar de status hieronder en worden opties van die aanvraag omgezet naar een bevestigde reservering (ook in GoHighLevel). Een reserveringsbevestiging telt hier niet als offerte."
             enabled={quoteCfg.enabled}
-            onToggle={(v) => saveSetting('quote_documents', { enabled: v }, quoteCfg.config)}
+            onToggle={(v) => saveSetting('quote_documents', { enabled: v, config: v ? { vanaf: new Date().toISOString() } : {} }, quoteCfg.config)}
           />
           <div className="grid gap-4 md:grid-cols-2">
             <Field label="Status na verzenden">
@@ -268,6 +268,11 @@ export default function AutomationsPanel() {
               <div className="flex h-10 items-center"><Switch checked={quoteCfg.config.convert_option_to_confirmed !== false} onCheckedChange={(v) => saveSetting('quote_documents', { config: { convert_option_to_confirmed: v } }, quoteCfg.config)} /></div>
             </Field>
           </div>
+          {quoteCfg.config.vanaf && (
+            <p className="text-xs text-muted-foreground">
+              Geldt voor offertes die zijn verzonden of getekend vanaf {new Date(quoteCfg.config.vanaf).toLocaleString('nl-NL', { dateStyle: 'medium', timeStyle: 'short' })} (moment van aanzetten). Oudere offertes worden niet meer verwerkt.
+            </p>
+          )}
         </CardContent>
       </Card>
 

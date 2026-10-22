@@ -32,6 +32,7 @@ import {
   inboundOverdue,
   isForwardStatusChange,
   isQuoteDocument,
+  isAfterStart,
   optionExpiryDate,
   optionState,
   planTasks,
@@ -389,7 +390,9 @@ Deno.serve(async (req) => {
         // A document that is already signed skips this step (no "nabellen" for a signed offer).
         const sentKey = `quote_sent:${doc.id}`;
         const alreadySigned = doc.status === 'signed' || doc.status === 'paid';
-        if (!(await hasRun(sentKey))) {
+        // Alleen offertes verzonden na het aanzetten van de automatisering
+        const sentInScope = isAfterStart(doc.sent_at, qc.vanaf);
+        if (sentInScope && !(await hasRun(sentKey))) {
           let moved = false;
           if (!alreadySigned) {
             moved = await advanceInquiry(inquiry, qc.sent_status, `Offerte "${doc.title}" verzonden`);
@@ -426,7 +429,7 @@ Deno.serve(async (req) => {
         }
 
         // Signed/paid: definitive reservation, option → confirmed
-        if (doc.status === 'signed' || doc.status === 'paid') {
+        if ((doc.status === 'signed' || doc.status === 'paid') && isAfterStart(doc.signed_at || doc.updated_at, qc.vanaf)) {
           const signedKey = `quote_signed:${doc.id}`;
           if (!(await hasRun(signedKey))) {
             const moved = await advanceInquiry(inquiry, qc.signed_status, `Offerte "${doc.title}" getekend`);

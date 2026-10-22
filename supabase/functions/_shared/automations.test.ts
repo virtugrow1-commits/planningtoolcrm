@@ -103,3 +103,11 @@ Deno.test('document kind', () => {
   assertEquals(documentKind({ title: 'Voorstel', document_type: 'proposal' }), 'offerte');
   assertEquals(documentKind({ title: 'Factuur 12', document_type: 'invoice' }), 'overig');
 });
+
+import { isAfterStart } from "./automations.ts";
+Deno.test('offerte-automatisering: alleen vanaf het startmoment', () => {
+  assert(isAfterStart('2026-10-22T14:20:00Z', '2026-10-22T14:00:00Z'));
+  assert(!isAfterStart('2026-09-29T10:00:00Z', '2026-10-22T14:00:00Z'));
+  assert(isAfterStart('2026-09-29T10:00:00Z', null));
+  assert(!isAfterStart(null, '2026-10-22T14:00:00Z'));
+});
