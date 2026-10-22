@@ -64,12 +64,23 @@ export async function loadFieldDefs(headers: Record<string, string>, locationId?
  * Build a lowercase label -> value map from any mix of webhook payloads,
  * GHL objects with customFields arrays, and already-flat maps.
  */
+/**
+ * Velden die BUUT zelf op het GHL-contact zet voor de offerte en de
+ * reserveringsbevestiging ("Offerte aantal gasten", "Reservering eindtijd",
+ * offerte_*, reservering_*). Dat is uitvoer van een eerdere offerte, nooit
+ * klantinvoer: een nieuwe aanvraag van hetzelfde contact mag die niet overnemen.
+ */
+export function isBuutOutputField(label: string): boolean {
+  return /^(offerte|reservering)[\s_]/i.test(String(label || '').trim());
+}
+
 export function buildFieldMap(sources: any[], fieldDefs: Record<string, string> = {}): FieldMap {
   const fieldMap: FieldMap = {};
   const put = (rawKey: string, rawVal: any) => {
     const key = String(rawKey || '').trim().toLowerCase();
     const value = Array.isArray(rawVal) ? rawVal.filter(Boolean).join(', ') : String(rawVal ?? '').trim();
     if (!key || !value) return;
+    if (isBuutOutputField(key)) return;
     if (!fieldMap[key]) fieldMap[key] = value;
   };
 
@@ -174,6 +185,22 @@ export interface ExtractedInquiry {
   message: string | null;
 }
 
+/**
+ * Dagdeel → tijden. Combinaties ("Middag/Avond", "Ochtend, middag en avond")
+ * lopen van het begin van het eerste tot het eind van het laatste dagdeel.
+ */
+export function dagdeelToTimes(input?: string | null): [string, string] | null {
+  const d = String(input || '').toLowerCase();
+  if (!d.trim()) return null;
+  const parts: [string, string][] = [];
+  if (d.includes('ochtend')) parts.push(['09:00', '12:00']);
+  if (/middag/.test(d.replace(/namiddag/g, 'middag'))) parts.push(['13:00', '17:00']);
+  if (d.includes('avond')) parts.push(['18:00', '22:00']);
+  if (parts.length) return [parts[0][0], parts[parts.length - 1][1]];
+  if (d.includes('hele dag') || d.includes('dag')) return ['09:00', '17:00'];
+  return null;
+}
+
 const MESSAGE_SKIP = /^(bedrijfsnaam|bedrijf|naam bedrijf|organisatie|kvk|btw|e-?mail|e-?mailadres|telefoon|telefoonnummer|voornaam|achternaam|naam|volledige naam)$/;
 
 /** Turn a field map into CRM inquiry values */
@@ -197,12 +224,7 @@ export function extractInquiryFields(fieldMap: FieldMap, fallbacks: { eventType?
   }
 
   // A form that only offers a "dagdeel" (part of day) still needs usable times.
-  const dagdeel = find('kies je dagdeel', 'selecteer dagdeel', 'dagdeel').toLowerCase();
-  const dagdeelTimes = dagdeel.includes('ochtend') ? ['09:00', '12:00']
-    : dagdeel.includes('middag') ? ['13:00', '17:00']
-    : dagdeel.includes('avond') ? ['18:00', '22:00']
-    : dagdeel.includes('hele dag') || dagdeel.includes('dag') ? ['09:00', '17:00']
-    : null;
+  const dagdeelTimes = dagdeelToTimes(find('kies je dagdeel', 'selecteer dagdeel', 'dagdeel'));
 
   return {
     eventType,
