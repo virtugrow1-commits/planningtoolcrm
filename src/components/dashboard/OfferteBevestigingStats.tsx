@@ -4,6 +4,8 @@ import { FileSignature, BadgeCheck, AlertTriangle, ArrowRight } from 'lucide-rea
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useDocuments } from '@/hooks/useDocuments';
+import { useContactsContext } from '@/contexts/ContactsContext';
+import { useInquiriesContext } from '@/contexts/InquiriesContext';
 import { computeDocumentStats, periodRange } from '@/lib/documentStats';
 import { formatDate, localToday } from '@/lib/formatters';
 import { cn } from '@/lib/utils';
@@ -35,6 +37,15 @@ export default function OfferteBevestigingStats() {
   const [period, setPeriod] = useState<Period>('month');
   const range = useMemo(() => periodRange(period, localToday()), [period]);
   const stats = useMemo(() => computeDocumentStats(documents, range), [documents, range]);
+  const { contacts } = useContactsContext();
+  const { inquiries } = useInquiriesContext();
+  // Naam zoals in BUUT (netjes gespeld), niet de ontvangernaam uit het GHL-document
+  const displayName = useMemo(() => {
+    const byContact = new Map(contacts.map((c) => [c.id, `${c.firstName ?? ''} ${c.lastName ?? ''}`.trim()]));
+    const byInquiry = new Map(inquiries.map((i) => [i.id, i.contactName]));
+    return (p: { inquiryId: string | null; contactId: string | null; contactName: string }) =>
+      (p.contactId && byContact.get(p.contactId)) || (p.inquiryId && byInquiry.get(p.inquiryId)) || p.contactName;
+  }, [contacts, inquiries]);
 
   return (
     <div className="rounded-xl bg-card card-shadow animate-fade-in-up overflow-hidden">
@@ -94,7 +105,7 @@ export default function OfferteBevestigingStats() {
                   const row = (
                     <div className="flex items-center justify-between gap-3 px-3 py-2 text-sm">
                       <div className="min-w-0">
-                        <p className="font-medium text-foreground truncate">{p.contactName}</p>
+                        <p className="font-medium text-foreground truncate">{displayName(p)}</p>
                         <p className="text-xs text-muted-foreground truncate">{p.title}</p>
                       </div>
                       <div className="flex items-center gap-2 shrink-0 text-xs text-muted-foreground">
