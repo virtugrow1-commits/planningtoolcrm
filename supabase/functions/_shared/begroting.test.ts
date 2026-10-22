@@ -75,3 +75,11 @@ Deno.test('factuur zonder regels: totaal van de factuur als terugval', () => {
   assertEquals(b.bron, 'document_totaal');
   assertEquals(b.totaal, '€ 572,58');
 });
+
+Deno.test('korteNaam: productnaam past op één regel in de bevestiging', async () => {
+  const { korteNaam, onderdeel, ONDERDELEN } = await import('./begroting.ts');
+  assertEquals(korteNaam('Donge_Borrelarrangement_conform beschrijving, exclusief dranken. Twee weken'), 'Donge Borrelarrangement');
+  assertEquals(korteNaam('Lunch'), 'Lunch');
+  assert(korteNaam('Een heel erg lange productnaam zonder scheidingstekens erin').length <= 26);
+  assertEquals(onderdeel(['Donge_Borrelarrangement_conform beschrijving'], ONDERDELEN.borrel, 'factuur'), 'Ja – Donge Borrelarrangement');
+});

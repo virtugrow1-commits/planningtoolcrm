@@ -52,7 +52,21 @@ const stripHtml = (s?: string | null) => String(s ?? '')
   .replace(/<[^>]+>/g, '')
   .replace(/&nbsp;/g, ' ')
   .replace(/&amp;/g, '&')
-  .split('\n').map((l) => l.trim()).filter(Boolean).join('; ');
+  .replace(/_/g, ' ')
+  .split('\n').map((l) => l.replace(/\s{2,}/g, ' ').trim()).filter(Boolean).join('; ');
+
+/**
+ * Korte productnaam voor één regel in de bevestiging:
+ * "Donge Borrelarrangement conform beschrijving, exclusief dranken" → "Donge Borrelarrangement"
+ */
+export function korteNaam(naam: string, max = 26): string {
+  const kort = String(naam || '')
+    .replace(/_/g, ' ')
+    .split(/\s+(?:conform|inclusief|exclusief|incl\.?|excl\.?)\b|[,;:(]|\s[-–—]\s/i)[0]
+    .replace(/\s{2,}/g, ' ')
+    .trim();
+  return kort.length > max ? kort.slice(0, max - 1).trimEnd() + '…' : kort;
+}
 
 /**
  * Kies de factuur die bij de getekende offerte hoort:
@@ -144,7 +158,8 @@ export function buildBegroting(invoice: Invoice | null, docAmount?: number | nul
 export function onderdeel(itemNamen: string[], patroon: RegExp, bron: Begroting['bron']): string {
   if (bron !== 'factuur') return '—';
   const hit = itemNamen.find((n) => patroon.test(n));
-  return hit ? `Ja – ${hit.length > 60 ? hit.slice(0, 57) + '…' : hit}` : 'Nee';
+  // Kort houden: de waarde moet op één regel naast het label passen
+  return hit ? `Ja – ${korteNaam(hit)}` : 'Nee';
 }
 
 export const ONDERDELEN = {
