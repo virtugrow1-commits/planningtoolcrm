@@ -548,11 +548,13 @@ export type Database = {
           contact_id: string | null
           contact_name: string
           created_at: string
+          document_kind: string | null
           document_type: string
           external_url: string | null
           ghl_document_id: string | null
           id: string
           inquiry_id: string | null
+          offerte_nummer: string | null
           sent_at: string
           signed_at: string | null
           status: string
@@ -567,11 +569,13 @@ export type Database = {
           contact_id?: string | null
           contact_name?: string
           created_at?: string
+          document_kind?: string | null
           document_type?: string
           external_url?: string | null
           ghl_document_id?: string | null
           id?: string
           inquiry_id?: string | null
+          offerte_nummer?: string | null
           sent_at?: string
           signed_at?: string | null
           status?: string
@@ -586,11 +590,13 @@ export type Database = {
           contact_id?: string | null
           contact_name?: string
           created_at?: string
+          document_kind?: string | null
           document_type?: string
           external_url?: string | null
           ghl_document_id?: string | null
           id?: string
           inquiry_id?: string | null
+          offerte_nummer?: string | null
           sent_at?: string
           signed_at?: string | null
           status?: string
@@ -695,6 +701,8 @@ export type Database = {
           preferred_date: string | null
           preferred_end_time: string | null
           preferred_start_time: string | null
+          reservation_number: string | null
+          reservering_gestaged_op: string | null
           room_preference: string | null
           source: string
           status: string
@@ -726,6 +734,8 @@ export type Database = {
           preferred_date?: string | null
           preferred_end_time?: string | null
           preferred_start_time?: string | null
+          reservation_number?: string | null
+          reservering_gestaged_op?: string | null
           room_preference?: string | null
           source?: string
           status?: string
@@ -757,6 +767,8 @@ export type Database = {
           preferred_date?: string | null
           preferred_end_time?: string | null
           preferred_start_time?: string | null
+          reservation_number?: string | null
+          reservering_gestaged_op?: string | null
           room_preference?: string | null
           source?: string
           status?: string
@@ -1702,6 +1714,10 @@ export type Database = {
     }
     Functions: {
       bump_offerte_revisie: { Args: { p_inquiry_id: string }; Returns: number }
+      ensure_inquiry_reservation_number: {
+        Args: { p_inquiry_id: string }
+        Returns: string
+      }
       get_public_quote: { Args: { _token: string }; Returns: Json }
       log_inquiry_history: {
         Args: { _action: string; _details: Json; _inq: string; _owner: string }
