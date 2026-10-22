@@ -1,7 +1,7 @@
 import { assertEquals, assert } from "jsr:@std/assert@1";
 import {
   addDays, daysBetween, dueDateFor, fillPlaceholders, planTasks, optionExpiryDate, optionState,
-  isForwardStatusChange, inboundOverdue, tagsForContactStatus, isQuoteDocument, withNameSuffix,
+  isForwardStatusChange, inboundOverdue, tagsForContactStatus, isQuoteDocument, withNameSuffix, documentKind,
   type TaskTemplate,
 } from "./automations.ts";
 
@@ -91,4 +91,15 @@ Deno.test('quote document detection', () => {
   assert(isQuoteDocument({ title: 'Offerte_Zakelijk 2026', document_type: 'document' }, cfg));
   assert(isQuoteDocument({ title: 'Voorstel', document_type: 'proposal' }, cfg));
   assert(!isQuoteDocument({ title: 'Factuur 123', document_type: 'invoice' }, cfg));
+  // Reserveringsbevestiging is GHL-type "proposal" maar geen offerte
+  assert(!isQuoteDocument({ title: 'Reserveringsbevestiging_Zakelijk_sjabloon', document_type: 'proposal' }, cfg));
+  assert(!isQuoteDocument({ title: 'Bevestiging reservering Jansen', document_type: 'proposal' }, cfg));
+  assert(!isQuoteDocument({ title: 'Iets', document_type: 'proposal', document_kind: 'reserveringsbevestiging' }, cfg));
+});
+
+Deno.test('document kind', () => {
+  assertEquals(documentKind({ title: 'Reserveringsbevestiging_Zakelijk_sjabloon', document_type: 'proposal' }), 'reserveringsbevestiging');
+  assertEquals(documentKind({ title: 'Sjabloon-Offerte_Zakelijke bijeenkomst', document_type: 'proposal' }), 'offerte');
+  assertEquals(documentKind({ title: 'Voorstel', document_type: 'proposal' }), 'offerte');
+  assertEquals(documentKind({ title: 'Factuur 12', document_type: 'invoice' }), 'overig');
 });

@@ -42,3 +42,33 @@ Een opportunity is pas *won* in GoHighLevel als de reservering heeft plaatsgevon
 - Voor `quote_documents`: de GHL-workflow/webhook voor **Documents & Contracts** (sent / viewed / signed) moet naar `ghl-webhook` posten,
   óf de volledige sync (elke 30 min) haalt de documenten op via de Documents API.
 - Voor `post_event`-tags: maak in GHL een workflow met trigger *Contact tag added* (`review-aanvraag`).
+
+## Offerte → reserveringsbevestiging
+
+Twee aparte documentsoorten in GHL *Documents & Contracts*, elk met eigen contactvelden:
+
+| Document | Knop in BUUT (aanvraag) | Edge function | Velden in het sjabloon |
+| --- | --- | --- | --- |
+| Offerte | *Offerte klaarzetten* | `stage-offerte` | `{{contact.offerte_*}}`, `{{contact.offertenummer}}` |
+| Reserveringsbevestiging | *Reserveringsbevestiging klaarzetten* (na getekende offerte) | `stage-reservering` | `{{contact.reservering_*}}` |
+
+- De reserveringsbevestiging gebruikt bewust **eigen** velden: een nieuwe offerte of de automatische revisie-ophoging na
+  verzenden overschrijft de bevestiging dus nooit.
+- **Reserveringsnummer**: `ensure_inquiry_reservation_number()` geeft het nummer van de (bevestigde) reservering, of kent
+  een nieuw RES-nummer toe uit dezelfde reeks en bewaart het op de aanvraag. Een later aangemaakte reservering bij die
+  aanvraag krijgt hetzelfde nummer.
+- **Offertenummer op de bevestiging** = nummer van de getekende versie (bij verzenden vastgelegd in `documents.offerte_nummer`).
+- **Documentsoort** (`documents.document_kind`, gegenereerd uit de titel): een titel met *reserveringsbevestiging*
+  (of *bevestiging … reservering*) is een reserveringsbevestiging, anders *offerte*/*contract* of GHL-type proposal/estimate
+  = offerte. De offerte-automatisering (`quote_documents`) slaat reserveringsbevestigingen over.
+- **Dashboard**: blok *Offertes & reserveringsbevestigingen* telt beide los (verzonden / getekend per periode) en toont
+  getekende offertes waarvoor nog geen bevestiging is verstuurd.
+
+Velden `reservering_nummer`, `reservering_offertenummer`, `reservering_bevestigingsdatum`, `reservering_datum`,
+`reservering_starttijd`, `reservering_eindtijd`, `reservering_bedrijfsnaam`, `reservering_kostenplaats`,
+`reservering_type_bijeenkomst`, `reservering_aantal_gasten`, `reservering_zaal`, `reservering_zaalopstelling`
+(ontbrekende velden maakt `stage-reservering` zelf aan in GHL).
+
+Na deploy: migratie `20261022120000_reserveringsbevestiging.sql` toepassen en edge function `stage-reservering` deployen
+(plus de gewijzigde `stage-offerte` en `crm-automations`). Beide functies werken ook vóór de migratie door, alleen zonder
+de nieuwe velden.

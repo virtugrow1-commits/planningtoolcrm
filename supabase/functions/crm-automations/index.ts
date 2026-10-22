@@ -141,7 +141,7 @@ Deno.serve(async (req) => {
     if (!ownerId) return jsonResponse({ success: false, error: 'No user found' });
 
     // Contacts (for names, GHL ids and tags) — loaded once
-    const contacts = await fetchAll(supabase, 'contacts', 'id, first_name, last_name, company, company_id, ghl_contact_id, status, tags, updated_at');
+    const contacts = await fetchAll(supabase, 'contacts', 'id, first_name, last_name, company, company_id, ghl_contact_id, status, tags, updated_at, display_number');
     const contactById = new Map<string, any>(contacts.map((c: any) => [c.id, c]));
     const contactName = (c: any | null | undefined) => c ? `${c.first_name || ''} ${c.last_name || ''}`.trim() : '';
 
@@ -356,11 +356,15 @@ Deno.serve(async (req) => {
     if (isOn('quote_documents') && !bookingScope) {
       const qc = cfg<QuoteDocumentsConfig>('quote_documents', { sent_status: 'quoted', signed_status: 'confirmed', convert_option_to_confirmed: true, title_keywords: ['offerte', 'contract'] });
       const since = new Date(Date.now() - 30 * 86400000).toISOString();
-      const { data: docs, error: dErr } = await supabase
-        .from('documents')
-        .select('id, user_id, title, document_type, status, contact_id, inquiry_id, company_id, sent_at, signed_at, updated_at, contact_name')
+      const baseCols = 'id, user_id, title, document_type, status, contact_id, inquiry_id, company_id, sent_at, signed_at, updated_at, contact_name';
+      const loadDocs = (cols: string) => supabase.from('documents').select(cols)
         .gte('updated_at', since)
         .in('status', ['sent', 'viewed', 'signed', 'paid']);
+      // Nieuwe kolommen (document_kind, offerte_nummer) bestaan pas na migratie
+      // 20261022120000; zonder die migratie blijft de automatisering gewoon werken.
+      let { data: docRows, error: dErr } = await loadDocs(`${baseCols}, document_kind, offerte_nummer`);
+      if (dErr) ({ data: docRows, error: dErr } = await loadDocs(baseCols));
+      const docs = (docRows || []) as any[];
       if (dErr) results.errors.push(`documents:${dErr.message}`);
 
       for (const doc of docs || []) {
@@ -368,10 +372,10 @@ Deno.serve(async (req) => {
         // Resolve the inquiry: linked directly, otherwise the most recent open inquiry of the contact
         let inquiry: any = null;
         if (doc.inquiry_id) {
-          const { data } = await supabase.from('inquiries').select('id, status, display_number, contact_id, company_id, user_id').eq('id', doc.inquiry_id).maybeSingle();
+          const { data } = await supabase.from('inquiries').select('id, status, display_number, contact_id, company_id, user_id, offerte_revisie').eq('id', doc.inquiry_id).maybeSingle();
           inquiry = data;
         } else if (doc.contact_id) {
-          const { data } = await supabase.from('inquiries').select('id, status, display_number, contact_id, company_id, user_id')
+          const { data } = await supabase.from('inquiries').select('id, status, display_number, contact_id, company_id, user_id, offerte_revisie')
             .eq('contact_id', doc.contact_id).neq('status', 'lost').order('created_at', { ascending: false }).limit(1).maybeSingle();
           inquiry = data;
           if (inquiry && !dryRun) await supabase.from('documents').update({ inquiry_id: inquiry.id }).eq('id', doc.id);
@@ -391,6 +395,14 @@ Deno.serve(async (req) => {
             moved = await advanceInquiry(inquiry, qc.sent_status, `Offerte "${doc.title}" verzonden`);
             // The sent document carries the current revision; the next offer for this
             // inquiry becomes revision +1 on the GHL contact fields.
+            // Leg eerst het offertenummer van déze versie vast op het document, zodat
+            // de reserveringsbevestiging later het nummer van de getekende offerte toont.
+            if (inquiry && !dryRun && 'offerte_nummer' in doc && !doc.offerte_nummer && contact?.display_number) {
+              const nr = String(contact.display_number).replace(/^CON-/i, '');
+              const rev = String(Math.max(1, Number(inquiry.offerte_revisie ?? 0))).padStart(2, '0');
+              const { error: nrErr } = await supabase.from('documents').update({ offerte_nummer: `OFF-${nr}-${rev}` }).eq('id', doc.id);
+              if (nrErr) results.errors.push(`offerte_nummer:${doc.id}:${nrErr.message}`);
+            }
             if (inquiry && !dryRun) {
               const { error: revErr } = await supabase.rpc('bump_offerte_revisie', { p_inquiry_id: inquiry.id });
               if (revErr) results.errors.push(`revisie:${inquiry.id}:${revErr.message}`);

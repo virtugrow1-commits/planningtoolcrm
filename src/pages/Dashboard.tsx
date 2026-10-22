@@ -16,6 +16,7 @@ import {
 import KpiCard from '@/components/KpiCard';
 import KpiDetailDialog from '@/components/dashboard/KpiDetailDialog';
 import DashboardSection from '@/components/dashboard/DashboardSection';
+import OfferteBevestigingStats from '@/components/dashboard/OfferteBevestigingStats';
 import { useBookings } from '@/contexts/BookingsContext';
 import { useInquiriesContext } from '@/contexts/InquiriesContext';
 import { useTasksContext } from '@/contexts/TasksContext';
@@ -323,6 +324,8 @@ export default function Dashboard() {
         />
       </div>
 
+      {/* Offertes en reserveringsbevestigingen, los van elkaar gemeten */}
+      <OfferteBevestigingStats />
 
       {/* Reserveringen vandaag */}
       <DashboardSection

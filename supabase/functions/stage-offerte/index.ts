@@ -111,7 +111,7 @@ export function buildOfferteData(
     bedrijf,
     type: dash(inq.event_type),
     gasten: String(gasten ?? 0),
-    reserveringsnummer: dash(stripRes(booking?.reservation_number)),
+    reserveringsnummer: dash(stripRes(booking?.reservation_number || inq.reservation_number)),
     bron: booking ? "reservering" : (datum ? "voorkeur" : "geen"),
   };
 }
@@ -196,6 +196,13 @@ Deno.serve(async (req) => {
       .from("bookings")
       .select("date, start_hour, start_minute, end_hour, end_minute, reservation_number, status, guest_count")
       .eq("inquiry_id", inquiryId);
+
+    // Vast reserveringsnummer van de aanvraag (kolom kan ontbreken zolang de
+    // migratie 20261022120000 nog niet is toegepast; dan gewoon overslaan)
+    {
+      const { data: resRow, error: resErr } = await db.from("inquiries").select("reservation_number").eq("id", inquiryId).maybeSingle();
+      if (!resErr && resRow) (inq as any).reservation_number = (resRow as any).reservation_number ?? null;
+    }
 
     // 3. Revisie: knop hoogt op (atomair), automatisch gebruikt de huidige (min. 01)
     let revisie: number = Number(inq.offerte_revisie ?? 0);

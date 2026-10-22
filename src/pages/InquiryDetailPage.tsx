@@ -10,6 +10,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { Inquiry } from '@/types/crm';
 import { useToast } from '@/hooks/use-toast';
 import { useDocuments } from '@/hooks/useDocuments';
+import { DOCUMENT_KIND_LABEL } from '@/lib/documentKind';
 import { useContacts } from '@/hooks/useContacts';
 import { useRoomSettings } from '@/hooks/useRoomSettings';
 import { Button } from '@/components/ui/button';
@@ -273,6 +274,7 @@ export default function InquiryDetailPage() {
         onStatusChange={() => setShowStatusDialog(true)}
         refetch={refetch}
         existingOption={existingOption}
+        documents={inquiryDocuments}
       />
       </TabsContent>
 
@@ -337,12 +339,15 @@ export default function InquiryDetailPage() {
           <div className="rounded-xl border bg-card p-4 card-shadow space-y-2">
             {inquiryDocuments.map((d) => {
               const statusIcon = d.status === 'signed' ? <CheckCircle2 size={12} className="text-success" /> : d.status === 'viewed' ? <Eye size={12} className="text-warning" /> : <Send size={12} className="text-info" />;
-              const statusLabel = d.status === 'signed' ? 'Ondertekend' : d.status === 'viewed' ? 'Bekeken' : d.status === 'declined' ? 'Afgewezen' : 'Verzonden';
+              const statusLabel = d.status === 'signed' || d.status === 'paid' ? 'Ondertekend' : d.status === 'viewed' ? 'Bekeken' : d.status === 'declined' ? 'Afgewezen' : 'Verzonden';
               return (
                 <div key={d.id} className="flex items-center justify-between py-2 px-3 rounded-lg border border-border/50 text-sm">
                   <div className="flex items-center gap-2 min-w-0">
                     <FileText size={14} className="text-muted-foreground shrink-0" />
                     <span className="font-medium text-foreground">{d.title}</span>
+                    {d.kind !== 'overig' && (
+                      <Badge variant="outline" className="text-[10px] h-4 px-1.5 font-normal">{DOCUMENT_KIND_LABEL[d.kind]}</Badge>
+                    )}
                     {d.amount && <span className="text-muted-foreground text-xs">€{d.amount.toLocaleString('nl-NL')}</span>}
                   </div>
                   <div className="flex items-center gap-2 shrink-0">

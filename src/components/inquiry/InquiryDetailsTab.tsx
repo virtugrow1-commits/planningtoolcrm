@@ -20,11 +20,13 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { CalendarIcon, Users, Euro, User, Building2, FileText, MapPin, Trash2, RefreshCw, ArrowRight, UserCheck, Clock, MessageCircle, CalendarPlus } from 'lucide-react';
+import { CalendarIcon, Users, Euro, User, Building2, FileText, MapPin, Trash2, RefreshCw, ArrowRight, UserCheck, Clock, MessageCircle, CalendarPlus, BadgeCheck } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
-import { useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
+import type { Document } from '@/hooks/useDocuments';
+import { isSentStatus, isSignedStatus } from '@/lib/documentKind';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { InfoRow } from '@/components/detail/DetailPageComponents';
 import TeamMemberSelect from '@/components/TeamMemberSelect';
@@ -66,11 +68,13 @@ interface Props {
   onStatusChange: () => void;
   refetch: () => Promise<void>;
   existingOption?: { id: string; date: string } | null;
+  /** Documenten van deze aanvraag (of het contact) */
+  documents?: Document[];
 }
 
 /* InfoRow is now imported from @/components/detail/DetailPageComponents */
 
-export default function InquiryDetailsTab({ inquiry, editing, form, setForm, contact, company, onSave, onCancel, onDelete, onStartEdit, onConvert, onCreateOption, onStatusChange, refetch, existingOption }: Props) {
+export default function InquiryDetailsTab({ inquiry, editing, form, setForm, contact, company, onSave, onCancel, onDelete, onStartEdit, onConvert, onCreateOption, onStatusChange, refetch, existingOption, documents = [] }: Props) {
   const navigate = useNavigate();
   const { toast } = useToast();
   const { t, language } = useLanguage();
@@ -98,6 +102,47 @@ export default function InquiryDetailsTab({ inquiry, editing, form, setForm, con
       setStageDialogOpen(false);
     }
   };
+  // ---- Reserveringsbevestiging -------------------------------------------
+  const ACCEPTED_STATUSES: Inquiry['status'][] = ['reserved', 'script', 'confirmed', 'invoiced', 'after_sales', 'converted'];
+  const signedQuote = documents
+    .filter(d => d.kind === 'offerte' && isSignedStatus(d.status))
+    .sort((a, b) => (Number(b.inquiryId === inquiry.id) - Number(a.inquiryId === inquiry.id)) || String(b.signedAt).localeCompare(String(a.signedAt)))[0];
+  const confirmationDocs = documents.filter(d => d.kind === 'reserveringsbevestiging' && isSentStatus(d.status));
+  const confirmationSigned = confirmationDocs.some(d => isSignedStatus(d.status));
+  const quoteAccepted = Boolean(signedQuote) || ACCEPTED_STATUSES.includes(inquiry.status);
+  const [resInfo, setResInfo] = useState<{ nummer: string | null; op: string | null }>({ nummer: null, op: null });
+  const [stagingRes, setStagingRes] = useState(false);
+  const [resDialogOpen, setResDialogOpen] = useState(false);
+
+  // Los opgehaald: werkt ook als de nieuwe kolommen nog niet bestaan (dan blijft het leeg)
+  const loadResInfo = useCallback(async () => {
+    const { data, error } = await supabase.from('inquiries').select('reservation_number, reservering_gestaged_op' as any).eq('id', inquiry.id).maybeSingle();
+    if (!error && data) setResInfo({ nummer: (data as any).reservation_number ?? null, op: (data as any).reservering_gestaged_op ?? null });
+  }, [inquiry.id]);
+  useEffect(() => { loadResInfo(); }, [loadResInfo]);
+
+  const handleStageReservering = async () => {
+    setStagingRes(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('stage-reservering', {
+        body: { inquiry_id: inquiry.id, force: !quoteAccepted },
+      });
+      if (error) throw error;
+      if (data?.ok === false) throw new Error(data?.error || 'Onbekende fout');
+      toast({
+        title: `Reserveringsbevestiging klaargezet (${data?.reserveringsnummer ?? ''})`,
+        description: 'Maak in CliqCRM het document aan vanuit het sjabloon Reserveringsbevestiging; alle gegevens staan er al in.',
+      });
+      await loadResInfo();
+      await refetch();
+    } catch (e: any) {
+      toast({ title: 'Reserveringsbevestiging klaarzetten mislukt', description: e?.message, variant: 'destructive' });
+    } finally {
+      setStagingRes(false);
+      setResDialogOpen(false);
+    }
+  };
+
   const col = PIPELINE_COLUMNS.find(c => c.key === inquiry.status);
 
   // Parse message field for structured display (velden + vrije tekst, originele volgorde)
@@ -259,6 +304,53 @@ export default function InquiryDetailsTab({ inquiry, editing, form, setForm, con
                   {inquiry.offerteGestagedOp ? ` op ${formatDateTime(inquiry.offerteGestagedOp)}` : ''}
                 </p>
               )}
+
+              {/* Reserveringsbevestiging: pas na getekende offerte */}
+              <div className="pt-2 mt-1 border-t border-border/60 space-y-2">
+                <AlertDialog open={resDialogOpen} onOpenChange={(o) => { if (!stagingRes) setResDialogOpen(o); }}>
+                  <AlertDialogTrigger asChild>
+                    <Button
+                      variant={quoteAccepted ? 'default' : 'outline'}
+                      size="sm"
+                      className="w-full"
+                      disabled={stagingRes}
+                    >
+                      <BadgeCheck size={14} className="mr-1" /> {stagingRes ? 'Bezig…' : 'Reserveringsbevestiging klaarzetten'}
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Reserveringsbevestiging klaarzetten</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        {quoteAccepted
+                          ? `De gegevens uit de getekende offerte${signedQuote ? ` (${signedQuote.title})` : ''} worden klaargezet voor het sjabloon Reserveringsbevestiging, met ${resInfo.nummer ? `reserveringsnummer ${resInfo.nummer}` : 'een nieuw reserveringsnummer'}.`
+                          : 'Er is nog geen getekende offerte voor deze aanvraag. Weet je zeker dat je de reserveringsbevestiging toch wilt klaarzetten?'}
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel disabled={stagingRes}>Annuleren</AlertDialogCancel>
+                      <AlertDialogAction
+                        disabled={stagingRes}
+                        onClick={(e) => { e.preventDefault(); handleStageReservering(); }}
+                      >
+                        {stagingRes ? 'Bezig…' : quoteAccepted ? 'Klaarzetten' : 'Toch klaarzetten'}
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+                <div className="flex flex-wrap gap-1.5 text-[11px]">
+                  <Badge variant="secondary" className={cn('font-medium', signedQuote ? 'bg-success/15 text-success' : quoteAccepted ? 'bg-success/10 text-success' : '')}>
+                    Offerte {signedQuote ? `getekend ${formatDate(signedQuote.signedAt || '')}` : quoteAccepted ? 'geaccepteerd' : 'nog niet getekend'}
+                  </Badge>
+                  <Badge variant="secondary" className={cn('font-medium', confirmationSigned ? 'bg-success/15 text-success' : confirmationDocs.length ? 'bg-info/15 text-info' : '')}>
+                    Bevestiging {confirmationSigned ? 'getekend' : confirmationDocs.length ? 'verzonden' : resInfo.op ? 'klaargezet' : 'nog niet klaargezet'}
+                  </Badge>
+                  {resInfo.nummer && <Badge variant="outline" className="font-medium">{resInfo.nummer}</Badge>}
+                </div>
+                {resInfo.op && (
+                  <p className="text-xs text-muted-foreground">Bevestiging klaargezet op {formatDateTime(resInfo.op)}</p>
+                )}
+              </div>
             </div>
           )}
         </div>

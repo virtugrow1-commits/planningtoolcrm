@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
+import { documentKind, type DocumentKind } from '@/lib/documentKind';
 
 export interface Document {
   id: string;
@@ -10,6 +11,8 @@ export interface Document {
   ghlDocumentId: string | null;
   title: string;
   documentType: string;
+  /** offerte / reserveringsbevestiging / overig (uit titel en type) */
+  kind: DocumentKind;
   status: string;
   sentAt: string;
   viewedAt: string | null;
@@ -46,6 +49,7 @@ export function useDocuments() {
         ghlDocumentId: d.ghl_document_id,
         title: d.title,
         documentType: d.document_type,
+        kind: documentKind(d.title, d.document_type),
         status: d.status,
         sentAt: d.sent_at?.split('T')[0] || '',
         viewedAt: d.viewed_at?.split('T')[0] || null,

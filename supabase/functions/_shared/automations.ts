@@ -187,8 +187,30 @@ export interface QuoteDocumentsConfig {
   title_keywords: string[];
 }
 
+export type DocumentKind = 'offerte' | 'reserveringsbevestiging' | 'overig';
+
+const RESERVATION_CONFIRMATION_RE = /(reserveringsbevestiging|reservering.*bevestig|bevestig.*reservering)/;
+
+/**
+ * Soort document op basis van titel en GHL-type. Moet gelijk blijven aan de
+ * gegenereerde kolom documents.document_kind (migratie 20261022120000).
+ */
+export function documentKind(doc: { title?: string | null; document_type?: string | null }): DocumentKind {
+  const title = String(doc.title || '').toLowerCase();
+  const type = String(doc.document_type || '').toLowerCase();
+  if (RESERVATION_CONFIRMATION_RE.test(title)) return 'reserveringsbevestiging';
+  if (/(offerte|contract)/.test(title) || ['proposal', 'estimate', 'contract'].includes(type)) return 'offerte';
+  return 'overig';
+}
+
+export function isReservationConfirmation(doc: { title?: string | null; document_type?: string | null; document_kind?: string | null }): boolean {
+  return doc.document_kind === 'reserveringsbevestiging' || documentKind(doc) === 'reserveringsbevestiging';
+}
+
 /** Is this GHL document an offerte/contract this automation should act on? */
-export function isQuoteDocument(doc: { title?: string | null; document_type?: string | null }, cfg: QuoteDocumentsConfig): boolean {
+export function isQuoteDocument(doc: { title?: string | null; document_type?: string | null; document_kind?: string | null }, cfg: QuoteDocumentsConfig): boolean {
+  // Een reserveringsbevestiging is nooit een offerte (ook al is het GHL-type "proposal")
+  if (isReservationConfirmation(doc)) return false;
   const title = String(doc.title || '').toLowerCase();
   const type = String(doc.document_type || '').toLowerCase();
   const keywords = (cfg.title_keywords || []).map((k) => k.toLowerCase()).filter(Boolean);
