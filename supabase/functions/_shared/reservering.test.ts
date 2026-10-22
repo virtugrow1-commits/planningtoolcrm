@@ -53,3 +53,17 @@ Deno.test('offertenummer van de getekende versie', () => {
 Deno.test('todayNl', () => {
   assertEquals(todayNl(new Date('2026-10-22T23:30:00Z')), '23-10-2026'); // al 23 okt in NL
 });
+
+import { pickSignedQuoteForInquiry } from "./reservering.ts";
+
+Deno.test('getekende offerte hoort bij deze aanvraag, niet bij een oude aanvraag van hetzelfde contact', () => {
+  const docs = [
+    { id: 'oud', inquiry_id: 'inq-oud', signed_at: '2026-09-29T10:00:00Z' },
+    { id: 'los-oud', inquiry_id: null, signed_at: '2026-09-30T10:00:00Z' },
+    { id: 'nieuw', inquiry_id: 'inq-nieuw', signed_at: '2026-10-22T14:30:00Z' },
+  ];
+  assertEquals(pickSignedQuoteForInquiry(docs, 'inq-nieuw', '2026-10-22T14:00:00Z')?.id, 'nieuw');
+  // Nog niet gekoppeld: alleen losse documenten van na het aanmaken van de aanvraag
+  assertEquals(pickSignedQuoteForInquiry(docs.slice(0, 2), 'inq-nieuw', '2026-10-22T14:00:00Z'), null);
+  assertEquals(pickSignedQuoteForInquiry([{ id: 'los', inquiry_id: null, signed_at: '2026-10-22T15:00:00Z' }], 'inq-nieuw', '2026-10-22T14:00:00Z')?.id, 'los');
+});

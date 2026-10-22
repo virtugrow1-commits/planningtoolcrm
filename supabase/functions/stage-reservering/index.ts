@@ -11,7 +11,7 @@
 
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { GHL_API_BASE, jsonResponse, readError } from "../_shared/ghlCommon.ts";
-import { buildReserveringData, LARGE_TEXT_FIELDS, RESERVERING_FIELDS, signedOfferteNummer } from "../_shared/reservering.ts";
+import { buildReserveringData, LARGE_TEXT_FIELDS, pickSignedQuoteForInquiry, RESERVERING_FIELDS, signedOfferteNummer } from "../_shared/reservering.ts";
 import { buildBegroting, invoiceLines, pickInvoice, type Invoice } from "../_shared/begroting.ts";
 import { isQuoteDocument } from "../_shared/automations.ts";
 
@@ -120,7 +120,7 @@ Deno.serve(async (req) => {
     const { data: inq, error: inqErr } = await db
       .from("inquiries")
       .select(`
-        id, display_number, event_type, guest_count, status, room_preference,
+        id, display_number, event_type, guest_count, status, room_preference, created_at,
         preferred_date, preferred_start_time, preferred_end_time,
         contact_id, company_id, offerte_revisie, reservation_number,
         contacts:contact_id ( id, first_name, last_name, email, phone, company, display_number, ghl_contact_id ),
@@ -141,7 +141,7 @@ Deno.serve(async (req) => {
       .order("signed_at", { ascending: false });
     const quoteCfg = { sent_status: "", signed_status: "", convert_option_to_confirmed: false, title_keywords: ["offerte", "contract"] };
     const signedQuotes = (docs ?? []).filter((d: any) => isQuoteDocument(d, quoteCfg));
-    const signedDoc = signedQuotes.find((d: any) => d.inquiry_id === inquiryId) || signedQuotes[0] || null;
+    const signedDoc: any = pickSignedQuoteForInquiry(signedQuotes as any[], inquiryId, inq.created_at);
 
     if (!signedDoc && !ACCEPTED_STATUSES.includes(inq.status) && !force) {
       return jsonResponse({

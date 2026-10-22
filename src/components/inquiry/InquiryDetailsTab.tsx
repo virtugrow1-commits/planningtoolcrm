@@ -104,10 +104,15 @@ export default function InquiryDetailsTab({ inquiry, editing, form, setForm, con
   };
   // ---- Reserveringsbevestiging -------------------------------------------
   const ACCEPTED_STATUSES: Inquiry['status'][] = ['reserved', 'script', 'confirmed', 'invoiced', 'after_sales', 'converted'];
+  // Alleen documenten van déze aanvraag, of van hetzelfde contact zonder aanvraag-koppeling
+  // die na het aanmaken van de aanvraag zijn verstuurd/getekend (zelfde regel als stage-reservering).
+  const since = inquiry.createdAt || '';
+  const belongsHere = (d: Document, date: string | null) =>
+    d.inquiryId === inquiry.id || (!d.inquiryId && (!since || String(date || '') >= since));
   const signedQuote = documents
-    .filter(d => d.kind === 'offerte' && isSignedStatus(d.status))
+    .filter(d => d.kind === 'offerte' && isSignedStatus(d.status) && belongsHere(d, d.signedAt))
     .sort((a, b) => (Number(b.inquiryId === inquiry.id) - Number(a.inquiryId === inquiry.id)) || String(b.signedAt).localeCompare(String(a.signedAt)))[0];
-  const confirmationDocs = documents.filter(d => d.kind === 'reserveringsbevestiging' && isSentStatus(d.status));
+  const confirmationDocs = documents.filter(d => d.kind === 'reserveringsbevestiging' && isSentStatus(d.status) && belongsHere(d, d.sentAt));
   const confirmationSigned = confirmationDocs.some(d => isSignedStatus(d.status));
   const quoteAccepted = Boolean(signedQuote) || ACCEPTED_STATUSES.includes(inquiry.status);
   const [resInfo, setResInfo] = useState<{ nummer: string | null; op: string | null }>({ nummer: null, op: null });

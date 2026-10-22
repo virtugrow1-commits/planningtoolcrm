@@ -175,3 +175,20 @@ export function buildReserveringData(input: {
     reservering_totaalbedrag: beg.totaal,
   };
 }
+
+/**
+ * Getekende offerte die bij déze aanvraag hoort:
+ * 1. gekoppeld aan deze aanvraag (nieuwste eerst)
+ * 2. anders een document van hetzelfde contact zonder aanvraag-koppeling,
+ *    getekend op of na het aanmaken van de aanvraag.
+ * Documenten van een andere aanvraag tellen nooit mee.
+ */
+export function pickSignedQuoteForInquiry<T extends { inquiry_id?: string | null; signed_at?: string | null }>(
+  docs: T[], inquiryId: string, inquiryCreatedAt?: string | null,
+): T | null {
+  const byNewest = [...(docs ?? [])].sort((a, b) => String(b.signed_at || '').localeCompare(String(a.signed_at || '')));
+  const own = byNewest.find((d) => d.inquiry_id === inquiryId);
+  if (own) return own;
+  const since = inquiryCreatedAt ? String(inquiryCreatedAt).slice(0, 10) : '';
+  return byNewest.find((d) => !d.inquiry_id && (!since || String(d.signed_at || '').slice(0, 10) >= since)) ?? null;
+}
