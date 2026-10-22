@@ -61,3 +61,17 @@ Deno.test('inloop een kwartier voor aanvang', () => {
   assertEquals(inloopVoor('00:10'), '23:55');
   assertEquals(inloopVoor('—'), '—');
 });
+
+Deno.test('GHL-factuur met invoiceItems (zoals de Invoices-API ze teruggeeft)', () => {
+  const ghl = { _id: 'x', total: 1703.45, invoiceItems: invoice.items } as any;
+  const b = buildBegroting(ghl, null);
+  assertEquals(b.bron, 'factuur');
+  assertEquals(b.regels.split('\n').length, 3);
+  assertEquals(b.totaal, '€ 1.703,45');
+});
+
+Deno.test('factuur zonder regels: totaal van de factuur als terugval', () => {
+  const b = buildBegroting({ _id: 'x', total: 572.58 } as any, null);
+  assertEquals(b.bron, 'document_totaal');
+  assertEquals(b.totaal, '€ 572,58');
+});

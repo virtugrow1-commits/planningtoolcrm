@@ -12,7 +12,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { GHL_API_BASE, jsonResponse, readError } from "../_shared/ghlCommon.ts";
 import { buildReserveringData, LARGE_TEXT_FIELDS, RESERVERING_FIELDS, signedOfferteNummer } from "../_shared/reservering.ts";
-import { buildBegroting, pickInvoice, type Invoice } from "../_shared/begroting.ts";
+import { buildBegroting, invoiceLines, pickInvoice, type Invoice } from "../_shared/begroting.ts";
 import { isQuoteDocument } from "../_shared/automations.ts";
 
 const TOKEN = Deno.env.get("GHL_API_KEY") || "";
@@ -78,11 +78,16 @@ async function fetchAcceptedInvoice(ghlContactId: string, docTitle: string | nul
   list = list.filter((i) => !i.contactDetails?.id || i.contactDetails.id === ghlContactId);
   const picked = pickInvoice(list, docTitle, docAmount);
   if (!picked?._id) return { invoice: null, warning: list.length ? "Geen factuur gevonden die bij de getekende offerte hoort" : "Contact heeft geen facturen in CliqCRM" };
-  if (Array.isArray(picked.items) && picked.items.length) return { invoice: picked };
+  if (invoiceLines(picked).length) return { invoice: picked };
   res = await fetch(`${base}${picked._id}${qs("")}`, { headers: ghlHeaders });
   if (!res.ok) return { invoice: null, warning: `GHL factuur ${res.status}: ${await readError(res)}` };
   const body = await res.json();
-  return { invoice: (body.invoice || body) as Invoice };
+  const invoice = (body.invoice || body) as Invoice;
+  if (!invoiceLines(invoice).length) {
+    console.warn("stage-reservering: factuur zonder regels, velden:", Object.keys(invoice || {}).join(","));
+    return { invoice, warning: `Factuur ${(invoice as any).invoiceNumber || picked._id} heeft geen productregels` };
+  }
+  return { invoice };
 }
 
 Deno.serve(async (req) => {
@@ -147,10 +152,18 @@ Deno.serve(async (req) => {
     }
 
     // 3. Reserveringen + vast reserveringsnummer
-    const { data: bookings } = await db
-      .from("bookings")
-      .select("date, start_hour, start_minute, end_hour, end_minute, reservation_number, status, guest_count, room_name, room_setup")
-      .eq("inquiry_id", inquiryId);
+    const bookingCols = "id, date, start_hour, start_minute, end_hour, end_minute, reservation_number, status, guest_count, room_name, room_setup";
+    const { data: inqBookings } = await db.from("bookings").select(bookingCols).eq("inquiry_id", inquiryId);
+    // Reserveringen van hetzelfde contact op dezelfde dag zonder aanvraag-koppeling
+    // (bijv. een aparte kookworkshop na de vergadering) horen bij hetzelfde evenement.
+    const dates = [...new Set([...(inqBookings ?? []).map((b: any) => b.date), inq.preferred_date].filter(Boolean))];
+    let extra: any[] = [];
+    if (dates.length) {
+      const { data } = await db.from("bookings").select(bookingCols)
+        .eq("contact_id", contact.id).is("inquiry_id", null).in("date", dates);
+      extra = data ?? [];
+    }
+    const bookings = [...(inqBookings ?? []), ...extra.filter((e) => !(inqBookings ?? []).some((b: any) => b.id === e.id))];
 
     const hasDate = (bookings ?? []).some((b: any) => b.status === "confirmed" || b.status === "option") || Boolean(inq.preferred_date);
     if (!hasDate) {

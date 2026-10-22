@@ -2324,7 +2324,8 @@ async function syncDocuments(supabase: any, ghlHeaders: any, locationId: string,
         || null;
       const title = doc.name || doc.title || 'Document';
       const contactName = recipient?.name || doc.contactName || doc.contact?.name || 'Onbekend';
-      const rawAmount = doc.grandTotal ?? doc.amount ?? doc.total ?? doc.monetaryValue;
+      // grandTotal is een object { amount, currency, discounts } in de Proposals-API
+      const rawAmount = (doc.grandTotal && typeof doc.grandTotal === 'object' ? doc.grandTotal.amount : doc.grandTotal) ?? doc.amount ?? doc.total ?? doc.monetaryValue;
       const amount = rawAmount !== undefined && rawAmount !== null && rawAmount !== '' && !Number.isNaN(Number(rawAmount)) ? Number(rawAmount) : null;
       const externalUrl = doc.url || doc.documentUrl || doc.publicUrl || null;
       const sentAt = doc.sentAt || doc.sentOn || doc.updatedAt || doc.createdAt || new Date().toISOString();

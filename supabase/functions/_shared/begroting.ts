@@ -23,6 +23,16 @@ export interface Invoice {
   contactDetails?: { id?: string };
   discount?: { value?: number | string; type?: string };
   items?: InvoiceItem[];
+  /** Zo heten de regels in de GHL Invoices-API */
+  invoiceItems?: InvoiceItem[];
+  amountDue?: number | string;
+}
+
+/** Productregels van een factuur, ongeacht de veldnaam die GHL gebruikt. */
+export function invoiceLines(inv: Invoice | null | undefined): InvoiceItem[] {
+  if (!inv) return [];
+  const list = (inv as any).invoiceItems ?? inv.items ?? (inv as any).lineItems ?? [];
+  return Array.isArray(list) ? list : [];
 }
 
 const num = (v: unknown) => {
@@ -77,15 +87,17 @@ export interface Begroting {
 }
 
 export function buildBegroting(invoice: Invoice | null, docAmount?: number | null): Begroting {
-  if (!invoice || !Array.isArray(invoice.items) || invoice.items.length === 0) {
-    const t = docAmount && docAmount > 0 ? euro(docAmount) : '—';
-    return { regels: '—', subtotaal: '—', btw: '—', totaal: t, bron: docAmount && docAmount > 0 ? 'document_totaal' : 'geen', itemNamen: [] };
+  const items = invoiceLines(invoice);
+  if (!invoice || items.length === 0) {
+    const fallback = docAmount && docAmount > 0 ? docAmount : num(invoice?.total ?? invoice?.invoiceTotal);
+    const t = fallback > 0 ? euro(fallback) : '—';
+    return { regels: '—', subtotaal: '—', btw: '—', totaal: t, bron: fallback > 0 ? 'document_totaal' : 'geen', itemNamen: [] };
   }
 
   const lines: string[] = [];
   const perRate = new Map<number, number>();
   let subtotaal = 0;
-  for (const it of invoice.items) {
+  for (const it of items) {
     const qty = num(it.qty) || 1;
     const prijs = num(it.amount);
     const regel = round2(qty * prijs);
@@ -124,7 +136,7 @@ export function buildBegroting(invoice: Invoice | null, docAmount?: number | nul
     btw: btwTotaal > 0 ? `${euro(btwTotaal)}${perRate.size > 1 ? ` (${verdeling})` : ''}` : euro(0),
     totaal: euro(totaal),
     bron: 'factuur',
-    itemNamen: invoice.items.map((i) => stripHtml(i.name)).filter(Boolean),
+    itemNamen: items.map((i) => stripHtml(i.name)).filter(Boolean),
   };
 }
 
