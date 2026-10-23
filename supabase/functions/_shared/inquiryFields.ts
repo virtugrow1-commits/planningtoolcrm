@@ -71,7 +71,9 @@ export async function loadFieldDefs(headers: Record<string, string>, locationId?
  * klantinvoer: een nieuwe aanvraag van hetzelfde contact mag die niet overnemen.
  */
 export function isBuutOutputField(label: string): boolean {
-  return /^(\{\{\s*)?(contact\.)?(offerte|reservering)[\s_]/i.test(String(label || '').trim());
+  const l = String(label || '').trim();
+  return /^(\{\{\s*)?(contact\.)?(offerte|reservering)[\s_]/i.test(l)
+    || /^(\{\{\s*)?(contact\.)?offertenummer$/i.test(l);
 }
 
 export function buildFieldMap(sources: any[], fieldDefs: Record<string, string> = {}): FieldMap {

@@ -39,6 +39,7 @@ Deno.test('dagdeel → tijden', () => {
   assertEquals(isBuutOutputField('reservering_datum'), true);
   assertEquals(isBuutOutputField('Reserveringstype'), false);
   assertEquals(isBuutOutputField('contact.offerte_aantal_gasten'), true);
+  assertEquals(isBuutOutputField('Offertenummer'), true);
 });
 
 Deno.test('terugkerende klant krijgt een nieuwe aanvraag; alleen dubbele inzending werkt de bestaande bij', async () => {
