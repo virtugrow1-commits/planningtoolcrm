@@ -210,9 +210,9 @@ export function extractInquiryFields(fieldMap: FieldMap, fallbacks: { eventType?
   const find = makeFuzzyFind(fieldMap);
 
   const guestRaw = find('aantal gasten', 'aantal personen', 'aantal deelnemers', 'aantal gasten (indicatie)', 'guest_count', 'guests', 'gasten', 'personen', 'aantal');
-  const guestCount = parseInt(String(guestRaw).replace(/\D+/g, ''), 10);
+  const guestCount = parseGuestCount(guestRaw);
 
-  const eventTypeField = find('type evenement', 'type gelegenheid', 'soort evenement', 'soort bijeenkomst', 'type bijeenkomst', 'wat is de gelegenheid?', 'gelegenheid', 'aanleiding', 'event_type');
+  const eventTypeField = find('type gelegenheid', 'type evenement', 'soort evenement', 'soort bijeenkomst', 'type bijeenkomst', 'wat is de gelegenheid?', 'gelegenheid', 'aanleiding', 'event_type');
   const eventType = eventTypeField || (isGenericEventType(fallbacks.eventType) ? null : fallbacks.eventType) || fallbacks.eventType || null;
 
   const budgetRaw = find('budget');
@@ -325,4 +325,26 @@ export function isDuplicateSubmission(
   const a = existing.preferred_date ? String(existing.preferred_date).slice(0, 10) : '';
   const b = submitted.preferredDate ? String(submitted.preferredDate).slice(0, 10) : '';
   return !a || !b || a === b;
+}
+
+/**
+ * Aantal gasten uit formuliertekst. Bij een bereik ("van 21 tot 50 p.",
+ * "tot 20 p.", "vanaf 100 p.") telt het hoogste getal; vroeger werden alle
+ * cijfers aan elkaar geplakt ("21 tot 50" -> 2150).
+ */
+export function parseGuestCount(raw: unknown): number {
+  const nums = String(raw ?? '').match(/\d+/g);
+  if (!nums || nums.length === 0) return NaN;
+  return Math.max(...nums.map((n) => parseInt(n, 10)));
+}
+
+/**
+ * Komt deze webhook van de GHL-workflow die websiteformulieren doorzet naar
+ * BUUT ("Formulier -> CRM")? GHL stuurt dan het hele contact met alle eigen
+ * velden mee, zonder apart formulierkenmerk; de workflownaam is het kenmerk.
+ */
+export function isFormRelayPayload(payload: any): boolean {
+  const wf = payload?.workflow;
+  const name = String((wf && typeof wf === 'object' ? wf.name : wf) || payload?.workflow_name || payload?.workflowName || '');
+  return /formulier|form\s*(->|→)/i.test(name);
 }

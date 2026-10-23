@@ -53,3 +53,16 @@ Deno.test('terugkerende klant krijgt een nieuwe aanvraag; alleen dubbele inzendi
   assertEquals(isDuplicateSubmission({ status: 'new', created_at: '2026-09-01T10:00:00Z', preferred_date: '2026-11-27' }, { preferredDate: '2026-11-27' }, now), false);
   assertEquals(isDuplicateSubmission({ status: 'new', created_at: '2026-10-23T11:00:00Z', preferred_date: '2026-11-20' }, { preferredDate: '2026-12-04' }, now), false);
 });
+
+Deno.test('aantal gasten uit een bereik en webhook van "Formulier -> CRM" herkennen', async () => {
+  const { parseGuestCount, isFormRelayPayload } = await import('./inquiryFields.ts');
+  assertEquals(parseGuestCount('van 21 tot 50 p.'), 50);
+  assertEquals(parseGuestCount('tot 20 p.'), 20);
+  assertEquals(parseGuestCount('vanaf 100 p.'), 100);
+  assertEquals(parseGuestCount('35'), 35);
+  assertEquals(Number.isNaN(parseGuestCount('')), true);
+  assertEquals(isFormRelayPayload({ workflow: { id: 'x', name: 'Formulier -> CRM' } }), true);
+  assertEquals(isFormRelayPayload({ workflow_name: 'Formulier → CRM' }), true);
+  assertEquals(isFormRelayPayload({ workflow: { name: 'Supabase Sync: Contacts' } }), false);
+  assertEquals(isFormRelayPayload({}), false);
+});
