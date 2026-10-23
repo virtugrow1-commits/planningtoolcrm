@@ -338,13 +338,3 @@ export function parseGuestCount(raw: unknown): number {
   return Math.max(...nums.map((n) => parseInt(n, 10)));
 }
 
-/**
- * Komt deze webhook van de GHL-workflow die websiteformulieren doorzet naar
- * BUUT ("Formulier -> CRM")? GHL stuurt dan het hele contact met alle eigen
- * velden mee, zonder apart formulierkenmerk; de workflownaam is het kenmerk.
- */
-export function isFormRelayPayload(payload: any): boolean {
-  const wf = payload?.workflow;
-  const name = String((wf && typeof wf === 'object' ? wf.name : wf) || payload?.workflow_name || payload?.workflowName || '');
-  return /formulier|form\s*(->|→)/i.test(name);
-}

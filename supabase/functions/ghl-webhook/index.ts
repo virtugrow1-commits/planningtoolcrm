@@ -4,7 +4,6 @@ import {
   buildInquiryUpdate,
   extractInquiryFields,
   isDuplicateSubmission,
-  isFormRelayPayload,
   linkContactToCompany,
   loadFieldDefs,
   parseFormDate,
@@ -82,8 +81,6 @@ Deno.serve(async (req) => {
   try {
     const payload = await req.json();
     console.log('GHL webhook received:', JSON.stringify(payload).substring(0, 500));
-    // Alleen sleutelnamen (geen waarden), zodat te zien is welk soort webhook binnenkomt
-    console.log('GHL webhook keys:', Object.keys(payload || {}).filter((k) => !/ /.test(k)).join(','), '| workflow:', JSON.stringify(payload?.workflow ?? payload?.workflow_name ?? null));
 
     const type = payload.type || payload.event || '';
 
@@ -121,13 +118,10 @@ Deno.serve(async (req) => {
       type.toLowerCase().includes('form') || type.toLowerCase().includes('workflow')
     );
     // Only treat as form if we have BOTH form fields AND a form submission indicator.
-    // De workflow "Formulier -> CRM" stuurt het hele contact mee zonder apart
-    // formulierkenmerk; die webhook is altijd een nieuwe formulierinzending.
-    const isFormRelay = !!payload.contact_id && isFormRelayPayload(payload);
-    const hasFormData = (hasFormFields && hasFormIndicator) || isFormRelay;
+    const hasFormData = hasFormFields && hasFormIndicator;
     
     // Contact with custom fields but no form indicator = contact sync, not form
-    const isContactWithCustomFields = !!(payload.contact_id && hasFormFields && !hasFormIndicator && !isFormRelay);
+    const isContactWithCustomFields = !!(payload.contact_id && hasFormFields && !hasFormIndicator);
     
     const hasMessageData = type.includes('InboundMessage') || type.includes('inbound') || type.includes('message') || (payload.body && payload.conversationId);
     const hasDocumentData = type.includes('Document') || type.includes('document') || type.includes('Proposal') || type.includes('proposal') || type.includes('Invoice') || type.includes('invoice') || type.includes('Estimate') || type.includes('estimate') || payload.documentId || payload.proposalId || payload.estimateId;
@@ -158,7 +152,6 @@ Deno.serve(async (req) => {
     } else if (hasMessageData) {
       await handleInboundMessage(supabase, ghlHeaders, userId, payload);
     } else if (hasFormData) {
-      console.log('[FORM] branch: form', isFormRelay ? '(Formulier -> CRM)' : '');
       await handleFormSubmission(supabase, userId, payload);
     } else if (type.includes('opportunity') || type.includes('OpportunityStatus') || type.includes('pipeline') || (hasPipelineData && !hasAppointmentData)) {
       // Pass form fields from payload so we don't need extra API calls
@@ -195,7 +188,7 @@ async function handleFormSubmission(supabase: any, userId: string, payload: any)
   const fullName = payload.full_name || payload.contact_name || payload.name || payload.Naam || payload['Volledige naam'] || '';
   const firstName = payload.first_name || payload.firstName || fullName.split(' ')[0] || 'Onbekend';
   const lastName = payload.last_name || payload.lastName || fullName.split(' ').slice(1).join(' ') || '';
-  const companyNameRaw = payload.company || payload.companyName || payload.company_name || payload.Bedrijf || payload.Bedrijfsnaam || payload['Naam bedrijf'] || payload.Organisatie || null;
+  const companyNameRaw = payload.company || payload.companyName || payload.Bedrijf || payload.Bedrijfsnaam || payload['Naam bedrijf'] || payload.Organisatie || null;
   const companyName = companyNameRaw ? String(companyNameRaw).trim() : null;
 
 
@@ -203,18 +196,17 @@ async function handleFormSubmission(supabase: any, userId: string, payload: any)
   const formFieldMap = buildFieldMap([payload]);
   const extracted = extractInquiryFields(formFieldMap);
 
-  // Huidige formulieren gebruiken "Type gelegenheid"; "Type Evenement" kan een oude contactwaarde zijn
-  const eventType = payload['Type gelegenheid'] || payload['Type Evenement'] || payload.event_type || payload['Soort evenement'] || extracted.eventType || 'Aanvraag via formulier';
+  const eventType = payload['Type Evenement'] || payload.event_type || payload['Soort evenement'] || extracted.eventType || 'Aanvraag via formulier';
   const guestCount = extracted.guestCount ?? (parseInt(payload['Aantal gasten'] || payload.guest_count || '0', 10) || 0);
   const preferredDate = parseFormDate(payload['Selecteer de gewenste datum'] || payload.preferred_date || null) || extracted.preferredDate;
   const preferredStartTime = extracted.preferredStartTime || parseFormTime(payload['Starttijd'] || payload.start_time || null);
   const preferredEndTime = extracted.preferredEndTime || parseFormTime(payload['Eindtijd'] || payload.end_time || null);
-  const dagdeel = payload['Selecteer dagdeel'] || payload['Kies je dagdeel'] || '';
+  const dagdeel = payload['Kies je dagdeel'] || '';
   const roomPreference = payload['Gewenste zaalopstelling'] || payload.room_preference || extracted.roomPreference || null;
   const message = payload['Extra informatie'] || payload.message || payload.Opmerkingen || '';
   const budget = payload.budget || payload.Budget ? Number(payload.budget || payload.Budget) : extracted.budget;
   const ghlContactId = payload.contact_id || payload.contactId || null;
-  const formSource = payload.form_name || payload.formName || payload['Form Name'] || (isFormRelayPayload(payload) ? 'Websiteformulier' : null) || payload.workflow_name || payload.workflowName || payload.source || null;
+  const formSource = payload.form_name || payload.formName || payload.workflow_name || payload.workflowName || payload['Form Name'] || payload.source || null;
 
 
   const fullMessage = [
