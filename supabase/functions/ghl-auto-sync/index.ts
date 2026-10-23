@@ -234,7 +234,7 @@ Deno.serve(async (req) => {
       // This eliminates thousands of individual DB queries
       const [existingContacts, existingCompanies, existingInquiries, existingTasks] = await Promise.all([
         fetchAll(supabase, 'contacts', 'id, ghl_contact_id, first_name, last_name, email, phone, company, company_id, status, tags, updated_at, pending_outbound_sync, last_local_edit_at', {}),
-        fetchAll(supabase, 'companies', 'id, ghl_company_id, name, email, phone, website, address, city, updated_at, pending_outbound_sync, last_local_edit_at', {}),
+        fetchAll(supabase, 'companies', 'id, ghl_company_id, name, email, phone, website, address, city, postcode, updated_at, pending_outbound_sync, last_local_edit_at', {}),
         fetchAll(supabase, 'inquiries', 'id, ghl_opportunity_id, status, budget, event_type, contact_name, contact_id, created_at, updated_at, local_status_changed_at', {}),
         fetchAll(supabase, 'tasks', 'id, ghl_task_id, title, description, status, due_date, due_time, updated_at, contact_id, booking_id, inquiry_id, local_status_changed_at', {}),
       ]);
@@ -1396,6 +1396,7 @@ async function syncCompanies(supabase: any, ghlHeaders: any, locationId: string,
       const ghlWebsite = ghlCompany.website || null;
       const ghlAddress = ghlCompany.address || null;
       const ghlCity = ghlCompany.city || null;
+      const ghlPostcode = ghlCompany.postalCode || ghlCompany.postcode || null;
 
       // In-memory lookup by ghl_company_id
       const existing = lookups.companyByGhlId.get(ghlCompany.id);
@@ -1424,6 +1425,7 @@ async function syncCompanies(supabase: any, ghlHeaders: any, locationId: string,
           if (ghlWebsite && ghlWebsite.trim() && norm(existing.website) !== norm(ghlWebsite)) updatePayload.website = ghlWebsite;
           if (ghlAddress && ghlAddress.trim() && norm(existing.address) !== norm(ghlAddress)) updatePayload.address = ghlAddress;
           if (ghlCity && ghlCity.trim() && norm(existing.city) !== norm(ghlCity)) updatePayload.city = ghlCity;
+          if (ghlPostcode && String(ghlPostcode).trim() && norm(existing.postcode) !== norm(ghlPostcode)) updatePayload.postcode = ghlPostcode;
 
           if (Object.keys(updatePayload).length > 0) {
             await supabase.from('companies').update(updatePayload).eq('id', existing.id);
@@ -1449,6 +1451,7 @@ async function syncCompanies(supabase: any, ghlHeaders: any, locationId: string,
             website: ghlWebsite,
             address: ghlAddress,
             city: ghlCity,
+            postcode: ghlPostcode,
           }).select('id').maybeSingle();
           if (insertErr) {
             if (insertErr.message?.includes('unique')) {
@@ -1496,6 +1499,7 @@ async function syncCompanies(supabase: any, ghlHeaders: any, locationId: string,
         if (company.website) createPayload.website = company.website;
         if (company.address) createPayload.address = company.address;
         if (company.city) createPayload.city = company.city;
+        if (company.postcode) createPayload.postalCode = company.postcode;
 
         const createRes = await fetch(`${GHL_API_BASE}/businesses/`, {
           method: 'POST', headers: ghlHeaders, body: JSON.stringify(createPayload),

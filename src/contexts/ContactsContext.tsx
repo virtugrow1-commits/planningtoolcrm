@@ -197,6 +197,10 @@ export function ContactsProvider({ children }: { children: ReactNode }) {
       email: contact.email || null,
       phone: contact.phone || null,
       company: contact.company || null,
+      address: contact.address || null,
+      postcode: contact.postcode || null,
+      city: contact.city || null,
+      country: contact.country || 'NL',
       ghl_contact_id: contact.ghlContactId || null,
     }}, {
       entityType: 'contact', entityId: contact.id, actionType: 'update',
