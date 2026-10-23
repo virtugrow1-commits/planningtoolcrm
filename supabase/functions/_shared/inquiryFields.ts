@@ -304,3 +304,23 @@ export function buildInquiryUpdate(x: ExtractedInquiry, opts: { includeMessage?:
   if (opts.includeMessage !== false && x.message) update.message = x.message;
   return update;
 }
+
+/**
+ * Mag een nieuwe formulierinzending een bestaande aanvraag bijwerken in plaats
+ * van een nieuwe aan te maken? Alleen bij een dubbele inzending: dezelfde
+ * aanvraag staat nog open (nieuw/contact), is kort geleden binnengekomen en gaat
+ * over dezelfde datum. Een terugkerende klant krijgt altijd een nieuwe aanvraag.
+ */
+export function isDuplicateSubmission(
+  existing: { status?: string | null; created_at?: string | null; preferred_date?: string | null },
+  submitted: { preferredDate?: string | null },
+  now: Date = new Date(),
+  windowHours = 48,
+): boolean {
+  if (!['new', 'contacted'].includes(String(existing.status || ''))) return false;
+  const created = Date.parse(String(existing.created_at || ''));
+  if (!Number.isFinite(created) || now.getTime() - created > windowHours * 3600 * 1000) return false;
+  const a = existing.preferred_date ? String(existing.preferred_date).slice(0, 10) : '';
+  const b = submitted.preferredDate ? String(submitted.preferredDate).slice(0, 10) : '';
+  return !a || !b || a === b;
+}

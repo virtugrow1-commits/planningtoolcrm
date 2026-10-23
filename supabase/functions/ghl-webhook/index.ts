@@ -3,6 +3,7 @@ import {
   buildFieldMap,
   buildInquiryUpdate,
   extractInquiryFields,
+  isDuplicateSubmission,
   linkContactToCompany,
   loadFieldDefs,
   parseFormDate,
@@ -361,12 +362,14 @@ async function handleFormSubmission(supabase: any, userId: string, payload: any)
   if (contactId) {
     const q = supabase
       .from('inquiries')
-      .select('id')
+      .select('id, status, created_at, preferred_date')
       .eq('contact_id', contactId)
       .eq('event_type', eventType);
     const q2 = submittedCompanyId ? q.eq('company_id', submittedCompanyId) : q.is('company_id', null);
     const { data: existingByContact } = await q2.order('created_at', { ascending: false }).limit(1).maybeSingle();
-    if (existingByContact) {
+    // Alleen een dubbele inzending werkt de bestaande aanvraag bij; een terugkerende
+    // klant (oude, verloren of al gereserveerde aanvraag) krijgt een nieuwe aanvraag.
+    if (existingByContact && isDuplicateSubmission(existingByContact, { preferredDate })) {
       await supabase.from('inquiries').update({
         preferred_date: preferredDate, room_preference: roomPreference,
         preferred_start_time: preferredStartTime, preferred_end_time: preferredEndTime,
@@ -385,12 +388,12 @@ async function handleFormSubmission(supabase: any, userId: string, payload: any)
   if (!duplicateFound) {
     const q = supabase
       .from('inquiries')
-      .select('id')
+      .select('id, status, created_at, preferred_date')
       .ilike('contact_name', contactName)
       .eq('event_type', eventType);
     const q2 = submittedCompanyId ? q.eq('company_id', submittedCompanyId) : q.is('company_id', null);
     const { data: existingByName } = await q2.order('created_at', { ascending: false }).limit(1).maybeSingle();
-    if (existingByName) {
+    if (existingByName && isDuplicateSubmission(existingByName, { preferredDate })) {
       await supabase.from('inquiries').update({
         contact_id: contactId, preferred_date: preferredDate, room_preference: roomPreference,
         preferred_start_time: preferredStartTime, preferred_end_time: preferredEndTime,

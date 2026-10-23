@@ -39,3 +39,15 @@ Deno.test('dagdeel → tijden', () => {
   assertEquals(isBuutOutputField('reservering_datum'), true);
   assertEquals(isBuutOutputField('Reserveringstype'), false);
 });
+
+Deno.test('terugkerende klant krijgt een nieuwe aanvraag; alleen dubbele inzending werkt de bestaande bij', async () => {
+  const { isDuplicateSubmission } = await import('./inquiryFields.ts');
+  const now = new Date('2026-10-23T12:00:00Z');
+  // Zelfde aanvraag een uur geleden nog eens verstuurd
+  assertEquals(isDuplicateSubmission({ status: 'new', created_at: '2026-10-23T11:00:00Z', preferred_date: '2026-11-27' }, { preferredDate: '2026-11-27' }, now), true);
+  // Oude aanvraag (verloren / al reservering / lang geleden / andere datum) → nieuwe aanvraag
+  assertEquals(isDuplicateSubmission({ status: 'lost', created_at: '2026-10-23T11:00:00Z', preferred_date: '2026-11-27' }, { preferredDate: '2026-11-27' }, now), false);
+  assertEquals(isDuplicateSubmission({ status: 'reserved', created_at: '2026-10-23T11:00:00Z' }, {}, now), false);
+  assertEquals(isDuplicateSubmission({ status: 'new', created_at: '2026-09-01T10:00:00Z', preferred_date: '2026-11-27' }, { preferredDate: '2026-11-27' }, now), false);
+  assertEquals(isDuplicateSubmission({ status: 'new', created_at: '2026-10-23T11:00:00Z', preferred_date: '2026-11-20' }, { preferredDate: '2026-12-04' }, now), false);
+});
