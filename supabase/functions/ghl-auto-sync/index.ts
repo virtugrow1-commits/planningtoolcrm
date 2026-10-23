@@ -1238,6 +1238,9 @@ async function syncContacts(supabase: any, ghlHeaders: any, locationId: string, 
             phone: ghlPhone,
             company: ghlCompanyName,
             tags: newTags,
+            address: ghlAddr,
+            postcode: ghlPostcode,
+            city: ghlCityC,
             status: 'lead',
           }).select('id').maybeSingle();
           if (insertErr) {
