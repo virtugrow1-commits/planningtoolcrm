@@ -77,9 +77,9 @@ const ROOM_SETUPS = [
   'Anders',
 ];
 
-interface NewCompanyForm { name: string; email: string; phone: string; address: string; }
+interface NewCompanyForm { name: string; email: string; phone: string; address: string; postcode: string; city: string; }
 interface NewContactForm { firstName: string; lastName: string; email: string; phone: string; }
-const emptyCompanyForm: NewCompanyForm = { name: '', email: '', phone: '', address: '' };
+const emptyCompanyForm: NewCompanyForm = { name: '', email: '', phone: '', address: '', postcode: '', city: '' };
 const emptyContactForm: NewContactForm = { firstName: '', lastName: '', email: '', phone: '' };
 
 export default function NewReservationDialog({
@@ -288,6 +288,8 @@ export default function NewReservationDialog({
             email: companyForm.email || null,
             phone: companyForm.phone || null,
             address: companyForm.address || null,
+            postcode: companyForm.postcode.trim() || null,
+            city: companyForm.city.trim() || null,
           }).select().single();
 
           if (coErr) {
@@ -448,6 +450,20 @@ export default function NewReservationDialog({
                     onChange={(e) => setCompanyForm({ ...companyForm, address: e.target.value })}
                     className="text-sm h-8"
                   />
+                  <div className="grid grid-cols-2 gap-2">
+                    <Input
+                      placeholder="Postcode"
+                      value={companyForm.postcode}
+                      onChange={(e) => setCompanyForm({ ...companyForm, postcode: e.target.value })}
+                      className="text-sm h-8"
+                    />
+                    <Input
+                      placeholder="Plaats"
+                      value={companyForm.city}
+                      onChange={(e) => setCompanyForm({ ...companyForm, city: e.target.value })}
+                      className="text-sm h-8"
+                    />
+                  </div>
                 </div>
               </div>
             )}

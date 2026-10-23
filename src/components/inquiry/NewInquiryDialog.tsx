@@ -45,6 +45,8 @@ interface NewCompanyForm {
   email: string;
   phone: string;
   address: string;
+  postcode: string;
+  city: string;
 }
 
 interface NewContactForm {
@@ -56,7 +58,7 @@ interface NewContactForm {
   functionGroup: string;
 }
 
-const emptyCompanyForm: NewCompanyForm & { isPrivate?: boolean } = { name: '', email: '', phone: '', address: '', isPrivate: false };
+const emptyCompanyForm: NewCompanyForm & { isPrivate?: boolean } = { name: '', email: '', phone: '', address: '', postcode: '', city: '', isPrivate: false };
 const emptyContactForm: NewContactForm = { firstName: '', lastName: '', email: '', phone: '', dmu: '', functionGroup: '' };
 
 export default function NewInquiryDialog({ open, onOpenChange, contacts, companies, onInquiryAdded }: NewInquiryDialogProps) {
@@ -179,6 +181,8 @@ export default function NewInquiryDialog({ open, onOpenChange, contacts, compani
             email: companyForm.email || null,
             phone: companyForm.phone || null,
             address: companyForm.address || null,
+            postcode: companyForm.postcode.trim() || null,
+            city: companyForm.city.trim() || null,
             is_private: companyForm.isPrivate === true,
           }).select().single();
 
@@ -353,6 +357,20 @@ export default function NewInquiryDialog({ open, onOpenChange, contacts, compani
                     onChange={(e) => setCompanyForm({ ...companyForm, address: e.target.value })}
                     className="text-sm h-8"
                   />
+                  <div className="grid grid-cols-2 gap-2">
+                    <Input
+                      placeholder="Postcode"
+                      value={companyForm.postcode}
+                      onChange={(e) => setCompanyForm({ ...companyForm, postcode: e.target.value })}
+                      className="text-sm h-8"
+                    />
+                    <Input
+                      placeholder="Plaats"
+                      value={companyForm.city}
+                      onChange={(e) => setCompanyForm({ ...companyForm, city: e.target.value })}
+                      className="text-sm h-8"
+                    />
+                  </div>
                 </div>
               </div>
             )}
