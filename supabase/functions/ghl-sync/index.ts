@@ -349,6 +349,10 @@ Deno.serve(async (req) => {
         if (contact.email) basePayload.email = contact.email;
         if (contact.phone) basePayload.phone = contact.phone;
         if (contact.company) basePayload.companyName = contact.company;
+      if (contact.address) basePayload.address1 = contact.address;
+      if (contact.postcode) basePayload.postalCode = contact.postcode;
+      if (contact.city) basePayload.city = contact.city;
+      if (contact.country) basePayload.country = contact.country;
 
         // GHL contact update endpoint rejects locationId; create endpoint requires it
         const createPayload: Record<string, any> = { ...basePayload, locationId: GHL_LOCATION_ID };

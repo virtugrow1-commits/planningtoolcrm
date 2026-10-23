@@ -27,7 +27,7 @@ export default function CompaniesPage() {
   const [search, setSearch] = useState('');
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<Company | null>(null);
-  const [form, setForm] = useState({ name: '', email: '', phone: '', website: '', address: '', notes: '', isPrivate: false });
+  const [form, setForm] = useState({ name: '', email: '', phone: '', website: '', address: '', postcode: '', city: '', notes: '', isPrivate: false });
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState<number>(20);
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -39,7 +39,7 @@ export default function CompaniesPage() {
   useEffect(() => {
     if (new URLSearchParams(window.location.search).get('new') === 'private') {
       setEditing(null);
-      setForm({ name: '', email: '', phone: '', website: '', address: '', notes: '', isPrivate: true });
+      setForm({ name: '', email: '', phone: '', website: '', address: '', postcode: '', city: '', notes: '', isPrivate: true });
       setDialogOpen(true);
     }
   }, []);
@@ -76,13 +76,13 @@ export default function CompaniesPage() {
 
   const openNew = () => {
     setEditing(null);
-    setForm({ name: '', email: '', phone: '', website: '', address: '', notes: '', isPrivate: false });
+    setForm({ name: '', email: '', phone: '', website: '', address: '', postcode: '', city: '', notes: '', isPrivate: false });
     setDialogOpen(true);
   };
 
   const openEdit = (c: Company) => {
     setEditing(c);
-    setForm({ name: c.name, email: c.email || '', phone: c.phone || '', website: c.website || '', address: c.address || '', notes: c.notes || '', isPrivate: c.isPrivate === true });
+    setForm({ name: c.name, email: c.email || '', phone: c.phone || '', website: c.website || '', address: c.address || '', postcode: c.postcode || '', city: c.city || '', notes: c.notes || '', isPrivate: c.isPrivate === true });
     setDialogOpen(true);
   };
 
@@ -233,7 +233,11 @@ export default function CompaniesPage() {
               <div className="grid gap-1.5"><Label>{form.isPrivate ? 'Mobiel' : 'Telefoon'}</Label><Input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} /></div>
             </div>
             {!form.isPrivate && <div className="grid gap-1.5"><Label>Website</Label><Input value={form.website} onChange={(e) => setForm({ ...form, website: e.target.value })} /></div>}
-            <div className="grid gap-1.5"><Label>Adres</Label><Input value={form.address} onChange={(e) => setForm({ ...form, address: e.target.value })} /></div>
+            <div className="grid gap-1.5"><Label>Adres</Label><Input value={form.address} onChange={(e) => setForm({ ...form, address: e.target.value })} placeholder="Straat + huisnummer" /></div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="grid gap-1.5"><Label>Postcode</Label><Input value={form.postcode} onChange={(e) => setForm({ ...form, postcode: e.target.value })} /></div>
+              <div className="grid gap-1.5"><Label>Plaats</Label><Input value={form.city} onChange={(e) => setForm({ ...form, city: e.target.value })} /></div>
+            </div>
             <div className="grid gap-1.5"><Label>Notities</Label><Textarea value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} rows={3} /></div>
             <p className="text-xs text-muted-foreground">{form.isPrivate ? 'Na aanmaken vul je op de klantkaart de geboortedatum van de persoon in.' : 'Na aanmaken kun je direct de eerste contactpersoon toevoegen.'}</p>
           </div>

@@ -233,8 +233,8 @@ Deno.serve(async (req) => {
       // PRE-LOAD: Fetch all existing CRM records into lookup Maps ONCE
       // This eliminates thousands of individual DB queries
       const [existingContacts, existingCompanies, existingInquiries, existingTasks] = await Promise.all([
-        fetchAll(supabase, 'contacts', 'id, ghl_contact_id, first_name, last_name, email, phone, company, company_id, status, tags, updated_at, pending_outbound_sync, last_local_edit_at', {}),
-        fetchAll(supabase, 'companies', 'id, ghl_company_id, name, email, phone, website, address, city, updated_at, pending_outbound_sync, last_local_edit_at', {}),
+        fetchAll(supabase, 'contacts', 'id, ghl_contact_id, first_name, last_name, email, phone, company, company_id, status, tags, address, postcode, city, updated_at, pending_outbound_sync, last_local_edit_at', {}),
+        fetchAll(supabase, 'companies', 'id, ghl_company_id, name, email, phone, website, address, city, postcode, updated_at, pending_outbound_sync, last_local_edit_at', {}),
         fetchAll(supabase, 'inquiries', 'id, ghl_opportunity_id, status, budget, event_type, contact_name, contact_id, created_at, updated_at, local_status_changed_at', {}),
         fetchAll(supabase, 'tasks', 'id, ghl_task_id, title, description, status, due_date, due_time, updated_at, contact_id, booking_id, inquiry_id, local_status_changed_at', {}),
       ]);
@@ -1115,6 +1115,9 @@ async function syncContacts(supabase: any, ghlHeaders: any, locationId: string, 
       const ghlEmail = ghlContact.email || null;
       const ghlPhone = ghlContact.phone || null;
       const ghlCompanyName = fixEnc(ghlContact.companyName || null);
+      const ghlAddr = fixEnc(ghlContact.address1 || null);
+      const ghlPostcode = ghlContact.postalCode || null;
+      const ghlCityC = fixEnc(ghlContact.city || null);
 
       // Use pre-loaded lookup instead of DB query
       const existing = lookups.contactByGhlId.get(ghlContact.id);
@@ -1132,7 +1135,11 @@ async function syncContacts(supabase: any, ghlHeaders: any, locationId: string, 
                            norm(existing.last_name) !== norm(lastName) ||
                            norm(existing.email) !== norm(ghlEmail) ||
                            norm(existing.phone) !== norm(ghlPhone) ||
-                           (ghlCompanyName && norm(existing.company) !== norm(ghlCompanyName));
+                           (ghlCompanyName && norm(existing.company) !== norm(ghlCompanyName)) ||
+                           (ghlAddr && norm(existing.address) !== norm(ghlAddr)) ||
+                           (ghlPostcode && norm(existing.postcode) !== norm(ghlPostcode)) ||
+                           (ghlCityC && norm(existing.city) !== norm(ghlCityC)) ||
+                           (!ghlAddr && !!existing.address) || (!ghlPostcode && !!existing.postcode) || (!ghlCityC && !!existing.city);
 
         if (crmDiffers) {
           // Compare timestamps as real dates: GHL dateUpdated vs CRM updated_at
@@ -1146,6 +1153,9 @@ async function syncContacts(supabase: any, ghlHeaders: any, locationId: string, 
               email: existing.email || undefined,
               phone: existing.phone || undefined,
               companyName: existing.company || undefined,
+              address1: existing.address || undefined,
+              postalCode: existing.postcode || undefined,
+              city: existing.city || undefined,
             };
             await delay(150);
             const pushRes = await fetch(`${GHL_API_BASE}/contacts/${ghlContact.id}`, {
@@ -1165,6 +1175,9 @@ async function syncContacts(supabase: any, ghlHeaders: any, locationId: string, 
             if (ghlEmail && ghlEmail.trim()) updatePayload.email = ghlEmail;
             if (ghlPhone && ghlPhone.trim()) updatePayload.phone = ghlPhone;
             if (ghlCompanyName && ghlCompanyName.trim()) updatePayload.company = ghlCompanyName;
+            if (ghlAddr && ghlAddr.trim()) updatePayload.address = ghlAddr;
+            if (ghlPostcode && String(ghlPostcode).trim()) updatePayload.postcode = ghlPostcode;
+            if (ghlCityC && ghlCityC.trim()) updatePayload.city = ghlCityC;
 
             if (Object.keys(updatePayload).length > 0) {
               await supabase.from('contacts').update(updatePayload).eq('id', existing.id);
@@ -1225,6 +1238,9 @@ async function syncContacts(supabase: any, ghlHeaders: any, locationId: string, 
             phone: ghlPhone,
             company: ghlCompanyName,
             tags: newTags,
+            address: ghlAddr,
+            postcode: ghlPostcode,
+            city: ghlCityC,
             status: 'lead',
           }).select('id').maybeSingle();
           if (insertErr) {
@@ -1264,7 +1280,7 @@ async function syncContacts(supabase: any, ghlHeaders: any, locationId: string, 
     // 2. Push recently changed CRM contacts
     const { data: recentlyChanged } = await supabase
       .from('contacts')
-      .select('id, ghl_contact_id, first_name, last_name, email, phone, company')
+      .select('id, ghl_contact_id, first_name, last_name, email, phone, company, address, postcode, city')
       .not('id', 'is', null)
       .not('ghl_contact_id', 'is', null)
       .gt('updated_at', recentThreshold);
@@ -1277,6 +1293,9 @@ async function syncContacts(supabase: any, ghlHeaders: any, locationId: string, 
         email: contact.email || undefined,
         phone: contact.phone || undefined,
         companyName: contact.company || undefined,
+        address1: contact.address || undefined,
+        postalCode: contact.postcode || undefined,
+        city: contact.city || undefined,
       };
       await delay(150);
       const pushRes = await fetch(`${GHL_API_BASE}/contacts/${contact.ghl_contact_id}`, {
@@ -1307,6 +1326,9 @@ async function syncContacts(supabase: any, ghlHeaders: any, locationId: string, 
           email: contact.email || undefined,
           phone: contact.phone || undefined,
           companyName: companyName || undefined,
+          address1: contact.address || undefined,
+          postalCode: contact.postcode || undefined,
+          city: contact.city || undefined,
           locationId,
         }),
       });
@@ -1396,6 +1418,7 @@ async function syncCompanies(supabase: any, ghlHeaders: any, locationId: string,
       const ghlWebsite = ghlCompany.website || null;
       const ghlAddress = ghlCompany.address || null;
       const ghlCity = ghlCompany.city || null;
+      const ghlPostcode = ghlCompany.postalCode || ghlCompany.postcode || null;
 
       // In-memory lookup by ghl_company_id
       const existing = lookups.companyByGhlId.get(ghlCompany.id);
@@ -1424,6 +1447,7 @@ async function syncCompanies(supabase: any, ghlHeaders: any, locationId: string,
           if (ghlWebsite && ghlWebsite.trim() && norm(existing.website) !== norm(ghlWebsite)) updatePayload.website = ghlWebsite;
           if (ghlAddress && ghlAddress.trim() && norm(existing.address) !== norm(ghlAddress)) updatePayload.address = ghlAddress;
           if (ghlCity && ghlCity.trim() && norm(existing.city) !== norm(ghlCity)) updatePayload.city = ghlCity;
+          if (ghlPostcode && String(ghlPostcode).trim() && norm(existing.postcode) !== norm(ghlPostcode)) updatePayload.postcode = ghlPostcode;
 
           if (Object.keys(updatePayload).length > 0) {
             await supabase.from('companies').update(updatePayload).eq('id', existing.id);
@@ -1449,6 +1473,7 @@ async function syncCompanies(supabase: any, ghlHeaders: any, locationId: string,
             website: ghlWebsite,
             address: ghlAddress,
             city: ghlCity,
+            postcode: ghlPostcode,
           }).select('id').maybeSingle();
           if (insertErr) {
             if (insertErr.message?.includes('unique')) {
@@ -1496,6 +1521,7 @@ async function syncCompanies(supabase: any, ghlHeaders: any, locationId: string,
         if (company.website) createPayload.website = company.website;
         if (company.address) createPayload.address = company.address;
         if (company.city) createPayload.city = company.city;
+        if (company.postcode) createPayload.postalCode = company.postcode;
 
         const createRes = await fetch(`${GHL_API_BASE}/businesses/`, {
           method: 'POST', headers: ghlHeaders, body: JSON.stringify(createPayload),
