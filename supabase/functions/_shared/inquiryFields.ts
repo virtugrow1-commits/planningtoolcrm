@@ -43,21 +43,27 @@ const CACHE_TTL = 30 * 60 * 1000;
 export async function loadFieldDefs(headers: Record<string, string>, locationId?: string | null): Promise<Record<string, string>> {
   if (!locationId) return cachedFieldDefs || {};
   if (cachedFieldDefs && Date.now() - cachedFieldDefsAt < CACHE_TTL) return cachedFieldDefs;
-  try {
-    const res = await fetch(`${GHL_API_BASE}/locations/${locationId}/customFields`, { headers });
-    if (!res.ok) { await res.text(); return cachedFieldDefs || {}; }
-    const data = await res.json();
-    const fields = data.customFields || data || [];
-    const map: Record<string, string> = {};
-    for (const f of fields) {
-      if (f?.id && f?.name) map[f.id] = f.name;
-    }
-    cachedFieldDefs = map;
-    cachedFieldDefsAt = Date.now();
-    return map;
-  } catch {
-    return cachedFieldDefs || {};
+  // Zonder ?model= geeft GHL alleen contactvelden terug. Formuliervelden die op
+  // de opportunity staan (zoals "Aantal gasten") kwamen dan alleen als kale
+  // veld-ID binnen en werden niet herkend. Daarom alle modellen ophalen.
+  const map: Record<string, string> = {};
+  let anyOk = false;
+  for (const query of ['?model=all', '?model=opportunity', '']) {
+    try {
+      const res = await fetch(`${GHL_API_BASE}/locations/${locationId}/customFields${query}`, { headers });
+      if (!res.ok) { await res.text(); continue; }
+      const data = await res.json();
+      const fields = data.customFields || data || [];
+      for (const f of Array.isArray(fields) ? fields : []) {
+        if (f?.id && f?.name && !map[f.id]) map[f.id] = f.name;
+      }
+      anyOk = true;
+    } catch { /* volgende variant proberen */ }
   }
+  if (!anyOk) return cachedFieldDefs || {};
+  cachedFieldDefs = map;
+  cachedFieldDefsAt = Date.now();
+  return map;
 }
 
 /**

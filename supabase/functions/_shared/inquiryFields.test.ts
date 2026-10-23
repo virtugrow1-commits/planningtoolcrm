@@ -62,3 +62,25 @@ Deno.test('aantal gasten uit een bereik', async () => {
   assertEquals(parseGuestCount('35'), 35);
   assertEquals(Number.isNaN(parseGuestCount('')), true);
 });
+
+Deno.test('veld-ID van een opportunity-veld wordt herkend (aantal gasten)', async () => {
+  const { loadFieldDefs } = await import('./inquiryFields.ts');
+  const realFetch = globalThis.fetch;
+  const calls: string[] = [];
+  globalThis.fetch = ((url: string) => {
+    calls.push(String(url));
+    const all = String(url).includes('model=all');
+    const body = all
+      ? { customFields: [{ id: 'c1', name: 'Type gelegenheid' }, { id: '3kgpapaxtsha4cc3omeu', name: 'Aantal gasten' }] }
+      : { customFields: [{ id: 'c1', name: 'Type gelegenheid' }] };
+    return Promise.resolve(new Response(JSON.stringify(body), { status: 200 }));
+  }) as typeof fetch;
+  try {
+    const defs = await loadFieldDefs({}, 'loc');
+    assertEquals(calls.some((u) => u.includes('model=all')), true);
+    const map = buildFieldMap([{ customFields: [{ id: '3kgpapaxtsha4cc3omeu', value: 'van 21 tot 50 p.' }] }], defs);
+    assertEquals(extractInquiryFields(map).guestCount, 50);
+  } finally {
+    globalThis.fetch = realFetch;
+  }
+});
