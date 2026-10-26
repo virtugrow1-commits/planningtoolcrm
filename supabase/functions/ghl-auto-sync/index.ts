@@ -14,6 +14,7 @@ import { htmlToPlainText } from "../_shared/htmlToPlainText.ts";
 import {
   GHL_API_BASE,
   resolveContactTags,
+  withNewsletterTag,
   sameTags,
   applyRemoteInquiryPatch,
   buildAppointmentPayload,
@@ -2124,8 +2125,10 @@ async function processSyncQueue(supabase: any, ghlHeaders: any, locationId: stri
             const res = await fetch(`${GHL_API_BASE}/contacts/${contact.ghl_contact_id}`, { method: 'PUT', headers: ghlHeaders, body: JSON.stringify(cPayload) });
             success = res.ok; await res.text();
           } else {
-            const res = await fetch(`${GHL_API_BASE}/contacts/`, { method: 'POST', headers: ghlHeaders, body: JSON.stringify({ ...cPayload, locationId }) });
-            if (res.ok) { const cd = await res.json(); if (cd.contact?.id) await supabase.from('contacts').update({ ghl_contact_id: cd.contact.id }).eq('id', contact.id); success = true; }
+            // Nieuwe contactpersoon uit BUUT (eerste push mislukt): ook hier de nieuwsbrief-tag
+            const newTags = item.action_type === 'create' ? withNewsletterTag(contact.tags) : undefined;
+            const res = await fetch(`${GHL_API_BASE}/contacts/`, { method: 'POST', headers: ghlHeaders, body: JSON.stringify({ ...cPayload, locationId, ...(newTags ? { tags: newTags } : {}) }) });
+            if (res.ok) { const cd = await res.json(); if (cd.contact?.id) await supabase.from('contacts').update({ ghl_contact_id: cd.contact.id, ...(newTags ? { tags: newTags } : {}) }).eq('id', contact.id); success = true; }
             else { await res.text(); }
           }
         } else if (item.entity_type === 'contact' && item.action_type === 'delete') {

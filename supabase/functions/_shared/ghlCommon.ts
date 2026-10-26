@@ -471,3 +471,19 @@ export function jsonResponse(body: unknown, status = 200, extraHeaders: Record<s
 export async function readError(res: Response): Promise<string> {
   try { return (await res.text()).slice(0, 1000); } catch { return `HTTP ${res.status}`; }
 }
+
+/** Tag die elke nieuwe contactpersoon uit BUUT krijgt (nieuwsbrief). */
+export const NEWSLETTER_TAG = 'nieuwsbrief aangemeld';
+const NEWSLETTER_OPT_OUT = 'nieuwsbrief afgemeld';
+
+/**
+ * Tags voor een nieuw aan te maken contact: voegt "nieuwsbrief aangemeld" toe,
+ * behalve als het contact zich al heeft afgemeld. Dubbele tags (hoofdletters
+ * genegeerd) worden niet toegevoegd.
+ */
+export function withNewsletterTag(tags: unknown): string[] {
+  const list = Array.isArray(tags) ? tags.map((t) => String(t).trim()).filter(Boolean) : [];
+  const has = (name: string) => list.some((t) => t.toLowerCase() === name);
+  if (has(NEWSLETTER_OPT_OUT) || has(NEWSLETTER_TAG)) return list;
+  return [...list, NEWSLETTER_TAG];
+}

@@ -28,6 +28,16 @@ const InquiriesContext = createContext<InquiriesContextType | null>(null);
  */
 export function syncOfferteFields(inquiryId: string) {
   supabase.functions.invoke('stage-offerte', { body: { inquiry_id: inquiryId, bump: false } }).catch(() => { /* best effort */ });
+  syncReserveringFields(inquiryId);
+}
+
+/**
+ * Houdt de {{contact.reservering_*}}-velden actueel zodra de reserveringsbevestiging
+ * al eens is klaargezet (de functie slaat over als dat nog niet zo is). Zo komt
+ * een gewijzigd aantal gasten, tijd of zaal direct in een nieuw bevestigingsdocument.
+ */
+export function syncReserveringFields(inquiryId: string) {
+  supabase.functions.invoke('stage-reservering', { body: { inquiry_id: inquiryId, refresh: true } }).catch(() => { /* best effort */ });
 }
 
 export function InquiriesProvider({ children }: { children: ReactNode }) {

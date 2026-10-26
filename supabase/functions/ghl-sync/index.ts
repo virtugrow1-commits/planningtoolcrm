@@ -6,6 +6,7 @@ import {
   GHL_API_BASE,
   resolveContactTags,
   sameTags,
+  withNewsletterTag,
   applyRemoteInquiryPatch,
   buildAppointmentPayload,
   buildOpportunityUpdate,
@@ -687,8 +688,10 @@ Deno.serve(async (req) => {
       if (contact.phone) basePayload.phone = contact.phone;
       if (contact.company) basePayload.companyName = contact.company;
 
-      // GHL contact update endpoint rejects locationId; create endpoint requires it
-      const createPayload: Record<string, any> = { ...basePayload, locationId: GHL_LOCATION_ID };
+      // GHL contact update endpoint rejects locationId; create endpoint requires it.
+      // Elke nieuwe contactpersoon krijgt de tag "nieuwsbrief aangemeld" (tenzij afgemeld).
+      const newContactTags = withNewsletterTag(contact.tags);
+      const createPayload: Record<string, any> = { ...basePayload, locationId: GHL_LOCATION_ID, tags: newContactTags };
       const updatePayload: Record<string, any> = { ...basePayload };
       // Explicit "Particulier" switch: an absent companyName leaves the old business
       // name in GHL, which the next pull would copy back into the CRM.
@@ -724,6 +727,7 @@ Deno.serve(async (req) => {
               // Update the local contact with the GHL ID
               await supabase.from('contacts').update({
                 ghl_contact_id: newGhlId,
+                tags: newContactTags,
               }).eq('id', contact.id);
               console.log(`[Push Contact] Created GHL contact: ${newGhlId}`);
             }

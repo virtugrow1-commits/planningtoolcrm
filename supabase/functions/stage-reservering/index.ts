@@ -6,6 +6,10 @@
 //
 //   { inquiry_id }                – alleen als er een getekende offerte is
 //   { inquiry_id, force: true }   – ook zonder getekende offerte (bevestigd door gebruiker)
+//   { inquiry_id, refresh: true } – automatisch na opslaan van aanvraag/reservering:
+//                                   alleen als de bevestiging al eens is klaargezet,
+//                                   zodat gewijzigde gegevens (zoals het aantal gasten)
+//                                   direct in {{contact.reservering_*}} staan.
 //
 // Antwoord zonder getekende offerte: { ok: false, code: "no_signed_quote" }.
 
@@ -111,7 +115,8 @@ Deno.serve(async (req) => {
   try {
     const body = await req.json().catch(() => ({}));
     const inquiryId: string | null = body.inquiry_id || null;
-    const force = body.force === true;
+    const refresh = body.refresh === true;
+    const force = body.force === true || refresh;
     if (!inquiryId) throw new Error("inquiry_id ontbreekt");
 
     const db = createClient(SUPABASE_URL, SERVICE_KEY);
@@ -122,13 +127,16 @@ Deno.serve(async (req) => {
       .select(`
         id, display_number, event_type, guest_count, status, room_preference, created_at,
         preferred_date, preferred_start_time, preferred_end_time,
-        contact_id, company_id, offerte_revisie, reservation_number,
+        contact_id, company_id, offerte_revisie, reservation_number, reservering_gestaged_op,
         contacts:contact_id ( id, first_name, last_name, email, phone, company, display_number, ghl_contact_id ),
         companies:company_id ( id, name )
       `)
       .eq("id", inquiryId)
       .single();
     if (inqErr || !inq) throw new Error("Aanvraag niet gevonden");
+    if (refresh && !(inq as any).reservering_gestaged_op) {
+      return jsonResponse({ ok: true, skipped: "not_staged" });
+    }
     const contact = inq.contacts as any;
     if (!contact) throw new Error("Aanvraag heeft geen gekoppeld contact");
 

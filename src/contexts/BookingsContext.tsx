@@ -183,6 +183,7 @@ export function BookingsProvider({ children }: { children: ReactNode }) {
     // Date/time/guest count of a reservation feed the offerte fields on the GHL contact
     if (row?.inquiry_id) {
       supabase.functions.invoke('stage-offerte', { body: { inquiry_id: row.inquiry_id, bump: false } }).catch(() => { /* best effort */ });
+      supabase.functions.invoke('stage-reservering', { body: { inquiry_id: row.inquiry_id, refresh: true } }).catch(() => { /* best effort */ });
     } else if (row?.contact_id) {
       supabase.functions.invoke('stage-offerte', { body: { contact_id: row.contact_id, bump: false } }).catch(() => { /* best effort */ });
     }

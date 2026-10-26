@@ -14,3 +14,12 @@ Deno.test("CRM change older than 24h -> GHL mirrored", () => {
 Deno.test("case/space differences are not a change", () => {
   assertEquals(resolveContactTags(["VIP "], ["vip"], null).changed, false);
 });
+
+Deno.test("nieuwe contactpersoon krijgt de nieuwsbrief-tag", async () => {
+  const { withNewsletterTag } = await import("./ghlCommon.ts");
+  assertEquals(withNewsletterTag([]), ["nieuwsbrief aangemeld"]);
+  assertEquals(withNewsletterTag(null), ["nieuwsbrief aangemeld"]);
+  assertEquals(withNewsletterTag(["vip"]), ["vip", "nieuwsbrief aangemeld"]);
+  assertEquals(withNewsletterTag(["Nieuwsbrief aangemeld"]), ["Nieuwsbrief aangemeld"]);
+  assertEquals(withNewsletterTag(["nieuwsbrief afgemeld"]), ["nieuwsbrief afgemeld"]);
+});
