@@ -280,6 +280,8 @@ export default function InquiryDetailsTab({ inquiry, editing, form, setForm, con
                 </Button>
               )}
 
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-2 mt-1 border-t border-border/60">
+              <div className="space-y-2 pt-2">
               <AlertDialog open={stageDialogOpen} onOpenChange={(o) => { if (!staging) setStageDialogOpen(o); }}>
                 <AlertDialogTrigger asChild>
                   <Button variant="outline" size="sm" className="w-full" disabled={staging}>
@@ -309,13 +311,14 @@ export default function InquiryDetailsTab({ inquiry, editing, form, setForm, con
 
               {revisie > 0 && (
                 <p className="text-xs text-muted-foreground">
-                  Offerte klaargezet: revisie {String(revisie).padStart(2, '0')}
+                  Revisie {String(revisie).padStart(2, '0')}
                   {inquiry.offerteGestagedOp ? ` op ${formatDateTime(inquiry.offerteGestagedOp)}` : ''}
                 </p>
               )}
+              </div>
 
               {/* Reserveringsbevestiging: pas na getekende offerte */}
-              <div className="pt-2 mt-1 border-t border-border/60 space-y-2">
+              <div className="space-y-2 pt-2">
                 <AlertDialog open={resDialogOpen} onOpenChange={(o) => { if (!stagingRes) setResDialogOpen(o); }}>
                   <AlertDialogTrigger asChild>
                     <Button
@@ -360,6 +363,7 @@ export default function InquiryDetailsTab({ inquiry, editing, form, setForm, con
                   <p className="text-xs text-muted-foreground">Bevestiging klaargezet op {formatDateTime(resInfo.op)}</p>
                 )}
               </div>
+              </div>
             </div>
           )}
         </div>
@@ -367,9 +371,9 @@ export default function InquiryDetailsTab({ inquiry, editing, form, setForm, con
         {/* GHL Enrich button */}
         {inquiry.ghlOpportunityId && !editing && (
           <Button
-            variant="outline"
+            variant="ghost"
             size="sm"
-            className="w-full"
+            className="w-full text-muted-foreground hover:text-foreground"
             disabled={enriching}
             onClick={async () => {
               setEnriching(true);
