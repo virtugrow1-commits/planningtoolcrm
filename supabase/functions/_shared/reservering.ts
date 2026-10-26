@@ -150,7 +150,10 @@ export function buildReserveringData(input: {
   const beg: Begroting = input.begroting ?? buildBegroting(null, null);
 
   const volledigeNaam = `${contact?.first_name ?? ''} ${contact?.last_name ?? ''}`.trim();
-  const bedrijf = company?.name || contact?.company || volledigeNaam || '—';
+  // "Op naam van" (bijv. "Fam. Jansen – 50-jarig huwelijk") gaat voor; het
+  // contact blijft de geadresseerde en ondertekenaar.
+  const opNaamVan = String(inq?.op_naam_van ?? '').trim();
+  const bedrijf = opNaamVan || company?.name || contact?.company || volledigeNaam || '—';
 
   return {
     reservering_nummer: dash(stripRes(input.reservationNumber)),

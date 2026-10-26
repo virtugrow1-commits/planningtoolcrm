@@ -881,7 +881,12 @@ async function syncOpportunities(supabase: any, ghlHeaders: any, locationId: str
               // Only write fields that actually differ so updated_at keeps its meaning.
               const patch: Record<string, any> = {};
               if (!crmIsNewerFlag) {
-                if (contactName && existing.contact_name !== contactName) patch.contact_name = contactName;
+                // Naam alleen overnemen als de opportunity bij hetzelfde contact hoort. In BUUT
+                // kan bij "Offerte klaarzetten" een andere contactpersoon gekozen zijn; dan
+                // mag de naam van de oorspronkelijke aanvrager die keuze niet terugdraaien.
+                const oppContact = lookups.contactByGhlId.get(opp.contactId || opp.contact?.id || '');
+                const zelfdeContact = !existing.contact_id || !oppContact || oppContact.id === existing.contact_id;
+                if (zelfdeContact && contactName && existing.contact_name !== contactName) patch.contact_name = contactName;
                 if ((existing.budget ? Number(existing.budget) : null) !== monetaryValue) patch.budget = monetaryValue;
                 if (existing.event_type !== (opp.name || 'Onbekend')) patch.event_type = opp.name || 'Onbekend';
               }

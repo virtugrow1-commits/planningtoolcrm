@@ -520,6 +520,7 @@ async function handleOpportunityFromWebhookPayload(supabase: any, ghlHeaders: an
   let monetaryValue: number | null = null;
   let eventType: string;
   let ghlOppId = oppId;
+  let oppGhlContactId: string | null = null;
 
   if (stageName) {
     // Direct payload from GHL webhook trigger (most common)
@@ -528,6 +529,7 @@ async function handleOpportunityFromWebhookPayload(supabase: any, ghlHeaders: an
     monetaryValue = payload.lead_value ? Number(payload.lead_value) : null;
     eventType = payload.opportunity_name || 'Onbekend';
     ghlOppId = oppId || payload.id;
+    oppGhlContactId = payload.contact_id || payload.contactId || null;
   } else {
     // Fallback: fetch from GHL API
     const res = await fetch(`${GHL_API_BASE}/opportunities/${oppId}`, { headers: ghlHeaders });
@@ -548,11 +550,12 @@ async function handleOpportunityFromWebhookPayload(supabase: any, ghlHeaders: an
     contactName = opp.contact?.name || opp.name || 'Onbekend';
     monetaryValue = opp.monetaryValue ? Number(opp.monetaryValue) : null;
     eventType = opp.name || 'Onbekend';
+    oppGhlContactId = opp.contactId || opp.contact?.id || null;
   }
 
   if (!ghlOppId) { console.log('No GHL opportunity ID resolved'); return; }
 
-  const { data: existing } = await supabase.from('inquiries').select('id, updated_at, status, contact_name, budget, event_type, local_status_changed_at').not('id', 'is', null).eq('ghl_opportunity_id', ghlOppId).maybeSingle();
+  const { data: existing } = await supabase.from('inquiries').select('id, updated_at, status, contact_name, budget, event_type, local_status_changed_at, contacts:contact_id ( ghl_contact_id )').not('id', 'is', null).eq('ghl_opportunity_id', ghlOppId).maybeSingle();
 
   if (existing) {
     // Compare as real dates: string compare mixed up "+00:00" vs "Z" formats.
@@ -574,7 +577,11 @@ async function handleOpportunityFromWebhookPayload(supabase: any, ghlHeaders: an
       // GHL change is genuinely newer → update only the fields that differ
       const patch: Record<string, any> = {};
       if (!crmIsNewer) {
-        if (contactName && existing.contact_name !== contactName) patch.contact_name = contactName;
+        // Naam alleen overnemen als de opportunity bij hetzelfde contact hoort (in BUUT
+        // kan bij "Offerte klaarzetten" een andere contactpersoon gekozen zijn)
+        const inqGhlContactId = (existing as any).contacts?.ghl_contact_id || null;
+        const zelfdeContact = !inqGhlContactId || !oppGhlContactId || inqGhlContactId === oppGhlContactId;
+        if (zelfdeContact && contactName && existing.contact_name !== contactName) patch.contact_name = contactName;
         if ((existing.budget ? Number(existing.budget) : null) !== monetaryValue) patch.budget = monetaryValue;
         if (eventType && existing.event_type !== eventType) patch.event_type = eventType;
       }

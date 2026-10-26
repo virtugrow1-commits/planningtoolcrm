@@ -137,6 +137,13 @@ Deno.serve(async (req) => {
     if (refresh && !(inq as any).reservering_gestaged_op) {
       return jsonResponse({ ok: true, skipped: "not_staged" });
     }
+
+    // "Op naam van" apart ophalen: de kolom kan ontbreken zolang migratie
+    // 20261026210000 nog niet is toegepast; dan gewoon overslaan.
+    {
+      const { data: onvRow, error: onvErr } = await db.from("inquiries").select("op_naam_van").eq("id", inquiryId).maybeSingle();
+      if (!onvErr && onvRow) (inq as any).op_naam_van = (onvRow as any).op_naam_van ?? null;
+    }
     const contact = inq.contacts as any;
     if (!contact) throw new Error("Aanvraag heeft geen gekoppeld contact");
 

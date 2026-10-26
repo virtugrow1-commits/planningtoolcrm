@@ -33,6 +33,7 @@ import TeamMemberSelect from '@/components/TeamMemberSelect';
 import CrmCombobox from '@/components/CrmCombobox';
 import { useCompaniesContext } from '@/contexts/CompaniesContext';
 import { parseInquiryMessage } from '@/lib/inquiryMessage';
+import OfferteOntvangerPicker from '@/components/inquiry/OfferteOntvangerPicker';
 
 const PIPELINE_COLUMNS: { key: Inquiry['status']; label: string; badgeClass: string }[] = [
   { key: 'new', label: 'Nieuwe Aanvraag', badgeClass: 'status-new' },
@@ -82,6 +83,24 @@ export default function InquiryDetailsTab({ inquiry, editing, form, setForm, con
   const [enriching, setEnriching] = useState(false);
   const [staging, setStaging] = useState(false);
   const [stageDialogOpen, setStageDialogOpen] = useState(false);
+  const [ontvangerId, setOntvangerId] = useState(inquiry.contactId || '');
+  const [opNaamVan, setOpNaamVan] = useState('');
+  // "Op naam van" los ophalen: werkt ook als de kolom nog niet bestaat (dan leeg)
+  const [opNaamVanOpgeslagen, setOpNaamVanOpgeslagen] = useState('');
+  const loadOpNaamVan = useCallback(async () => {
+    const { data, error } = await supabase.from('inquiries').select('op_naam_van' as any).eq('id', inquiry.id).maybeSingle();
+    setOpNaamVanOpgeslagen(!error && data ? ((data as any).op_naam_van ?? '') : '');
+  }, [inquiry.id]);
+  useEffect(() => { loadOpNaamVan(); }, [loadOpNaamVan]);
+  const openStageDialog = (o: boolean) => {
+    if (staging) return;
+    if (o) {
+      // Bij openen altijd starten vanaf wat er nu op de aanvraag staat
+      setOntvangerId(inquiry.contactId || '');
+      setOpNaamVan(opNaamVanOpgeslagen);
+    }
+    setStageDialogOpen(o);
+  };
   const revisie = inquiry.offerteRevisie ?? 0;
   const nextRevisie = String(revisie + 1).padStart(2, '0');
 
@@ -89,11 +108,22 @@ export default function InquiryDetailsTab({ inquiry, editing, form, setForm, con
     setStaging(true);
     try {
       const { data, error } = await supabase.functions.invoke('stage-offerte', {
-        body: { inquiry_id: inquiry.id },
+        body: {
+          inquiry_id: inquiry.id,
+          ontvanger_contact_id: ontvangerId || undefined,
+          op_naam_van: opNaamVan,
+        },
       });
       if (error) throw error;
       if (data?.ok === false) throw new Error(data?.error || 'Onbekende fout');
-      toast({ title: `Klaargezet als ${data?.offertenummer ?? ''}`.trim() });
+      const ontvanger = data?.ontvanger;
+      toast({
+        title: `Klaargezet als ${data?.offertenummer ?? ''}`.trim(),
+        description: ontvanger?.naam
+          ? `Maak het document in CliqCRM aan voor ${ontvanger.naam}${ontvanger.email ? ` (${ontvanger.email})` : ''}.`
+          : undefined,
+      });
+      await loadOpNaamVan();
       await refetch();
     } catch (e: any) {
       toast({ title: 'Offerte klaarzetten mislukt', description: e?.message, variant: 'destructive' });
@@ -244,6 +274,7 @@ export default function InquiryDetailsTab({ inquiry, editing, form, setForm, con
           ) : (
             <div className="space-y-3 text-sm">
               <InfoRow icon={<User size={14} />} label={t('inquiries.contactPerson')} value={inquiry.contactName} onClick={contact ? () => navigate(`/crm/${contact.id}`) : undefined} />
+              {opNaamVanOpgeslagen && <InfoRow icon={<BadgeCheck size={14} />} label={language === 'en' ? 'On behalf of' : 'Op naam van'} value={opNaamVanOpgeslagen} />}
               {company && <InfoRow icon={<Building2 size={14} />} label={t('crm.company')} value={company.name} onClick={() => navigate(`/companies/${company.id}`)} />}
               <InfoRow icon={<CalendarIcon size={14} />} label={t('inquiries.preferredDate')} value={formatDate(inquiry.preferredDate)} />
               {(inquiry.preferredStartTime || inquiry.preferredEndTime) && (
@@ -282,7 +313,7 @@ export default function InquiryDetailsTab({ inquiry, editing, form, setForm, con
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-2 mt-1 border-t border-border/60">
               <div className="space-y-2 pt-2">
-              <AlertDialog open={stageDialogOpen} onOpenChange={(o) => { if (!staging) setStageDialogOpen(o); }}>
+              <AlertDialog open={stageDialogOpen} onOpenChange={openStageDialog}>
                 <AlertDialogTrigger asChild>
                   <Button variant="outline" size="sm" className="w-full" disabled={staging}>
                     <FileText size={14} className="mr-1" /> {staging ? 'Bezig…' : 'Offerte klaarzetten'}
@@ -297,10 +328,22 @@ export default function InquiryDetailsTab({ inquiry, editing, form, setForm, con
                         : `Offerte klaarzetten als revisie ${nextRevisie}?`}
                     </AlertDialogDescription>
                   </AlertDialogHeader>
+                  {stageDialogOpen && (
+                    <OfferteOntvangerPicker
+                      inquiryContactId={inquiry.contactId || undefined}
+                      companyId={inquiry.companyId}
+                      companyName={company?.name}
+                      ontvangerId={ontvangerId}
+                      onOntvangerChange={setOntvangerId}
+                      opNaamVan={opNaamVan}
+                      onOpNaamVanChange={setOpNaamVan}
+                      disabled={staging}
+                    />
+                  )}
                   <AlertDialogFooter>
                     <AlertDialogCancel disabled={staging}>Annuleren</AlertDialogCancel>
                     <AlertDialogAction
-                      disabled={staging}
+                      disabled={staging || !ontvangerId}
                       onClick={(e) => { e.preventDefault(); handleStageOfferte(); }}
                     >
                       {staging ? 'Bezig…' : 'Klaarzetten'}

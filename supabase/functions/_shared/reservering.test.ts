@@ -72,3 +72,21 @@ Deno.test('losse offerte die eerder op dezelfde dag is getekend hoort niet bij e
   const docs = [{ id: 'oud-zelfde-dag', inquiry_id: null, signed_at: '2026-10-22T14:20:00Z' }];
   assertEquals(pickSignedQuoteForInquiry(docs, 'inq-nieuw', '2026-10-22T15:23:00Z'), null);
 });
+
+Deno.test('reservering: "op naam van" gaat voor bedrijf en contactnaam', () => {
+  const d = buildReserveringData({
+    inquiry: { ...inquiry, op_naam_van: '  Fam. Jansen – 50-jarig huwelijk ' },
+    contact: { first_name: 'Eva', last_name: 'Jansen', display_number: 'CON-444160' },
+    company: null, bookings: [], reservationNumber: 'RES-000914', offerteNummer: '', today: 'x',
+  });
+  assertEquals(d.reservering_bedrijfsnaam, 'Fam. Jansen – 50-jarig huwelijk');
+});
+
+Deno.test('reservering: leeg "op naam van" valt terug op contactnaam', () => {
+  const d = buildReserveringData({
+    inquiry: { ...inquiry, op_naam_van: '' },
+    contact: { first_name: 'Eva', last_name: 'Jansen' },
+    company: null, bookings: [], reservationNumber: 'RES-000915', offerteNummer: '', today: 'x',
+  });
+  assertEquals(d.reservering_bedrijfsnaam, 'Eva Jansen');
+});

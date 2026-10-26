@@ -10,6 +10,13 @@
 //                                  velden schrijven met de huidige revisie (min. 01)
 //   { contact_id, bump: false }  – automatisch: de meest recente open aanvraag van dit contact
 //
+// Bij de knop kan het venster ook meesturen:
+//   ontvanger_contact_id  – contactpersoon die de offerte krijgt en tekent. Wijkt die af
+//                           van het contact van de aanvraag, dan wordt hij het contact van
+//                           de aanvraag (factuur, bevestiging en communicatie volgen hem).
+//   op_naam_van           – naam van wie het feest is (bijv. "Fam. Jansen – 50-jarig
+//                           huwelijk"); komt als bedrijfsnaam op offerte en bevestiging.
+//
 // Aanroepen mogen alleen door een ingelogde gebruiker of met de service key.
 
 import { createClient } from "npm:@supabase/supabase-js@2";
@@ -100,7 +107,10 @@ export function buildOfferteData(
   const gasten = (booking?.guest_count && Number(booking.guest_count) > 0) ? booking.guest_count : (inq.guest_count ?? 0);
 
   const volledigeNaam = `${contact?.first_name ?? ""} ${contact?.last_name ?? ""}`.trim();
-  const bedrijf = company?.name || contact?.company || volledigeNaam || "—";
+  // "Op naam van" (bijv. "Fam. Jansen – 50-jarig huwelijk") gaat voor; het
+  // contact blijft de geadresseerde en ondertekenaar.
+  const opNaamVan = String(inq?.op_naam_van ?? "").trim();
+  const bedrijf = opNaamVan || company?.name || contact?.company || volledigeNaam || "—";
 
   return {
     offertenummer: dash(stripCon(contact?.display_number)),
@@ -114,6 +124,73 @@ export function buildOfferteData(
     reserveringsnummer: dash(stripRes(booking?.reservation_number || inq.reservation_number)),
     bron: booking ? "reservering" : (datum ? "voorkeur" : "geen"),
   };
+}
+
+/** Weergavenaam van een contact zoals BUUT die in inquiries.contact_name zet */
+export function contactDisplayName(c: any): string {
+  const naam = [c?.first_name, c?.infix, c?.last_name]
+    .map((v) => (v === null || v === undefined ? "" : String(v).trim()))
+    .filter((v) => v && v !== "—")
+    .join(" ");
+  return naam || c?.email || "Onbekend";
+}
+
+/**
+ * Keuze uit het venster "Offerte klaarzetten" vastleggen op de aanvraag:
+ * ontvanger (contactpersoon) en "op naam van".
+ */
+async function applyOfferteKeuze(db: any, inquiryId: string, body: any): Promise<{ ontvangerGewijzigd: boolean }> {
+  let ontvangerGewijzigd = false;
+
+  if (body.ontvanger_contact_id) {
+    const { data: cur, error: curErr } = await db
+      .from("inquiries").select("contact_id, ghl_opportunity_id").eq("id", inquiryId).maybeSingle();
+    if (curErr || !cur) throw new Error("Aanvraag niet gevonden");
+
+    if (cur.contact_id !== body.ontvanger_contact_id) {
+      const { data: nieuw, error: cErr } = await db
+        .from("contacts")
+        .select("id, first_name, infix, last_name, email, phone, ghl_contact_id")
+        .eq("id", body.ontvanger_contact_id)
+        .maybeSingle();
+      if (cErr || !nieuw) throw new Error("Gekozen contactpersoon niet gevonden");
+      if (!nieuw.email) {
+        throw new Error(`${contactDisplayName(nieuw)} heeft geen e-mailadres. Vul dat eerst in bij het contact, anders kan de offerte niet verstuurd worden.`);
+      }
+
+      const { error: upErr } = await db
+        .from("inquiries")
+        .update({ contact_id: nieuw.id, contact_name: contactDisplayName(nieuw) })
+        .eq("id", inquiryId);
+      if (upErr) throw upErr;
+      ontvangerGewijzigd = true;
+
+      // Opportunity in CliqCRM aan dezelfde persoon koppelen (best effort; de
+      // offerte zelf werkt ook zonder, want die gaat naar het gekozen contact)
+      if (cur.ghl_opportunity_id && nieuw.ghl_contact_id) {
+        try {
+          const r = await fetch(`${GHL_API_BASE}/opportunities/${cur.ghl_opportunity_id}`, {
+            method: "PUT",
+            headers: ghlHeaders,
+            body: JSON.stringify({ contactId: nieuw.ghl_contact_id }),
+          });
+          if (!r.ok) console.warn(`stage-offerte: opportunity-contact niet bijgewerkt (${r.status}): ${await readError(r)}`);
+          else await r.text();
+        } catch (e) {
+          console.warn("stage-offerte: opportunity-contact niet bijgewerkt:", e);
+        }
+      }
+    }
+  }
+
+  if (typeof body.op_naam_van === "string") {
+    const waarde = body.op_naam_van.trim() || null;
+    const { error } = await db.from("inquiries").update({ op_naam_van: waarde }).eq("id", inquiryId);
+    // Kolom ontbreekt nog (migratie niet toegepast): alleen een fout als er iets ingevuld is
+    if (error && waarde) throw new Error(`"Op naam van" kon niet worden opgeslagen: ${error.message}`);
+  }
+
+  return { ontvangerGewijzigd };
 }
 
 export function toCustomFields(d: OfferteData) {
@@ -171,6 +248,10 @@ Deno.serve(async (req) => {
     }
     if (!inquiryId) throw new Error("inquiry_id ontbreekt");
 
+    // 0. Keuze uit het venster (alleen via de knop)
+    let ontvangerGewijzigd = false;
+    if (bump) ({ ontvangerGewijzigd } = await applyOfferteKeuze(db, inquiryId, body));
+
     // 1. Aanvraag + contact + bedrijf ophalen
     const { data: inq, error: inqErr } = await db
       .from("inquiries")
@@ -178,12 +259,19 @@ Deno.serve(async (req) => {
         id, display_number, event_type, guest_count, status,
         preferred_date, preferred_start_time, preferred_end_time,
         contact_id, company_id, offerte_revisie,
-        contacts:contact_id ( id, first_name, last_name, email, phone, company, display_number, ghl_contact_id ),
+        contacts:contact_id ( id, first_name, infix, last_name, email, phone, company, display_number, ghl_contact_id ),
         companies:company_id ( id, name )
       `)
       .eq("id", inquiryId)
       .single();
     if (inqErr || !inq) throw new Error("Aanvraag niet gevonden");
+
+    // "Op naam van" apart ophalen: de kolom kan ontbreken zolang migratie
+    // 20261026210000 nog niet is toegepast; dan gewoon overslaan.
+    {
+      const { data: onvRow, error: onvErr } = await db.from("inquiries").select("op_naam_van").eq("id", inquiryId).maybeSingle();
+      if (!onvErr && onvRow) (inq as any).op_naam_van = (onvRow as any).op_naam_van ?? null;
+    }
 
     const contact = inq.contacts as any;
     if (!contact) {
@@ -268,6 +356,8 @@ Deno.serve(async (req) => {
       tijd: data.start !== "—" && data.eind !== "—" ? `${data.start} tot ${data.eind}` : "",
       velden: data,
       ghl_contact_id: ghlId,
+      ontvanger: { naam: contactDisplayName(contact), email: contact.email ?? null },
+      ontvanger_gewijzigd: ontvangerGewijzigd,
     });
   } catch (e) {
     console.error("stage-offerte:", e);
