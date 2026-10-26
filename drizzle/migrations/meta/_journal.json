@@ -43,6 +43,13 @@
       "when": 1792675581014,
       "tag": "0005_20261022120000_reserveringsbevestiging",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1793035391495,
+      "tag": "0006_gastenaantal_aanvraag_reservering",
+      "breakpoints": true
     }
   ]
 }
