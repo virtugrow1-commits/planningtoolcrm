@@ -5,24 +5,20 @@ Alleen de opmaak verandert; wat de knoppen doen blijft precies hetzelfde.
 ## Nieuwe indeling (onderaan het aanvraagblok)
 
 ```text
-[ Bewerken ]            [ -> Stadium wijzigen ]     <- bovenaan, zoals nu
+[ Bewerken ]                 [ -> Stadium wijzigen ]
+[ Maak optie ]                                        <- volle breedte
 
-Acties
-[ Maak optie ]          [ Offerte klaarzetten ]     <- naast elkaar, even groot
-  Offerte klaargezet: revisie 04 op 30-09-2026 11:26 (klein, onder de offerteknop)
+[ Offerte klaarzetten ]      [ Reserveringsbevestiging klaarzetten ]   <- naast elkaar, even groot
+  revisie 04 op 30-09 11:26    (Offerte nog niet getekend)
+                               (Bevestiging nog niet klaargezet)
 
-Reserveringsbevestiging
-[ Reserveringsbevestiging klaarzetten ]             <- volle breedte
-  (Offerte nog niet getekend) (Bevestiging nog niet klaargezet)
-
-[ Formuliergegevens ophalen uit CliqCRM ]           <- verplaatst naar binnen het blok,
-                                                       als rustige tekstknop onderaan
+[ Formuliergegevens ophalen uit CliqCRM ]  <- binnen het blok, rustige kleine knop
 ```
 
-- Kleine kopjes "Acties" en "Reserveringsbevestiging" maken de groepen duidelijk.
-- Alle knoppen krijgen dezelfde hoogte en stijl; alleen "Stadium wijzigen" blijft de opvallende hoofdknop (en "Reserveringsbevestiging" wordt opvallend zodra de offerte getekend is, zoals nu).
-- De losse knop "Formuliergegevens ophalen" staat nu buiten het blok en ziet er uit als een losse balk; die komt binnen het blok onderaan, kleiner en minder nadrukkelijk.
-- Op een smal scherm vallen de naast-elkaar-knoppen netjes onder elkaar.
+- Offerte en reserveringsbevestiging staan naast elkaar, elk met hun eigen statusregel eronder.
+- Alle knoppen even hoog en in dezelfde stijl; "Stadium wijzigen" blijft de opvallende hoofdknop, en de reserveringsknop wordt opvallend zodra de offerte getekend is (zoals nu).
+- De losse balk "Formuliergegevens ophalen" komt binnen het blok, kleiner en minder nadrukkelijk.
+- Op een smal scherm vallen de knoppen netjes onder elkaar.
 
 ## Technisch
-- Alleen `src/components/inquiry/InquiryDetailsTab.tsx` (regels ~262–397): Maak optie + Offerte klaarzetten in `grid grid-cols-1 sm:grid-cols-2 gap-2`, sectiekopjes `text-xs uppercase text-muted-foreground`, enrich-knop als `variant="ghost"` binnen de kaart. Geen logica, geen backend.
+- Alleen `src/components/inquiry/InquiryDetailsTab.tsx` (regels ~262–397): offerte- en reserveringskolom in `grid grid-cols-1 sm:grid-cols-2 gap-2`, statusregels/badges per kolom, enrich-knop als `variant="ghost"` binnen de kaart. Geen logica of backend.
