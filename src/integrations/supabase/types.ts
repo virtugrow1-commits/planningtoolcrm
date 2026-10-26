@@ -698,6 +698,7 @@ export type Database = {
           next_action_at: string | null
           offerte_gestaged_op: string | null
           offerte_revisie: number
+          op_naam_van: string | null
           preferred_date: string | null
           preferred_end_time: string | null
           preferred_start_time: string | null
@@ -731,6 +732,7 @@ export type Database = {
           next_action_at?: string | null
           offerte_gestaged_op?: string | null
           offerte_revisie?: number
+          op_naam_van?: string | null
           preferred_date?: string | null
           preferred_end_time?: string | null
           preferred_start_time?: string | null
@@ -764,6 +766,7 @@ export type Database = {
           next_action_at?: string | null
           offerte_gestaged_op?: string | null
           offerte_revisie?: number
+          op_naam_van?: string | null
           preferred_date?: string | null
           preferred_end_time?: string | null
           preferred_start_time?: string | null

@@ -1,0 +1,1 @@
+ALTER TABLE public.inquiries ADD COLUMN IF NOT EXISTS op_naam_van text;
