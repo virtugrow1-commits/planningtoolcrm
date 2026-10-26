@@ -363,6 +363,7 @@ export default function InquiryDetailsTab({ inquiry, editing, form, setForm, con
                   <p className="text-xs text-muted-foreground">Bevestiging klaargezet op {formatDateTime(resInfo.op)}</p>
                 )}
               </div>
+              </div>
             </div>
           )}
         </div>
@@ -370,9 +371,9 @@ export default function InquiryDetailsTab({ inquiry, editing, form, setForm, con
         {/* GHL Enrich button */}
         {inquiry.ghlOpportunityId && !editing && (
           <Button
-            variant="outline"
+            variant="ghost"
             size="sm"
-            className="w-full"
+            className="w-full text-muted-foreground hover:text-foreground"
             disabled={enriching}
             onClick={async () => {
               setEnriching(true);
