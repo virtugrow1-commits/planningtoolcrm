@@ -197,6 +197,27 @@ Deno.serve(async (req) => {
     .limit(1)
     .maybeSingle();
 
+  // Alleen documenten (offertes/contracten) ophalen, direct en zonder cooldown.
+  // Gebruikt door stage-reservering: een offerte die net is getekend staat dan
+  // meteen in BUUT, in plaats van pas na de volgende ronde (5–10 min).
+  if (requestedScope === 'documents') {
+    const results: any = { scope: 'documents', documents_synced: 0, errors: [] };
+    await syncDocuments(supabase, ghlHeaders, GHL_LOCATION_ID, userId, results);
+    if (results.documents_status_changed) {
+      try {
+        const res = await fetch(`${SUPABASE_URL}/functions/v1/crm-automations`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${Deno.env.get('SUPABASE_ANON_KEY') || ''}` },
+          body: JSON.stringify({ source: 'documents-only-sync' }),
+        });
+        await res.text();
+      } catch (e) {
+        console.warn('[Documents Sync] crm-automations trigger failed:', e);
+      }
+    }
+    return new Response(JSON.stringify({ success: true, ...results }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+  }
+
   if (latestRun?.created_at) {
     const lastRunAt = new Date(latestRun.created_at).getTime();
     if (Date.now() - lastRunAt < AUTO_SYNC_COOLDOWN_MS) {

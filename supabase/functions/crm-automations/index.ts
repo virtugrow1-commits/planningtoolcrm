@@ -451,6 +451,18 @@ Deno.serve(async (req) => {
               await createTasks(planTasks({ ...t, title: withNameSuffix(t.title, ph.naam) }, `document:${doc.id}`, { today, triggerDate: today, placeholders: ph }), link, userId);
             }
             await recordRun('quote_documents', signedKey, 'document', doc.id, { moved, converted, inquiry_id: inquiry?.id || null });
+            // Was de reserveringsbevestiging al klaargezet vóórdat deze getekende
+            // offerte binnen was? Dan de velden bijwerken (begroting, offertenummer).
+            // stage-reservering slaat dit zelf over als er nog niets klaargezet is.
+            if (inquiry && !dryRun) {
+              try {
+                await fetch(`${SUPABASE_URL}/functions/v1/stage-reservering`, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${SERVICE_KEY}` },
+                  body: JSON.stringify({ inquiry_id: inquiry.id, refresh: true }),
+                }).then((r) => r.text());
+              } catch (e) { results.errors.push(`stage-reservering:${inquiry.id}:${String(e)}`); }
+            }
           }
         }
       }

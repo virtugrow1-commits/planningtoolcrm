@@ -34,6 +34,7 @@ import CrmCombobox from '@/components/CrmCombobox';
 import { useCompaniesContext } from '@/contexts/CompaniesContext';
 import { parseInquiryMessage } from '@/lib/inquiryMessage';
 import OfferteOntvangerPicker from '@/components/inquiry/OfferteOntvangerPicker';
+import AanvangTijden, { saveAanvangTijden, type Tijden } from '@/components/inquiry/AanvangTijden';
 
 const PIPELINE_COLUMNS: { key: Inquiry['status']; label: string; badgeClass: string }[] = [
   { key: 'new', label: 'Nieuwe Aanvraag', badgeClass: 'status-new' },
@@ -92,9 +93,25 @@ export default function InquiryDetailsTab({ inquiry, editing, form, setForm, con
     setOpNaamVanOpgeslagen(!error && data ? ((data as any).op_naam_van ?? '') : '');
   }, [inquiry.id]);
   useEffect(() => { loadOpNaamVan(); }, [loadOpNaamVan]);
+  // Start-/eindtijd voor de documenten (alleen bewerkbaar zonder optie/reservering)
+  const huidigeTijden: Tijden = {
+    start: (inquiry.preferredStartTime || '').slice(0, 5),
+    eind: (inquiry.preferredEndTime || '').slice(0, 5),
+  };
+  const [tijden, setTijden] = useState<Tijden>(huidigeTijden);
+  const [tijdUitBoeking, setTijdUitBoeking] = useState(false);
+  const resetTijden = () => setTijden({
+    start: (inquiry.preferredStartTime || '').slice(0, 5),
+    eind: (inquiry.preferredEndTime || '').slice(0, 5),
+  });
+  const bewaarTijden = async () => {
+    if (!tijdUitBoeking) await saveAanvangTijden(inquiry.id, tijden, huidigeTijden);
+  };
+
   const openStageDialog = (o: boolean) => {
     if (staging) return;
     if (o) {
+      resetTijden();
       // Bij openen altijd starten vanaf wat er nu op de aanvraag staat
       setOntvangerId(inquiry.contactId || '');
       setOpNaamVan(opNaamVanOpgeslagen);
@@ -107,6 +124,7 @@ export default function InquiryDetailsTab({ inquiry, editing, form, setForm, con
   const handleStageOfferte = async () => {
     setStaging(true);
     try {
+      await bewaarTijden();
       const { data, error } = await supabase.functions.invoke('stage-offerte', {
         body: {
           inquiry_id: inquiry.id,
@@ -159,6 +177,7 @@ export default function InquiryDetailsTab({ inquiry, editing, form, setForm, con
   const handleStageReservering = async () => {
     setStagingRes(true);
     try {
+      await bewaarTijden();
       const { data, error } = await supabase.functions.invoke('stage-reservering', {
         body: { inquiry_id: inquiry.id, force: !quoteAccepted },
       });
@@ -340,6 +359,15 @@ export default function InquiryDetailsTab({ inquiry, editing, form, setForm, con
                       disabled={staging}
                     />
                   )}
+                  {stageDialogOpen && (
+                    <AanvangTijden
+                      inquiryId={inquiry.id}
+                      value={tijden}
+                      onChange={setTijden}
+                      onFromBookingChange={setTijdUitBoeking}
+                      disabled={staging}
+                    />
+                  )}
                   <AlertDialogFooter>
                     <AlertDialogCancel disabled={staging}>Annuleren</AlertDialogCancel>
                     <AlertDialogAction
@@ -362,7 +390,7 @@ export default function InquiryDetailsTab({ inquiry, editing, form, setForm, con
 
               {/* Reserveringsbevestiging: pas na getekende offerte */}
               <div className="space-y-2 pt-2">
-                <AlertDialog open={resDialogOpen} onOpenChange={(o) => { if (!stagingRes) setResDialogOpen(o); }}>
+                <AlertDialog open={resDialogOpen} onOpenChange={(o) => { if (stagingRes) return; if (o) resetTijden(); setResDialogOpen(o); }}>
                   <AlertDialogTrigger asChild>
                     <Button
                       variant={quoteAccepted ? 'default' : 'outline'}
@@ -382,6 +410,15 @@ export default function InquiryDetailsTab({ inquiry, editing, form, setForm, con
                           : 'Er is nog geen getekende offerte voor deze aanvraag. Weet je zeker dat je de reserveringsbevestiging toch wilt klaarzetten?'}
                       </AlertDialogDescription>
                     </AlertDialogHeader>
+                    {resDialogOpen && (
+                      <AanvangTijden
+                        inquiryId={inquiry.id}
+                        value={tijden}
+                        onChange={setTijden}
+                        onFromBookingChange={setTijdUitBoeking}
+                        disabled={stagingRes}
+                      />
+                    )}
                     <AlertDialogFooter>
                       <AlertDialogCancel disabled={stagingRes}>Annuleren</AlertDialogCancel>
                       <AlertDialogAction

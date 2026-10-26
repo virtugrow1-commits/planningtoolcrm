@@ -148,15 +148,34 @@ Deno.serve(async (req) => {
     if (!contact) throw new Error("Aanvraag heeft geen gekoppeld contact");
 
     // 2. Getekende offerte zoeken (documenten van deze aanvraag, anders van het contact)
-    const { data: docs } = await db
-      .from("documents")
-      .select("id, title, document_type, document_kind, status, signed_at, offerte_nummer, inquiry_id, contact_id, amount")
-      .or(`inquiry_id.eq.${inquiryId},contact_id.eq.${contact.id}`)
-      .in("status", ["signed", "paid"])
-      .order("signed_at", { ascending: false });
     const quoteCfg = { sent_status: "", signed_status: "", convert_option_to_confirmed: false, title_keywords: ["offerte", "contract"] };
-    const signedQuotes = (docs ?? []).filter((d: any) => isQuoteDocument(d, quoteCfg));
-    const signedDoc: any = pickSignedQuoteForInquiry(signedQuotes as any[], inquiryId, inq.created_at);
+    const findSignedDoc = async (): Promise<any> => {
+      const { data: docs } = await db
+        .from("documents")
+        .select("id, title, document_type, document_kind, status, signed_at, offerte_nummer, inquiry_id, contact_id, amount")
+        .or(`inquiry_id.eq.${inquiryId},contact_id.eq.${contact.id}`)
+        .in("status", ["signed", "paid"])
+        .order("signed_at", { ascending: false });
+      const signedQuotes = (docs ?? []).filter((d: any) => isQuoteDocument(d, quoteCfg));
+      return pickSignedQuoteForInquiry(signedQuotes as any[], inquiryId, inq.created_at);
+    };
+    let signedDoc: any = await findSignedDoc();
+    // Net getekend in CliqCRM maar nog niet binnen in BUUT (de sync loopt elke
+    // 5–10 min)? Dan eerst de documenten ophalen, anders komen begroting en
+    // offertenummer van de getekende offerte niet mee.
+    if (!refresh) {
+      try {
+        const r = await fetch(`${SUPABASE_URL}/functions/v1/ghl-auto-sync`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "Authorization": `Bearer ${SERVICE_KEY}` },
+          body: JSON.stringify({ scope: "documents", trigger: "stage-reservering" }),
+        });
+        await r.text();
+        signedDoc = (await findSignedDoc()) ?? signedDoc;
+      } catch (e) {
+        console.warn("stage-reservering: documenten ophalen mislukt", e);
+      }
+    }
 
     if (!signedDoc && !ACCEPTED_STATUSES.includes(inq.status) && !force) {
       return jsonResponse({
