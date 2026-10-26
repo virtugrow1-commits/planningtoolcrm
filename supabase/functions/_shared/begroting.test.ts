@@ -83,3 +83,13 @@ Deno.test('korteNaam: productnaam past op één regel in de bevestiging', async 
   assert(korteNaam('Een heel erg lange productnaam zonder scheidingstekens erin').length <= 26);
   assertEquals(onderdeel(['Donge_Borrelarrangement_conform beschrijving'], ONDERDELEN.borrel, 'factuur'), 'Ja – Donge Borrelarrangement');
 });
+
+Deno.test("buildBegroting: prijzen incl. btw tellen de btw niet dubbel", () => {
+  const b = buildBegroting({
+    total: 1210,
+    items: [{ name: "Zaalhuur", qty: 1, amount: 1210, taxes: [{ rate: 21, calculation: "inclusive" }] }],
+  });
+  assertEquals(b.subtotaal, "€ 1.000,00");
+  assertEquals(b.btw, "€ 210,00");
+  assertEquals(b.totaal, "€ 1.210,00");
+});

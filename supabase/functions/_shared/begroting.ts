@@ -115,14 +115,18 @@ export function buildBegroting(invoice: Invoice | null, docAmount?: number | nul
     const qty = num(it.qty) || 1;
     const prijs = num(it.amount);
     const regel = round2(qty * prijs);
-    subtotaal += regel;
+    // Bij prijzen incl. btw ("Btw opnemen in prijzen" = Ja) zit de btw al in de
+    // regel: die gaat eraf voor het subtotaal excl. btw, anders telt hij dubbel.
+    let inclBtw = 0;
     for (const t of it.taxes ?? []) {
       const rate = num(t.rate);
       if (!rate) continue;
       const inclusive = String(t.calculation || '').toLowerCase() === 'inclusive';
       const tax = inclusive ? regel - regel / (1 + rate / 100) : regel * rate / 100;
+      if (inclusive) inclBtw += tax;
       perRate.set(rate, (perRate.get(rate) ?? 0) + tax);
     }
+    subtotaal += regel - inclBtw;
     const naam = stripHtml(it.name) || 'Product';
     const omschrijving = stripHtml(it.description);
     lines.push(`${qty} × ${naam} à ${euro(prijs)} = ${euro(regel)}${omschrijving ? ` (${omschrijving})` : ''}`);
