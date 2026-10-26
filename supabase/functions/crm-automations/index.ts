@@ -43,6 +43,7 @@ import {
   type QuoteDocumentsConfig,
   type TaskTemplate,
 } from "../_shared/automations.ts";
+import { buildNotification, notifyKind, notifyRecipients, NOTIFY_FROM, shouldNotify, type DocumentNotifyConfig } from "../_shared/documentNotify.ts";
 
 const delay = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
@@ -452,6 +453,43 @@ Deno.serve(async (req) => {
             await recordRun('quote_documents', signedKey, 'document', doc.id, { moved, converted, inquiry_id: inquiry?.id || null });
           }
         }
+      }
+    }
+
+    // ------------------------------------- 2b. melding verzonden document → contact@
+    // Elke verzonden offerte (ook revisie 2, 3, …) en reserveringsbevestiging geeft
+    // één melding aan het eigen adres, via een ander afzenderadres dan de CC van
+    // CliqCRM (die komt bij Microsoft 365 vaak in Ongewenste e-mail terecht).
+    // Staat aan tenzij automation_settings "document_notify" expliciet uit staat.
+    if (settings.get('document_notify')?.enabled !== false && !bookingScope) {
+      const nc = cfg<DocumentNotifyConfig>('document_notify', { vanaf: '2026-10-26T19:00:00Z', max_age_hours: 48 });
+      const qcN = cfg<QuoteDocumentsConfig>('quote_documents', { sent_status: 'quoted', signed_status: 'confirmed', convert_option_to_confirmed: true, title_keywords: ['offerte', 'contract'] });
+      const RESEND_API_KEY = Deno.env.get('RESEND_API_KEY') || '';
+      const since = new Date(Date.now() - ((nc.max_age_hours ?? 48) + 24) * 3600000).toISOString();
+      const notifyCols = 'id, title, document_type, status, sent_at, contact_name, inquiry_id, external_url, amount';
+      const loadNotifyDocs = (cols: string) => supabase.from('documents').select(cols)
+        .gte('updated_at', since).in('status', ['sent', 'viewed', 'signed', 'paid']);
+      let { data: nRows, error: nErr } = await loadNotifyDocs(`${notifyCols}, document_kind, offerte_nummer`);
+      if (nErr) ({ data: nRows, error: nErr } = await loadNotifyDocs(notifyCols));
+      if (nErr) results.errors.push(`document_notify:${nErr.message}`);
+      for (const doc of (nRows || []) as any[]) {
+        const kind = notifyKind(doc, qcN);
+        if (!kind || !shouldNotify(doc, nc)) continue;
+        const key = `doc_notify:${doc.id}`;
+        if (await hasRun(key)) continue;
+        if (dryRun) { results.details.push(`melding ${kind}: ${doc.title}`); continue; }
+        if (!RESEND_API_KEY) { results.errors.push('document_notify:RESEND_API_KEY ontbreekt'); break; }
+        const mail = buildNotification(doc, kind);
+        const res = await fetch('https://api.resend.com/emails', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${RESEND_API_KEY}` },
+          body: JSON.stringify({ from: NOTIFY_FROM, to: notifyRecipients(nc), subject: mail.subject, html: mail.html, text: mail.text }),
+        });
+        const resText = await res.text().catch(() => '');
+        // Mislukt: geen run vastleggen, dan probeert de volgende ronde het opnieuw.
+        if (!res.ok) { results.errors.push(`document_notify:${doc.id}:${res.status}:${resText.slice(0, 200)}`); continue; }
+        await recordRun('document_notify', key, 'document', doc.id, { kind, to: notifyRecipients(nc) });
+        results.details.push(`melding ${kind} verzonden: ${doc.title}`);
       }
     }
 
