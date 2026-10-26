@@ -1,4 +1,5 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { fillContactPhone } from "../_shared/phone.ts";
 import {
   buildFieldMap,
   buildInquiryUpdate,
@@ -707,6 +708,12 @@ async function handleOpportunityFromWebhookPayload(supabase: any, ghlHeaders: an
             budget: monetaryValue || null,
           });
           const update = buildInquiryUpdate(extracted);
+
+          // Telefoonnummer uit het formulier op het contact (alleen als het nog leeg is)
+          if (extracted.phone) {
+            const { data: phoneInq } = await supabase.from('inquiries').select('contact_id').eq('id', enrichTargetId).maybeSingle();
+            await fillContactPhone(supabase, phoneInq?.contact_id, extracted.phone, { headers: ghlHeaders, ghlContactId: ghlContactIdForEnrich, ghlPhone: ghlContact ? (ghlContact.phone ?? null) : undefined });
+          }
 
           // Company from the form: link inquiry and contact
           const submittedCompany = extracted.companyName || ghlContact?.companyName || null;

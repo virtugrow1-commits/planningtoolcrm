@@ -1,4 +1,5 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { fillContactPhone } from "../_shared/phone.ts";
 import {
   GHL_API_BASE,
   buildFieldMap,
@@ -136,6 +137,11 @@ Deno.serve(async (req) => {
 
     const updateData = buildInquiryUpdate(extracted);
     if (opp.source && opp.source !== 'GHL') updateData.source = opp.source;
+
+    // Telefoonnummer uit het formulier op het contact (alleen als het nog leeg is)
+    if (extracted.phone) {
+      await fillContactPhone(supabase, inquiry.contact_id, extracted.phone, { headers: ghlHeaders, ghlContactId, ghlPhone: ghlContact ? (ghlContact.phone ?? null) : undefined });
+    }
 
     // Link company from the form answers
     const companyName = extracted.companyName || ghlContact?.companyName || null;

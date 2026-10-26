@@ -82,11 +82,30 @@ Deno.test('reservering: "op naam van" gaat voor bedrijf en contactnaam', () => {
   assertEquals(d.reservering_bedrijfsnaam, 'Fam. Jansen – 50-jarig huwelijk');
 });
 
-Deno.test('reservering: leeg "op naam van" valt terug op contactnaam', () => {
+Deno.test('reservering: leeg "op naam van" zonder bedrijf = Particulier', () => {
   const d = buildReserveringData({
     inquiry: { ...inquiry, op_naam_van: '' },
     contact: { first_name: 'Eva', last_name: 'Jansen' },
     company: null, bookings: [], reservationNumber: 'RES-000915', offerteNummer: '', today: 'x',
   });
-  assertEquals(d.reservering_bedrijfsnaam, 'Eva Jansen');
+  assertEquals(d.reservering_bedrijfsnaam, 'Particulier');
+  assertEquals(d.reservering_kostenplaats, '—');
+});
+
+Deno.test('reservering: particuliere klantkaart of bedrijf "Onbekend" = Particulier', () => {
+  const priv = buildReserveringData({
+    inquiry, contact: { first_name: 'Willem', last_name: 'Boers', company: 'Willem Boers', private_company: { is_private: true } },
+    company: { name: 'Willem Boers', is_private: true }, bookings: [], reservationNumber: 'RES-1', offerteNummer: '', today: 'x',
+  });
+  assertEquals(priv.reservering_bedrijfsnaam, 'Particulier');
+  const onbekend = buildReserveringData({
+    inquiry, contact: { first_name: 'Willem', last_name: 'Boers', company: 'Onbekend' },
+    company: { name: 'Onbekend' }, bookings: [], reservationNumber: 'RES-2', offerteNummer: '', today: 'x',
+  });
+  assertEquals(onbekend.reservering_bedrijfsnaam, 'Particulier');
+});
+
+Deno.test('oude offerte die per ongeluk aan een nieuwe aanvraag gekoppeld is telt niet mee', () => {
+  const docs = [{ id: 'oud-gekoppeld', inquiry_id: 'inq-nieuw', signed_at: '2026-09-25T10:00:00Z' }];
+  assertEquals(pickSignedQuoteForInquiry(docs, 'inq-nieuw', '2026-10-26T21:00:00Z'), null);
 });

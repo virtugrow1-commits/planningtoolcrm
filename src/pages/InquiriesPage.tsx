@@ -733,7 +733,7 @@ export default function InquiriesPage() {
                           <button className="text-card-foreground font-medium truncate hover:text-primary transition-colors text-left" onClick={(e) => { e.stopPropagation(); navigate(`/companies/${company.id}`); }}>{contact.company}</button>
                         ) : (<span className="text-card-foreground font-medium truncate">{contact.company}</span>)}</div>
                       ) : null; })()}
-                      {(() => { const contact = resolveContact(contacts, inq.contactId, inq.contactName); if (!contact) return null; const bits = [contact.email, contact.mobile || contact.phone, contact.birthDate ? `Verjaardag: ${formatDate(contact.birthDate)}` : null].filter(Boolean); return bits.length ? (
+                      {(() => { const contact = resolveContact(contacts, inq.contactId, inq.contactName); if (!contact) return null; const tel = (contact.mobile || contact.phone || '').trim(); const bits = [contact.email, tel && tel !== '—' ? tel : 'tel. ontbreekt', contact.birthDate ? `Verjaardag: ${formatDate(contact.birthDate)}` : null].filter(Boolean); return bits.length ? (
                         <div className="flex gap-2"><span className="text-muted-foreground w-[100px] shrink-0">Contact:</span><span className="text-card-foreground truncate">{bits.join(' · ')}</span></div>
                       ) : null; })()}
                       {(extraContactsByInquiry.get(inq.id) || []).filter((cid) => cid !== inq.contactId).slice(0, 2).map((cid, i) => { const c = contacts.find((x) => x.id === cid); if (!c) return null; const name = [c.firstName, c.infix, c.lastName].filter((n) => n && n !== '—').join(' ') || c.email; return (

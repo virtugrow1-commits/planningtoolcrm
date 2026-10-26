@@ -190,6 +190,8 @@ export interface ExtractedInquiry {
   roomPreference: string | null;
   budget: number | null;
   companyName: string | null;
+  /** Telefoonnummer uit het formulier (zoals ingevuld) */
+  phone: string | null;
   message: string | null;
 }
 
@@ -243,6 +245,7 @@ export function extractInquiryFields(fieldMap: FieldMap, fallbacks: { eventType?
     roomPreference: find('gewenste zaalopstelling', 'zaalopstelling', 'gewenste ruimte', 'type ruimte', 'room_preference', 'zaal', 'ruimte') || null,
     budget: isNaN(budgetParsed) || budgetParsed <= 0 ? (fallbacks.budget ?? null) : budgetParsed,
     companyName: find('bedrijfsnaam', 'naam bedrijf', 'naam organisatie', 'bedrijf', 'organisatie', 'company') || null,
+    phone: find('telefoonnummer', 'telefoon', 'mobiel nummer', 'mobiel', 'phone', 'phone number') || null,
 
     message: messageParts.length ? messageParts.join('\n') : null,
   };

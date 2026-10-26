@@ -84,3 +84,10 @@ Deno.test('veld-ID van een opportunity-veld wordt herkend (aantal gasten)', asyn
     globalThis.fetch = realFetch;
   }
 });
+
+Deno.test('telefoonnummer uit het formulier wordt herkend', () => {
+  const x = extractInquiryFields(buildFieldMap([{ 'Telefoonnummer *': '06 12444829', 'Aantal gasten': 'tot 20 p.' }]));
+  assertEquals(x.phone, '06 12444829');
+  const y = extractInquiryFields(buildFieldMap([{ 'Aantal gasten': '30' }]));
+  assertEquals(y.phone, null);
+});

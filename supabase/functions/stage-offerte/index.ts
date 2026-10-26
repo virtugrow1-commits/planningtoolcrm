@@ -21,6 +21,7 @@
 
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { GHL_API_BASE, jsonResponse, readError } from "../_shared/ghlCommon.ts";
+import { resolveBedrijfsnaam } from "../_shared/bedrijfsnaam.ts";
 
 const TOKEN = Deno.env.get("GHL_API_KEY") || "";
 const LOCATION = Deno.env.get("GHL_LOCATION_ID") || "";
@@ -106,11 +107,15 @@ export function buildOfferteData(
   const eind = booking ? hhmm(booking.end_hour, booking.end_minute) : trimTime(inq.preferred_end_time);
   const gasten = (booking?.guest_count && Number(booking.guest_count) > 0) ? booking.guest_count : (inq.guest_count ?? 0);
 
-  const volledigeNaam = `${contact?.first_name ?? ""} ${contact?.last_name ?? ""}`.trim();
-  // "Op naam van" (bijv. "Fam. Jansen – 50-jarig huwelijk") gaat voor; het
-  // contact blijft de geadresseerde en ondertekenaar.
-  const opNaamVan = String(inq?.op_naam_van ?? "").trim();
-  const bedrijf = opNaamVan || company?.name || contact?.company || volledigeNaam || "—";
+  // "Op naam van" (bijv. "Fam. Jansen – 50-jarig huwelijk") gaat voor; daarna de
+  // echte bedrijfsnaam; zonder bedrijf (particulier) staat er "Particulier".
+  // Het contact blijft de geadresseerde en ondertekenaar.
+  const bedrijf = resolveBedrijfsnaam({
+    opNaamVan: inq?.op_naam_van,
+    company,
+    contactCompany: contact?.company,
+    contactIsPrivate: contact?.private_company?.is_private ?? null,
+  });
 
   return {
     offertenummer: dash(stripCon(contact?.display_number)),
@@ -193,6 +198,20 @@ async function applyOfferteKeuze(db: any, inquiryId: string, body: any): Promise
   return { ontvangerGewijzigd };
 }
 
+/**
+ * Particulier-vlaggen los ophalen (companies.is_private), zodat de hoofdquery
+ * blijft werken als de kolom ergens ontbreekt.
+ */
+async function loadPrivateFlags(db: any, inq: any, contact: any) {
+  const ids = [inq?.company_id, contact?.company_id].filter(Boolean);
+  if (!ids.length) return;
+  const { data, error } = await db.from("companies").select("id, name, is_private").in("id", ids);
+  if (error || !data) return;
+  const byId = new Map((data as any[]).map((c) => [c.id, c]));
+  if (inq?.company_id && byId.has(inq.company_id)) inq.companies = byId.get(inq.company_id);
+  if (contact?.company_id && byId.has(contact.company_id)) contact.private_company = byId.get(contact.company_id);
+}
+
 export function toCustomFields(d: OfferteData) {
   return [
     { id: OFFERTE_FIELDS.nummer,    value: d.offertenummer },
@@ -259,7 +278,7 @@ Deno.serve(async (req) => {
         id, display_number, event_type, guest_count, status,
         preferred_date, preferred_start_time, preferred_end_time,
         contact_id, company_id, offerte_revisie,
-        contacts:contact_id ( id, first_name, infix, last_name, email, phone, company, display_number, ghl_contact_id ),
+        contacts:contact_id ( id, first_name, infix, last_name, email, phone, company, company_id, display_number, ghl_contact_id ),
         companies:company_id ( id, name )
       `)
       .eq("id", inquiryId)
@@ -274,6 +293,7 @@ Deno.serve(async (req) => {
     }
 
     const contact = inq.contacts as any;
+    await loadPrivateFlags(db, inq, contact);
     if (!contact) {
       if (bump) throw new Error("Aanvraag heeft geen gekoppeld contact");
       return jsonResponse({ ok: true, skipped: "no_contact" });

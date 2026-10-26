@@ -155,8 +155,11 @@ export default function InquiryDetailsTab({ inquiry, editing, form, setForm, con
   // Alleen documenten van déze aanvraag, of van hetzelfde contact zonder aanvraag-koppeling
   // die na het aanmaken van de aanvraag zijn verstuurd/getekend (zelfde regel als stage-reservering).
   const since = inquiry.createdAt || '';
+  // Een document van vóór de aanvraag telt nooit mee (ook niet als het gekoppeld is):
+  // tonen mag, overnemen voor een nieuwe offerte niet.
+  const notBefore = (date: string | null) => !since || !date || Date.parse(String(date)) >= Date.parse(since);
   const belongsHere = (d: Document, date: string | null) =>
-    d.inquiryId === inquiry.id || (!d.inquiryId && (!since || String(date || '') >= since));
+    (d.inquiryId === inquiry.id && notBefore(date)) || (!d.inquiryId && (!since || (!!date && notBefore(date))));
   const signedQuote = documents
     .filter(d => d.kind === 'offerte' && isSignedStatus(d.status) && belongsHere(d, d.signedAt))
     .sort((a, b) => (Number(b.inquiryId === inquiry.id) - Number(a.inquiryId === inquiry.id)) || String(b.signedAt).localeCompare(String(a.signedAt)))[0];
@@ -490,7 +493,9 @@ export default function InquiryDetailsTab({ inquiry, editing, form, setForm, con
             </div>
             <p className="text-sm font-medium text-foreground">{contact.firstName} {contact.lastName}</p>
             {contact.email && <p className="text-xs text-muted-foreground">{contact.email}</p>}
-            {contact.phone && <p className="text-xs text-muted-foreground">{contact.phone}</p>}
+            {(() => { const tel = ((contact as any).mobile || contact.phone || '').trim(); return tel && tel !== '—'
+              ? <p className="text-xs text-muted-foreground">{tel}</p>
+              : <p className="text-xs text-warning">Telefoonnummer ontbreekt</p>; })()}
           </div>
         )}
       </div>

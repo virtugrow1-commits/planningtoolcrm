@@ -1,4 +1,6 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { fillContactPhone } from "../_shared/phone.ts";
+import { pickInquiryForDocument } from "../_shared/documentLink.ts";
 import {
   buildFieldMap,
   buildInquiryUpdate,
@@ -780,6 +782,12 @@ async function autoEnrichInquiry(supabase: any, ghlHeaders: any, locationId: str
 
     const updateData = buildInquiryUpdate(extracted);
     if (opp.source && opp.source !== 'GHL') updateData.source = opp.source;
+
+    // Telefoonnummer uit het formulier op het contact (alleen als het nog leeg is)
+    if (extracted.phone) {
+      const { data: phoneInq } = await supabase.from('inquiries').select('contact_id').eq('id', inquiryId).maybeSingle();
+      await fillContactPhone(supabase, phoneInq?.contact_id, extracted.phone, { headers: ghlHeaders, ghlContactId, ghlPhone: ghlContact ? (ghlContact.phone ?? null) : undefined });
+    }
 
     // Link the inquiry (and contact) to the submitted company
     const companyName = extracted.companyName || ghlContact?.companyName || null;
@@ -2415,15 +2423,18 @@ async function syncDocuments(supabase: any, ghlHeaders: any, locationId: string,
       const rawAmount = (doc.grandTotal && typeof doc.grandTotal === 'object' ? doc.grandTotal.amount : doc.grandTotal) ?? doc.amount ?? doc.total ?? doc.monetaryValue;
       const amount = rawAmount !== undefined && rawAmount !== null && rawAmount !== '' && !Number.isNaN(Number(rawAmount)) ? Number(rawAmount) : null;
       const externalUrl = doc.url || doc.documentUrl || doc.publicUrl || null;
-      const sentAt = doc.sentAt || doc.sentOn || doc.updatedAt || doc.createdAt || new Date().toISOString();
+      const sentAt = doc.sentAt || doc.sentOn || doc.createdAt || doc.updatedAt || new Date().toISOString();
 
-      // Link to the most recent open inquiry of the contact
+      // Koppel aan de aanvraag die al bestond toen het document gemaakt/verstuurd
+      // werd. Oude documenten van het contact komen zo nooit bij een nieuwe
+      // aanvraag terecht (tonen bij het contact mag, overnemen nooit).
       let inquiryId: string | null = null;
       if (contact && !existing?.inquiry_id) {
-        const { data: inq } = await supabase.from('inquiries').select('id')
+        const docDate = doc.createdAt || doc.sentAt || doc.sentOn || null;
+        const { data: inqs } = await supabase.from('inquiries').select('id, created_at')
           .eq('contact_id', contact.id).neq('status', 'lost')
-          .order('created_at', { ascending: false }).limit(1).maybeSingle();
-        inquiryId = inq?.id || null;
+          .order('created_at', { ascending: false }).limit(20);
+        inquiryId = pickInquiryForDocument(inqs || [], docDate)?.id || null;
       }
 
       // Keep the highest status reached (sent → viewed → signed/paid)

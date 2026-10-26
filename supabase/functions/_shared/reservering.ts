@@ -1,3 +1,4 @@
+import { resolveBedrijfsnaam } from './bedrijfsnaam.ts';
 import { buildBegroting, inloopVoor, onderdeel, ONDERDELEN, type Begroting } from './begroting.ts';
 
 // Gegevens voor de reserveringsbevestiging (GHL Documents & Contracts).
@@ -149,11 +150,19 @@ export function buildReserveringData(input: {
 
   const beg: Begroting = input.begroting ?? buildBegroting(null, null);
 
-  const volledigeNaam = `${contact?.first_name ?? ''} ${contact?.last_name ?? ''}`.trim();
-  // "Op naam van" (bijv. "Fam. Jansen – 50-jarig huwelijk") gaat voor; het
-  // contact blijft de geadresseerde en ondertekenaar.
-  const opNaamVan = String(inq?.op_naam_van ?? '').trim();
-  const bedrijf = opNaamVan || company?.name || contact?.company || volledigeNaam || '—';
+  // "Op naam van" gaat voor; daarna de echte bedrijfsnaam; zonder bedrijf
+  // (particulier) staat er "Particulier". Het contact blijft de geadresseerde.
+  const bedrijf = resolveBedrijfsnaam({
+    opNaamVan: inq?.op_naam_van,
+    company,
+    contactCompany: contact?.company,
+    contactIsPrivate: contact?.private_company?.is_private ?? null,
+  });
+  const kostenplaats = resolveBedrijfsnaam({
+    company,
+    contactCompany: contact?.company,
+    contactIsPrivate: contact?.private_company?.is_private ?? null,
+  });
 
   return {
     reservering_nummer: dash(stripRes(input.reservationNumber)),
@@ -163,7 +172,7 @@ export function buildReserveringData(input: {
     reservering_starttijd: dash(start),
     reservering_eindtijd: dash(eind),
     reservering_bedrijfsnaam: bedrijf,
-    reservering_kostenplaats: company?.name || contact?.company || '—',
+    reservering_kostenplaats: kostenplaats === 'Particulier' ? '—' : kostenplaats,
     reservering_type_bijeenkomst: dash(inq.event_type),
     reservering_aantal_gasten: String(gasten),
     reservering_zaal: dash(zalen || inq.room_preference),
@@ -190,11 +199,17 @@ export function pickSignedQuoteForInquiry<T extends { inquiry_id?: string | null
   docs: T[], inquiryId: string, inquiryCreatedAt?: string | null,
 ): T | null {
   const byNewest = [...(docs ?? [])].sort((a, b) => String(b.signed_at || '').localeCompare(String(a.signed_at || '')));
-  const own = byNewest.find((d) => d.inquiry_id === inquiryId);
-  if (own) return own;
-  // Op het exacte moment vergelijken: een oude offerte die eerder op dezelfde dag
-  // is getekend hoort niet bij een aanvraag die daarna binnenkwam.
+  // Op het exacte moment vergelijken: een oude offerte die eerder (ook op dezelfde
+  // dag) is getekend hoort nooit bij een aanvraag die daarna binnenkwam — ook niet
+  // als hij per ongeluk aan deze aanvraag gekoppeld is.
   const since = inquiryCreatedAt ? Date.parse(String(inquiryCreatedAt)) : NaN;
+  const notBefore = (d: T) => {
+    if (!Number.isFinite(since)) return true;
+    const signed = Date.parse(String(d.signed_at || ''));
+    return !Number.isFinite(signed) || signed >= since;
+  };
+  const own = byNewest.find((d) => d.inquiry_id === inquiryId && notBefore(d));
+  if (own) return own;
   return byNewest.find((d) => {
     if (d.inquiry_id) return false;
     if (!Number.isFinite(since)) return true;

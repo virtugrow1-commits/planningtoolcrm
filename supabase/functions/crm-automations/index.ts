@@ -19,6 +19,7 @@
 // creates a second task or moves a status twice.
 
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { isDocumentBeforeInquiry, pickInquiryForDocument } from "../_shared/documentLink.ts";
 import {
   GHL_API_BASE,
   buildAppointmentPayload,
@@ -372,14 +373,17 @@ Deno.serve(async (req) => {
       for (const doc of docs || []) {
         if (!isQuoteDocument(doc, qc)) continue;
         // Resolve the inquiry: linked directly, otherwise the most recent open inquiry of the contact
+        // Een document dat ouder is dan de aanvraag telt nooit mee voor die aanvraag
+        // (geen fasewissel, revisie, offertenummer of optiebevestiging).
         let inquiry: any = null;
+        const inqCols = 'id, status, display_number, contact_id, company_id, user_id, offerte_revisie, created_at';
         if (doc.inquiry_id) {
-          const { data } = await supabase.from('inquiries').select('id, status, display_number, contact_id, company_id, user_id, offerte_revisie').eq('id', doc.inquiry_id).maybeSingle();
-          inquiry = data;
+          const { data } = await supabase.from('inquiries').select(inqCols).eq('id', doc.inquiry_id).maybeSingle();
+          inquiry = data && !isDocumentBeforeInquiry(doc.sent_at, (data as any).created_at) ? data : null;
         } else if (doc.contact_id) {
-          const { data } = await supabase.from('inquiries').select('id, status, display_number, contact_id, company_id, user_id, offerte_revisie')
-            .eq('contact_id', doc.contact_id).neq('status', 'lost').order('created_at', { ascending: false }).limit(1).maybeSingle();
-          inquiry = data;
+          const { data: inqs } = await supabase.from('inquiries').select(inqCols)
+            .eq('contact_id', doc.contact_id).neq('status', 'lost').order('created_at', { ascending: false }).limit(20);
+          inquiry = pickInquiryForDocument((inqs || []) as any[], doc.sent_at);
           if (inquiry && !dryRun) await supabase.from('documents').update({ inquiry_id: inquiry.id }).eq('id', doc.id);
         }
         const contact = doc.contact_id ? contactById.get(doc.contact_id) : null;

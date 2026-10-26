@@ -128,7 +128,7 @@ Deno.serve(async (req) => {
         id, display_number, event_type, guest_count, status, room_preference, created_at,
         preferred_date, preferred_start_time, preferred_end_time,
         contact_id, company_id, offerte_revisie, reservation_number, reservering_gestaged_op,
-        contacts:contact_id ( id, first_name, last_name, email, phone, company, display_number, ghl_contact_id ),
+        contacts:contact_id ( id, first_name, last_name, email, phone, company, company_id, display_number, ghl_contact_id ),
         companies:company_id ( id, name )
       `)
       .eq("id", inquiryId)
@@ -146,6 +146,19 @@ Deno.serve(async (req) => {
     }
     const contact = inq.contacts as any;
     if (!contact) throw new Error("Aanvraag heeft geen gekoppeld contact");
+
+    // Particulier-vlaggen (companies.is_private) los ophalen
+    {
+      const ids = [(inq as any).company_id, contact.company_id].filter(Boolean);
+      if (ids.length) {
+        const { data: cos, error: coErr } = await db.from("companies").select("id, name, is_private").in("id", ids);
+        if (!coErr && cos) {
+          const byId = new Map((cos as any[]).map((c) => [c.id, c]));
+          if ((inq as any).company_id && byId.has((inq as any).company_id)) (inq as any).companies = byId.get((inq as any).company_id);
+          if (contact.company_id && byId.has(contact.company_id)) contact.private_company = byId.get(contact.company_id);
+        }
+      }
+    }
 
     // 2. Getekende offerte zoeken (documenten van deze aanvraag, anders van het contact)
     const quoteCfg = { sent_status: "", signed_status: "", convert_option_to_confirmed: false, title_keywords: ["offerte", "contract"] };
