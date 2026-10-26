@@ -50,6 +50,13 @@
       "when": 1793035391495,
       "tag": "0006_gastenaantal_aanvraag_reservering",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1793046796262,
+      "tag": "0007_inquiry_op_naam_van",
+      "breakpoints": true
     }
   ]
 }
