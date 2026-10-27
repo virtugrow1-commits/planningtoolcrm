@@ -21,16 +21,17 @@ describe('computeDocumentStats', () => {
       doc({ title: 'Offerte oud', inquiryId: 'd', status: 'signed', sentAt: '2026-08-01', signedAt: '2026-08-02' }),
     ], oct);
     expect(s.offertes).toEqual({ verzonden: 3, getekend: 2, openstaand: 1 });
-    expect(s.bevestigingen).toEqual({ verzonden: 1, getekend: 0, openstaand: 1 });
+    expect(s.bevestigingen).toEqual({ verzonden: 1 });
     expect(s.nogTeVersturen.map((p) => p.inquiryId)).toEqual(['d', 'b']);
   });
   it('bevestiging op contact zonder aanvraag dekt de offerte van dat contact', () => {
     const s = computeDocumentStats([
       doc({ title: 'Offerte', inquiryId: 'a', contactId: 'k', status: 'signed', signedAt: '2026-10-03' }),
-      doc({ title: 'Reserveringsbevestiging', contactId: 'k', status: 'signed', signedAt: '2026-10-07' }),
+      // Klikt de klant toch op Accepteren, dan telt de bevestiging gewoon als verzonden
+      doc({ title: 'Reserveringsbevestiging', contactId: 'k', status: 'signed', sentAt: '2026-10-06', signedAt: '2026-10-07' }),
     ], oct);
     expect(s.nogTeVersturen).toHaveLength(0);
-    expect(s.bevestigingen.getekend).toBe(1);
+    expect(s.bevestigingen).toEqual({ verzonden: 1 });
   });
 });
 

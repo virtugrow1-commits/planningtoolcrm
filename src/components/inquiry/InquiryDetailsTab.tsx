@@ -164,7 +164,6 @@ export default function InquiryDetailsTab({ inquiry, editing, form, setForm, con
     .filter(d => d.kind === 'offerte' && isSignedStatus(d.status) && belongsHere(d, d.signedAt))
     .sort((a, b) => (Number(b.inquiryId === inquiry.id) - Number(a.inquiryId === inquiry.id)) || String(b.signedAt).localeCompare(String(a.signedAt)))[0];
   const confirmationDocs = documents.filter(d => d.kind === 'reserveringsbevestiging' && isSentStatus(d.status) && belongsHere(d, d.sentAt));
-  const confirmationSigned = confirmationDocs.some(d => isSignedStatus(d.status));
   const quoteAccepted = Boolean(signedQuote) || ACCEPTED_STATUSES.includes(inquiry.status);
   const [resInfo, setResInfo] = useState<{ nummer: string | null; op: string | null }>({ nummer: null, op: null });
   const [stagingRes, setStagingRes] = useState(false);
@@ -437,8 +436,8 @@ export default function InquiryDetailsTab({ inquiry, editing, form, setForm, con
                   <Badge variant="secondary" className={cn('font-medium', signedQuote ? 'bg-success/15 text-success' : quoteAccepted ? 'bg-success/10 text-success' : '')}>
                     Offerte {signedQuote ? `getekend ${formatDate(signedQuote.signedAt || '')}` : quoteAccepted ? 'geaccepteerd' : 'nog niet getekend'}
                   </Badge>
-                  <Badge variant="secondary" className={cn('font-medium', confirmationSigned ? 'bg-success/15 text-success' : confirmationDocs.length ? 'bg-info/15 text-info' : '')}>
-                    Bevestiging {confirmationSigned ? 'getekend' : confirmationDocs.length ? 'verzonden' : resInfo.op ? 'klaargezet' : 'nog niet klaargezet'}
+                  <Badge variant="secondary" className={cn('font-medium', confirmationDocs.length ? 'bg-success/15 text-success' : '')}>
+                    Bevestiging {confirmationDocs.length ? 'verzonden' : resInfo.op ? 'klaargezet' : 'nog niet klaargezet'}
                   </Badge>
                   {resInfo.nummer && <Badge variant="outline" className="font-medium">{resInfo.nummer}</Badge>}
                 </div>

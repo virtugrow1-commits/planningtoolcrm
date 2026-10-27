@@ -28,9 +28,9 @@ function Stat({ label, value, tone }: { label: string; value: number | string; t
 }
 
 /**
- * Offertes en reserveringsbevestigingen apart gemeten: een getekende offerte
- * telt alleen bij Offertes, een (getekende) reserveringsbevestiging alleen bij
- * Reserveringsbevestigingen.
+ * Offertes en reserveringsbevestigingen apart gemeten. Een offerte wordt
+ * getekend (akkoord via het vinkje in het document); een reserveringsbevestiging
+ * wordt alleen verzonden, niet getekend.
  */
 export default function OfferteBevestigingStats() {
   const { documents, loading } = useDocuments();
@@ -83,15 +83,14 @@ export default function OfferteBevestigingStats() {
               <h3 className="text-xs font-semibold text-muted-foreground flex items-center gap-1.5">
                 <BadgeCheck size={13} /> Reserveringsbevestigingen
               </h3>
-              <div className="grid grid-cols-3 gap-2">
-                <Stat label="Verzonden" value={stats.bevestigingen.verzonden} />
-                <Stat label="Getekend" value={stats.bevestigingen.getekend} tone="success" />
+              <div className="grid grid-cols-2 gap-2">
+                <Stat label="Verzonden" value={stats.bevestigingen.verzonden} tone="success" />
                 <Stat label="Nog te versturen" value={stats.nogTeVersturen.length} tone={stats.nogTeVersturen.length ? 'warning' : undefined} />
               </div>
             </div>
           </div>
           <p className="text-[11px] text-muted-foreground -mt-2">
-            Verzonden en getekend: {PERIOD_LABEL[period].toLowerCase()} ({formatDate(range.from)} t/m {formatDate(range.to)}). Openstaand en nog te versturen: op dit moment.
+            Verzonden en getekend (offerte akkoord via vinkje): {PERIOD_LABEL[period].toLowerCase()} ({formatDate(range.from)} t/m {formatDate(range.to)}). Openstaand en nog te versturen: op dit moment.
           </p>
 
           {stats.nogTeVersturen.length > 0 && (

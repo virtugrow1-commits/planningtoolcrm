@@ -61,8 +61,13 @@ Twee aparte documentsoorten in GHL *Documents & Contracts*, elk met eigen contac
 - **Documentsoort** (`documents.document_kind`, gegenereerd uit de titel): een titel met *reserveringsbevestiging*
   (of *bevestiging … reservering*) is een reserveringsbevestiging, anders *offerte*/*contract* of GHL-type proposal/estimate
   = offerte. De offerte-automatisering (`quote_documents`) slaat reserveringsbevestigingen over.
-- **Dashboard**: blok *Offertes & reserveringsbevestigingen* telt beide los (verzonden / getekend per periode) en toont
-  getekende offertes waarvoor nog geen bevestiging is verstuurd.
+- **Getekend** = de klant zet in de offerte het verplichte vinkje "Ja, ik ben akkoord met de offerte" en rondt af
+  (GHL-status Signed/Accepted, document Voltooid). Er is geen handtekening meer.
+- **Reserveringsbevestiging wordt niet getekend**, alleen verzonden. Klikt een klant toch op Accepteren, dan heeft dat
+  geen gevolgen: de offerte-automatisering slaat bevestigingen over en de GHL-workflow D3 reageert alleen op de zes
+  offertesjablonen. Workflow D4 (bevestiging ondertekend) staat op Concept.
+- **Dashboard**: blok *Offertes & reserveringsbevestigingen* telt offertes als verzonden / getekend / openstaand en
+  reserveringsbevestigingen alleen als verzonden, en toont getekende offertes waarvoor nog geen bevestiging is verstuurd.
 
 Velden `reservering_nummer`, `reservering_offertenummer`, `reservering_bevestigingsdatum`, `reservering_datum`,
 `reservering_starttijd`, `reservering_eindtijd`, `reservering_bedrijfsnaam`, `reservering_kostenplaats`,

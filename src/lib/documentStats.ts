@@ -19,7 +19,8 @@ export interface PendingConfirmation {
 
 export interface DocumentStats {
   offertes: { verzonden: number; getekend: number; openstaand: number };
-  bevestigingen: { verzonden: number; getekend: number; openstaand: number };
+  /** Reserveringsbevestigingen worden niet getekend: alleen verzonden tellen. */
+  bevestigingen: { verzonden: number };
   /** Getekende offertes waarvoor nog geen reserveringsbevestiging is verstuurd (alle periodes). */
   nogTeVersturen: PendingConfirmation[];
 }
@@ -52,7 +53,7 @@ export function computeDocumentStats(documents: Document[], range: PeriodRange):
 
   return {
     offertes: count(offertes),
-    bevestigingen: count(bevestigingen),
+    bevestigingen: { verzonden: count(bevestigingen).verzonden },
     nogTeVersturen: [...pending.values()].sort((a, b) => String(a.signedAt).localeCompare(String(b.signedAt))),
   };
 }
