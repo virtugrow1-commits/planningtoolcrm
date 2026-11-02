@@ -172,6 +172,32 @@ export default function NewReservationDialog({
     setLastOpen(open);
   }, [open]);
 
+  // Auto-match prefilled contact name to an existing contact (inquiry only has name text)
+  const [autoMatched, setAutoMatched] = useState(false);
+  useEffect(() => { if (!open) setAutoMatched(false); }, [open]);
+  useEffect(() => {
+    if (!open || autoMatched || contactsLoading) return;
+    const name = prefill?.contactName?.trim();
+    if (prefill?.contactId || !name) { setAutoMatched(true); return; }
+    const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9à-ÿ]/g, '');
+    const target = norm(name);
+    const match = contacts.find(c => !c.departed && norm(`${c.firstName}${c.lastName}`) === target)
+      || contacts.find(c => !c.departed && c.email && norm(c.email) === target);
+    if (match) {
+      setForm(prev => ({
+        ...prev,
+        contactId: match.id,
+        contactName: [match.firstName, match.lastName].filter(n => n && n !== '—').join(' '),
+        companyId: prev.companyId || match.companyId || '',
+      }));
+    } else {
+      const parts = name.split(/\s+/);
+      setCreatingContact(true);
+      setContactForm({ ...emptyContactForm, firstName: parts[0] || '', lastName: parts.slice(1).join(' ') });
+    }
+    setAutoMatched(true);
+  }, [open, autoMatched, contactsLoading, contacts, prefill?.contactId, prefill?.contactName]);
+
   const selectedCompany = form.companyId ? companies.find(co => co.id === form.companyId) : null;
 
   const junctionContactIds = useMemo(
