@@ -144,6 +144,11 @@ Deno.serve(async (req) => {
       const { data: onvRow, error: onvErr } = await db.from("inquiries").select("op_naam_van").eq("id", inquiryId).maybeSingle();
       if (!onvErr && onvRow) (inq as any).op_naam_van = (onvRow as any).op_naam_van ?? null;
     }
+    // Kostenplaats apart ophalen; bij fout gewoon overslaan.
+    {
+      const { data: kpRow, error: kpErr } = await db.from("inquiries").select("kostenplaats").eq("id", inquiryId).maybeSingle();
+      if (!kpErr && kpRow) (inq as any).kostenplaats = (kpRow as any).kostenplaats ?? null;
+    }
     const contact = inq.contacts as any;
     if (!contact) throw new Error("Aanvraag heeft geen gekoppeld contact");
 

@@ -692,6 +692,7 @@ export type Database = {
           guest_count: number
           id: string
           is_read: boolean
+          kostenplaats: string | null
           last_contact_at: string | null
           local_status_changed_at: string | null
           message: string | null
@@ -726,6 +727,7 @@ export type Database = {
           guest_count?: number
           id?: string
           is_read?: boolean
+          kostenplaats?: string | null
           last_contact_at?: string | null
           local_status_changed_at?: string | null
           message?: string | null
@@ -760,6 +762,7 @@ export type Database = {
           guest_count?: number
           id?: string
           is_read?: boolean
+          kostenplaats?: string | null
           last_contact_at?: string | null
           local_status_changed_at?: string | null
           message?: string | null

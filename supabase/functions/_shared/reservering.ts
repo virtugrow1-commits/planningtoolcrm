@@ -1,4 +1,12 @@
 import { resolveBedrijfsnaam } from './bedrijfsnaam.ts';
+
+/** Vrije kostenplaats van de aanvraag; leeg -> bedrijfsnaam ("Particulier" -> "—"). */
+export function resolveKostenplaats(input: { kostenplaats?: string | null; company?: any | null; contactCompany?: string | null; contactIsPrivate?: boolean | null }): string {
+  const eigen = input.kostenplaats === null || input.kostenplaats === undefined ? '' : String(input.kostenplaats).trim();
+  if (eigen !== '') return eigen;
+  const naam = resolveBedrijfsnaam({ company: input.company, contactCompany: input.contactCompany, contactIsPrivate: input.contactIsPrivate });
+  return naam === 'Particulier' ? '—' : naam;
+}
 import { buildBegroting, inloopVoor, onderdeel, ONDERDELEN, type Begroting } from './begroting.ts';
 
 // Gegevens voor de reserveringsbevestiging (GHL Documents & Contracts).
@@ -158,7 +166,8 @@ export function buildReserveringData(input: {
     contactCompany: contact?.company,
     contactIsPrivate: contact?.private_company?.is_private ?? null,
   });
-  const kostenplaats = resolveBedrijfsnaam({
+  const kostenplaats = resolveKostenplaats({
+    kostenplaats: inq?.kostenplaats,
     company,
     contactCompany: contact?.company,
     contactIsPrivate: contact?.private_company?.is_private ?? null,
@@ -172,7 +181,7 @@ export function buildReserveringData(input: {
     reservering_starttijd: dash(start),
     reservering_eindtijd: dash(eind),
     reservering_bedrijfsnaam: bedrijf,
-    reservering_kostenplaats: kostenplaats === 'Particulier' ? '—' : kostenplaats,
+    reservering_kostenplaats: kostenplaats,
     reservering_type_bijeenkomst: dash(inq.event_type),
     reservering_aantal_gasten: String(gasten),
     reservering_zaal: dash(zalen || inq.room_preference),
