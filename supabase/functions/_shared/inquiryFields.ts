@@ -283,6 +283,62 @@ export async function resolveCompanyId(
   return created?.id || null;
 }
 
+/** Normalized persoonsnaam: kleine letters, geen leestekens, enkele spaties */
+function normalizePersonName(s: string | null | undefined): string {
+  return String(s || '').toLowerCase().replace(/[.,]/g, '').replace(/\s+/g, ' ').trim();
+}
+
+/**
+ * Is deze "bedrijfsnaam" eigenlijk de naam van een persoon die we al kennen?
+ * Vergelijkt met de volledige naam van bestaande contacten en met de
+ * contactnaam op aanvragen. Alleen een exacte (genormaliseerde) match telt;
+ * "Hendriks" alleen matcht dus niet.
+ */
+export async function isKnownPersonName(supabase: any, name: string | null | undefined): Promise<boolean> {
+  const target = normalizePersonName(name);
+  if (!target || !target.includes(' ')) return false;
+
+  const { data: inq } = await supabase
+    .from('inquiries')
+    .select('id')
+    .ilike('contact_name', target)
+    .limit(1)
+    .maybeSingle();
+  if (inq) return true;
+
+  const lastWord = target.split(' ').pop() || '';
+  const { data: contacts } = await supabase
+    .from('contacts')
+    .select('first_name, last_name')
+    .ilike('last_name', `%${lastWord}%`)
+    .limit(100);
+  return (contacts || []).some((c: any) => normalizePersonName(`${c.first_name || ''} ${c.last_name || ''}`) === target);
+}
+
+/**
+ * Bedrijfsnaam waarmee aanvraag en contact gekoppeld mogen worden.
+ * De bedrijfsnaam uit het formulier telt altijd. Het vrije veld "Bedrijfsnaam"
+ * op het CliqCRM-contact alleen als het geen bekende persoonsnaam is: op het
+ * contact van Jolanda Hendriks stond "Kim Hendriks" (een andere klant, uit
+ * een oude import), waardoor elke aanvraag van Jolanda aan het "bedrijf" Kim
+ * Hendriks werd gekoppeld en Kims aanvraag bij Jolanda verscheen.
+ */
+export async function linkableCompanyName(
+  supabase: any,
+  formCompanyName: string | null | undefined,
+  ghlContactCompanyName: string | null | undefined,
+): Promise<string | null> {
+  const fromForm = formCompanyName ? String(formCompanyName).trim() : '';
+  if (fromForm) return fromForm;
+  const fromContact = ghlContactCompanyName ? String(ghlContactCompanyName).trim() : '';
+  if (!fromContact) return null;
+  if (await isKnownPersonName(supabase, fromContact)) {
+    console.log(`[inquiryFields] Bedrijfsnaam "${fromContact}" op het contact is een persoonsnaam; niet gekoppeld als bedrijf`);
+    return null;
+  }
+  return fromContact;
+}
+
 /** Link a contact to a company without overwriting an existing primary company */
 export async function linkContactToCompany(supabase: any, userId: string, contactId: string, companyId: string, companyName?: string | null) {
   const { data: contactRow } = await supabase.from('contacts').select('company_id').eq('id', contactId).maybeSingle();

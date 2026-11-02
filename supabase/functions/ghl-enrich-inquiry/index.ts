@@ -6,6 +6,7 @@ import {
   buildInquiryUpdate,
   extractInquiryFields,
   linkContactToCompany,
+  linkableCompanyName,
   loadFieldDefs,
   resolveCompanyId,
 } from "../_shared/inquiryFields.ts";
@@ -143,8 +144,8 @@ Deno.serve(async (req) => {
       await fillContactPhone(supabase, inquiry.contact_id, extracted.phone, { headers: ghlHeaders, ghlContactId, ghlPhone: ghlContact ? (ghlContact.phone ?? null) : undefined });
     }
 
-    // Link company from the form answers
-    const companyName = extracted.companyName || ghlContact?.companyName || null;
+    // Link company from the form answers (persoonsnaam in Bedrijfsnaam op het contact telt niet)
+    const companyName = await linkableCompanyName(supabase, extracted.companyName, ghlContact?.companyName);
     if (companyName && !inquiry.company_id) {
       const companyId = await resolveCompanyId(supabase, inquiry.user_id, companyName);
       if (companyId) {

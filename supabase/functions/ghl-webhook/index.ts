@@ -6,6 +6,7 @@ import {
   extractInquiryFields,
   isDuplicateSubmission,
   linkContactToCompany,
+  linkableCompanyName,
   loadFieldDefs,
   parseFormDate,
   parseFormTime,
@@ -715,8 +716,8 @@ async function handleOpportunityFromWebhookPayload(supabase: any, ghlHeaders: an
             await fillContactPhone(supabase, phoneInq?.contact_id, extracted.phone, { headers: ghlHeaders, ghlContactId: ghlContactIdForEnrich, ghlPhone: ghlContact ? (ghlContact.phone ?? null) : undefined });
           }
 
-          // Company from the form: link inquiry and contact
-          const submittedCompany = extracted.companyName || ghlContact?.companyName || null;
+          // Company from the form: link inquiry and contact (persoonsnaam in Bedrijfsnaam op het contact telt niet)
+          const submittedCompany = await linkableCompanyName(supabase, extracted.companyName, ghlContact?.companyName);
           if (submittedCompany) {
             const { data: inqRow } = await supabase
               .from('inquiries')

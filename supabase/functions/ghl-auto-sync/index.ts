@@ -7,6 +7,7 @@ import {
   extractInquiryFields,
   isGenericEventType,
   linkContactToCompany,
+  linkableCompanyName,
   loadFieldDefs,
   resolveCompanyId,
 } from "../_shared/inquiryFields.ts";
@@ -789,8 +790,9 @@ async function autoEnrichInquiry(supabase: any, ghlHeaders: any, locationId: str
       await fillContactPhone(supabase, phoneInq?.contact_id, extracted.phone, { headers: ghlHeaders, ghlContactId, ghlPhone: ghlContact ? (ghlContact.phone ?? null) : undefined });
     }
 
-    // Link the inquiry (and contact) to the submitted company
-    const companyName = extracted.companyName || ghlContact?.companyName || null;
+    // Link the inquiry (and contact) to the submitted company.
+    // Het vrije veld Bedrijfsnaam op het contact telt niet als het een persoonsnaam is.
+    const companyName = await linkableCompanyName(supabase, extracted.companyName, ghlContact?.companyName);
     if (companyName) {
       const { data: inqRow } = await supabase
         .from('inquiries')
