@@ -463,7 +463,12 @@ export default function InquiryDetailPage() {
           }
           // Update inquiry status based on booking type
           const newStatus: Inquiry['status'] = resForm.status === 'confirmed' ? 'reserved' : 'option';
-          await updateInquiry({ ...inquiry, status: newStatus });
+          await updateInquiry({
+            ...inquiry,
+            status: newStatus,
+            contactId: inquiry.contactId || resForm.contactId || inquiry.contactId,
+            companyId: inquiry.companyId || resForm.companyId || inquiry.companyId,
+          });
           setShowReservationDialog(false);
           toast({ title: 'Reservering aangemaakt' });
         }}
