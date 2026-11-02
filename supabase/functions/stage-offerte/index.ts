@@ -22,6 +22,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { GHL_API_BASE, jsonResponse, readError } from "../_shared/ghlCommon.ts";
 import { resolveBedrijfsnaam } from "../_shared/bedrijfsnaam.ts";
+import { resolveKostenplaats } from "../_shared/reservering.ts";
 
 const TOKEN = Deno.env.get("GHL_API_KEY") || "";
 const LOCATION = Deno.env.get("GHL_LOCATION_ID") || "";
@@ -80,6 +81,7 @@ export interface OfferteData {
   start: string;           // "19:00"
   eind: string;            // "23:00"
   bedrijf: string;
+  kostenplaats: string;
   type: string;
   gasten: string;
   reserveringsnummer: string; // "911269"
@@ -116,6 +118,12 @@ export function buildOfferteData(
     contactCompany: contact?.company,
     contactIsPrivate: contact?.private_company?.is_private ?? null,
   });
+  const kostenplaats = resolveKostenplaats({
+    kostenplaats: inq?.kostenplaats,
+    company,
+    contactCompany: contact?.company,
+    contactIsPrivate: contact?.private_company?.is_private ?? null,
+  });
 
   return {
     offertenummer: dash(stripCon(contact?.display_number)),
@@ -124,6 +132,7 @@ export function buildOfferteData(
     start: dash(start),
     eind: dash(eind),
     bedrijf,
+    kostenplaats,
     type: dash(inq.event_type),
     gasten: String(gasten ?? 0),
     reserveringsnummer: dash(stripRes(booking?.reservation_number || inq.reservation_number)),
@@ -212,6 +221,20 @@ async function loadPrivateFlags(db: any, inq: any, contact: any) {
   if (contact?.company_id && byId.has(contact.company_id)) contact.private_company = byId.get(contact.company_id);
 }
 
+/** ID van contact.reservering_kostenplaats; niet gevonden of fout -> null. */
+async function findKostenplaatsFieldId(): Promise<string | null> {
+  try {
+    const r = await fetch(`${GHL_API_BASE}/locations/${LOCATION}/customFields?model=contact`, { headers: ghlHeaders });
+    if (!r.ok) { await r.text(); return null; }
+    const j = await r.json().catch(() => ({}));
+    const f = (j?.customFields ?? []).find((c: any) => c?.fieldKey === "contact.reservering_kostenplaats");
+    return f?.id ?? null;
+  } catch (e) {
+    console.warn("stage-offerte: kostenplaatsveld niet opgezocht:", e);
+    return null;
+  }
+}
+
 export function toCustomFields(d: OfferteData) {
   return [
     { id: OFFERTE_FIELDS.nummer,    value: d.offertenummer },
@@ -291,6 +314,11 @@ Deno.serve(async (req) => {
       const { data: onvRow, error: onvErr } = await db.from("inquiries").select("op_naam_van").eq("id", inquiryId).maybeSingle();
       if (!onvErr && onvRow) (inq as any).op_naam_van = (onvRow as any).op_naam_van ?? null;
     }
+    // Kostenplaats apart ophalen; bij fout gewoon overslaan.
+    {
+      const { data: kpRow, error: kpErr } = await db.from("inquiries").select("kostenplaats").eq("id", inquiryId).maybeSingle();
+      if (!kpErr && kpRow) (inq as any).kostenplaats = (kpRow as any).kostenplaats ?? null;
+    }
 
     const contact = inq.contacts as any;
     await loadPrivateFlags(db, inq, contact);
@@ -353,11 +381,14 @@ Deno.serve(async (req) => {
       await db.from("contacts").update({ ghl_contact_id: ghlId }).eq("id", contact.id);
     }
 
-    // 5. Velden wegschrijven
+    // 5. Velden wegschrijven (plus contact.reservering_kostenplaats als dat veld bestaat)
+    const customFields: { id: string; value: string }[] = toCustomFields(data);
+    const kpFieldId = await findKostenplaatsFieldId();
+    if (kpFieldId) customFields.push({ id: kpFieldId, value: data.kostenplaats });
     const put = await fetch(`${GHL_API_BASE}/contacts/${ghlId}`, {
       method: "PUT",
       headers: ghlHeaders,
-      body: JSON.stringify({ customFields: toCustomFields(data) }),
+      body: JSON.stringify({ customFields }),
     });
     if (!put.ok) throw new Error(`GHL ${put.status}: ${await readError(put)}`);
     await put.text();

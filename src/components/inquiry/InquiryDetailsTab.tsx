@@ -20,7 +20,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { CalendarIcon, Users, Euro, User, Building2, FileText, MapPin, Trash2, RefreshCw, ArrowRight, UserCheck, Clock, MessageCircle, CalendarPlus, BadgeCheck } from 'lucide-react';
+import { CalendarIcon, Users, Euro, User, Building2, FileText, MapPin, Trash2, RefreshCw, ArrowRight, UserCheck, Clock, MessageCircle, CalendarPlus, BadgeCheck, Receipt } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
@@ -93,6 +93,27 @@ export default function InquiryDetailsTab({ inquiry, editing, form, setForm, con
     setOpNaamVanOpgeslagen(!error && data ? ((data as any).op_naam_van ?? '') : '');
   }, [inquiry.id]);
   useEffect(() => { loadOpNaamVan(); }, [loadOpNaamVan]);
+  // Kostenplaats los ophalen (zoals "Op naam van")
+  const [kostenplaatsOpgeslagen, setKostenplaatsOpgeslagen] = useState('');
+  const [kostenplaats, setKostenplaats] = useState('');
+  const loadKostenplaats = useCallback(async () => {
+    const { data, error } = await supabase.from('inquiries').select('kostenplaats' as any).eq('id', inquiry.id).maybeSingle();
+    setKostenplaatsOpgeslagen(!error && data ? ((data as any).kostenplaats ?? '') : '');
+  }, [inquiry.id]);
+  useEffect(() => { loadKostenplaats(); }, [loadKostenplaats]);
+  useEffect(() => { if (editing) setKostenplaats(kostenplaatsOpgeslagen); }, [editing, kostenplaatsOpgeslagen]);
+  const handleSave = async () => {
+    const nieuw = kostenplaats.trim();
+    if (nieuw !== kostenplaatsOpgeslagen.trim()) {
+      const { error } = await supabase.from('inquiries').update({ kostenplaats: nieuw || null } as any).eq('id', inquiry.id);
+      if (error) {
+        toast({ title: 'Kostenplaats niet opgeslagen', description: error.message, variant: 'destructive' });
+        return;
+      }
+      setKostenplaatsOpgeslagen(nieuw);
+    }
+    onSave();
+  };
   // Start-/eindtijd voor de documenten (alleen bewerkbaar zonder optie/reservering)
   const huidigeTijden: Tijden = {
     start: (inquiry.preferredStartTime || '').slice(0, 5),
@@ -239,6 +260,7 @@ export default function InquiryDetailsTab({ inquiry, editing, form, setForm, con
                   popoverWidth="w-[340px]"
                 />
               </div>
+              <div><Label>Kostenplaats</Label><Input value={kostenplaats} maxLength={100} placeholder="Bijv. KP-2026/014 (leeg = bedrijfsnaam)" onChange={(e) => setKostenplaats(e.target.value)} /></div>
               <div><Label>Titel</Label><Input value={form!.title || ''} onChange={(e) => setForm({ ...form!, title: e.target.value || undefined })} /></div>
               <div><Label>{t('inquiries.eventType')}</Label><Input value={form!.eventType} onChange={(e) => setForm({ ...form!, eventType: e.target.value })} /></div>
               <div><Label>{t('inquiries.preferredDate')}</Label><Input type="date" value={form!.preferredDate} onChange={(e) => setForm({ ...form!, preferredDate: e.target.value })} /></div>
@@ -288,7 +310,7 @@ export default function InquiryDetailsTab({ inquiry, editing, form, setForm, con
               <div><Label>{t('common.notes')}</Label><Textarea value={form!.message} onChange={(e) => setForm({ ...form!, message: e.target.value })} rows={4} /></div>
               <div className="flex gap-2">
                 <Button variant="outline" size="sm" className="flex-1" onClick={onCancel}>{t('common.cancel')}</Button>
-                <Button size="sm" className="flex-1" onClick={onSave}>{t('common.save')}</Button>
+                <Button size="sm" className="flex-1" onClick={handleSave}>{t('common.save')}</Button>
               </div>
               <Button variant="destructive" size="sm" className="w-full" onClick={onDelete}><Trash2 size={14} className="mr-1" /> {t('inquiries.deleteInquiry')}</Button>
             </div>
@@ -297,6 +319,7 @@ export default function InquiryDetailsTab({ inquiry, editing, form, setForm, con
               <InfoRow icon={<User size={14} />} label={t('inquiries.contactPerson')} value={inquiry.contactName} onClick={contact ? () => navigate(`/crm/${contact.id}`) : undefined} />
               {opNaamVanOpgeslagen && <InfoRow icon={<BadgeCheck size={14} />} label={language === 'en' ? 'On behalf of' : 'Op naam van'} value={opNaamVanOpgeslagen} />}
               {company && <InfoRow icon={<Building2 size={14} />} label={t('crm.company')} value={company.name} onClick={() => navigate(`/companies/${company.id}`)} />}
+              <InfoRow icon={<Receipt size={14} />} label="Kostenplaats" value={kostenplaatsOpgeslagen || (company?.name ? `${company.name} (bedrijfsnaam)` : '—')} />
               <InfoRow icon={<CalendarIcon size={14} />} label={t('inquiries.preferredDate')} value={formatDate(inquiry.preferredDate)} />
               {(inquiry.preferredStartTime || inquiry.preferredEndTime) && (
                 <InfoRow icon={<Clock size={14} />} label={t('inquiries.preferredTime')} value={`${inquiry.preferredStartTime || '—'} – ${inquiry.preferredEndTime || '—'}`} />

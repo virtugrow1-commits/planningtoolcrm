@@ -57,6 +57,13 @@
       "when": 1793046796262,
       "tag": "0007_inquiry_op_naam_van",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1793633624062,
+      "tag": "0008_inquiry_kostenplaats",
+      "breakpoints": true
     }
   ]
 }
