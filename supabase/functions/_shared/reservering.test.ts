@@ -27,7 +27,7 @@ Deno.test('reservering: gegevens uit reserveringen (bevestigd gaat voor optie, z
   assertEquals(d.reservering_zaalopstelling, 'U-vorm');
   assertEquals(d.reservering_aantal_gasten, '24');
   assertEquals(d.reservering_bedrijfsnaam, 'Jansen Holding');
-  assertEquals(d.reservering_kostenplaats, 'Jansen Holding');
+  assertEquals(d.reservering_kostenplaats, 'n.v.t.');
 });
 
 Deno.test('reservering: zonder reservering valt terug op voorkeur van de aanvraag', () => {
@@ -89,7 +89,7 @@ Deno.test('reservering: leeg "op naam van" zonder bedrijf = Particulier', () => 
     company: null, bookings: [], reservationNumber: 'RES-000915', offerteNummer: '', today: 'x',
   });
   assertEquals(d.reservering_bedrijfsnaam, 'Particulier');
-  assertEquals(d.reservering_kostenplaats, '—');
+  assertEquals(d.reservering_kostenplaats, 'n.v.t.');
 });
 
 Deno.test('reservering: particuliere klantkaart of bedrijf "Onbekend" = Particulier', () => {

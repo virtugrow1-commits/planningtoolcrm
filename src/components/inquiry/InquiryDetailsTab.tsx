@@ -260,7 +260,7 @@ export default function InquiryDetailsTab({ inquiry, editing, form, setForm, con
                   popoverWidth="w-[340px]"
                 />
               </div>
-              <div><Label>Kostenplaats</Label><Input value={kostenplaats} maxLength={100} placeholder="Bijv. KP-2026/014 (leeg = bedrijfsnaam)" onChange={(e) => setKostenplaats(e.target.value)} /></div>
+              <div><Label>Kostenplaats</Label><Input value={kostenplaats} maxLength={100} placeholder="Bijv. KP-2026/014 (leeg = n.v.t.)" onChange={(e) => setKostenplaats(e.target.value)} /></div>
               <div><Label>Titel</Label><Input value={form!.title || ''} onChange={(e) => setForm({ ...form!, title: e.target.value || undefined })} /></div>
               <div><Label>{t('inquiries.eventType')}</Label><Input value={form!.eventType} onChange={(e) => setForm({ ...form!, eventType: e.target.value })} /></div>
               <div><Label>{t('inquiries.preferredDate')}</Label><Input type="date" value={form!.preferredDate} onChange={(e) => setForm({ ...form!, preferredDate: e.target.value })} /></div>
@@ -319,7 +319,7 @@ export default function InquiryDetailsTab({ inquiry, editing, form, setForm, con
               <InfoRow icon={<User size={14} />} label={t('inquiries.contactPerson')} value={inquiry.contactName} onClick={contact ? () => navigate(`/crm/${contact.id}`) : undefined} />
               {opNaamVanOpgeslagen && <InfoRow icon={<BadgeCheck size={14} />} label={language === 'en' ? 'On behalf of' : 'Op naam van'} value={opNaamVanOpgeslagen} />}
               {company && <InfoRow icon={<Building2 size={14} />} label={t('crm.company')} value={company.name} onClick={() => navigate(`/companies/${company.id}`)} />}
-              <InfoRow icon={<Receipt size={14} />} label="Kostenplaats" value={kostenplaatsOpgeslagen || (company?.name ? `${company.name} (bedrijfsnaam)` : '—')} />
+              <InfoRow icon={<Receipt size={14} />} label="Kostenplaats" value={kostenplaatsOpgeslagen || 'n.v.t.'} />
               <InfoRow icon={<CalendarIcon size={14} />} label={t('inquiries.preferredDate')} value={formatDate(inquiry.preferredDate)} />
               {(inquiry.preferredStartTime || inquiry.preferredEndTime) && (
                 <InfoRow icon={<Clock size={14} />} label={t('inquiries.preferredTime')} value={`${inquiry.preferredStartTime || '—'} – ${inquiry.preferredEndTime || '—'}`} />

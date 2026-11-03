@@ -1,11 +1,9 @@
 import { resolveBedrijfsnaam } from './bedrijfsnaam.ts';
 
-/** Vrije kostenplaats van de aanvraag; leeg -> bedrijfsnaam ("Particulier" -> "—"). */
+/** Vrije kostenplaats van de aanvraag; leeg -> "n.v.t.". */
 export function resolveKostenplaats(input: { kostenplaats?: string | null; company?: any | null; contactCompany?: string | null; contactIsPrivate?: boolean | null }): string {
   const eigen = input.kostenplaats === null || input.kostenplaats === undefined ? '' : String(input.kostenplaats).trim();
-  if (eigen !== '') return eigen;
-  const naam = resolveBedrijfsnaam({ company: input.company, contactCompany: input.contactCompany, contactIsPrivate: input.contactIsPrivate });
-  return naam === 'Particulier' ? '—' : naam;
+  return eigen !== '' ? eigen : 'n.v.t.';
 }
 import { buildBegroting, inloopVoor, onderdeel, ONDERDELEN, type Begroting } from './begroting.ts';
 
