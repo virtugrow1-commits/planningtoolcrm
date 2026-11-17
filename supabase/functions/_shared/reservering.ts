@@ -155,6 +155,9 @@ export function buildReserveringData(input: {
   const gasten = gastenBooking > 0 ? gastenBooking : Number(inq.guest_count) || 0;
 
   const beg: Begroting = input.begroting ?? buildBegroting(null, null);
+  const onderdeelWaarde = (patroon: RegExp): string => beg.bron === 'factuur'
+    ? (beg.itemNamen.some((naam) => patroon.test(naam)) ? 'Ja' : 'Nee')
+    : onderdeel(beg.itemNamen, patroon, beg.bron);
 
   // "Op naam van" gaat voor; daarna de echte bedrijfsnaam; zonder bedrijf
   // (particulier) staat er "Particulier". Het contact blijft de geadresseerde.
@@ -185,9 +188,9 @@ export function buildReserveringData(input: {
     reservering_zaal: dash(zalen || inq.room_preference),
     reservering_zaalopstelling: dash(opstelling),
     reservering_inloop: start ? inloopVoor(start) : '—',
-    reservering_lunch: onderdeel(beg.itemNamen, ONDERDELEN.lunch, beg.bron),
-    reservering_borrel: onderdeel(beg.itemNamen, ONDERDELEN.borrel, beg.bron),
-    reservering_diner: onderdeel(beg.itemNamen, ONDERDELEN.diner, beg.bron),
+    reservering_lunch: onderdeelWaarde(ONDERDELEN.lunch),
+    reservering_borrel: onderdeelWaarde(ONDERDELEN.borrel),
+    reservering_diner: onderdeelWaarde(ONDERDELEN.diner),
     reservering_begroting: beg.regels,
     reservering_subtotaal: beg.subtotaal,
     reservering_btw: beg.btw,

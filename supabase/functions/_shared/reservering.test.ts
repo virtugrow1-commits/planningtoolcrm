@@ -1,11 +1,34 @@
 import { assertEquals } from "jsr:@std/assert@1";
 import { buildReserveringData, signedOfferteNummer, todayNl } from "./reservering.ts";
+import { buildBegroting } from "./begroting.ts";
 
 const inquiry = {
   event_type: 'Zakelijke bijeenkomst', guest_count: 20, preferred_date: '2026-11-20',
   preferred_start_time: '09:00:00', preferred_end_time: '17:00:00', room_preference: 'Keukentafel',
 };
 const contact = { first_name: 'Jan', last_name: 'Jansen', company: 'Jansen BV', display_number: 'CON-444151' };
+
+for (const [veld, producten] of [
+  ['reservering_lunch', ['Uitgebreide lunch conform beschrijving']],
+  ['reservering_borrel', ['Donge Borrelarrangement exclusief dranken', 'Hapjes', 'Bites', 'Bittergarnituur']],
+  ['reservering_diner', ['Diner inclusief dranken', 'Kookworkshop', 'Kookstudio', 'Buffet', 'BBQ', 'Barbecue', 'Proeverij']],
+] as const) {
+  Deno.test(`${veld}: uitsluitend Ja bij onderdeel in geaccepteerde begroting, anders Nee`, () => {
+    const input = { inquiry, contact, company: null, bookings: [], reservationNumber: 'RES-1', offerteNummer: 'OFF-1', today: 'x' };
+    for (const product of producten) {
+      const d = buildReserveringData({ ...input, begroting: buildBegroting({ items: [{ name: product, amount: 10 }] }) });
+      assertEquals(d[veld], 'Ja');
+    }
+    const zonderOnderdeel = buildReserveringData({ ...input, begroting: buildBegroting({ items: [{ name: 'Zaalhuur', amount: 100 }] }) });
+    assertEquals(zonderOnderdeel[veld], 'Nee');
+  });
+
+  Deno.test(`${veld}: bestaande fallback zonder begroting blijft ongewijzigd`, () => {
+    const input = { inquiry, contact, company: null, bookings: [], reservationNumber: 'RES-1', offerteNummer: 'OFF-1', today: 'x' };
+    assertEquals(buildReserveringData(input)[veld], '—');
+    assertEquals(buildReserveringData({ ...input, begroting: buildBegroting(null, 100) })[veld], '—');
+  });
+}
 
 Deno.test('reservering: gegevens uit reserveringen (bevestigd gaat voor optie, zalen samen)', () => {
   const d = buildReserveringData({
