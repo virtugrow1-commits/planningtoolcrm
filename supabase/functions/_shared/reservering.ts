@@ -166,6 +166,7 @@ export function buildReserveringData(input: {
     company,
     contactCompany: contact?.company,
     contactIsPrivate: contact?.private_company?.is_private ?? null,
+    contactCompanyRow: contact?.private_company ?? null,
   });
   const kostenplaats = resolveKostenplaats({
     kostenplaats: inq?.kostenplaats,

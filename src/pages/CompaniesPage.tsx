@@ -12,6 +12,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import BulkActionBar from '@/components/BulkActionBar';
 import { useToast } from '@/hooks/use-toast';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { CLIENT_KIND_LABELS, type ClientKind } from '@/contexts/CompaniesContext';
 import { useCompaniesContext, Company } from '@/contexts/CompaniesContext';
 import PostCompanyContactFlow from '@/components/company/PostCompanyContactFlow';
 import { cn } from '@/lib/utils';
@@ -27,7 +28,7 @@ export default function CompaniesPage() {
   const [search, setSearch] = useState('');
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<Company | null>(null);
-  const [form, setForm] = useState({ name: '', email: '', phone: '', website: '', address: '', postcode: '', city: '', notes: '', isPrivate: false });
+  const [form, setForm] = useState({ name: '', email: '', phone: '', website: '', address: '', postcode: '', city: '', notes: '', isPrivate: false, clientKind: 'bedrijf' as ClientKind });
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState<number>(20);
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -37,9 +38,14 @@ export default function CompaniesPage() {
   const { toast } = useToast();
 
   useEffect(() => {
-    if (new URLSearchParams(window.location.search).get('new') === 'private') {
+    const nw = new URLSearchParams(window.location.search).get('new');
+    if (nw === 'family') {
       setEditing(null);
-      setForm({ name: '', email: '', phone: '', website: '', address: '', postcode: '', city: '', notes: '', isPrivate: true });
+      setForm({ name: 'Familie ', email: '', phone: '', website: '', address: '', postcode: '', city: '', notes: '', isPrivate: true, clientKind: 'familie' as ClientKind });
+      setDialogOpen(true);
+    } else if (nw === 'private') {
+      setEditing(null);
+      setForm({ name: '', email: '', phone: '', website: '', address: '', postcode: '', city: '', notes: '', isPrivate: true, clientKind: 'particulier' as ClientKind });
       setDialogOpen(true);
     }
   }, []);
@@ -76,13 +82,13 @@ export default function CompaniesPage() {
 
   const openNew = () => {
     setEditing(null);
-    setForm({ name: '', email: '', phone: '', website: '', address: '', postcode: '', city: '', notes: '', isPrivate: false });
+    setForm({ name: '', email: '', phone: '', website: '', address: '', postcode: '', city: '', notes: '', isPrivate: false, clientKind: 'bedrijf' as ClientKind });
     setDialogOpen(true);
   };
 
   const openEdit = (c: Company) => {
     setEditing(c);
-    setForm({ name: c.name, email: c.email || '', phone: c.phone || '', website: c.website || '', address: c.address || '', postcode: c.postcode || '', city: c.city || '', notes: c.notes || '', isPrivate: c.isPrivate === true });
+    setForm({ name: c.name, email: c.email || '', phone: c.phone || '', website: c.website || '', address: c.address || '', postcode: c.postcode || '', city: c.city || '', notes: c.notes || '', isPrivate: c.isPrivate === true, clientKind: (c.clientKind || (c.isPrivate ? 'particulier' : 'bedrijf')) as ClientKind });
     setDialogOpen(true);
   };
 
@@ -91,7 +97,11 @@ export default function CompaniesPage() {
       toast({ title: form.isPrivate ? 'Vul voor- en achternaam in' : 'Vul een bedrijfsnaam in', variant: 'destructive' });
       return;
     }
-    if (form.isPrivate && form.name.trim().split(/\s+/).length < 2) {
+    if (form.clientKind === 'familie' && !/^(familie|fam\.?)\s+\S+/i.test(form.name.trim())) {
+      toast({ title: 'Vul de familienaam in, bijv. "Familie Boers"', variant: 'destructive' });
+      return;
+    }
+    if (form.clientKind === 'particulier' && form.name.trim().split(/\s+/).length < 2) {
       toast({ title: 'Vul zowel voor- als achternaam in', variant: 'destructive' });
       return;
     }
@@ -222,12 +232,12 @@ export default function CompaniesPage() {
         <DialogContent className="max-w-md">
           <DialogHeader><DialogTitle>{editing ? 'Klant bewerken' : 'Nieuwe klant'}</DialogTitle></DialogHeader>
           <div className="grid gap-4 py-2">
-            <div className="grid grid-cols-2 gap-2">
-              {[{ v: false, l: 'Bedrijf' }, { v: true, l: 'Particulier' }].map((o) => (
-                <Button key={o.l} type="button" variant={form.isPrivate === o.v ? 'default' : 'outline'} onClick={() => setForm({ ...form, isPrivate: o.v })}>{o.l}</Button>
+            <div className="grid grid-cols-3 gap-2">
+              {(['bedrijf', 'particulier', 'familie'] as ClientKind[]).map((k) => (
+                <Button key={k} type="button" variant={form.clientKind === k ? 'default' : 'outline'} onClick={() => setForm({ ...form, clientKind: k, isPrivate: k !== 'bedrijf', name: k === 'familie' && !form.name.trim() ? 'Familie ' : form.name })}>{CLIENT_KIND_LABELS[k]}</Button>
               ))}
             </div>
-            <div className="grid gap-1.5"><Label>{form.isPrivate ? 'Voor- en achternaam *' : 'Bedrijfsnaam *'}</Label><Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder={form.isPrivate ? 'Bijv. Jan de Vries' : ''} /></div>
+            <div className="grid gap-1.5"><Label>{form.clientKind === 'familie' ? 'Familienaam *' : form.isPrivate ? 'Voor- en achternaam *' : 'Bedrijfsnaam *'}</Label><Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder={form.clientKind === 'familie' ? 'Bijv. Familie Boers' : form.isPrivate ? 'Bijv. Jan de Vries' : ''} /></div>
             <div className="grid grid-cols-2 gap-3">
               <div className="grid gap-1.5"><Label>E-mail</Label><Input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} /></div>
               <div className="grid gap-1.5"><Label>{form.isPrivate ? 'Mobiel' : 'Telefoon'}</Label><Input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} /></div>
@@ -239,7 +249,7 @@ export default function CompaniesPage() {
               <div className="grid gap-1.5"><Label>Plaats</Label><Input value={form.city} onChange={(e) => setForm({ ...form, city: e.target.value })} /></div>
             </div>
             <div className="grid gap-1.5"><Label>Notities</Label><Textarea value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} rows={3} /></div>
-            <p className="text-xs text-muted-foreground">{form.isPrivate ? 'Na aanmaken vul je op de klantkaart de geboortedatum van de persoon in.' : 'Na aanmaken kun je direct de eerste contactpersoon toevoegen.'}</p>
+            <p className="text-xs text-muted-foreground">{form.clientKind === 'familie' ? 'Na aanmaken voeg je op de familiekaart de gezinsleden toe en kies je de hoofdpersoon.' : form.isPrivate ? 'Na aanmaken vul je op de klantkaart de geboortedatum van de persoon in.' : 'Na aanmaken kun je direct de eerste contactpersoon toevoegen.'}</p>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setDialogOpen(false)}>Annuleren</Button>

@@ -8,6 +8,9 @@ import { parseCrmGroup } from '@/lib/formatters';
 import { fetchAllRows, debounce } from '@/lib/fetchAllRows';
 
 
+export type ClientKind = 'bedrijf' | 'particulier' | 'familie';
+export const CLIENT_KIND_LABELS: Record<ClientKind, string> = { bedrijf: 'Bedrijf', particulier: 'Particulier', familie: 'Familie' };
+
 export interface Company {
   id: string;
   displayNumber?: string;
@@ -27,6 +30,8 @@ export interface Company {
   btwNumber?: string;
   /** Particulier: dit "bedrijf" is een privépersoon. */
   isPrivate?: boolean;
+  /** Soort klantkaart: bedrijf, particulier (1 persoon) of familie (meerdere personen). */
+  clientKind?: ClientKind;
   createdAt: string;
 }
 
@@ -58,7 +63,7 @@ export function CompaniesProvider({ children }: { children: ReactNode }) {
     if (!user) return;
     const { rows: allRows, error } = await fetchAllRows({
       table: 'companies',
-      columns: 'id, display_number, name, email, phone, website, address, notes, ghl_company_id, kvk, city, postcode, country, customer_number, crm_group, btw_number, is_private, created_at',
+      columns: 'id, display_number, name, email, phone, website, address, notes, ghl_company_id, kvk, city, postcode, country, customer_number, crm_group, btw_number, is_private, client_kind, created_at',
       orderBy: 'name',
     });
     if (error) {
@@ -86,6 +91,7 @@ export function CompaniesProvider({ children }: { children: ReactNode }) {
         crmGroup: parseCrmGroup(c.crm_group) || undefined,
         btwNumber: c.btw_number || undefined,
         isPrivate: c.is_private === true,
+        clientKind: (c.client_kind as ClientKind) || (c.is_private ? 'particulier' : 'bedrijf'),
         createdAt: c.created_at?.split('T')[0] || '',
       })));
     setLoading(false);
@@ -124,7 +130,8 @@ export function CompaniesProvider({ children }: { children: ReactNode }) {
       customer_number: company.customerNumber || null,
       crm_group: company.crmGroup || null,
       btw_number: company.btwNumber || null,
-      is_private: company.isPrivate === true,
+      is_private: company.isPrivate === true || company.clientKind === 'particulier' || company.clientKind === 'familie',
+      client_kind: company.clientKind || (company.isPrivate ? 'particulier' : 'bedrijf'),
       pending_outbound_sync: true,
       last_local_edit_at: new Date().toISOString(),
     }).select().single();
@@ -166,7 +173,8 @@ export function CompaniesProvider({ children }: { children: ReactNode }) {
       customer_number: company.customerNumber || null,
       crm_group: company.crmGroup || null,
       btw_number: company.btwNumber || null,
-      is_private: company.isPrivate === true,
+      is_private: company.isPrivate === true || company.clientKind === 'particulier' || company.clientKind === 'familie',
+      client_kind: company.clientKind || (company.isPrivate ? 'particulier' : 'bedrijf'),
       pending_outbound_sync: true,
       last_local_edit_at: nowIso,
       last_sync_error: null,

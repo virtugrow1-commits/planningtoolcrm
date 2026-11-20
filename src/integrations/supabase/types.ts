@@ -196,6 +196,7 @@ export type Database = {
           address: string | null
           btw_number: string | null
           city: string | null
+          client_kind: string
           country: string | null
           created_at: string
           crm_group: string | null
@@ -222,6 +223,7 @@ export type Database = {
           address?: string | null
           btw_number?: string | null
           city?: string | null
+          client_kind?: string
           country?: string | null
           created_at?: string
           crm_group?: string | null
@@ -248,6 +250,7 @@ export type Database = {
           address?: string | null
           btw_number?: string | null
           city?: string | null
+          client_kind?: string
           country?: string | null
           created_at?: string
           crm_group?: string | null
@@ -335,6 +338,7 @@ export type Database = {
           contact_id: string
           created_at: string
           departed_at: string | null
+          family_role: string | null
           id: string
           is_primary: boolean
           user_id: string
@@ -344,6 +348,7 @@ export type Database = {
           contact_id: string
           created_at?: string
           departed_at?: string | null
+          family_role?: string | null
           id?: string
           is_primary?: boolean
           user_id: string
@@ -353,6 +358,7 @@ export type Database = {
           contact_id?: string
           created_at?: string
           departed_at?: string | null
+          family_role?: string | null
           id?: string
           is_primary?: boolean
           user_id?: string

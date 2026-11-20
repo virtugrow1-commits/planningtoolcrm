@@ -1,5 +1,7 @@
 import { formatDate, toLocalDateString, localToday } from '@/lib/formatters';
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
+import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/contexts/AuthContext';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Building2, ChevronRight, Plus, Pencil, Check, X, Search, UserPlus, Unlink, Trash2 } from 'lucide-react';
 import Breadcrumbs from '@/components/Breadcrumbs';
@@ -13,7 +15,9 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { DMU_OPTIONS, FUNCTION_GROUP_OPTIONS } from '@/lib/contactOptions';
-import { useCompaniesContext, Company } from '@/contexts/CompaniesContext';
+import { useCompaniesContext, Company, CLIENT_KIND_LABELS, type ClientKind } from '@/contexts/CompaniesContext';
+
+const FAMILY_ROLES = ['Hoofdpersoon', 'Partner', 'Kind', 'Ouder', 'Overig'];
 import { useContactsContext } from '@/contexts/ContactsContext';
 import { useBookings } from '@/contexts/BookingsContext';
 import { useInquiriesContext } from '@/contexts/InquiriesContext';
@@ -64,6 +68,7 @@ export default function CompanyDetailPage() {
   const { tasks } = useTasksContext();
   const { getCompanyContacts, linkContact, unlinkContact } = useContactCompanies();
   const { toast } = useToast();
+  const { user } = useAuth();
 
   const [editing, setEditing] = useState(false);
   const [form, setForm] = useState<Company | null>(null);
@@ -75,6 +80,43 @@ export default function CompanyDetailPage() {
   const [newContactForm, setNewContactForm] = useState({ firstName: '', lastName: '', email: '', phone: '', dmu: '', functionGroup: '' });
 
   const company = companies.find((c) => c.id === id);
+  const isFamily = company?.clientKind === 'familie';
+  const [familyRoles, setFamilyRoles] = useState<Record<string, string>>({});
+  useEffect(() => {
+    if (!company?.id || company.clientKind !== 'familie') return;
+    (supabase as any).from('contact_companies').select('contact_id, family_role').eq('company_id', company.id).then(({ data }: any) => {
+      setFamilyRoles(Object.fromEntries((data || []).filter((r: any) => r.family_role).map((r: any) => [r.contact_id, r.family_role])));
+    });
+  }, [company?.id, company?.clientKind]);
+  const setPrimaryForFamily = async (contactId: string) => {
+    const ids = companyContacts.map((x) => x.id).filter((x) => x !== contactId);
+    if (ids.length) await (supabase as any).from('contacts').update({ is_primary: false }).in('id', ids);
+    await (supabase as any).from('contacts').update({ is_primary: true }).eq('id', contactId);
+    await (supabase as any).from('contact_companies').update({ is_primary: false }).eq('company_id', company!.id).neq('contact_id', contactId);
+    await (supabase as any).from('contact_companies').update({ is_primary: true }).eq('company_id', company!.id).eq('contact_id', contactId);
+  };
+  const saveFamilyRole = async (contactId: string, role: string) => {
+    if (!company) return;
+    const prev = familyRoles;
+    setFamilyRoles({ ...familyRoles, [contactId]: role });
+    const { data: rows, error: selErr } = await (supabase as any).from('contact_companies').select('id').eq('company_id', company.id).eq('contact_id', contactId);
+    let error = selErr;
+    if (!error && rows?.length) {
+      ({ error } = await (supabase as any).from('contact_companies').update({ family_role: role }).eq('company_id', company.id).eq('contact_id', contactId));
+    } else if (!error && user) {
+      ({ error } = await (supabase as any).from('contact_companies').insert({ company_id: company.id, contact_id: contactId, user_id: user.id, family_role: role, is_primary: false }));
+    }
+    if (!error && role === 'Hoofdpersoon') {
+      const others = Object.entries({ ...familyRoles, [contactId]: role }).filter(([id, r]) => id !== contactId && r === 'Hoofdpersoon').map(([id]) => id);
+      if (others.length) {
+        await (supabase as any).from('contact_companies').update({ family_role: 'Overig' }).eq('company_id', company.id).in('contact_id', others);
+        setFamilyRoles((cur) => ({ ...cur, ...Object.fromEntries(others.map((id) => [id, 'Overig'])) }));
+      }
+      const target = contacts.find((x) => x.id === contactId);
+      if (target && !target.isPrimary) await setPrimaryForFamily(contactId);
+    }
+    if (error) { setFamilyRoles(prev); toast({ title: 'Rol niet opgeslagen', description: error.message, variant: 'destructive' }); }
+  };
 
   const companyContacts = useMemo(() => {
     if (!company) return [];
@@ -310,7 +352,7 @@ export default function CompanyDetailPage() {
       <Breadcrumbs
         items={[
           { label: 'Bedrijven', to: '/companies' },
-          { label: company.isPrivate ? `${company.name} (particulier)` : company.name },
+          { label: company.clientKind === 'familie' ? `${company.name} (familie)` : company.isPrivate ? `${company.name} (particulier)` : company.name },
         ]}
       />
 
@@ -367,16 +409,17 @@ export default function CompanyDetailPage() {
             {/* Fields */}
             <div className="space-y-3">
               {editing ? (
-                <div className="flex items-center gap-2">
-                  <Checkbox
-                    id="is-private"
-                    checked={form?.isPrivate === true}
-                    onCheckedChange={(checked) => setForm({ ...form!, isPrivate: checked === true })}
-                  />
-                  <label htmlFor="is-private" className="text-sm text-foreground cursor-pointer">Particulier</label>
+                <div className="grid gap-1.5">
+                  <Label className="text-xs">Soort klant</Label>
+                  <Select value={form?.clientKind || (form?.isPrivate ? 'particulier' : 'bedrijf')} onValueChange={(v) => setForm({ ...form!, clientKind: v as ClientKind, isPrivate: v !== 'bedrijf' })}>
+                    <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {(['bedrijf', 'particulier', 'familie'] as ClientKind[]).map((k) => <SelectItem key={k} value={k}>{CLIENT_KIND_LABELS[k]}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
                 </div>
               ) : current.isPrivate ? (
-                <Badge variant="secondary" className="text-[10px]">Particulier</Badge>
+                <Badge variant="secondary" className="text-[10px]">{current.clientKind === 'familie' ? 'Familie' : 'Particulier'}</Badge>
               ) : null}
               {current.isPrivate && companyContacts.some((c) => c.birthDate) && (
                 <div>
@@ -417,7 +460,7 @@ export default function CompanyDetailPage() {
           {/* Kerncijfers + directe acties */}
           <div className="md:col-span-2 h-fit rounded-xl bg-card p-5 card-shadow space-y-4">
             <div className="flex items-center gap-2 text-xs">
-              <Badge variant="secondary">{company.isPrivate ? 'Particulier' : 'Bedrijf'}</Badge>
+              <Badge variant="secondary">{company.clientKind === 'familie' ? 'Familie' : company.isPrivate ? 'Particulier' : 'Bedrijf'}</Badge>
               {primaryContact && (
                 <span className="text-muted-foreground">Hoofdcontactpersoon: <button className="text-foreground hover:text-primary font-medium" onClick={() => navigate(`/crm/${primaryContact.id}`)}>{[primaryContact.firstName, primaryContact.infix, primaryContact.lastName].filter(Boolean).join(' ')}</button></span>
               )}
@@ -487,7 +530,7 @@ export default function CompanyDetailPage() {
           <Tabs value={cardTab} onValueChange={setCardTab} className="md:col-span-2">
             <TabsList className="flex-wrap h-auto justify-start">
               <TabsTrigger value="overzicht">Overzicht</TabsTrigger>
-              <TabsTrigger value="contactpersonen">Contactpersonen ({companyContacts.length})</TabsTrigger>
+              <TabsTrigger value="contactpersonen">{isFamily ? 'Gezinsleden' : 'Contactpersonen'} ({companyContacts.length})</TabsTrigger>
               <TabsTrigger value="taken">Taken ({openTaskCount})</TabsTrigger>
               <TabsTrigger value="aanvragen">Aanvragen ({activeInquiries.length})</TabsTrigger>
               <TabsTrigger value="toekomstig">Toekomstige reserveringen ({futureReservations.length})</TabsTrigger>
@@ -496,7 +539,7 @@ export default function CompanyDetailPage() {
 
           <TabsContent value="contactpersonen" className="mt-4 space-y-4">
           <SectionCard
-            title="Contactpersonen"
+            title={isFamily ? 'Gezinsleden' : 'Contactpersonen'}
             count={companyContacts.length}
             onAdd={() => { setAddContactOpen(true); setAddContactTab('link'); setLinkSearch(''); setNewContactForm({ firstName: '', lastName: '', email: '', phone: '', dmu: '', functionGroup: '' }); }}
           >
@@ -509,7 +552,7 @@ export default function CompanyDetailPage() {
                     <button onClick={() => navigate(`/crm/${c.id}`)} className="flex-1 text-left min-w-0">
                       <div>
                         <span className={`font-medium ${c.departed ? 'text-muted-foreground/50' : 'text-foreground'}`}>{[c.firstName, c.infix, c.lastName].filter(Boolean).join(' ')}</span>
-                        {c.isPrimary && <Badge variant="secondary" className="text-[9px] px-1 py-0 ml-1.5">Hoofdcontact</Badge>}
+                        {c.isPrimary && <Badge variant="secondary" className="text-[9px] px-1 py-0 ml-1.5">{isFamily ? 'Hoofdpersoon' : 'Hoofdcontact'}</Badge>}
                         {c.departed && <span className="text-[10px] text-muted-foreground/50 ml-1.5">(uit dienst)</span>}
                         {c.email && <span className="text-muted-foreground ml-2">{c.email}</span>}
                         {(c.mobile || c.phone) && <span className="text-muted-foreground ml-2">{c.mobile || c.phone}</span>}
@@ -523,6 +566,12 @@ export default function CompanyDetailPage() {
                       )}
                     </button>
                     <div className="flex items-center gap-1.5 shrink-0 pt-0.5">
+                      {isFamily && (
+                        <Select value={familyRoles[c.id] || (c.isPrimary ? 'Hoofdpersoon' : '')} onValueChange={(v) => saveFamilyRole(c.id, v)}>
+                          <SelectTrigger className="h-6 w-[110px] text-[10px]" onClick={(e) => e.stopPropagation()}><SelectValue placeholder="Rol" /></SelectTrigger>
+                          <SelectContent>{FAMILY_ROLES.map((r) => <SelectItem key={r} value={r}>{r}</SelectItem>)}</SelectContent>
+                        </Select>
+                      )}
                       {c.companyId !== company?.id && <Badge variant="outline" className="text-[9px] px-1">Secundair</Badge>}
                       {c.status === 'do_not_contact' && <Badge variant="destructive" className="text-[10px]">{STATUS_LABELS[c.status]}</Badge>}
                       <button

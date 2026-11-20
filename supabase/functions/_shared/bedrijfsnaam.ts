@@ -14,13 +14,21 @@ export function isPlaceholderName(v?: string | null): boolean {
 
 export function resolveBedrijfsnaam(input: {
   opNaamVan?: string | null;
-  company?: { name?: string | null; is_private?: boolean | null } | null;
+  company?: { name?: string | null; is_private?: boolean | null; client_kind?: string | null } | null;
+  /** Klantkaart van het contact (voor familie) */
+  contactCompanyRow?: { name?: string | null; client_kind?: string | null } | null;
   contactCompany?: string | null;
   /** Contact hangt aan een particuliere klantkaart */
   contactIsPrivate?: boolean | null;
 }): string {
   const opNaamVan = String(input.opNaamVan ?? '').trim();
   if (opNaamVan) return opNaamVan;
+
+  // Familie: "Op naam van" valt terug op de familienaam (bijv. "Familie Boers").
+  for (const c of [input.company, input.contactCompanyRow]) {
+    const n = String(c?.name ?? '').trim();
+    if (c?.client_kind === 'familie' && !isPlaceholderName(n)) return n;
+  }
 
   const isPrivate = Boolean(input.company?.is_private || input.contactIsPrivate);
   if (!isPrivate) {

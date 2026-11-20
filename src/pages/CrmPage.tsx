@@ -302,6 +302,7 @@ export default function CrmPage() {
           </Popover>
           
           <Button size="sm" onClick={() => activeTab === 'contacts' ? setNewOpen(true) : activeTab === 'private' ? navigate('/companies?new=private') : setNewCompanyOpen(true)}><Plus size={14} className="mr-1" /> {activeTab === 'contacts' ? t('crm.newContact') : activeTab === 'private' ? 'Nieuwe particulier' : t('crm.newCompany')}</Button>
+          {activeTab === 'private' && <Button size="sm" variant="outline" onClick={() => navigate('/companies?new=family')}><Plus size={14} className="mr-1" /> Nieuwe familie</Button>}
         </div>
       </div>
 
@@ -360,7 +361,7 @@ export default function CrmPage() {
                 <td className="px-4 py-3 font-medium text-foreground">{[c.firstName, c.lastName].filter(n => n && n !== '—').join(' ') || '—'}</td>
                 <td className="px-4 py-3 text-muted-foreground">{c.email || '—'}</td>
                 <td className="px-4 py-3 text-muted-foreground hidden md:table-cell">{c.phone || '—'}</td>
-                <td className="px-4 py-3 text-muted-foreground hidden lg:table-cell">{privateIds.has(c.companyId || '') ? <Badge variant="secondary" className="text-xs">Particulier</Badge> : (c.company || '—')}</td>
+                <td className="px-4 py-3 text-muted-foreground hidden lg:table-cell">{privateIds.has(c.companyId || '') ? (companies.find((x) => x.id === c.companyId)?.clientKind === 'familie' ? <span className="text-xs">{companies.find((x) => x.id === c.companyId)?.name}</span> : <Badge variant="secondary" className="text-xs">Particulier</Badge>) : (c.company || '—')}</td>
                 <td className="px-4 py-3 hidden lg:table-cell" onClick={(e) => e.stopPropagation()}>
                   <Select value={c.status} onValueChange={async (v) => { await updateContact({ ...c, status: v as Contact['status'] }); toast({ title: t('toast.updated') }); }}>
                     <SelectTrigger className={cn('h-7 w-[140px] text-xs border-0 bg-transparent hover:bg-muted/50', c.status === 'do_not_contact' && 'text-destructive')}>
@@ -412,7 +413,7 @@ export default function CrmPage() {
                   <Checkbox checked={selected.has(c.id)} onCheckedChange={() => toggleSelect(c.id)} />
                 </td>
                 <td className="px-4 py-3 text-xs font-mono text-muted-foreground">{c.displayNumber || '—'}</td>
-                <td className="px-4 py-3 font-medium text-foreground">{c.name}</td>
+                <td className="px-4 py-3 font-medium text-foreground">{c.name}{c.clientKind === 'familie' && <Badge variant="secondary" className="text-[10px] ml-2">Familie · {contacts.filter((ct) => ct.companyId === c.id).length} pers.</Badge>}</td>
                 <td className="px-4 py-3 text-muted-foreground">{c.email || '—'}</td>
                 <td className="px-4 py-3 text-muted-foreground hidden md:table-cell">{c.phone || '—'}</td>
                 <td className="px-4 py-3 text-muted-foreground hidden lg:table-cell">{c.city || '—'}</td>

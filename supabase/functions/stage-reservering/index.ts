@@ -156,7 +156,7 @@ Deno.serve(async (req) => {
     {
       const ids = [(inq as any).company_id, contact.company_id].filter(Boolean);
       if (ids.length) {
-        const { data: cos, error: coErr } = await db.from("companies").select("id, name, is_private").in("id", ids);
+        const { data: cos, error: coErr } = await db.from("companies").select("id, name, is_private, client_kind").in("id", ids);
         if (!coErr && cos) {
           const byId = new Map((cos as any[]).map((c) => [c.id, c]));
           if ((inq as any).company_id && byId.has((inq as any).company_id)) (inq as any).companies = byId.get((inq as any).company_id);

@@ -117,6 +117,7 @@ export function buildOfferteData(
     company,
     contactCompany: contact?.company,
     contactIsPrivate: contact?.private_company?.is_private ?? null,
+    contactCompanyRow: contact?.private_company ?? null,
   });
   const kostenplaats = resolveKostenplaats({
     kostenplaats: inq?.kostenplaats,
@@ -214,7 +215,7 @@ async function applyOfferteKeuze(db: any, inquiryId: string, body: any): Promise
 async function loadPrivateFlags(db: any, inq: any, contact: any) {
   const ids = [inq?.company_id, contact?.company_id].filter(Boolean);
   if (!ids.length) return;
-  const { data, error } = await db.from("companies").select("id, name, is_private").in("id", ids);
+  const { data, error } = await db.from("companies").select("id, name, is_private, client_kind").in("id", ids);
   if (error || !data) return;
   const byId = new Map((data as any[]).map((c) => [c.id, c]));
   if (inq?.company_id && byId.has(inq.company_id)) inq.companies = byId.get(inq.company_id);

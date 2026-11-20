@@ -64,6 +64,13 @@
       "when": 1793633624062,
       "tag": "0008_inquiry_kostenplaats",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1795170227534,
+      "tag": "0009_company_client_kind_family",
+      "breakpoints": true
     }
   ]
 }
