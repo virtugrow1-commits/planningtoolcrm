@@ -78,6 +78,13 @@
       "when": 1795193462124,
       "tag": "0010_contact_activity_participants",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1795193620481,
+      "tag": "0011_restrict_task_suppressions",
+      "breakpoints": true
     }
   ]
 }
