@@ -1567,7 +1567,20 @@ Deno.serve(async (req) => {
       const dateStr = new Date(activity.created_at).toLocaleString('nl-NL', {
         timeZone: 'Europe/Amsterdam', dateStyle: 'short', timeStyle: 'short',
       });
-      const noteBody = `📞 Gespreksverslag — ${dateStr}\n\n${activity.body || ''}` +
+      // "Gesproken met" line when more people took part in the conversation
+      let gesprokenMet = '';
+      const { data: parts } = await supabase
+        .from('contact_activity_participants')
+        .select('contact_id, contacts(first_name, infix, last_name)')
+        .eq('activity_id', activity.id);
+      if (parts && parts.length > 1) {
+        const names = parts
+          .map((p: any) => [p.contacts?.first_name, p.contacts?.infix, p.contacts?.last_name]
+            .map((x: any) => (x || '').trim()).filter((x: string) => x && x !== '—').join(' '))
+          .filter(Boolean);
+        if (names.length > 1) gesprokenMet = `Gesproken met: ${names.join(', ')}\n\n`;
+      }
+      const noteBody = `📞 Gespreksverslag — ${dateStr}\n\n${gesprokenMet}${activity.body || ''}` +
         (taskTitle ? `\n\n— Gekoppeld aan taak: ${taskTitle}` : '');
 
       try {

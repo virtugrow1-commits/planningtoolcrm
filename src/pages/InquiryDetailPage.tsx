@@ -1,3 +1,4 @@
+import { formatContactName } from '@/lib/names';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useState, useMemo, useEffect } from 'react';
 import { useInquiriesContext } from '@/contexts/InquiriesContext';
@@ -81,7 +82,7 @@ export default function InquiryDetailPage() {
     const nameKey = (s?: string) => (s || '').toLowerCase().trim().replace(/\s+/g, ' ');
     const target = nameKey(inquiry.contactName);
     if (!target) return null;
-    return contacts.find(c => nameKey(`${c.firstName} ${c.lastName}`) === target) || null;
+    return contacts.find(c => nameKey(formatContactName(c)) === target) || null;
   }, [inquiry, contacts]);
 
   const company = useMemo(() => {
@@ -198,7 +199,7 @@ export default function InquiryDetailPage() {
               ]
             : [{ label: 'Aanvragen', to: '/inquiries' }]),
           ...(contact
-            ? [{ label: `${contact.firstName} ${contact.lastName}`.trim(), to: `/crm/${contact.id}` }]
+            ? [{ label: formatContactName(contact).trim(), to: `/crm/${contact.id}` }]
             : []),
           { label: inquiry.displayNumber ? `${inquiry.displayNumber} · ${inquiry.eventType}` : inquiry.eventType },
         ]}

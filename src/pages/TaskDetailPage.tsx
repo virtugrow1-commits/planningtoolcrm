@@ -1,3 +1,4 @@
+import { formatContactName } from '@/lib/names';
 import { formatDate, localToday } from '@/lib/formatters';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useState, useMemo } from 'react';
@@ -194,7 +195,7 @@ export default function TaskDetailPage() {
               ]
             : [{ label: 'Taken', to: '/tasks' }]),
           ...(contact
-            ? [{ label: `${contact.firstName} ${contact.lastName}`.trim(), to: `/crm/${contact.id}` }]
+            ? [{ label: formatContactName(contact).trim(), to: `/crm/${contact.id}` }]
             : []),
           ...(inquiry
             ? [{
@@ -304,7 +305,7 @@ export default function TaskDetailPage() {
                 <div>
                   <p className="text-xs font-semibold text-muted-foreground mb-1">Contactpersoon</p>
                   <CrmCombobox
-                    options={contacts.map(c => ({ id: c.id, label: `${c.firstName} ${c.lastName}`, secondary: c.email || c.company || undefined }))}
+                    options={contacts.map(c => ({ id: c.id, label: formatContactName(c), secondary: c.email || c.company || undefined }))}
                     value={form!.contactId || ''}
                     onSelect={(id) => setForm({ ...form!, contactId: id || undefined })}
                     placeholder="Selecteer contact..."
@@ -420,7 +421,7 @@ export default function TaskDetailPage() {
                 onClick={() => navigate(`/crm/${contact.id}`)}
                 className="w-full text-left rounded-lg border border-border/50 p-3 hover:bg-muted/30 transition-colors"
               >
-                <p className="text-sm font-medium text-foreground">{contact.firstName} {contact.lastName}</p>
+                <p className="text-sm font-medium text-foreground">{formatContactName(contact)}</p>
                 {contact.email && <p className="text-xs text-muted-foreground">{contact.email}</p>}
                 {contact.phone && <p className="text-xs text-muted-foreground">{contact.phone}</p>}
               </button>

@@ -1,3 +1,4 @@
+import { formatContactName } from '@/lib/names';
 import { useState, useEffect, useMemo } from 'react';
 import { ROOMS, RoomName } from '@/types/crm';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
@@ -187,7 +188,7 @@ export default function NewReservationDialog({
       setForm(prev => ({
         ...prev,
         contactId: match.id,
-        contactName: [match.firstName, match.lastName].filter(n => n && n !== '—').join(' '),
+        contactName: formatContactName(match),
         companyId: prev.companyId || match.companyId || '',
       }));
     } else {
@@ -235,7 +236,7 @@ export default function NewReservationDialog({
   const contactOptions = useMemo<ComboboxOption[]>(() =>
     sortedContacts.map((c, i) => ({
       id: c.id,
-      label: [c.firstName, c.lastName].filter(n => n && n !== '—').join(' ') || c.email || 'Onbekend',
+      label: formatContactName(c) || c.email || 'Onbekend',
       secondary: [c.company, c.email].filter(Boolean).join(' · ') || undefined,
       searchText: `${c.firstName} ${c.lastName} ${c.email || ''} ${c.company || ''}`,
       group: form.companyId
@@ -505,7 +506,7 @@ export default function NewReservationDialog({
                 {selectedContact ? (
                   <div className="flex items-center justify-between rounded-lg border bg-muted/30 p-3">
                     <div>
-                      <p className="text-sm font-medium">{[selectedContact.firstName, selectedContact.lastName].filter(n => n && n !== '—').join(' ')}</p>
+                      <p className="text-sm font-medium">{formatContactName(selectedContact)}</p>
                       {selectedContact.email && <p className="text-xs text-muted-foreground">{selectedContact.email}</p>}
                       {selectedContact.company && <p className="text-xs text-muted-foreground">{selectedContact.company}</p>}
                     </div>

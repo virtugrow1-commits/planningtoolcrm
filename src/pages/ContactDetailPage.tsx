@@ -1,3 +1,4 @@
+import { formatContactName } from '@/lib/names';
 import { formatDate, localToday } from '@/lib/formatters';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useContactsContext } from '@/contexts/ContactsContext';
@@ -223,7 +224,7 @@ export default function ContactDetailPage() {
     }
     const params = new URLSearchParams({
       contactId: contact.id,
-      contactName: `${contact.firstName} ${contact.lastName}`,
+      contactName: formatContactName(contact),
       eventType: inquiryForm.eventType,
       preferredDate: inquiryForm.preferredDate,
       guestCount: inquiryForm.guestCount,
@@ -263,7 +264,7 @@ export default function ContactDetailPage() {
                 { label: breadcrumbCompany.name, to: `/companies/${breadcrumbCompany.id}` },
               ]
             : [{ label: 'CRM', to: '/crm' }]),
-          { label: `${contact.firstName} ${contact.lastName}`.trim() },
+          { label: formatContactName(contact).trim() },
         ]}
         missing={breadcrumbCompany ? null : 'Deze contactpersoon is nog niet aan een bedrijf gekoppeld.'}
       />
@@ -274,7 +275,7 @@ export default function ContactDetailPage() {
         <div className="w-full lg:w-80 shrink-0 space-y-5">
           <div className="flex items-center justify-between">
             <h1 className="text-xl font-bold text-foreground">
-              {current.firstName} {current.lastName}
+              {formatContactName(current)}
             </h1>
             {!editing ? (
               <Button variant="ghost" size="icon" onClick={startEdit} className="h-8 w-8">
@@ -646,7 +647,7 @@ export default function ContactDetailPage() {
           </DialogHeader>
           <div className="grid gap-4 py-2">
             <div className="rounded-lg border bg-muted/30 p-3">
-              <p className="text-sm font-medium text-foreground">{contact.firstName} {contact.lastName}</p>
+              <p className="text-sm font-medium text-foreground">{formatContactName(contact)}</p>
               <p className="text-xs text-muted-foreground">Contact gekoppeld aan deze aanvraag</p>
             </div>
             <div className="grid gap-1.5">
@@ -695,7 +696,7 @@ export default function ContactDetailPage() {
           <AlertDialogHeader>
             <AlertDialogTitle>Contact verwijderen?</AlertDialogTitle>
             <AlertDialogDescription>
-              Weet je zeker dat je <strong>{contact.firstName} {contact.lastName}</strong> wilt verwijderen? Dit verwijdert ook alle gekoppelde data en kan niet ongedaan worden gemaakt.
+              Weet je zeker dat je <strong>{formatContactName(contact)}</strong> wilt verwijderen? Dit verwijdert ook alle gekoppelde data en kan niet ongedaan worden gemaakt.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

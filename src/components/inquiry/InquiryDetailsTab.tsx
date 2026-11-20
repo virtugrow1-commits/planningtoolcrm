@@ -1,3 +1,4 @@
+import { formatContactName } from '@/lib/names';
 import { formatDate, formatDateTime } from '@/lib/formatters';
 import {
   AlertDialog,
@@ -513,7 +514,7 @@ export default function InquiryDetailsTab({ inquiry, editing, form, setForm, con
               <h3 className="text-base font-bold text-foreground">{t('detail.contactPerson')}</h3>
               <button onClick={() => navigate(`/crm/${contact.id}`)} className="text-xs text-muted-foreground hover:text-foreground transition-colors">{t('detail.viewProfile')}</button>
             </div>
-            <p className="text-sm font-medium text-foreground">{contact.firstName} {contact.lastName}</p>
+            <p className="text-sm font-medium text-foreground">{formatContactName(contact)}</p>
             {contact.email && <p className="text-xs text-muted-foreground">{contact.email}</p>}
             {(() => { const tel = ((contact as any).mobile || contact.phone || '').trim(); return tel && tel !== '—'
               ? <p className="text-xs text-muted-foreground">{tel}</p>

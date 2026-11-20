@@ -1,3 +1,4 @@
+import { formatContactName } from '@/lib/names';
 import { useState, useMemo } from 'react';
 import { Check, ChevronsUpDown, User } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -34,7 +35,7 @@ export default function ContactSelector({ value, onChange, filterCompanyId }: Co
           {selected ? (
             <span className="flex items-center gap-2">
               <User size={14} className="text-muted-foreground" />
-              {selected.firstName} {selected.lastName}
+              {formatContactName(selected)}
               {selected.company && <span className="text-xs text-muted-foreground">({selected.company})</span>}
             </span>
           ) : (
@@ -59,13 +60,13 @@ export default function ContactSelector({ value, onChange, filterCompanyId }: Co
                   value={`${c.firstName} ${c.lastName} ${c.company || ''} ${c.email}`}
                   onSelect={() => {
                     // Pass the company id so the parent can fetch full company details (incl. address)
-                    onChange(c.id, `${c.firstName} ${c.lastName}`, c.companyId, c.company, c.email);
+                    onChange(c.id, formatContactName(c), c.companyId, c.company, c.email);
                     setOpen(false);
                   }}
                 >
                   <Check size={14} className={cn('mr-2', value === c.id ? 'opacity-100' : 'opacity-0')} />
                   <div>
-                    <p className="text-sm font-medium">{c.firstName} {c.lastName}</p>
+                    <p className="text-sm font-medium">{formatContactName(c)}</p>
                     <p className="text-xs text-muted-foreground">
                       {c.company && `${c.company} · `}{c.email}
                     </p>

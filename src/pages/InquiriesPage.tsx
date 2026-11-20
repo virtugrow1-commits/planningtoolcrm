@@ -1,3 +1,4 @@
+import { formatContactName } from '@/lib/names';
 import { formatDate, localToday, toLocalDateString } from '@/lib/formatters';
 import { supabase } from '@/integrations/supabase/client';
 import { matchesSearch } from '@/lib/search';
@@ -1375,7 +1376,7 @@ export default function InquiriesPage() {
                         <Users size={14} className="text-primary" />
                         <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Contactpersoon</h4>
                       </div>
-                      <p className="text-sm font-medium text-foreground">{contact.firstName} {contact.lastName}</p>
+                      <p className="text-sm font-medium text-foreground">{formatContactName(contact)}</p>
                       <div className="mt-2 flex items-center gap-3 text-xs text-muted-foreground">
                         <span className="flex items-center gap-1"><FileText size={11} /> {contactInquiries.length} aanvragen</span>
                         <span className="flex items-center gap-1"><CalendarIcon size={11} /> {contactBookings.length} reserveringen</span>

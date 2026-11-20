@@ -1,3 +1,4 @@
+import { formatContactName } from '@/lib/names';
 import { matchesSearch } from '@/lib/search';
 import { Search, Plus, Filter, X, ChevronLeft, ChevronRight, Edit2, Trash2, Download, Building2, Users, User } from 'lucide-react';
 import { Input } from '@/components/ui/input';
@@ -88,7 +89,7 @@ export default function CrmPage() {
   const sortedFiltered = contactSort.sortItems(filtered, (c, key) => {
     switch (key) {
       case 'id': return c.displayNumber || '';
-      case 'name': return `${c.firstName} ${c.lastName}`;
+      case 'name': return formatContactName(c);
       case 'email': return c.email || '';
       case 'phone': return c.phone || '';
       case 'company': return c.company || '';
@@ -197,7 +198,7 @@ export default function CrmPage() {
   const handleExportContacts = () => {
     exportToCSV(filtered.map(c => ({
       id: c.displayNumber || '',
-      naam: `${c.firstName} ${c.lastName}`,
+      naam: formatContactName(c),
       email: c.email,
       telefoon: c.phone,
       bedrijf: c.company || '',
@@ -358,7 +359,7 @@ export default function CrmPage() {
                   <Checkbox checked={selected.has(c.id)} onCheckedChange={() => toggleSelect(c.id)} />
                 </td>
                 <td className="px-4 py-3 text-xs font-mono text-muted-foreground">{c.displayNumber || '—'}</td>
-                <td className="px-4 py-3 font-medium text-foreground">{[c.firstName, c.lastName].filter(n => n && n !== '—').join(' ') || '—'}</td>
+                <td className="px-4 py-3 font-medium text-foreground">{formatContactName(c) || '—'}</td>
                 <td className="px-4 py-3 text-muted-foreground">{c.email || '—'}</td>
                 <td className="px-4 py-3 text-muted-foreground hidden md:table-cell">{c.phone || '—'}</td>
                 <td className="px-4 py-3 text-muted-foreground hidden lg:table-cell">{privateIds.has(c.companyId || '') ? (companies.find((x) => x.id === c.companyId)?.clientKind === 'familie' ? <span className="text-xs">{companies.find((x) => x.id === c.companyId)?.name}</span> : <Badge variant="secondary" className="text-xs">Particulier</Badge>) : (c.company || '—')}</td>

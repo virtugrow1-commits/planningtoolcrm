@@ -1,3 +1,4 @@
+import { formatContactName } from '@/lib/names';
 import { formatDate, localToday } from '@/lib/formatters';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useState, useMemo } from 'react';
@@ -145,7 +146,7 @@ export default function BookingDetailPage() {
               ]
             : [{ label: 'Reserveringen', to: '/reserveringen' }]),
           ...(contact
-            ? [{ label: `${contact.firstName} ${contact.lastName}`.trim(), to: `/crm/${contact.id}` }]
+            ? [{ label: formatContactName(contact).trim(), to: `/crm/${contact.id}` }]
             : []),
           ...(linkedInquiry
             ? [{
@@ -313,7 +314,7 @@ export default function BookingDetailPage() {
                 <h3 className="text-base font-bold text-foreground">Contactpersoon</h3>
                 <button onClick={() => navigate(`/crm/${contact.id}`)} className="text-xs text-muted-foreground hover:text-foreground transition-colors">Bekijk profiel →</button>
               </div>
-              <p className="text-sm font-medium text-foreground">{contact.firstName} {contact.lastName}</p>
+              <p className="text-sm font-medium text-foreground">{formatContactName(contact)}</p>
               {contact.email && <p className="text-xs text-muted-foreground">{contact.email}</p>}
               {contact.phone && <p className="text-xs text-muted-foreground">{contact.phone}</p>}
             </div>

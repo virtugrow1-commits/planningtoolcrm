@@ -21,3 +21,11 @@ describe('last name field', () => {
   it('particle after hyphen', () => expect(normalizePersonName('witte-Van steen', { lastName: true })).toBe('Witte-van Steen'));
   it('connector en stays lowercase', () => expect(normalizePersonName('karina en lendert')).toBe('Karina en Lendert'));
 });
+
+import { formatContactName } from './names';
+describe('formatContactName', () => {
+  it('includes tussenvoegsel', () =>
+    expect(formatContactName({ firstName: 'Sabine en Jac', infix: 'van', lastName: 'Dooren' })).toBe('Sabine en Jac van Dooren'));
+  it('skips empty and dash parts', () =>
+    expect(formatContactName({ firstName: 'Jan', infix: null, lastName: '—' })).toBe('Jan'));
+});

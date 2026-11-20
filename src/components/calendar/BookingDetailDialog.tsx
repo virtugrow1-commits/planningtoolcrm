@@ -1,3 +1,4 @@
+import { formatContactName } from '@/lib/names';
 import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Booking, ROOMS, RoomName } from '@/types/crm';
@@ -100,7 +101,7 @@ export default function BookingDetailDialog({ booking, open, onOpenChange, onUpd
               <CrmCombobox
                 options={contactOptions.map(c => ({
                   id: c.id,
-                  label: `${c.firstName} ${c.lastName}`,
+                  label: formatContactName(c),
                   secondary: c.company || c.email || undefined,
                 }))}
                 value={form.contactId || ''}
@@ -109,7 +110,7 @@ export default function BookingDetailDialog({ booking, open, onOpenChange, onUpd
                   setForm({
                     ...form,
                     contactId: id || undefined,
-                    contactName: contact ? `${contact.firstName} ${contact.lastName}` : form.contactName,
+                    contactName: contact ? formatContactName(contact) : form.contactName,
                     companyId: contact?.companyId || form.companyId,
                   });
                 }}
@@ -281,7 +282,7 @@ export default function BookingDetailDialog({ booking, open, onOpenChange, onUpd
                     onClick={() => { onOpenChange(false); navigate(`/crm/${linkedContact.id}`); }}
                     className="font-medium text-primary hover:underline flex items-center gap-1"
                   >
-                    {linkedContact.firstName} {linkedContact.lastName}
+                    {formatContactName(linkedContact)}
                     <ExternalLink size={12} />
                   </button>
                 ) : (

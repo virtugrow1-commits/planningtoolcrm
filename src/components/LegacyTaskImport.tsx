@@ -1,3 +1,4 @@
+import { formatContactName } from '@/lib/names';
 import { useState, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
@@ -221,7 +222,7 @@ export default function LegacyTaskImport() {
         let crmId: string | undefined;
         if (info.email) crmId = crmContactByEmail.get(norm(info.email));
         if (!crmId) {
-          const full = norm(`${info.firstName} ${info.lastName}`);
+          const full = norm(formatContactName(info));
           if (full) crmId = crmContactByName.get(full);
         }
         if (crmId) legacyContactToCrm.set(legacyId, crmId);

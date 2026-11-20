@@ -35,3 +35,11 @@ export function normalizeCompanyName(str: string): string {
   if (!str) return str;
   return capFirst(str.trim());
 }
+
+/** Full display name: first name + tussenvoegsel + last name, skipping empty parts and "—". */
+export function formatContactName(c: { firstName?: string | null; infix?: string | null; lastName?: string | null }): string {
+  return [c.firstName, c.infix, c.lastName]
+    .map((p) => (p || '').trim())
+    .filter((p) => p && p !== '—' && p !== '-')
+    .join(' ');
+}

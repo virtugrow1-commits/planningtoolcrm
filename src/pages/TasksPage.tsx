@@ -1,3 +1,4 @@
+import { formatContactName } from '@/lib/names';
 import { formatDate, localToday } from '@/lib/formatters';
 import {
   CheckSquare,
@@ -136,7 +137,7 @@ export default function TasksPage() {
     const m = new Map<string, { name: string; id: string }>();
     contacts.forEach(c =>
       m.set(c.id, {
-        name: [c.firstName, c.lastName].filter(n => n && n !== '—').join(' ') || c.email || 'Onbekend',
+        name: formatContactName(c) || c.email || 'Onbekend',
         id: c.id,
       })
     );
@@ -181,7 +182,7 @@ export default function TasksPage() {
     const pool = (form.companyId ? contacts.filter(c => c.companyId === form.companyId) : contacts).filter(c => !c.departed);
     return pool.map(c => ({
       id: c.id,
-      label: [c.firstName, c.lastName].filter(n => n && n !== '—').join(' ') || c.email || 'Onbekend',
+      label: formatContactName(c) || c.email || 'Onbekend',
       secondary: c.company || c.email || undefined,
       searchText: `${c.firstName} ${c.lastName} ${c.email || ''} ${c.company || ''} ${c.phone || ''}`,
     }));
@@ -190,7 +191,7 @@ export default function TasksPage() {
     () =>
       !newOpen ? [] : contacts.filter(c => !c.departed).map(c => ({
         id: c.id,
-        label: [c.firstName, c.lastName].filter(n => n && n !== '—').join(' ') || c.email || 'Onbekend',
+        label: formatContactName(c) || c.email || 'Onbekend',
         secondary: c.company || c.email || undefined,
         searchText: `${c.firstName} ${c.lastName} ${c.email || ''} ${c.company || ''} ${c.phone || ''}`,
       })),
@@ -271,7 +272,7 @@ export default function TasksPage() {
         const hit = matchesSearch(
           q, tk.title, tk.description, tk.assignedTo, comp?.name,
           ct && `${ct.firstName} ${ct.lastName} ${ct.company || ''}`,
-          ict && `${ict.firstName} ${ict.lastName}`,
+          ict && formatContactName(ict),
           inq && `${inq.displayNumber || ''} ${inq.title || ''} ${inq.eventType || ''} ${inq.contactName || ''}`,
         );
         if (!hit) continue;

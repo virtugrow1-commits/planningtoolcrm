@@ -1,3 +1,4 @@
+import { formatContactName } from '@/lib/names';
 import { formatDate, toLocalDateString, localToday } from '@/lib/formatters';
 import { useState, useMemo, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
@@ -214,7 +215,7 @@ export default function CompanyDetailPage() {
   /** Actieve contactpersonen eerst, mensen uit dienst onderaan. */
   const sortedContacts = useMemo(
     () => [...companyContacts].sort((a, b) =>
-      Number(!!a.departed) - Number(!!b.departed) || `${a.firstName} ${a.lastName}`.localeCompare(`${b.firstName} ${b.lastName}`)
+      Number(!!a.departed) - Number(!!b.departed) || formatContactName(a).localeCompare(formatContactName(b))
     ),
     [companyContacts]
   );
@@ -426,7 +427,7 @@ export default function CompanyDetailPage() {
                   <p className="text-xs font-semibold text-muted-foreground mb-0.5">Verjaardag</p>
                   {companyContacts.filter((c) => c.birthDate).map((c) => (
                     <p key={c.id} className="text-sm text-foreground">
-                      {c.firstName} {c.lastName} — {formatDate(c.birthDate!)}
+                      {formatContactName(c)} — {formatDate(c.birthDate!)}
                     </p>
                   ))}
                 </div>
@@ -519,7 +520,7 @@ export default function CompanyDetailPage() {
                     onClick={() => navigate(`/crm/${b.contact.id}`)}
                     className="block text-xs text-primary hover:underline"
                   >
-                    Verjaardag {b.contact.firstName} {b.contact.lastName}: {formatDate(toLocalDateString(b.next))}
+                    Verjaardag {formatContactName(b.contact)}: {formatDate(toLocalDateString(b.next))}
                     {b.days === 0 ? ' (vandaag)' : ` (over ${b.days} ${b.days === 1 ? 'dag' : 'dagen'})`}
                   </button>
                 ))}
@@ -593,7 +594,7 @@ export default function CompanyDetailPage() {
           <div className="rounded-xl bg-card p-5 card-shadow">
             <CallLogPanel
               contactIds={companyContacts.map((c) => c.id)}
-              contactNames={Object.fromEntries(companyContacts.map((c) => [c.id, `${c.firstName} ${c.lastName}`]))}
+              contactNames={Object.fromEntries(companyContacts.map((c) => [c.id, formatContactName(c)]))}
               requireContactSelection
               defaultContactId={companyContacts.length === 1 ? companyContacts[0].id : undefined}
               emptyHint={
@@ -783,7 +784,7 @@ export default function CompanyDetailPage() {
                     className="w-full flex items-center justify-between py-2 px-3 rounded-md hover:bg-muted/50 transition-colors text-left text-sm"
                   >
                     <div>
-                      <span className="font-medium text-foreground">{c.firstName} {c.lastName}</span>
+                      <span className="font-medium text-foreground">{formatContactName(c)}</span>
                       {c.company && <span className="text-muted-foreground ml-2 text-xs">({c.company})</span>}
                       <div className="text-xs text-muted-foreground">
                         {c.email && <span>{c.email}</span>}

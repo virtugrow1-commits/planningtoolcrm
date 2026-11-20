@@ -71,6 +71,13 @@
       "when": 1795170227534,
       "tag": "0009_company_client_kind_family",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1795193462124,
+      "tag": "0010_contact_activity_participants",
+      "breakpoints": true
     }
   ]
 }

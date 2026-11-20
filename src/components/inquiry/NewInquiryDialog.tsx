@@ -1,3 +1,4 @@
+import { formatContactName } from '@/lib/names';
 import { useState, useMemo, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
@@ -99,7 +100,7 @@ export default function NewInquiryDialog({ open, onOpenChange, contacts, compani
   const contactOptions = useMemo((): ComboboxOption[] => {
     return filteredContacts.map(c => ({
       id: c.id,
-      label: [c.firstName, c.lastName].filter(n => n && n !== '—').join(' ') || c.email || 'Onbekend',
+      label: formatContactName(c) || c.email || 'Onbekend',
       secondary: c.company || c.email || undefined,
       searchText: `${c.firstName} ${c.lastName} ${c.email || ''} ${c.company || ''} ${c.phone || ''}`,
     }));

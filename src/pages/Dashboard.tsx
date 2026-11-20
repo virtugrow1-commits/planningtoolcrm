@@ -1,3 +1,4 @@
+import { formatContactName } from '@/lib/names';
 import { formatDate, localToday } from '@/lib/formatters';
 import {
   InboxIcon,
@@ -92,7 +93,7 @@ export default function Dashboard() {
     const pool = (form.companyId ? contacts.filter(c => c.companyId === form.companyId) : contacts).filter(c => !c.departed);
     return pool.map(c => ({
       id: c.id,
-      label: [c.firstName, c.lastName].filter(n => n && n !== '—').join(' ') || c.email || 'Onbekend',
+      label: formatContactName(c) || c.email || 'Onbekend',
       secondary: c.company || c.email || undefined,
       searchText: `${c.firstName} ${c.lastName} ${c.email || ''} ${c.company || ''} ${c.phone || ''}`,
     }));
@@ -120,7 +121,7 @@ export default function Dashboard() {
   const contactMap = useMemo(() => {
     const m = new Map<string, { name: string; id: string }>();
     contacts.forEach(c => m.set(c.id, {
-      name: [c.firstName, c.lastName].filter(n => n && n !== '—').join(' '),
+      name: formatContactName(c),
       id: c.id,
     }));
     return m;

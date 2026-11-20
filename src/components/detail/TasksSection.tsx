@@ -1,3 +1,4 @@
+import { formatContactName } from '@/lib/names';
 import { formatDate } from '@/lib/formatters';
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -161,7 +162,7 @@ export default function TasksSection({ tasks, defaults, showOrigin, inquiryLabel
             <div className="flex-1 min-w-[140px]">
               <p className="text-[10px] font-medium text-muted-foreground mb-0.5">Contactpersoon</p>
               <CrmCombobox
-                options={contacts.map(c => ({ id: c.id, label: `${c.firstName} ${c.lastName}`, secondary: c.email || c.company || undefined }))}
+                options={contacts.map(c => ({ id: c.id, label: formatContactName(c), secondary: c.email || c.company || undefined }))}
                 value={newContactId || ''}
                 onSelect={(id) => setNewContactId(id || undefined)}
                 placeholder="Contact..."

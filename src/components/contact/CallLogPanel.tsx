@@ -11,6 +11,8 @@ import { format } from 'date-fns';
 import { nl } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 import CrmCombobox from '@/components/CrmCombobox';
+import { Checkbox } from '@/components/ui/checkbox';
+import { formatContactName } from '@/lib/names';
 
 export interface CallLogContactOption {
   id: string;
@@ -46,6 +48,7 @@ interface LogRow {
   body: string | null;
   createdAt: string;
   ghlNoteId: string | null;
+  participantIds: string[];
 }
 
 const pushToGhl = (activityId: string) => {
@@ -88,6 +91,9 @@ export default function CallLogPanel({
   const [date, setDate] = useState<Date | undefined>(new Date());
   const [selectedContactId, setSelectedContactId] = useState<string>(defaultContactId || '');
   const [saving, setSaving] = useState(false);
+  // "Gesproken met": other people of the same company/family
+  const [extraIds, setExtraIds] = useState<string[]>([]);
+  const [peers, setPeers] = useState<Record<string, string>>({});
 
   // Edit-in-place state
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -116,7 +122,14 @@ export default function CallLogPanel({
       // reports of contacts who have since left.
       query = query.eq('company_id', companyId);
     } else {
-      query = query.in('contact_id', contactIds);
+      const { data: parts } = await supabase
+        .from('contact_activity_participants')
+        .select('activity_id')
+        .in('contact_id', contactIds);
+      const actIds = Array.from(new Set((parts || []).map((p: any) => p.activity_id)));
+      query = actIds.length
+        ? query.or(`contact_id.in.(${contactIds.join(',')}),id.in.(${actIds.join(',')})`)
+        : query.in('contact_id', contactIds);
     }
     const { data, error } = await query
       .order('created_at', { ascending: false })
@@ -124,8 +137,18 @@ export default function CallLogPanel({
     if (error) {
       toast({ title: 'Fout bij laden gespreksverslagen', description: error.message, variant: 'destructive' });
     }
+    const rows = data || [];
+    const byAct: Record<string, string[]> = {};
+    if (rows.length) {
+      const { data: ps } = await supabase
+        .from('contact_activity_participants')
+        .select('activity_id, contact_id')
+        .in('activity_id', rows.map((r: any) => r.id));
+      (ps || []).forEach((p: any) => { (byAct[p.activity_id] ||= []).push(p.contact_id); });
+    }
     setLogs(
-      (data || []).map((r: any) => ({
+      rows.map((r: any) => ({
+        participantIds: byAct[r.id] || [r.contact_id],
         id: r.id,
         contactId: r.contact_id,
         body: r.body,
@@ -139,6 +162,52 @@ export default function CallLogPanel({
   useEffect(() => {
     fetchLogs();
   }, [fetchLogs]);
+
+  // Load everyone of the same company/family (and names of any participant)
+  useEffect(() => {
+    (async () => {
+      let companyIds: string[] = companyId ? [companyId] : [];
+      if (!companyId && defaultContactId) {
+        const { data } = await supabase
+          .from('contact_companies')
+          .select('company_id')
+          .eq('contact_id', defaultContactId)
+          .is('departed_at', null);
+        companyIds = (data || []).map((r: any) => r.company_id);
+      }
+      const ids = new Set<string>(contactIds);
+      if (companyIds.length) {
+        const { data } = await supabase
+          .from('contact_companies')
+          .select('contact_id')
+          .in('company_id', companyIds)
+          .is('departed_at', null);
+        (data || []).forEach((r: any) => ids.add(r.contact_id));
+      }
+      logs.forEach((l) => l.participantIds.forEach((id) => ids.add(id)));
+      if (ids.size === 0) return;
+      const { data: cs } = await supabase
+        .from('contacts')
+        .select('id, first_name, infix, last_name, departed')
+        .in('id', Array.from(ids));
+      const map: Record<string, string> = {};
+      (cs || []).forEach((c: any) => {
+        map[c.id] = formatContactName({ firstName: c.first_name, infix: c.infix, lastName: c.last_name }) || 'Onbekend';
+        if (c.departed) map[`departed:${c.id}`] = '1';
+      });
+      setPeers(map);
+    })();
+  }, [companyId, defaultContactId, contactIds, logs]);
+
+  const primaryId = requireContactSelection ? selectedContactId : defaultContactId;
+  const peerOptions = useMemo(
+    () =>
+      Object.keys(peers)
+        .filter((k) => !k.startsWith('departed:') && !peers[`departed:${k}`] && k !== primaryId)
+        .filter((k) => companyId || defaultContactId ? true : contactIds.includes(k))
+        .sort((a, b) => peers[a].localeCompare(peers[b])),
+    [peers, primaryId, companyId, defaultContactId, contactIds],
+  );
 
   const contactOptions: CallLogContactOption[] = useMemo(() => {
     if (!contactNames) return [];
@@ -186,7 +255,16 @@ export default function CallLogPanel({
     setDate(new Date());
     toast({ title: 'Gespreksverslag opgeslagen', description: 'Wordt gesynchroniseerd met CliqCRM…' });
     fetchLogs();
-    if (inserted?.id) pushToGhl(inserted.id);
+    if (inserted?.id) {
+      const participantIds = Array.from(new Set([contactId, ...extraIds.filter((id) => id !== contactId)]));
+      const { error: pErr } = await supabase
+        .from('contact_activity_participants')
+        .insert(participantIds.map((cid) => ({ activity_id: inserted.id, contact_id: cid, user_id: user.id })));
+      if (pErr) toast({ title: 'Deelnemers niet opgeslagen', description: pErr.message, variant: 'destructive' });
+      setExtraIds([]);
+      fetchLogs();
+      pushToGhl(inserted.id);
+    }
   };
 
   const handleSaveEdit = async (logId: string) => {
@@ -257,6 +335,24 @@ export default function CallLogPanel({
                 placeholder="Kies de gesprekspartner..."
                 searchPlaceholder="Zoek contact..."
               />
+            </div>
+          )}
+          {peerOptions.length > 0 && (
+            <div>
+              <p className="text-xs font-semibold text-muted-foreground mb-1.5">Ook gesproken met</p>
+              <div className="flex flex-wrap gap-x-4 gap-y-1.5">
+                {peerOptions.map((id) => (
+                  <label key={id} className="flex items-center gap-1.5 text-sm cursor-pointer">
+                    <Checkbox
+                      checked={extraIds.includes(id)}
+                      onCheckedChange={(v) =>
+                        setExtraIds((prev) => (v ? [...prev, id] : prev.filter((x) => x !== id)))
+                      }
+                    />
+                    {peers[id]}
+                  </label>
+                ))}
+              </div>
             </div>
           )}
           <Textarea
@@ -367,6 +463,11 @@ export default function CallLogPanel({
                           {log.ghlNoteId ? <Cloud size={10} /> : <CloudOff size={10} />}
                         </span>
                       </div>
+                      {log.participantIds.length > 1 && (
+                        <p className="text-[11px] text-muted-foreground">
+                          Gesproken met: {log.participantIds.map((id) => peers[id] || contactNames?.[id] || 'Onbekend').join(', ')}
+                        </p>
+                      )}
                       {log.body && <p className="text-sm text-foreground whitespace-pre-wrap">{log.body}</p>}
                     </>
                   )}
