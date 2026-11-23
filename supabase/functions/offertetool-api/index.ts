@@ -17,7 +17,7 @@
 
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
-import { buildBundle, contactName } from "../_shared/offertetoolBundle.ts";
+import { addressOf, buildBundle, contactName } from "../_shared/offertetoolBundle.ts";
 
 const headers = {
   ...corsHeaders,
@@ -96,13 +96,14 @@ Deno.serve(async (req) => {
         // Andere contactpersonen van hetzelfde bedrijf (keuze ontvanger, bijv. dochter i.p.v. ouders)
         const coId = inq.company_id || (contact as any)?.company_id;
         const { data: colleagues } = coId
-          ? await db.from("contacts").select("id, first_name, infix, last_name, email, phone, mobile, ghl_contact_id").eq("company_id", coId).eq("departed", false).limit(25)
+          ? await db.from("contacts").select("id, first_name, infix, last_name, email, phone, mobile, ghl_contact_id, address, postcode, city, country").eq("company_id", coId).eq("departed", false).limit(25)
           : { data: [] };
         return json({
           ...bundle,
           otherContacts: (colleagues ?? []).filter((c: any) => c.id !== (contact as any)?.id).map((c: any) => ({
             id: c.id, fullName: contactName(c), firstName: [c.first_name, c.infix].filter(Boolean).join(" "), lastName: c.last_name ?? "",
             email: c.email ?? "", phone: c.phone || c.mobile || "", ghlContactId: c.ghl_contact_id ?? null,
+            ...addressOf(c, byId.get(coId) ?? null),
           })),
         });
       }

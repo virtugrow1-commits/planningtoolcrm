@@ -29,3 +29,10 @@ Deno.test("zakelijk zonder reservering: voorkeurstijden en bedrijfsnaam", () => 
   assertEquals([b.event.date, b.event.startTime, b.event.endTime, b.event.source], ["2026-12-11", "18:00", "22:00", "voorkeur"]);
   assertEquals(b.event.guests, 30);
 });
+
+Deno.test("adres: eigen adres van het contact, anders dat van het bedrijf", () => {
+  const withOwn = buildBundle(inq, { ...contact, address: "Kerkstraat 1", postcode: "5101 AB", city: "Dongen" }, null, { id: "co", name: "X", address: "Lage Ham 190", postcode: "5102 AD", city: "Dongen" }, []);
+  assertEquals([withOwn.contact?.address, withOwn.contact?.postcode], ["Kerkstraat 1", "5101 AB"]);
+  const fallback = buildBundle(inq, { ...contact, address: null, postcode: null, city: null }, null, { id: "co", name: "Fam. Jansen", is_private: true, address: "Lage Ham 190", postcode: "5102 AD", city: "Dongen" }, []);
+  assertEquals([fallback.contact?.address, fallback.contact?.postcode, fallback.contact?.city], ["Lage Ham 190", "5102 AD", "Dongen"]);
+});

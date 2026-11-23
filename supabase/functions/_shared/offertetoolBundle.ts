@@ -4,6 +4,13 @@ import { resolveKostenplaats, pickBookings, hhmm } from "./reservering.ts";
 import { inloopVoor } from "./begroting.ts";
 
 const trimTime = (t?: string | null) => (t ? String(t).slice(0, 5) : "");
+/** Adres van het contact; zonder eigen adres het adres van het gekoppelde bedrijf (zoals BUUT het ook toont). */
+export function addressOf(c: any, co: any | null) {
+  const own = [c?.address, c?.postcode, c?.city].some((v) => String(v ?? "").trim());
+  const src = own ? c : co;
+  return { address: src?.address ?? "", postcode: src?.postcode ?? "", city: src?.city ?? "", country: (own ? c?.country : co?.country) ?? "" };
+}
+
 export const contactName = (c: any) => [c?.first_name, c?.infix, c?.last_name].map((v) => String(v ?? "").trim()).filter((v) => v && v !== "—").join(" ");
 
 /** Alle gegevens die de offerte en de reserveringsbevestiging nodig hebben. */
@@ -30,7 +37,7 @@ export function buildBundle(inq: any, contact: any, company: any | null, contact
     contact: contact ? {
       id: contact.id, firstName: [contact.first_name, contact.infix].filter((v: any) => v && String(v).trim()).join(" ").trim(),
       lastName: contact.last_name ?? "", fullName: contactName(contact), email: contact.email ?? "", phone: contact.phone || contact.mobile || "",
-      address: contact.address ?? "", postcode: contact.postcode ?? "", city: contact.city ?? "", country: contact.country ?? "",
+      ...addressOf(contact, contactCompany ?? company),
       ghlContactId: contact.ghl_contact_id ?? null, companyName: contact.company ?? "",
     } : null,
     company: {
