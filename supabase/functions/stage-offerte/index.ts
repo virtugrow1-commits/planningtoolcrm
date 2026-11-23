@@ -283,10 +283,13 @@ Deno.serve(async (req) => {
         .select("id")
         .eq("contact_id", body.contact_id)
         .not("status", "in", '("lost","converted","after_sales","invoiced")')
+        .is("deleted_at", null)
         .order("updated_at", { ascending: false })
-        .limit(1)
-        .maybeSingle();
-      inquiryId = latest?.id || null;
+        .limit(2);
+      // Een contact kan meerdere open aanvragen hebben: dan weten we niet welke
+      // bedoeld is en schrijven we niets (anders komen gegevens van de verkeerde aanvraag op het contact).
+      if ((latest ?? []).length > 1) return jsonResponse({ ok: true, skipped: "multiple_open_inquiries" });
+      inquiryId = latest?.[0]?.id || null;
       if (!inquiryId) return jsonResponse({ ok: true, skipped: "no_open_inquiry" });
     }
     if (!inquiryId) throw new Error("inquiry_id ontbreekt");
@@ -308,6 +311,18 @@ Deno.serve(async (req) => {
       .eq("id", inquiryId)
       .single();
     if (inqErr || !inq) throw new Error("Aanvraag niet gevonden");
+
+    // Automatisch bijwerken mag de offertevelden van een later klaargezette
+    // aanvraag van hetzelfde contact niet overschrijven.
+    if (!bump && inq.contact_id) {
+      const { data: own } = await db.from("inquiries").select("offerte_gestaged_op").eq("id", inquiryId).maybeSingle();
+      const ownAt = (own as any)?.offerte_gestaged_op ?? null;
+      let q = db.from("inquiries").select("id").eq("contact_id", inq.contact_id).neq("id", inquiryId)
+        .is("deleted_at", null).not("offerte_gestaged_op", "is", null);
+      if (ownAt) q = q.gt("offerte_gestaged_op", ownAt);
+      const { data: later } = await q.limit(1);
+      if ((later ?? []).length) return jsonResponse({ ok: true, skipped: "other_inquiry_staged_later" });
+    }
 
     // "Op naam van" apart ophalen: de kolom kan ontbreken zolang migratie
     // 20261026210000 nog niet is toegepast; dan gewoon overslaan.
