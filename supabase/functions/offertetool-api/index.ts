@@ -90,7 +90,7 @@ Deno.serve(async (req) => {
         const byId = new Map((cos ?? []).map((c: any) => [c.id, c]));
         const company = inq.company_id ? byId.get(inq.company_id) ?? null : null;
         const contactCompany = (contact as any)?.company_id ? byId.get((contact as any).company_id) ?? null : null;
-        const bookingCols = "id, date, start_hour, start_minute, end_hour, end_minute, reservation_number, status, guest_count, room_name, room_setup";
+        const bookingCols = "id, date, start_hour, start_minute, end_hour, end_minute, reservation_number, status, guest_count, room_name, room_setup, option_expires_at";
         const { data: bookings } = await db.from("bookings").select(bookingCols).eq("inquiry_id", id);
         const bundle = buildBundle(inq, contact, company, contactCompany, bookings ?? []);
         // Andere contactpersonen van hetzelfde bedrijf (keuze ontvanger, bijv. dochter i.p.v. ouders)

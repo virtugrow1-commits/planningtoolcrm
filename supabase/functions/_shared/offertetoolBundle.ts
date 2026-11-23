@@ -49,6 +49,7 @@ export function buildBundle(inq: any, contact: any, company: any | null, contact
       roomSetup: [...new Set(sameDay.map((b) => b.room_setup).filter(Boolean))].join(", "),
       description: inq.event_type ?? "",
       source: main ? (main.status === "confirmed" ? "reservering" : "optie") : (inq.preferred_date ? "voorkeur" : "geen"),
+      optionUntil: main?.status === "option" && main.option_expires_at ? String(main.option_expires_at).slice(0, 10) : null,
     },
     bookings: picked.map((b) => ({
       id: b.id, date: b.date, status: b.status, room: b.room_name ?? "", roomSetup: b.room_setup ?? "",
