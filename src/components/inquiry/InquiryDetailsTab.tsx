@@ -25,6 +25,7 @@ import { CalendarIcon, Users, Euro, User, Building2, FileText, MapPin, Trash2, R
 import { cn } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import { ToastAction } from '@/components/ui/toast';
 import { useCallback, useEffect, useState } from 'react';
 import type { Document } from '@/hooks/useDocuments';
 import { isSentStatus, isSignedStatus } from '@/lib/documentKind';
@@ -37,8 +38,8 @@ import { parseInquiryMessage } from '@/lib/inquiryMessage';
 import OfferteOntvangerPicker from '@/components/inquiry/OfferteOntvangerPicker';
 import AanvangTijden, { saveAanvangTijden, type Tijden } from '@/components/inquiry/AanvangTijden';
 
-/** Adres van de offertetool (eigen app). Leeg = knop niet tonen. */
-const OFFERTETOOL_URL = String(import.meta.env.VITE_OFFERTETOOL_URL ?? '').replace(/\/$/, '');
+/** Adres van de offertetool (eigen app); te overschrijven met VITE_OFFERTETOOL_URL. */
+const OFFERTETOOL_URL = String(import.meta.env.VITE_OFFERTETOOL_URL || 'https://pixel-perfect-replay-10297.lovable.app').replace(/\/$/, '');
 
 const PIPELINE_COLUMNS: { key: Inquiry['status']; label: string; badgeClass: string }[] = [
   { key: 'new', label: 'Nieuwe Aanvraag', badgeClass: 'status-new' },
@@ -147,6 +148,10 @@ export default function InquiryDetailsTab({ inquiry, editing, form, setForm, con
   const nextRevisie = String(revisie + 1).padStart(2, '0');
 
   const handleStageOfferte = async () => {
+    // Tabblad direct bij de klik openen (anders blokkeert de browser het na het wachten).
+    const offerteUrl = `${OFFERTETOOL_URL}/offertes/nieuw?buut=${inquiry.id}`;
+    const tab = window.open('', '_blank');
+    if (tab) tab.document.title = 'Offerte wordt klaargezet…';
     setStaging(true);
     try {
       await bewaarTijden();
@@ -160,15 +165,20 @@ export default function InquiryDetailsTab({ inquiry, editing, form, setForm, con
       if (error) throw error;
       if (data?.ok === false) throw new Error(data?.error || 'Onbekende fout');
       const ontvanger = data?.ontvanger;
+      // De offertetool maakt de offerte meteen aan met alle gegevens van deze aanvraag
+      // (of opent het concept dat er al is) en kiest het passende sjabloon.
+      if (tab) tab.location.href = offerteUrl;
       toast({
-        title: `Klaargezet als ${data?.offertenummer ?? ''}`.trim(),
+        title: 'Offerte staat klaar in de offertetool',
         description: ontvanger?.naam
-          ? `Maak het document in CliqCRM aan voor ${ontvanger.naam}${ontvanger.email ? ` (${ontvanger.email})` : ''}.`
-          : undefined,
+          ? `Voor ${ontvanger.naam}${ontvanger.email ? ` (${ontvanger.email})` : ''}. Controleer de offerte en verstuur hem vanuit de offertetool.`
+          : 'Controleer de offerte en verstuur hem vanuit de offertetool.',
+        action: tab ? undefined : <ToastAction altText="Offerte openen" onClick={() => window.open(offerteUrl, '_blank')}>Openen</ToastAction>,
       });
       await loadOpNaamVan();
       await refetch();
     } catch (e: any) {
+      tab?.close();
       toast({ title: 'Offerte klaarzetten mislukt', description: e?.message, variant: 'destructive' });
     } finally {
       setStaging(false);
@@ -366,14 +376,6 @@ export default function InquiryDetailsTab({ inquiry, editing, form, setForm, con
                 </Button>
               )}
 
-              {OFFERTETOOL_URL && (
-                <Button variant="default" size="sm" className="w-full" asChild>
-                  <a href={`${OFFERTETOOL_URL}/offertes/nieuw?buut=${inquiry.id}`} target="_blank" rel="noopener noreferrer">
-                    <FileText size={14} className="mr-1" /> Offerte maken in de offertetool
-                  </a>
-                </Button>
-              )}
-
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-2 mt-1 border-t border-border/60">
               <div className="space-y-2 pt-2">
               <AlertDialog open={stageDialogOpen} onOpenChange={openStageDialog}>
@@ -387,8 +389,8 @@ export default function InquiryDetailsTab({ inquiry, editing, form, setForm, con
                     <AlertDialogTitle>Offerte klaarzetten</AlertDialogTitle>
                     <AlertDialogDescription>
                       {revisie === 0
-                        ? 'Offerte klaarzetten in CliqCRM als eerste offerte?'
-                        : `Offerte klaarzetten als revisie ${nextRevisie}?`}
+                        ? 'De offerte wordt meteen klaargezet in de offertetool met alle gegevens van deze aanvraag. Kies wie de offerte krijgt.'
+                        : `De offerte wordt klaargezet in de offertetool (revisie ${nextRevisie}) met alle gegevens van deze aanvraag.`}
                     </AlertDialogDescription>
                   </AlertDialogHeader>
                   {stageDialogOpen && (
