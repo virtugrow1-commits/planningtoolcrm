@@ -202,7 +202,7 @@ export default function NewReservationDialog({
   const selectedCompany = form.companyId ? companies.find(co => co.id === form.companyId) : null;
 
   const junctionContactIds = useMemo(
-    () => new Set(form.companyId ? getCompanyContacts(form.companyId).map(l => l.contactId) : []),
+    () => new Set(form.companyId ? getCompanyContacts(form.companyId).filter(l => !l.departedAt).map(l => l.contactId) : []),
     [form.companyId, getCompanyContacts]
   );
 
