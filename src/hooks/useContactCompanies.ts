@@ -1,3 +1,4 @@
+import { isFullyDeparted } from '@/lib/employment';
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
@@ -67,6 +68,10 @@ export function useContactCompanies() {
       // Re-hired at the same company: the contact is current again
       departed_at: null,
     } as any, { onConflict: 'contact_id,company_id' } as any);
+    if (isPrimary) {
+      await (supabase as any).from('contact_companies').update({ is_primary: false }).eq('contact_id', contactId).neq('company_id', companyId);
+    }
+    await supabase.from('contacts').update({ departed: false } as any).eq('id', contactId);
 
     await fetchLinks();
   }, [user, fetchLinks]);
@@ -76,18 +81,36 @@ export function useContactCompanies() {
     await fetchLinks();
   }, [fetchLinks]);
 
+  /** Keep contacts.departed in line with the per-company links. */
+  const syncDepartedFlag = useCallback(async (contactId: string) => {
+    const { data } = await (supabase as any).from('contact_companies').select('departed_at').eq('contact_id', contactId);
+    const rows = (data || []) as { departed_at: string | null }[];
+    const departed = isFullyDeparted(rows.map((r) => ({ departedAt: r.departed_at })));
+    await supabase.from('contacts').update({ departed } as any).eq('id', contactId);
+  }, []);
+
+  /** Mark a contact as weer in dienst at one company. */
+  const markRejoined = useCallback(async (contactId: string, companyId: string) => {
+    await (supabase as any).from('contact_companies').update({ departed_at: null }).eq('contact_id', contactId).eq('company_id', companyId);
+    await syncDepartedFlag(contactId);
+    await fetchLinks();
+  }, [fetchLinks, syncDepartedFlag]);
+
   /**
-   * Mark every current employer link of a contact as departed. The history
+   * Mark a current employer link of a contact as departed. The history
    * (gespreksverslagen, aanvragen, reserveringen) stays with the old employer.
    */
-  const markDeparted = useCallback(async (contactId: string) => {
-    await (supabase as any)
+  const markDeparted = useCallback(async (contactId: string, companyId?: string) => {
+    let q = (supabase as any)
       .from('contact_companies')
-      .update({ departed_at: new Date().toISOString() })
+      .update({ departed_at: new Date().toISOString(), is_primary: false })
       .eq('contact_id', contactId)
       .is('departed_at', null);
+    if (companyId) q = q.eq('company_id', companyId);
+    await q;
+    await syncDepartedFlag(contactId);
     await fetchLinks();
-  }, [fetchLinks]);
+  }, [fetchLinks, syncDepartedFlag]);
 
   const getCompanyContacts = useCallback((companyId: string) => {
     return links.filter((l) => l.companyId === companyId);
@@ -97,5 +120,5 @@ export function useContactCompanies() {
     return links.filter((l) => l.contactId === contactId);
   }, [links]);
 
-  return { links, loading, linkContact, unlinkContact, markDeparted, getCompanyContacts, getContactCompanies, refetch: fetchLinks };
+  return { links, loading, linkContact, unlinkContact, markDeparted, markRejoined, getCompanyContacts, getContactCompanies, refetch: fetchLinks };
 }

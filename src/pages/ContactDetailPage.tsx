@@ -47,7 +47,7 @@ export default function ContactDetailPage() {
   const { companies, addCompany } = useCompaniesContext();
   const { bookings } = useBookings();
   const { tasks } = useTasksContext();
-  const { getContactCompanies, linkContact, unlinkContact, markDeparted } = useContactCompanies();
+  const { getContactCompanies, linkContact, unlinkContact, markDeparted, markRejoined } = useContactCompanies();
   const { documents } = useDocuments();
   const { toast } = useToast();
 
@@ -192,12 +192,9 @@ export default function ContactDetailPage() {
     } else {
       companyId = undefined;
     }
-    const justDeparted = form.departed === true && contact?.departed !== true;
-    const outcome = await updateContact({ ...form, companyId });
-    if (justDeparted) {
-      // Keep the history with the old employer, so a new employer starts clean
-      await markDeparted(form.id);
-    }
+    // Uit dienst is managed per company; only contacts without links use the flag directly
+    const hasLinks = getContactCompanies(form.id).length > 0;
+    const outcome = await updateContact({ ...form, companyId, departed: hasLinks ? contact?.departed : form.departed });
     setEditing(false);
     setForm(null);
     if (outcome === 'success' || outcome === 'inactive') {
@@ -398,6 +395,8 @@ export default function ContactDetailPage() {
               contactCompanyLinks={id ? getContactCompanies(id) : []}
               linkContact={linkContact}
               unlinkContact={unlinkContact}
+              markDeparted={markDeparted}
+              markRejoined={markRejoined}
               addCompany={addCompany}
             />
 
@@ -456,7 +455,7 @@ export default function ContactDetailPage() {
             )}
 
             {/* Uit dienst checkbox */}
-            {editing ? (
+            {editing && !(id && getContactCompanies(id).length > 0) ? (
               <div className="flex items-center gap-2">
                 <Checkbox
                   id="departed"
@@ -468,7 +467,7 @@ export default function ContactDetailPage() {
             ) : current.departed ? (
               <div className="flex items-center gap-2">
                 <Checkbox id="departed-ro" checked disabled />
-                <label htmlFor="departed-ro" className="text-sm text-muted-foreground">Uit dienst</label>
+                <label htmlFor="departed-ro" className="text-sm text-muted-foreground">Uit dienst (bij alle bedrijven)</label>
               </div>
             ) : null}
 
@@ -713,7 +712,9 @@ export default function ContactDetailPage() {
 
 /* InfoField is now imported from @/components/detail/DetailPageComponents */
 
-function CompanyField({ current, editing, companies, form, setForm, navigate, contactCompanyLinks, linkContact, unlinkContact, addCompany }: {
+function CompanyField({ current, editing, companies, form, setForm, navigate, contactCompanyLinks, linkContact, unlinkContact, markDeparted, markRejoined, addCompany }: {
+  markDeparted: (contactId: string, companyId?: string) => Promise<void>;
+  markRejoined: (contactId: string, companyId: string) => Promise<void>;
   addCompany: (c: any) => Promise<{ companyId: string | null } | any>;
   current: Contact;
   editing: boolean;
@@ -721,7 +722,7 @@ function CompanyField({ current, editing, companies, form, setForm, navigate, co
   form: Contact | null;
   setForm: (f: Contact) => void;
   navigate: (path: string) => void;
-  contactCompanyLinks: { contactId: string; companyId: string; isPrimary: boolean }[];
+  contactCompanyLinks: { contactId: string; companyId: string; isPrimary: boolean; departedAt?: string | null }[];
   linkContact: (contactId: string, companyId: string, isPrimary?: boolean) => Promise<void>;
   unlinkContact: (contactId: string, companyId: string) => Promise<void>;
 }) {
@@ -733,8 +734,8 @@ function CompanyField({ current, editing, companies, form, setForm, navigate, co
   const linkedCompanies = useMemo(() => {
     return contactCompanyLinks.map((l) => {
       const co = companies.find((c) => c.id === l.companyId);
-      return co ? { ...co, isPrimary: l.isPrimary } : null;
-    }).filter(Boolean) as (typeof companies[number] & { isPrimary: boolean })[];
+      return co ? { ...co, isPrimary: l.isPrimary, departedAt: l.departedAt ?? null } : null;
+    }).filter(Boolean) as (typeof companies[number] & { isPrimary: boolean; departedAt?: string | null })[];
   }, [contactCompanyLinks, companies]);
 
   // Also include the legacy company_id if not already in junction
@@ -742,7 +743,7 @@ function CompanyField({ current, editing, companies, form, setForm, navigate, co
     const ids = new Set(linkedCompanies.map((c) => c.id));
     if (current.companyId && !ids.has(current.companyId)) {
       const co = companies.find((c) => c.id === current.companyId);
-      if (co) return [...linkedCompanies, { ...co, isPrimary: true }];
+      if (co) return [...linkedCompanies, { ...co, isPrimary: true, departedAt: null }];
     }
     return linkedCompanies;
   }, [linkedCompanies, current.companyId, companies]);
@@ -770,7 +771,8 @@ function CompanyField({ current, editing, companies, form, setForm, navigate, co
                 >
                   {co.name}
                 </button>
-                {co.isPrimary && <Badge variant="outline" className="text-[9px] px-1 h-4">Primair</Badge>}
+                {co.isPrimary && !co.departedAt && <Badge variant="outline" className="text-[9px] px-1 h-4">Primair</Badge>}
+                {co.departedAt && <Badge variant="secondary" className="text-[9px] px-1 h-4">Uit dienst sinds {new Date(co.departedAt).toLocaleDateString('nl-NL')}</Badge>}
               </div>
             ))}
           </div>
@@ -844,6 +846,31 @@ function CompanyField({ current, editing, companies, form, setForm, navigate, co
     setShowAddCompany(false);
   };
 
+  const departFrom = async (companyId: string) => {
+    const co = allCompanies.find((c) => c.id === companyId);
+    if (!window.confirm(`${current.firstName} uit dienst melden bij ${co?.name}? De historie blijft bij dit bedrijf.`)) return;
+    await markDeparted(current.id, companyId);
+    if (current.companyId === companyId || form?.companyId === companyId) {
+      const next = allCompanies.find((c) => c.id !== companyId && !c.departedAt);
+      if (next) {
+        await linkContact(current.id, next.id, true);
+        await syncCompanyToGhl(next.id, next.name);
+        if (form) setForm({ ...form, company: next.name, companyId: next.id });
+      }
+    }
+  };
+
+  const switchEmployer = async (targetId: string) => {
+    const target = companies.find((c) => c.id === targetId);
+    if (!target) return;
+    const old = allCompanies.filter((c) => !c.departedAt && c.id !== targetId);
+    if (!window.confirm(`${current.firstName} naar ${target.name}? ${old.map((c) => c.name).join(', ') || 'Het oude bedrijf'} wordt op uit dienst gezet; de historie blijft daar.`)) return;
+    for (const o of old) await markDeparted(current.id, o.id);
+    await linkContact(current.id, target.id, true);
+    await syncCompanyToGhl(target.id, target.name);
+    if (form) setForm({ ...form, company: target.name, companyId: target.id, departed: false });
+  };
+
   const toPrivate = async () => {
     const name = [current.firstName, current.infix, current.lastName].filter((n) => n && n !== '—').join(' ');
     if (!window.confirm(`Klanttype wijzigen naar Particulier? De koppeling met ${allCompanies.map((c) => c.name).join(', ') || 'het bedrijf'} wordt verwijderd; de historie blijft bij het bedrijf.`)) return;
@@ -887,8 +914,17 @@ function CompanyField({ current, editing, companies, form, setForm, navigate, co
           <div key={co.id} className="flex items-center justify-between py-1 px-2 rounded bg-muted/30 text-sm">
             <div className="flex items-center gap-2">
               <span className="font-medium">{co.name}</span>
-              {co.isPrimary && <Badge variant="outline" className="text-[9px] px-1 h-4">Primair</Badge>}
+              {co.isPrimary && !co.departedAt && <Badge variant="outline" className="text-[9px] px-1 h-4">Primair</Badge>}
+              {co.departedAt && <Badge variant="secondary" className="text-[9px] px-1 h-4">Uit dienst</Badge>}
             </div>
+            <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => co.departedAt ? markRejoined(current.id, co.id) : departFrom(co.id)}
+              className="text-xs text-primary hover:underline"
+            >
+              {co.departedAt ? 'Weer in dienst' : 'Uit dienst melden'}
+            </button>
             <button
               onClick={() => {
                 unlinkContact(current.id, co.id);
@@ -901,9 +937,23 @@ function CompanyField({ current, editing, companies, form, setForm, navigate, co
             >
               <X size={12} />
             </button>
+            </div>
           </div>
         ))}
       </div>
+      {allCompanies.some((c) => !c.departedAt) && (
+        <div className="mb-2">
+          <p className="text-xs text-muted-foreground mb-1">Naar ander bedrijf</p>
+          <CrmCombobox
+            options={(companies as any[]).filter((c) => !c.isPrivate && !allCompanies.some((lc) => lc.id === c.id && !lc.departedAt)).map((c) => ({ id: c.id, label: c.name }))}
+            value=""
+            onSelect={(id) => { if (id) switchEmployer(id); }}
+            placeholder="Kies nieuwe werkgever..."
+            searchPlaceholder="Zoek bedrijf..."
+            popoverWidth="w-[280px]"
+          />
+        </div>
+      )}
       {/* Add company */}
       {!showAddCompany ? (
         <button

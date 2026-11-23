@@ -121,8 +121,13 @@ export default function CompanyDetailPage() {
 
   const companyContacts = useMemo(() => {
     if (!company) return [];
-    const junctionContactIds = new Set(getCompanyContacts(company.id).map((l) => l.contactId));
-    return contacts.filter((c) => junctionContactIds.has(c.id) || c.companyId === company.id);
+    const links = getCompanyContacts(company.id);
+    const junctionContactIds = new Set(links.map((l) => l.contactId));
+    const departedHere = new Set(links.filter((l) => l.departedAt).map((l) => l.contactId));
+    // Uit dienst geldt per bedrijf: iemand kan hier vertrokken zijn en elders in dienst
+    return contacts
+      .filter((c) => junctionContactIds.has(c.id) || c.companyId === company.id)
+      .map((c) => (departedHere.has(c.id) ? { ...c, departed: true } : c));
   }, [contacts, company, getCompanyContacts]);
 
   const contactIds = useMemo(() => new Set(companyContacts.map((c) => c.id)), [companyContacts]);
