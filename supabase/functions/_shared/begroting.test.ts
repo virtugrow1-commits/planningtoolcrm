@@ -93,3 +93,13 @@ Deno.test("buildBegroting: prijzen incl. btw tellen de btw niet dubbel", () => {
   assertEquals(b.btw, "€ 210,00");
   assertEquals(b.totaal, "€ 1.210,00");
 });
+
+Deno.test('twee aanvragen met hetzelfde sjabloon: factuur van de eerdere aanvraag niet kiezen', () => {
+  const list = [
+    { _id: 'oud', name: 'Offerte_sjabloon-Proeverij - Invoice', total: 800, createdAt: '2026-09-01T10:00:00Z' },
+    { _id: 'nieuw', name: 'Offerte_sjabloon-Proeverij - Invoice', total: 1200, createdAt: '2026-11-10T10:00:00Z' },
+  ];
+  assertEquals(pickInvoice(list, 'Offerte_sjabloon-Proeverij', 1200)?._id, 'nieuw');
+  assertEquals(pickInvoice(list, 'Offerte_sjabloon-Proeverij', 800, { notBefore: '2026-11-01T00:00:00Z' }), null);
+  assertEquals(pickInvoice(list, 'Offerte_sjabloon-Proeverij', 999), null);
+});

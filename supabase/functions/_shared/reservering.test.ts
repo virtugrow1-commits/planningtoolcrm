@@ -132,3 +132,9 @@ Deno.test('oude offerte die per ongeluk aan een nieuwe aanvraag gekoppeld is tel
   const docs = [{ id: 'oud-gekoppeld', inquiry_id: 'inq-nieuw', signed_at: '2026-09-25T10:00:00Z' }];
   assertEquals(pickSignedQuoteForInquiry(docs, 'inq-nieuw', '2026-10-26T21:00:00Z'), null);
 });
+
+Deno.test('losse offerte getekend na de volgende aanvraag hoort niet bij de eerdere aanvraag', () => {
+  const docs = [{ id: 'los', inquiry_id: null, signed_at: '2026-11-10T10:00:00Z' }];
+  assertEquals(pickSignedQuoteForInquiry(docs, 'inq-eerst', '2026-10-01T00:00:00Z', '2026-11-01T00:00:00Z'), null);
+  assertEquals(pickSignedQuoteForInquiry(docs, 'inq-later', '2026-11-01T00:00:00Z')?.id, 'los');
+});

@@ -73,19 +73,41 @@ export function korteNaam(naam: string, max = 26): string {
  * 1. naam = "<titel> - Invoice", 2. naam begint met de titel,
  * 3. anders de factuur van dit contact met hetzelfde totaalbedrag.
  */
-export function pickInvoice(invoices: Invoice[], docTitle: string | null | undefined, docAmount: number | null | undefined): Invoice | null {
-  const usable = (invoices ?? []).filter((i) => !['void', 'deleted'].includes(String(i.status || '').toLowerCase()));
+export interface PickInvoiceOptions {
+  /** Facturen die vóór dit moment zijn aangemaakt horen bij een eerdere aanvraag. */
+  notBefore?: string | null;
+}
+
+/**
+ * De factuur die bij de getekende offerte hoort. Offertes uit hetzelfde sjabloon
+ * hebben dezelfde titel; bij meerdere kandidaten moet het bedrag kloppen en kiezen
+ * we de nieuwste. Zonder zekere match: null (liever geen begroting dan een oude).
+ */
+export function pickInvoice(invoices: Invoice[], docTitle: string | null | undefined, docAmount: number | null | undefined, opts: PickInvoiceOptions = {}): Invoice | null {
+  const since = opts.notBefore ? Date.parse(String(opts.notBefore)) : NaN;
+  const usable = (invoices ?? [])
+    .filter((i) => !['void', 'deleted'].includes(String(i.status || '').toLowerCase()))
+    .filter((i) => {
+      if (!Number.isFinite(since)) return true;
+      const c = Date.parse(String(i.createdAt || ''));
+      return !Number.isFinite(c) || c >= since;
+    })
+    .sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')));
+  const amountOk = (i: Invoice) => !(docAmount && docAmount > 0) || (i.total ?? i.invoiceTotal) == null || Math.abs(num(i.total ?? i.invoiceTotal) - docAmount) < 0.01;
+  const choose = (list: Invoice[]) => {
+    const byAmount = list.filter(amountOk);
+    if (docAmount && docAmount > 0) return byAmount[0] ?? null;
+    return list[0];
+  };
   const title = String(docTitle || '').trim().toLowerCase();
   if (title) {
-    const exact = usable.find((i) => String(i.name || '').trim().toLowerCase() === `${title} - invoice`);
+    const exact = choose(usable.filter((i) => String(i.name || '').trim().toLowerCase() === `${title} - invoice`));
     if (exact) return exact;
-    const prefix = usable.find((i) => String(i.name || '').trim().toLowerCase().startsWith(title));
+    const prefix = choose(usable.filter((i) => String(i.name || '').trim().toLowerCase().startsWith(title)));
     if (prefix) return prefix;
   }
   if (docAmount && docAmount > 0) {
-    const byAmount = usable
-      .filter((i) => Math.abs(num(i.total ?? i.invoiceTotal) - docAmount) < 0.01)
-      .sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')));
+    const byAmount = usable.filter(amountOk);
     if (byAmount[0]) return byAmount[0];
   }
   return null;

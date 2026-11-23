@@ -208,7 +208,11 @@ export function buildReserveringData(input: {
  */
 export function pickSignedQuoteForInquiry<T extends { inquiry_id?: string | null; signed_at?: string | null }>(
   docs: T[], inquiryId: string, inquiryCreatedAt?: string | null,
+  /** Aanmaakmoment van de eerstvolgende aanvraag van dit contact: losse offertes die
+   * daarna getekend zijn horen bij die aanvraag. */
+  nextInquiryCreatedAt?: string | null,
 ): T | null {
+  const until = nextInquiryCreatedAt ? Date.parse(String(nextInquiryCreatedAt)) : NaN;
   const byNewest = [...(docs ?? [])].sort((a, b) => String(b.signed_at || '').localeCompare(String(a.signed_at || '')));
   // Op het exacte moment vergelijken: een oude offerte die eerder (ook op dezelfde
   // dag) is getekend hoort nooit bij een aanvraag die daarna binnenkwam — ook niet
@@ -223,8 +227,9 @@ export function pickSignedQuoteForInquiry<T extends { inquiry_id?: string | null
   if (own) return own;
   return byNewest.find((d) => {
     if (d.inquiry_id) return false;
-    if (!Number.isFinite(since)) return true;
     const signed = Date.parse(String(d.signed_at || ''));
+    if (Number.isFinite(until) && Number.isFinite(signed) && signed >= until) return false;
+    if (!Number.isFinite(since)) return true;
     return Number.isFinite(signed) && signed >= since;
   }) ?? null;
 }

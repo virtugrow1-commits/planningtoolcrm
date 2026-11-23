@@ -69,7 +69,7 @@ async function resolveFieldIds(): Promise<Record<string, string>> {
  * ("<titel> - Invoice"), met de geaccepteerde productregels.
  * Vereist de scope invoices.readonly op de private integration.
  */
-async function fetchAcceptedInvoice(ghlContactId: string, docTitle: string | null, docAmount: number | null): Promise<{ invoice: Invoice | null; warning?: string }> {
+async function fetchAcceptedInvoice(ghlContactId: string, docTitle: string | null, docAmount: number | null, notBefore: string | null): Promise<{ invoice: Invoice | null; warning?: string }> {
   const base = `${GHL_API_BASE}/invoices/`;
   const qs = (extra: string) => `?altId=${LOCATION}&altType=location&limit=100&offset=0${extra}`;
   let res = await fetch(`${base}${qs(`&contactId=${encodeURIComponent(ghlContactId)}`)}`, { headers: ghlHeaders });
@@ -80,7 +80,7 @@ async function fetchAcceptedInvoice(ghlContactId: string, docTitle: string | nul
   let list: Invoice[] = (await res.json()).invoices || [];
   // Sommige accounts negeren contactId: dan zelf filteren
   list = list.filter((i) => !i.contactDetails?.id || i.contactDetails.id === ghlContactId);
-  const picked = pickInvoice(list, docTitle, docAmount);
+  const picked = pickInvoice(list, docTitle, docAmount, { notBefore });
   if (!picked?._id) return { invoice: null, warning: list.length ? "Geen factuur gevonden die bij de getekende offerte hoort" : "Contact heeft geen facturen in CliqCRM" };
   if (invoiceLines(picked).length) return { invoice: picked };
   res = await fetch(`${base}${picked._id}${qs("")}`, { headers: ghlHeaders });
@@ -152,6 +152,22 @@ Deno.serve(async (req) => {
     const contact = inq.contacts as any;
     if (!contact) throw new Error("Aanvraag heeft geen gekoppeld contact");
 
+    // Andere aanvragen van hetzelfde contact: een contact kan meerdere aanvragen
+    // (en reserveringen) hebben, maar CliqCRM heeft maar één set velden per contact.
+    const { data: otherInqsRaw } = await db.from("inquiries")
+      .select("id, display_number, created_at, preferred_date, reservation_number, reservering_gestaged_op, deleted_at")
+      .eq("contact_id", contact.id).neq("id", inquiryId);
+    const otherInqs = ((otherInqsRaw ?? []) as any[]).filter((o) => !o.deleted_at);
+    const nextInquiryCreatedAt = otherInqs
+      .map((o) => o.created_at).filter((c) => c && String(c) > String(inq.created_at)).sort()[0] ?? null;
+    const laterStaged = otherInqs
+      .filter((o) => o.reservering_gestaged_op && (!(inq as any).reservering_gestaged_op || String(o.reservering_gestaged_op) > String((inq as any).reservering_gestaged_op)))
+      .sort((a, b) => String(b.reservering_gestaged_op).localeCompare(String(a.reservering_gestaged_op)))[0] ?? null;
+    // Automatisch bijwerken mag nooit de velden van een later klaargezette aanvraag overschrijven.
+    if (refresh && laterStaged) {
+      return jsonResponse({ ok: true, skipped: "other_inquiry_staged_later", andere_aanvraag: laterStaged.display_number });
+    }
+
     // Particulier-vlaggen (companies.is_private) los ophalen
     {
       const ids = [(inq as any).company_id, contact.company_id].filter(Boolean);
@@ -175,7 +191,7 @@ Deno.serve(async (req) => {
         .in("status", ["signed", "paid"])
         .order("signed_at", { ascending: false });
       const signedQuotes = (docs ?? []).filter((d: any) => isQuoteDocument(d, quoteCfg));
-      return pickSignedQuoteForInquiry(signedQuotes as any[], inquiryId, inq.created_at);
+      return pickSignedQuoteForInquiry(signedQuotes as any[], inquiryId, inq.created_at, nextInquiryCreatedAt);
     };
     let signedDoc: any = await findSignedDoc();
     // Net getekend in CliqCRM maar nog niet binnen in BUUT (de sync loopt elke
@@ -213,7 +229,10 @@ Deno.serve(async (req) => {
     if (dates.length) {
       const { data } = await db.from("bookings").select(bookingCols)
         .eq("contact_id", contact.id).is("inquiry_id", null).in("date", dates);
-      extra = data ?? [];
+      // Dagen waarop dit contact een andere aanvraag heeft: losse reserveringen
+      // daar kunnen bij die aanvraag horen, dus niet meenemen.
+      const otherDates = new Set(otherInqs.map((o) => o.preferred_date).filter(Boolean));
+      extra = (data ?? []).filter((b: any) => !otherDates.has(b.date));
     }
     const bookings = [...(inqBookings ?? []), ...extra.filter((e) => !(inqBookings ?? []).some((b: any) => b.id === e.id))];
 
@@ -266,7 +285,7 @@ Deno.serve(async (req) => {
     let invoice: Invoice | null = null;
     if (signedDoc) {
       try {
-        const r = await fetchAcceptedInvoice(ghlId, signedDoc.title, docAmount);
+        const r = await fetchAcceptedInvoice(ghlId, signedDoc.title, docAmount, inq.created_at ?? null);
         invoice = r.invoice;
         begrotingWarning = r.warning;
       } catch (e) {
@@ -308,6 +327,8 @@ Deno.serve(async (req) => {
       begroting_melding: begrotingWarning ?? null,
       velden: data,
       ghl_contact_id: ghlId,
+      // Aanvragen van dit contact die eerder klaargezet waren: hun velden zijn nu vervangen.
+      vervangen_aanvragen: otherInqs.filter((o) => o.reservering_gestaged_op).map((o) => o.display_number).filter(Boolean),
     });
   } catch (e) {
     console.error("stage-reservering:", e);

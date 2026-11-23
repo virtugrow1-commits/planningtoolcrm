@@ -211,6 +211,13 @@ export default function InquiryDetailsTab({ inquiry, editing, form, setForm, con
       if (error) throw error;
       if (data?.ok === false) throw new Error(data?.error || 'Onbekende fout');
       const begrotingOk = data?.begroting_bron === 'factuur';
+      const vervangen: string[] = Array.isArray(data?.vervangen_aanvragen) ? data.vervangen_aanvragen : [];
+      if (vervangen.length) {
+        toast({
+          title: `Velden bevatten nu ${data?.reserveringsnummer ?? 'deze aanvraag'}`,
+          description: `Dit contact heeft ook ${vervangen.join(', ')}. CliqCRM bewaart maar één set gegevens per contact: maak de reserveringsbevestiging nu aan, voordat een andere aanvraag wordt klaargezet.`,
+        });
+      }
       toast({
         title: `Reserveringsbevestiging klaargezet (${data?.reserveringsnummer ?? ''})`,
         description: begrotingOk
