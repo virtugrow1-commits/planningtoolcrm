@@ -35,6 +35,55 @@ function safeEqual(a: string, b: string) {
 
 const UUID = /^[0-9a-f-]{36}$/i;
 const CLOSED = ["lost", "converted", "after_sales", "invoiced"];
+// Mail van de offertetool via het Resend-account van BUUT (daar is send.ontmoetenaandedonge.nl geverifieerd).
+// Afzender bij voorkeur contact@ontmoetenaandedonge.nl; zolang dat domein niet in Resend is geverifieerd
+// automatisch @send.ontmoetenaandedonge.nl (antwoorden gaan altijd naar contact@). Max. 10 ontvangers, 30 MB bijlagen.
+const SEND_DOMAIN = "send.ontmoetenaandedonge.nl";
+const ALLOWED_FROM = /^[a-z0-9._-]+@(send\.)?ontmoetenaandedonge\.nl$/i;
+const EMAIL_RE = /^[^\s@,;<>]+@[^\s@,;<>]+\.[^\s@,;<>]{2,}$/;
+async function sendEmail(b: any): Promise<Response> {
+  const key = Deno.env.get("RESEND_API_KEY");
+  if (!key) return json({ error: "RESEND_API_KEY ontbreekt in BUUT" }, 500);
+  const local = String(b.from_local || "offerte").replace(/[^a-z0-9._-]/gi, "").slice(0, 40) || "offerte";
+  const name = String(b.from_name || "Ontmoeten aan de Donge").replace(/["<>\r\n]/g, "").slice(0, 80);
+  const list = (v: unknown) => (Array.isArray(v) ? v : v ? [v] : []).map((x) => String(x).trim()).filter(Boolean);
+  const to = list(b.to), cc = list(b.cc), bcc = list(b.bcc), replyTo = list(b.reply_to);
+  const all = [...to, ...cc, ...bcc, ...replyTo];
+  if (!to.length || all.length > 10 || all.some((x) => !EMAIL_RE.test(x))) return json({ error: "Ongeldige ontvangers" }, 400);
+  const attachments = (Array.isArray(b.attachments) ? b.attachments : []).slice(0, 5)
+    .map((a: any) => ({ filename: String(a.filename || "document.pdf").slice(0, 120), content: String(a.content || "") }));
+  if (attachments.reduce((n: number, a: any) => n + a.content.length, 0) > 40_000_000) return json({ error: "Bijlagen te groot" }, 400);
+  const preferred = String(b.from_address || "").trim().toLowerCase();
+  const fromList = [...(ALLOWED_FROM.test(preferred) ? [preferred] : []), `${local}@${SEND_DOMAIN}`].filter((v, i, a) => a.indexOf(v) === i);
+  let last: { status: number; message: string } = { status: 0, message: "" };
+  for (const addr of fromList) {
+    const r = await resendSend(key, b, `${name} <${addr}>`, { to, cc, bcc, replyTo, attachments });
+    if (r.ok) return json({ ok: true, id: r.id, from: `${name} <${addr}>` });
+    last = r;
+    // Alleen terugvallen als het domein (nog) niet geverifieerd is; andere fouten direct melden.
+    if (!(r.status === 403 && /not verified|verify your domain/i.test(r.message))) break;
+  }
+  return json({ error: last.message, status: last.status }, 502);
+}
+
+async function resendSend(key: string, b: any, from: string, p: { to: string[]; cc: string[]; bcc: string[]; replyTo: string[]; attachments: any[] }): Promise<{ ok: true; id: string } | { ok: false; status: number; message: string }> {
+  const { to, cc, bcc, replyTo, attachments } = p;
+  const res = await fetch("https://api.resend.com/emails", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json", ...(b.idempotency_key ? { "Idempotency-Key": `${String(b.idempotency_key).slice(0, 200)}:${from.replace(/^.*</, "").replace(/>$/, "")}` } : {}) },
+    body: JSON.stringify({
+      from, to, cc: cc.length ? cc : undefined, bcc: bcc.length ? bcc : undefined,
+      reply_to: replyTo.length ? replyTo : undefined, subject: String(b.subject || "").slice(0, 300),
+      html: typeof b.html === "string" ? b.html : undefined, text: typeof b.text === "string" ? b.text : undefined,
+      attachments: attachments.length ? attachments : undefined,
+    }),
+  });
+  const text = await res.text();
+  let j: any = {}; try { j = JSON.parse(text); } catch { /* keep */ }
+  if (!res.ok) return { ok: false, status: res.status, message: j?.message || text.slice(0, 300) };
+  return { ok: true, id: j.id };
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers });
   const expected = Deno.env.get("OFFERTETOOL_API_KEY");
@@ -112,6 +161,7 @@ Deno.serve(async (req) => {
 
     if (req.method === "POST") {
       const body = await req.json().catch(() => ({}));
+      if (body.action === "send_email") return await sendEmail(body);
       if (body.action !== "document_event") return json({ error: "Onbekende action" }, 400);
       const inquiryId = String(body.inquiry_id ?? "");
       const externalId = String(body.external_id ?? "");
