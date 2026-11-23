@@ -20,3 +20,6 @@ verify_jwt = false
 
 [functions.crm-read-api]
 verify_jwt = false
+
+[functions.offertetool-api]
+verify_jwt = false

@@ -37,6 +37,9 @@ import { parseInquiryMessage } from '@/lib/inquiryMessage';
 import OfferteOntvangerPicker from '@/components/inquiry/OfferteOntvangerPicker';
 import AanvangTijden, { saveAanvangTijden, type Tijden } from '@/components/inquiry/AanvangTijden';
 
+/** Adres van de offertetool (eigen app). Leeg = knop niet tonen. */
+const OFFERTETOOL_URL = String(import.meta.env.VITE_OFFERTETOOL_URL ?? '').replace(/\/$/, '');
+
 const PIPELINE_COLUMNS: { key: Inquiry['status']; label: string; badgeClass: string }[] = [
   { key: 'new', label: 'Nieuwe Aanvraag', badgeClass: 'status-new' },
   { key: 'contacted', label: 'Lopend Contact', badgeClass: 'status-contacted' },
@@ -353,6 +356,14 @@ export default function InquiryDetailsTab({ inquiry, editing, form, setForm, con
               ) : (
                 <Button variant="secondary" size="sm" className="w-full" onClick={onCreateOption}>
                   <CalendarPlus size={14} className="mr-1" /> Maak optie
+                </Button>
+              )}
+
+              {OFFERTETOOL_URL && (
+                <Button variant="default" size="sm" className="w-full" asChild>
+                  <a href={`${OFFERTETOOL_URL}/offertes/nieuw?buut=${inquiry.id}`} target="_blank" rel="noopener noreferrer">
+                    <FileText size={14} className="mr-1" /> Offerte maken in de offertetool
+                  </a>
                 </Button>
               )}
 

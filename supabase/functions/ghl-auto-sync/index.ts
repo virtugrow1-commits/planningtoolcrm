@@ -2488,7 +2488,8 @@ async function syncDocuments(supabase: any, ghlHeaders: any, locationId: string,
       const live = new Set(docIds.map(String));
       const { data: crmDocs } = await supabase.from('documents').select('id, ghl_document_id')
         .eq('user_id', userId).not('ghl_document_id', 'is', null);
-      const gone = (crmDocs || []).filter((d: any) => !live.has(String(d.ghl_document_id))).map((d: any) => d.id);
+      // Documenten uit de offertetool ("offertetool:<id>") bestaan niet in CliqCRM en blijven staan.
+      const gone = (crmDocs || []).filter((d: any) => !String(d.ghl_document_id).startsWith('offertetool:') && !live.has(String(d.ghl_document_id))).map((d: any) => d.id);
       // Veiligheidsgrens: nooit in één keer een groot deel van het archief weghalen
       if (gone.length > 0 && gone.length <= Math.max(5, Math.floor((crmDocs || []).length * 0.2))) {
         const { error } = await supabase.from('documents').delete().in('id', gone);
