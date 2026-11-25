@@ -39,7 +39,7 @@ import OfferteOntvangerPicker from '@/components/inquiry/OfferteOntvangerPicker'
 import AanvangTijden, { saveAanvangTijden, type Tijden } from '@/components/inquiry/AanvangTijden';
 
 /** Adres van de offertetool (eigen app); te overschrijven met VITE_OFFERTETOOL_URL. */
-const OFFERTETOOL_URL = String(import.meta.env.VITE_OFFERTETOOL_URL || 'https://offerte-tool-aan-de-donge.lovable.app').replace(/\/$/, '');
+const OFFERTETOOL_URL = String(import.meta.env.VITE_OFFERTETOOL_URL || 'https://offertemodulle.cliqmakers.nl').replace(/\/$/, '');
 
 const PIPELINE_COLUMNS: { key: Inquiry['status']; label: string; badgeClass: string }[] = [
   { key: 'new', label: 'Nieuwe Aanvraag', badgeClass: 'status-new' },
