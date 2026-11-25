@@ -37,6 +37,7 @@ import ConflictAlertDialog from '@/components/calendar/ConflictAlertDialog';
 import { exportToCSV } from '@/lib/csvExport';
 import { SortableHeader, useSortState } from '@/components/SortableHeader';
 import { bookingsForInquiry } from '@/lib/inquiryBookings';
+import { timesFromInquiry, roomFromPreference, localDateFromIso } from '@/lib/inquiryTimes';
 import PageHeader from '@/components/PageHeader';
 import ListSkeleton from '@/components/ListSkeleton';
 
@@ -92,14 +93,12 @@ interface DateOption {
   status: 'confirmed' | 'option';
 }
 
-const createDateOption = (): DateOption => ({
+/** Nieuwe datumoptie; vanuit een aanvraag met de voorkeursdatum, -tijd (of dagdeel) en zaal van de klant. */
+const createDateOption = (inq?: Inquiry | null, withDate = true): DateOption => ({
   id: `opt-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-  date: undefined,
-  startHour: 9,
-  startMinute: 0,
-  endHour: 17,
-  endMinute: 0,
-  room: '',
+  date: inq && withDate ? localDateFromIso(inq.preferredDate) : undefined,
+  ...timesFromInquiry(inq ?? {}),
+  room: inq ? roomFromPreference(inq.roomPreference) : '',
   status: 'option',
 });
 
@@ -384,7 +383,7 @@ export default function InquiriesPage() {
 
   const openScheduleDialog = (inq: Inquiry) => {
     setSelectedInquiry(inq);
-    setDateOptions([createDateOption()]);
+    setDateOptions([createDateOption(inq)]);
     setRecurrence('none');
     setRepeatCount('4');
     setScheduleOpen(true);
@@ -392,7 +391,7 @@ export default function InquiriesPage() {
 
   const addDateOption = () => {
     if (dateOptions.length >= 3) return;
-    setDateOptions((prev) => [...prev, createDateOption()]);
+    setDateOptions((prev) => [...prev, createDateOption(selectedInquiry, false)]);
   };
 
   const removeDateOption = (id: string) => {
