@@ -85,6 +85,13 @@
       "when": 1795193620481,
       "tag": "0011_restrict_task_suppressions",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1795690415667,
+      "tag": "0012_ensure_contact_company_from_record",
+      "breakpoints": true
     }
   ]
 }
